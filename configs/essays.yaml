@@ -1,0 +1,37 @@
+topics:
+  - id: "history"
+    name: "History"
+    description: "Historical events, figures, and artifacts from the region."
+    max_words: 800
+  - id: "aviation"
+    name: "Aviation"
+    description: "Aviation history, famous pilots, and aerospace achievements of the area."
+    max_words: 500
+  - id: "geology"
+    name: "Geology"
+    description: "Geological formations, mineral resources, and natural wonders."
+    max_words: 800
+  - id: "anthropology"
+    name: "Anthropology & Culture"
+    description: "Indigenous cultures, traditions, and societal evolution."
+    max_words: 800
+  - id: "politics"
+    name: "Politics"
+    description: "Political history, significant governance changes, and local movements."
+    max_words: 500
+  - id: "economy"
+    name: "Economy"
+    description: "Economic drivers, industrial evolution, and local trade history."
+    max_words: 500
+  - id: "fauna"
+    name: "Fauna"
+    description: "Unique wildlife, conservation efforts, and regional biology."
+    max_words: 300
+  - id: "flora"
+    name: "Flora"
+    description: "Regional plant life, forests, and botanical history."
+    max_words: 300
+  - id: "criminal_cases"
+    name: "Criminal Cases & Mystery"
+    description: "Famous regional mysteries, historical crimes, and local legends."
+    max_words: 800

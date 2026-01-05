@@ -1,0 +1,201 @@
+import { useEffect, Fragment } from 'react';
+import { MapContainer, TileLayer, Marker, useMap, Circle } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { useTelemetry } from '../hooks/useTelemetry';
+import { AircraftMarker } from './AircraftMarker';
+import { CacheLayer } from './CacheLayer';
+import { VisibilityLayer } from './VisibilityLayer';
+import { POIMarker } from './POIMarker';
+import type { POI } from '../hooks/usePOIs';
+import { useNarrator } from '../hooks/useNarrator';
+import { useMapEvents } from 'react-leaflet';
+import { isPOIVisible } from '../utils/poiUtils';
+
+
+// Zoom level calculations:
+// At zoom 13: ~10km visible (min area)
+// At zoom 8: ~300km visible (max area)
+// We'll use zoom 8-13 to cover 10-200km range
+const MIN_ZOOM = 8;  // ~200km area
+const MAX_ZOOM = 13; // ~10km area
+const DEFAULT_ZOOM = 10;
+
+// Helper to recenter map with heading-based offset
+// Offsets the map center forward of the aircraft by 25% of the smaller map dimension
+const Recenter = ({ mapCenter, heading }: { mapCenter: [number, number]; heading: number }) => {
+    const map = useMap();
+    useEffect(() => {
+        const [lat, lon] = mapCenter;
+
+        // Calculate offset in pixels (25% of smaller map dimension)
+        const mapSize = map.getSize();
+        const offsetPx = Math.min(mapSize.x, mapSize.y) * 0.25;
+
+        // Convert heading to radians
+        const hdgRad = heading * (Math.PI / 180);
+
+        // Calculate pixel offset from aircraft position
+        // Forward direction in map coordinates (y is inverted)
+        const dx = offsetPx * Math.sin(hdgRad);
+        const dy = -offsetPx * Math.cos(hdgRad);
+
+        // Project aircraft position to screen coordinates
+        const aircraftPoint = map.project([lat, lon], map.getZoom());
+
+        // Add offset to get new center point
+        const centerPoint = L.point(aircraftPoint.x + dx, aircraftPoint.y + dy);
+
+        // Unproject back to lat/lon
+        const centerLatLng = map.unproject(centerPoint, map.getZoom());
+
+        map.panTo(centerLatLng, { animate: true, duration: 0.1 });
+    }, [mapCenter, heading, map]);
+    return null;
+};
+
+const AircraftPaneSetup = () => {
+    const map = useMap();
+    useEffect(() => {
+        if (!map.getPane('aircraftPane')) {
+            map.createPane('aircraftPane');
+            const pane = map.getPane('aircraftPane');
+            if (pane) pane.style.zIndex = '2000';
+        }
+    }, [map]);
+    return null;
+};
+
+const MapEvents = ({ onClick }: { onClick: () => void }) => {
+    useMapEvents({
+        click: () => onClick(),
+    });
+    return null;
+};
+
+// Range rings component
+const RangeRings = ({ lat, lon, units }: { lat: number; lon: number; units: 'km' | 'nm' }) => {
+    // Conversion to meters
+    const kmToM = 1000;
+    const nmToM = 1852;
+    const unitToM = units === 'nm' ? nmToM : kmToM;
+
+    // Ring distances are the same nice values in user's selected unit
+    const RING_DISTANCES = [5, 10, 20, 50, 100];
+
+    // Degrees latitude per km (approx)
+    const degPerKm = 1 / 111;
+
+    return (
+        <>
+            {RING_DISTANCES.map(dist => {
+                // Convert to meters based on unit
+                const radiusM = dist * unitToM;
+                // For label positioning, convert to km for lat offset
+                // Add small offset north so label sits ON the ring line
+                const radiusKm = radiusM / kmToM;
+                const labelOffsetKm = 1; // 1km extra north
+                const topLat = lat + ((radiusKm + labelOffsetKm) * degPerKm);
+
+                return (
+                    <Fragment key={dist}>
+                        <Circle
+                            center={[lat, lon]}
+                            radius={radiusM}
+                            pathOptions={{
+                                color: '#4a9eff',
+                                weight: 1,
+                                opacity: 0.4,
+                                fillOpacity: 0,
+                                dashArray: '5, 5',
+                            }}
+                        />
+                        {/* Only label rings 10+ */}
+                        {dist >= 10 && (
+                            <Marker
+                                position={[topLat, lon]}
+                                icon={L.divIcon({
+                                    className: 'range-label',
+                                    html: `<span>${dist} ${units}</span>`,
+                                    iconSize: [50, 18],
+                                    iconAnchor: [25, 9],
+                                })}
+                            />
+                        )}
+                    </Fragment>
+                );
+            })}
+        </>
+    );
+};
+
+interface MapProps {
+    units: 'km' | 'nm';
+    showCacheLayer: boolean;
+    showVisibilityLayer: boolean;
+    pois: POI[];
+    minPoiScore: number;
+    selectedPOI: POI | null;
+    onPOISelect: (poi: POI) => void;
+    onMapClick: () => void;
+}
+
+export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiScore, selectedPOI, onPOISelect, onMapClick }: MapProps) => {
+
+    const { data: telemetry } = useTelemetry();
+    const { status: narratorStatus } = useNarrator();
+
+    // Determine the currently narrated POI ID
+    const currentNarratedId = narratorStatus?.playback_status !== 'idle' && narratorStatus?.current_poi
+        ? narratorStatus.current_poi.wikidata_id
+        : null;
+
+    // Default to Berlin if no telemetry yet
+    const center: [number, number] = telemetry ? [telemetry.Latitude, telemetry.Longitude] : [52.52, 13.40];
+
+    return (
+        <MapContainer
+            center={center}
+            zoom={DEFAULT_ZOOM}
+            minZoom={MIN_ZOOM}
+            maxZoom={MAX_ZOOM}
+            style={{ height: '100%', width: '100%' }}
+            zoomControl={false}
+            dragging={false}
+            scrollWheelZoom={true}
+            doubleClickZoom={false}
+            touchZoom={false}
+        >
+            <MapEvents onClick={onMapClick} />
+            <AircraftPaneSetup />
+            <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            />
+            {showCacheLayer && <CacheLayer />}
+            <VisibilityLayer enabled={showVisibilityLayer} />
+            {telemetry && (
+
+                <>
+                    <RangeRings lat={telemetry.Latitude} lon={telemetry.Longitude} units={units} />
+                    <Recenter mapCenter={[telemetry.Latitude, telemetry.Longitude]} heading={telemetry.Heading} />
+                    <div style={{ display: 'none' }}>Reference for Pane Creation</div>
+                    <AircraftMarker
+                        lat={telemetry.Latitude}
+                        lon={telemetry.Longitude}
+                        heading={telemetry.Heading}
+                    />
+                </>
+            )}
+
+            {pois.filter(p => isPOIVisible(p, minPoiScore) || p.wikidata_id === currentNarratedId).map((poi) => (
+                <POIMarker
+                    key={poi.wikidata_id}
+                    poi={poi}
+                    highlighted={poi.wikidata_id === currentNarratedId || poi.wikidata_id === selectedPOI?.wikidata_id}
+                    onClick={onPOISelect}
+                />
+            ))}
+        </MapContainer>
+    );
+};

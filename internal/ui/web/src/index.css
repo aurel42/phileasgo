@@ -1,0 +1,710 @@
+:root {
+  --bg-color: #0f0f0f;
+  --text-color: #e0e0e0;
+  --panel-bg: #141414;
+  /* Solid background for sidebar */
+  --card-bg: rgba(25, 25, 25, 0.95);
+  --accent: #00d9ff;
+  --success: #4caf50;
+  --error: #ff4d4d;
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --sidebar-width: 30vw;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: var(--font-family);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Main Layout */
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+.map-container {
+  flex: 1;
+  position: relative;
+  background: #000;
+}
+
+.dashboard-container {
+  width: var(--sidebar-width);
+  min-width: 360px;
+  background: var(--panel-bg);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+/* Dashboard / InfoPanel Components */
+/* Re-using hud classes but removing absolute positioning */
+
+.hud-container {
+  /* position: absolute; REMOVED */
+  /* bottom/right REMOVED */
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+
+/* Flex Layout */
+.flex-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.flex-card {
+  background: var(--card-bg);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 100px;
+}
+
+/* Header */
+.hud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.status-pill {
+  background: var(--card-bg);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: #888;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background-color: #444;
+}
+
+.status-dot.connected {
+  background-color: var(--success);
+  box-shadow: 0 0 5px var(--success);
+}
+
+.status-dot.error {
+  background-color: var(--error);
+}
+
+/* Status Text Helpers */
+.hud-header.loading {
+  color: #888;
+}
+
+.hud-header.error {
+  color: var(--error);
+}
+
+
+/* Grid Cards */
+.hud-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.hud-card {
+  background: var(--card-bg);
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  /* min-height: 70px; REMOVED to allow compact collapsed state */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.hud-card.full-width {
+  grid-column: span 2;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.label {
+  color: #666;
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+  transition: color 0.2s;
+}
+
+.label.interactive:hover {
+  color: #fff;
+}
+
+.value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #eee;
+}
+
+.unit {
+  font-size: 12px;
+  color: #666;
+  font-weight: 400;
+  margin-left: 2px;
+}
+
+.sub-value {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.value.sm {
+  font-size: 13px;
+  font-family: monospace;
+  color: #bbb;
+}
+
+.highlight {
+  color: #fff;
+}
+
+.flight-stage {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--success);
+  background: rgba(76, 175, 80, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(76, 175, 80, 0.2);
+}
+
+/* Aircraft Marker */
+.aircraft-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent !important;
+  border: none !important;
+}
+
+.plane-icon {
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.8));
+}
+
+/* Range ring labels */
+.range-label {
+  background: transparent !important;
+  border: none !important;
+}
+
+.range-label span {
+  font-size: 14px;
+  font-family: 'Inter', monospace;
+  color: rgba(74, 158, 255, 0.7);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* POI Marker Background */
+.poi-marker-bg {
+  width: 32px;
+  height: 32px;
+  background-color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  border: 2px solid white;
+  /* Ensures clean edge */
+}
+
+.poi-marker-bg img {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+/* --- New Styles for Expanded Dashboard --- */
+
+/* Col Layout: Vertical Stack (Label Top, Content Bottom) */
+.hud-card.col-layout {
+  grid-column: span 2;
+  flex-direction: column;
+  align-items: flex-start;
+  /* content left */
+  gap: 8px;
+  height: auto;
+}
+
+/* Reset full-width to be row by default (Flight Data) */
+/* This was getting overridden or confused before */
+/* Reset full-width to be row by default (Flight Data) */
+/* This was getting overridden or confused before */
+.hud-card.full-width {
+  grid-column: span 2;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* --- Standard Typography Scores --- */
+/* BIG: 22px (AGL, HDG, Speed) */
+.big,
+.alt-primary,
+.value.big,
+.unit.big {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* SMALL: 15px (Everything else) */
+.small,
+.alt-secondary,
+.unit.small,
+.coord-row,
+.coord-val,
+.stat-value,
+.stat-label,
+.config-label,
+.label,
+.radio-label,
+.version-info,
+.flight-stage,
+.text-pct {
+  font-size: 15px !important;
+  /* Force override */
+  font-family: 'Inter', monospace;
+}
+
+/* Specific styling adjustments keeping the size constant */
+.alt-secondary {
+  font-weight: 400;
+  color: #ccc;
+}
+
+.coord-row {
+  font-family: monospace;
+  color: #ddd;
+}
+
+.coord-val {
+  color: #fff;
+}
+
+.stat-value {
+  font-weight: 700;
+  color: #ccc;
+  font-family: monospace;
+}
+
+.stat-label {
+  color: #666;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.config-label,
+.label {
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #aaa;
+}
+
+.label.interactive:hover {
+  color: #fff;
+}
+
+.version-info {
+  font-family: monospace;
+}
+
+.version-info.clean {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.version-info.warning {
+  color: #ffd700;
+}
+
+/* Colors */
+.text-green {
+  color: var(--success);
+}
+
+.text-red {
+  color: var(--error);
+}
+
+.text-grey {
+  color: #666;
+}
+
+.text-sep {
+  color: #444;
+  margin: 0 4px;
+}
+
+.text-pct {
+  color: #888;
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+
+/* Flight Data Card Layout */
+.divider-line {
+  /* Default Landscape: Horizontal Divider */
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 8px 0;
+}
+
+.hud-card.flight-data {
+  /* Default: Column */
+  justify-content: center;
+}
+
+/* Coords Layout */
+.value-group.coords-group {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: center;
+  /* Centered */
+  align-items: center;
+  gap: 24px;
+  /* More spacing between the two items */
+  width: 100%;
+}
+
+.coord-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+/* Stats Layout */
+.stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.stat-pct {
+  color: #888;
+  font-weight: 400;
+  /* Small class applied in HTML will handle size (15px) */
+}
+
+
+/* --- Responsive Layout (Portrait or Mobile) --- */
+@media (orientation: portrait),
+(max-width: 900px) {
+  .app-container {
+    flex-direction: column;
+    /* Map Top, Sidebar Bottom */
+  }
+
+  /* Force container to fill remaining height or flexible */
+  #root,
+  body {
+    overflow: hidden;
+    /* Prevent double scrollbars, let containers handle it */
+  }
+
+  .map-container {
+    height: 50vh;
+    /* Fixed height for map */
+    width: 100%;
+    flex: none;
+  }
+
+  .dashboard-container {
+    width: 100%;
+    /* Full width */
+    height: 50vh;
+    /* Remaining half */
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 16px;
+    overflow-y: auto;
+    /* Scrollable dashboard */
+
+    /* Ensure boxes align at the top */
+    justify-content: flex-start;
+  }
+
+  /* Compact grid for portrait dashboard */
+  .hud-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .hud-card.full-width {
+    grid-column: span 2;
+  }
+
+  .hud-card.col-layout {
+    grid-column: span 1;
+    /* Stats/Config side-by-side if space permits, or usually stack in narrow */
+  }
+
+  /* PORTRAIT FLIGHT DATA: Side-by-Side */
+  .hud-card.flight-data {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-evenly;
+    /* Spread them out */
+  }
+
+  .hud-card.flight-data .divider-line {
+    width: 1px;
+    height: 40px;
+    /* Vertical height */
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0 12px;
+  }
+
+  /* Remove default margins for groups in portrait */
+  .hud-card.flight-data .value-group {
+    margin: 0;
+    padding: 0;
+    border: none;
+    align-items: center;
+    /* Center align text */
+  }
+}
+
+/* Connection Warning Overlay */
+.connection-warning {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(220, 38, 38, 0.95);
+  /* Strong Red */
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+  /* Above Leaflet controls */
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translate(-50%, -20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+/* --- Dark Theme Tooltips --- */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background-color: var(--panel-bg);
+  color: var(--text-color);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.leaflet-popup-content {
+  margin: 14px 16px;
+  line-height: 1.5;
+}
+
+/* Links inside tooltips */
+.leaflet-popup-content a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.leaflet-popup-content a:hover {
+  text-decoration: underline;
+}
+
+/* Close button styling */
+.leaflet-container a.leaflet-popup-close-button {
+  color: #888;
+  font-size: 16px;
+  padding: 8px 8px 0 0;
+}
+
+.leaflet-container a.leaflet-popup-close-button:hover {
+  color: #fff;
+}
+
+/* --- Playback Controls --- */
+.playback-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px;
+  background: var(--card-bg);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 24px;
+}
+
+.playback-title {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  min-height: 14px;
+  /* Maintain height to avoid jumpiness */
+}
+
+.playback-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.btn-icon:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.btn-icon--active {
+  color: var(--success);
+}
+
+.btn-icon--active:hover {
+  color: #6be66b;
+}
+
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  margin-left: 8px;
+  color: #666;
+  min-width: 0;
+}
+
+.volume-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  outline: none;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 12px;
+  margin-left: 2px;
+}
+
+/* Specific Stat Card Styling */
+.stat-card {
+  flex: 1 1 100px;
+  justify-content: flex-start;
+  /* Can be smaller */
+}
+
+.stat-success {
+  color: var(--success);
+}
+
+.stat-error {
+  color: var(--error);
+}
+
+.stat-neutral {
+  color: #666;
+}
+
+/* Remove old rigid structures where possible or just don't use them in the new JSX */

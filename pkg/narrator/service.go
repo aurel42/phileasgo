@@ -1,0 +1,173 @@
+// Package narrator provides narration services for POIs.
+package narrator
+
+import (
+	"context"
+	"log/slog"
+	"phileasgo/pkg/model"
+	"phileasgo/pkg/sim"
+	"sync"
+)
+
+// Service defines the interface for narration control.
+type Service interface {
+	// Start starts the narrator service.
+	Start()
+	// Stop stops the narrator service.
+	Stop()
+	// IsActive returns true if narrator is currently generating or playing.
+	IsActive() bool
+	// NarratedCount returns the number of narrated POIs in this session.
+	NarratedCount() int
+	// Stats returns narrator statistics.
+	Stats() map[string]any
+	// IsPlaying returns true if narration audio is currently playing.
+	IsPlaying() bool
+	// PlayPOI triggers narration for a specific POI.
+	PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry)
+	// PlayEssay triggers a regional essay narration.
+	PlayEssay(ctx context.Context, tel *sim.Telemetry) bool
+	// SkipCooldown forces the cooldown to expire immediately.
+	SkipCooldown()
+	// ShouldSkipCooldown returns true if the cooldown should be skipped.
+	ShouldSkipCooldown() bool
+	// ResetSkipCooldown resets the skip cooldown flag.
+	ResetSkipCooldown()
+	// IsPaused returns true if the narrator is globally paused by the user.
+	IsPaused() bool
+	// CurrentPOI returns the POI currently being narrated, if any.
+	CurrentPOI() *model.POI
+	// CurrentTitle returns the title of the current narration.
+	CurrentTitle() string
+}
+
+// StubService is a stub implementation of the narrator service.
+// It logs calls but does not generate actual audio.
+type StubService struct {
+	mu           sync.RWMutex
+	running      bool
+	active       bool
+	narratedPOIs map[string]bool
+	stats        map[string]any
+	skipCooldown bool
+}
+
+// NewStubService creates a new stub narrator service.
+func NewStubService() *StubService {
+	return &StubService{
+		narratedPOIs: make(map[string]bool),
+		stats: map[string]any{
+			"gemini_text_success": 0,
+			"gemini_text_fail":    0,
+			"gemini_tts_success":  0,
+			"gemini_tts_fail":     0,
+			"gemini_text_active":  false,
+			"gemini_tts_active":   false,
+		},
+		skipCooldown: false,
+	}
+}
+
+// Start starts the stub narrator service.
+func (s *StubService) Start() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.running = true
+	slog.Info("Narrator stub service started")
+}
+
+// Stop stops the stub narrator service.
+func (s *StubService) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.running = false
+	slog.Info("Narrator stub service stopped")
+}
+
+// IsActive returns true if narrator is currently active.
+func (s *StubService) IsActive() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.active
+}
+
+// NarratedCount returns the number of narrated POIs.
+func (s *StubService) NarratedCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.narratedPOIs)
+}
+
+// Stats returns narrator statistics.
+func (s *StubService) Stats() map[string]any {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// Return a copy to avoid race conditions
+	result := make(map[string]any, len(s.stats))
+	for k, v := range s.stats {
+		result[k] = v
+	}
+	return result
+}
+
+// PlayPOI triggers narration for a specific POI (stub: just logs).
+func (s *StubService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if manual {
+		slog.Info("Narrator stub: manual play requested", "poi_id", poiID)
+	} else {
+		slog.Info("Narrator stub: automated play triggering", "poi_id", poiID)
+	}
+	s.narratedPOIs[poiID] = true
+}
+
+// PlayEssay triggers a regional essay narration (stub).
+func (s *StubService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	slog.Info("Narrator stub: essay play requested")
+	return true
+}
+
+// SkipCooldown forces the cooldown to expire immediately (stub: sets flag).
+func (s *StubService) SkipCooldown() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.skipCooldown = true
+	slog.Debug("Narrator stub: skip cooldown requested")
+}
+
+// ShouldSkipCooldown returns true if the cooldown should be skipped.
+func (s *StubService) ShouldSkipCooldown() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.skipCooldown
+}
+
+// ResetSkipCooldown resets the skip cooldown flag.
+func (s *StubService) ResetSkipCooldown() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.skipCooldown = false
+}
+
+// IsPlaying returns true if narration audio is currently playing (stub: always false).
+func (s *StubService) IsPlaying() bool {
+	return false
+}
+
+// IsPaused returns true if the narrator is globally paused (stub: always false).
+func (s *StubService) IsPaused() bool {
+	return false
+}
+
+// CurrentPOI returns the POI currently being narrated (stub: always nil).
+func (s *StubService) CurrentPOI() *model.POI {
+	return nil
+}
+
+// CurrentTitle returns the title of the current narration (stub: empty).
+func (s *StubService) CurrentTitle() string {
+	return ""
+}

@@ -1,0 +1,227 @@
+category_groups:
+  Settlements: ["City", "Town", "Village"]
+  Attractions: ["Aquarium", "Attraction", "Monument", "Museum", "Stadium", "Theme Park", "Zoo"]
+  Natural: ["Beach", "Nature", "Park", "Peak", "Volcano", "Water", "Wetland"]
+  Aerodromes: ["Aerodrome", "Military"]
+
+categories:
+  Aerodrome:
+    qids:
+      "Q62447": "aerodrome"
+      "Q136310637": "former aerodrome"
+    weight: 1.7
+    icon: "airfield"
+    size: "L"
+  Aquarium:
+    qids:
+      "Q45782": "aquarium"
+    weight: 1.1
+    icon: "aquarium"
+    size: "S"
+  Attraction:
+    qids:
+      "Q570116": "tourist attraction"
+    weight: 1.2
+    icon: "attraction"
+    size: "S"
+  Beach:
+    qids:
+      "Q40080": "beach"
+    weight: 1.1
+    icon: "beach"
+    size: "M"
+  Bridge:
+    qids:
+      "Q12280": "bridge"
+    weight: 1.0
+    icon: "bridge"
+    size: "M"
+  Castle:
+    qids:
+      "Q23413": "castle"
+      "Q57821": "fortification"
+    weight: 1.2
+    icon: "castle"
+    size: "M"
+  City:
+    qids:
+      "Q515": "city"
+    weight: 0.8
+    icon: "city"
+    sitelinks_min: 5
+    size: "XL"
+  Dam:
+    qids:
+      "Q12323": "dam"
+    weight: 1.4
+    icon: "dam"
+    size: "M"
+  Industry:
+    qids:
+      "Q159719": "power station"
+      "Q329683": "industrial zone"
+      "Q83405": "factory"
+      "Q12353044": "oil refinery"
+      "Q905286": "chemical plant"
+      "Q2069494": "steel mill"
+      "Q190928": "shipyard"
+      "Q15104297": "open-pit mining"
+      "Q15310171": "seaport"
+    weight: 1.3
+    icon: "industry"
+    size: "L"
+  Lighthouse:
+    qids:
+      "Q39715": "lighthouse"
+    weight: 1.1
+    icon: "lighthouse"
+    size: "S"
+  Military:
+    qids:
+      "Q1778846": "military training area"
+      "Q245016": "military base"
+      "Q131263": "barracks"
+    weight: 1.2
+    icon: "cemetery"
+    size: "L"
+  Monument:
+    qids:
+      "Q4989906": "monument"
+    weight: 1.3
+    icon: "monument"
+    size: "M"
+  Museum:
+    qids:
+      "Q33506": "museum"
+    weight: 1.15
+    icon: "museum"
+    sitelinks_min: 5
+    size: "S"
+  Nature:
+    qids:
+      "Q46169": "national park"
+      "Q179049": "nature reserve"
+      "Q759421": "Naturschutzgebiet"
+      "Q35145263": "natural geographic object"
+      "Q27096220": "natural geographic entity"
+    weight: 1.3
+    icon: "natural"
+    size: "XL"
+  Park:
+    qids:
+      "Q22698": "park"
+    weight: 1.2
+    icon: "park"
+    sitelinks_min: 2
+    size: "M"
+  Peak:
+    qids:
+      "Q8502": "mountain"
+    weight: 1.25
+    icon: "mountain"
+    size: "XL"
+  Racetrack:
+    qids:
+      "Q1777138": "race track"
+    weight: 1.4
+    icon: "racetrack"
+    size: "L"
+  Railway:
+    qids:
+      "Q55488": "railway station"
+    weight: 1.0
+    icon: "rail"
+    sitelinks_min: 5
+    size: "M"
+  Religious:
+    qids:
+      "Q2977": "cathedral"
+      "Q44613": "monastery"
+      "Q16970": "church building"
+      "Q44539": "temple"
+    weight: 1.1
+    icon: "religious-buddhist"
+    sitelinks_min: 10
+    size: "S"
+  Spaceflight:
+    qids:
+      "Q2333223": "launch and/or landing site"
+      "Q1933026": "launch site"
+    weight: 1.0
+    icon: "rocket"
+    size: "L"
+  Stadium:
+    qids:
+      "Q483110": "stadium"
+    weight: 1.2
+    icon: "stadium"
+    sitelinks_min: 5
+    size: "M"
+  Theme Park:
+    qids:
+      "Q194195": "amusement park"
+      "Q2416723": "theme park"
+    weight: 1.2
+    icon: "amusement-park"
+    size: "L"
+  Tower:
+    qids:
+      "Q11166728": "television tower"
+      "Q1798641": "communication tower"
+    weight: 1.3
+    icon: "communications-tower"
+    size: "M"
+  Town:
+    qids:
+      "Q3957": "town"
+    weight: 0.4
+    icon: "town"
+    sitelinks_min: 5
+    size: "L"
+  Village:
+    qids:
+      "Q532": "village"
+    weight: 0.3
+    icon: "village"
+    sitelinks_min: 3
+    size: "M"
+  Volcano:
+    qids:
+      "Q8072": "volcano"
+    weight: 1.4
+    icon: "volcano"
+    size: "XL"
+  Water:
+    qids:
+      "Q23397": "lake"
+      "Q131681": "reservoir"
+      "Q4022": "river"
+      "Q34038": "waterfall"
+    weight: 1.0
+    icon: "water"
+    sitelinks_min: 3
+    size: "L"
+  Wetland:
+    qids:
+      "Q170321": "wetland"
+    weight: 1.2
+    icon: "wetland"
+    size: "XL"
+  Zoo:
+    qids:
+      "Q43501": "zoo"
+    weight: 1.1
+    icon: "zoo"
+    size: "M"
+
+
+merge_distance:
+  S: 100
+  M: 500
+  L: 2000
+  XL: 5000
+
+ignored_categories:
+  "Q56061": "Administrative Territorial Entity"
+  "Q1048835": "political territorial entity"
+  "Q51041800": "Religious administrative entity"

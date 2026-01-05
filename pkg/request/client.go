@@ -1,0 +1,250 @@
+package request
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"log/slog"
+	"math"
+	"net/http"
+	"net/url"
+	"sync"
+	"time"
+
+	"bytes"
+	"phileasgo/pkg/cache"
+	"phileasgo/pkg/tracker"
+	"phileasgo/pkg/version"
+	"strings"
+)
+
+var (
+	defaultUserAgent = fmt.Sprintf("Phileas Tour Guide for MSFS (Phileas/%s; aurel42@gmail.com)", version.Version)
+)
+
+// Client handles HTTP requests with queuing, caching, and tracking.
+type Client struct {
+	httpClient *http.Client
+	cache      cache.Cacher
+	tracker    *tracker.Tracker
+
+	// Queues per provider (domain)
+	queues map[string]chan job
+	mu     sync.Mutex // Protects queues map
+}
+
+// job represents a queued request.
+type job struct {
+	req      *http.Request
+	headers  map[string]string
+	cacheKey string
+	respChan chan jobResult
+}
+
+type jobResult struct {
+	body []byte
+	err  error
+}
+
+// New creates a new Client.
+func New(c cache.Cacher, t *tracker.Tracker) *Client {
+	return &Client{
+		httpClient: &http.Client{Timeout: 300 * time.Second},
+		cache:      c,
+		tracker:    t,
+		queues:     make(map[string]chan job),
+	}
+}
+
+// Get performs a GET request with queuing and caching if key is provided.
+func (c *Client) Get(ctx context.Context, u, cacheKey string) ([]byte, error) {
+	return c.GetWithHeaders(ctx, u, nil, cacheKey)
+}
+
+// GetWithHeaders performs a GET request with custom headers and optional caching.
+func (c *Client) GetWithHeaders(ctx context.Context, u string, headers map[string]string, cacheKey string) ([]byte, error) {
+	parsedURL, err := url.Parse(u)
+	if err != nil {
+		return nil, fmt.Errorf("invalid url: %w", err)
+	}
+	host := parsedURL.Host
+	provider := normalizeProvider(host)
+
+	// 1. Check Cache (Only if key is provided)
+	if cacheKey != "" {
+		if val, hit := c.cache.GetCache(ctx, cacheKey); hit {
+			c.tracker.TrackCacheHit(provider)
+			slog.Debug("Cache Hit", "provider", provider, "key", cacheKey)
+			return val, nil
+		}
+		c.tracker.TrackCacheMiss(provider)
+		slog.Debug("Cache Miss", "provider", provider, "key", cacheKey)
+	}
+
+	// 2. Enqueue Request
+	req, err := http.NewRequestWithContext(ctx, "GET", u, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	respChan := make(chan jobResult, 1)
+	j := job{req: req, headers: headers, cacheKey: cacheKey, respChan: respChan}
+
+	c.dispatch(host, j)
+
+	// 3. Wait for Result
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-respChan:
+		return res.body, res.err
+	}
+}
+
+// Post performs a POST request with queuing.
+func (c *Client) Post(ctx context.Context, u string, body []byte, contentType string) ([]byte, error) {
+	return c.PostWithHeaders(ctx, u, body, map[string]string{"Content-Type": contentType})
+}
+
+// PostWithHeaders performs a POST request with custom headers and queuing.
+func (c *Client) PostWithHeaders(ctx context.Context, u string, body []byte, headers map[string]string) ([]byte, error) {
+	parsedURL, err := url.Parse(u)
+	if err != nil {
+		return nil, fmt.Errorf("invalid url: %w", err)
+	}
+	host := parsedURL.Host
+
+	req, err := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	respChan := make(chan jobResult, 1)
+	j := job{req: req, headers: headers, respChan: respChan}
+
+	c.dispatch(host, j)
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-respChan:
+		return res.body, res.err
+	}
+}
+
+func normalizeProvider(host string) string {
+	if strings.HasSuffix(host, ".wikidata.org") || host == "wikidata.org" {
+		return "wikidata"
+	}
+	if strings.HasSuffix(host, ".wikipedia.org") || host == "wikipedia.org" {
+		return "wikipedia"
+	}
+	if strings.HasSuffix(host, "googleapis.com") {
+		return "gemini"
+	}
+	return host
+}
+
+// dispatch sends the job to the provider's queue, creating the queue/worker if needed.
+func (c *Client) dispatch(provider string, j job) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	q, ok := c.queues[provider]
+	if !ok {
+		// Create new queue and start worker
+		q = make(chan job, 100)
+		c.queues[provider] = q
+		go c.worker(provider, q)
+	}
+
+	// Non-blocking enqueue? No, we want to block or ideally buffer.
+	// But if queue is full, we block the caller of Get().
+	q <- j
+}
+
+// worker processes requests for a specific provider sequentially.
+func (c *Client) worker(provider string, q <-chan job) {
+	for j := range q {
+		// Check context before processing
+		if j.req.Context().Err() != nil {
+			j.respChan <- jobResult{err: j.req.Context().Err()}
+			continue
+		}
+
+		// Apply User-Agent (Default if not provided)
+		uaMatch := false
+		for k, v := range j.headers {
+			j.req.Header.Set(k, v)
+			if http.CanonicalHeaderKey(k) == "User-Agent" {
+				uaMatch = true
+			}
+		}
+		if !uaMatch {
+			j.req.Header.Set("User-Agent", defaultUserAgent)
+		}
+
+		body, err := c.executeWithBackoff(j.req)
+
+		provider := normalizeProvider(j.req.URL.Host)
+		if err == nil {
+			c.tracker.TrackAPISuccess(provider)
+			// Cache result (Only if key is provided)
+			if j.cacheKey != "" {
+				if err := c.cache.SetCache(context.Background(), j.cacheKey, body); err != nil {
+					slog.Error("Failed to cache response", "url", j.req.URL, "error", err)
+				}
+			}
+		} else {
+			c.tracker.TrackAPIFailure(provider)
+		}
+
+		j.respChan <- jobResult{body: body, err: err}
+
+		// Optional: Downtime between requests?
+		// User requirement: "supports downtimes between requests"
+		// We could add a small sleep here if configured.
+		time.Sleep(100 * time.Millisecond) // hardcoded safety gap
+	}
+}
+
+// executeWithBackoff attempts the request with exponential backoff on retryable errors.
+func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
+	maxAttempts := 3
+	baseDelay := 500 * time.Millisecond
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		slog.Debug("Network Request", "url", req.URL.String(), "attempt", attempt+1)
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			// Network errors -> Retry?
+			// For simplicity, retry on network errors
+			slog.Warn("Request failed, retrying", "url", req.URL, "attempt", attempt+1, "error", err)
+			time.Sleep(time.Duration(math.Pow(2, float64(attempt))) * baseDelay)
+			continue
+		}
+
+		// Handle Status Codes
+		if resp.StatusCode == 429 || (resp.StatusCode >= 500 && resp.StatusCode < 600) {
+			resp.Body.Close()
+			slog.Warn("API Backoff", "status", resp.StatusCode, "url", req.URL, "attempt", attempt+1)
+			time.Sleep(time.Duration(math.Pow(2, float64(attempt))) * baseDelay)
+			continue
+		}
+
+		if resp.StatusCode >= 400 {
+			resp.Body.Close()
+			return nil, fmt.Errorf("api error: status %d", resp.StatusCode)
+		}
+
+		// Success
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read error: %w", err)
+		}
+		return body, nil
+	}
+
+	return nil, fmt.Errorf("max retries exceeded")
+}

@@ -1,0 +1,82 @@
+# install.ps1 - PhileasGo Installation Helper
+# This script is idempotent - safe to run multiple times
+
+Write-Host "=== PhileasGo Installation ===" -ForegroundColor Cyan
+Write-Host ""
+
+# Create directories (only if needed)
+$dirs = @("data", "logs", "configs")
+foreach ($dir in $dirs) {
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        Write-Host "Created directory: $dir" -ForegroundColor Green
+    }
+}
+
+# Download GeoNames cities1000 (only if not present)
+$geonamesUrl = "https://download.geonames.org/export/dump/cities1000.zip"
+$geonamesZip = "data/cities1000.zip"
+$geonamesTxt = "data/cities1000.txt"
+
+if (-not (Test-Path $geonamesTxt)) {
+    Write-Host "Downloading GeoNames cities1000..." -ForegroundColor Yellow
+    try {
+        Invoke-WebRequest -Uri $geonamesUrl -OutFile $geonamesZip
+        Write-Host "Extracting..." -ForegroundColor Yellow
+        Expand-Archive -Path $geonamesZip -DestinationPath "data" -Force
+        Remove-Item $geonamesZip
+        Write-Host "GeoNames data installed!" -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to download GeoNames: $_" -ForegroundColor Red
+        Write-Host "Please download manually from: $geonamesUrl" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "GeoNames data already exists - skipping." -ForegroundColor Gray
+}
+
+# LittleNavMap POIs instructions (only if not present)
+$masterCsv = "data/Master.csv"
+if (-not (Test-Path $masterCsv)) {
+    Write-Host ""
+    Write-Host "=== Manual Step Required ===" -ForegroundColor Yellow
+    Write-Host "Please download LittleNavMap MSFS POIs from:"
+    Write-Host "  https://flightsim.to/file/81114/littlenavmap-msfs-poi-s" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Extract the downloaded file and copy 'Master.csv' to the 'data/' folder."
+    Write-Host ""
+    Read-Host "Press Enter after you have copied Master.csv (or press Enter to skip for now)..."
+} else {
+    Write-Host "Master.csv already exists - skipping." -ForegroundColor Gray
+}
+
+# Generate config file (only if not present)
+$configFile = "configs/phileas.yaml"
+$exeFile = "phileasgo.exe"
+
+if (-not (Test-Path $configFile)) {
+    if (Test-Path $exeFile) {
+        Write-Host "Generating config file..." -ForegroundColor Yellow
+        & ".\$exeFile" --init-config
+        if (Test-Path $configFile) {
+            Write-Host "Config file created: $configFile" -ForegroundColor Green
+        } else {
+            Write-Host "Config generation may have failed. Check for errors above." -ForegroundColor Red
+        }
+    } else {
+        Write-Host "phileasgo.exe not found - cannot generate config." -ForegroundColor Yellow
+        Write-Host "Please build the application first with 'make build'" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "Config file already exists - skipping." -ForegroundColor Gray
+}
+
+# API Key configuration reminder
+Write-Host ""
+Write-Host "=== Configuration ===" -ForegroundColor Yellow
+Write-Host "Edit configs/phileas.yaml to add your API keys:"
+Write-Host "  - Gemini API key (REQUIRED for narration)" -ForegroundColor White
+Write-Host "  - Azure TTS credentials (optional - edge-tts is used by default)" -ForegroundColor Gray
+Write-Host ""
+
+Write-Host "Installation complete!" -ForegroundColor Green
+Write-Host "Run phileasgo.exe to start the application." -ForegroundColor Cyan

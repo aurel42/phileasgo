@@ -1,0 +1,46 @@
+run:
+  timeout: 5m
+  tests: false
+
+issues:
+  exclude-dirs:
+    - scripts
+
+linters:
+  disable-all: true
+  enable:
+    # The Basics
+    - govet       # Built-in Go correctness
+    - staticcheck # High-level "Is this idiomatic?" checks
+    - errcheck    # Forces you to handle errors
+    
+    # The "Agent/Refactor" Safety Net
+    - revive      # Style/Naming enforcement
+    - ineffassign # Catches "patched" code that left useless variables
+    - unused      # Catches "patched" code that left dead constants/funcs
+    - gocritic    # Catches weird/non-idiomatic logic patterns
+    - gocyclo     # Prevents deep nesting/spaghetti code
+
+linters-settings:
+  govet:
+    # ENABLE SHADOWING CHECK - Critical for Agents
+    shadow: true
+  
+  gocyclo:
+    # Refactor if complexity exceeds 15 (Standard is 10-20)
+    min-complexity: 15
+
+  revive:
+    rules:
+      - name: exported
+        disabled: false # Disable if you don't want to document every single public function
+      - name: package-comments
+        disabled: true
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style

@@ -1,0 +1,180 @@
+package api
+
+import (
+	"encoding/json"
+	"math"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"phileasgo/pkg/sim"
+	"phileasgo/pkg/visibility"
+)
+
+// VisibilityHandler handles map visibility requests
+type VisibilityHandler struct {
+	calculator *visibility.Calculator
+	simClient  sim.Client
+}
+
+// NewVisibilityHandler creates a new handler
+func NewVisibilityHandler(calc *visibility.Calculator, sim sim.Client) *VisibilityHandler {
+	return &VisibilityHandler{
+		calculator: calc,
+		simClient:  sim,
+	}
+}
+
+// Handler handles GET /api/map/visibility
+func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
+	// 1. Get Aircraft State
+	telemetry, err := h.simClient.GetTelemetry(r.Context())
+	if err != nil {
+		// If not connected, return empty or error?
+		// Return empty grid to avoid frontend errors
+		http.Error(w, "Sim not connected", http.StatusServiceUnavailable)
+		return
+	}
+
+	// 2. Parse Query Params
+	// bounds=N,E,S,W
+	boundsStr := r.URL.Query().Get("bounds")
+	resolutionStr := r.URL.Query().Get("resolution")
+
+	if boundsStr == "" {
+		http.Error(w, "missing bounds", http.StatusBadRequest)
+		return
+	}
+
+	parts := strings.Split(boundsStr, ",")
+	if len(parts) != 4 {
+		http.Error(w, "invalid bounds format (N,E,S,W)", http.StatusBadRequest)
+		return
+	}
+
+	north, _ := strconv.ParseFloat(parts[0], 64)
+	east, _ := strconv.ParseFloat(parts[1], 64)
+	south, _ := strconv.ParseFloat(parts[2], 64)
+	west, _ := strconv.ParseFloat(parts[3], 64)
+
+	res := 20 // Default resolution 20x20
+	if resolutionStr != "" {
+		if v, err := strconv.Atoi(resolutionStr); err == nil && v > 0 && v <= 100 {
+			res = v
+		}
+	}
+
+	// 3. Generate Grid
+	// We scan from North to South (Row 0 is North), West to East
+
+	latStep := (north - south) / float64(res)
+
+	// Ensure positive steps (handle wrapping if needed, but simple for now)
+	if latStep < 0 {
+		latStep = -latStep
+	}
+
+	// Handle dateline crossing? simple logic for now: west < east usually
+	// If west > east, we crossed 180.
+	width := east - west
+	if width < 0 {
+		width += 360
+	}
+	lonStep := width / float64(res)
+
+	gridM := make([]float64, 0, res*res)
+	gridL := make([]float64, 0, res*res)
+	gridXL := make([]float64, 0, res*res)
+
+	// Rows: North -> South
+	for row := 0; row < res; row++ {
+		// Center of the cell
+		lat := north - (float64(row)+0.5)*latStep
+
+		// Cols: West -> East
+		for col := 0; col < res; col++ {
+			lon := west + (float64(col)+0.5)*lonStep
+			// Normalize lon
+			if lon > 180 {
+				lon -= 360
+			}
+			if lon < -180 {
+				lon += 360
+			}
+
+			// Calculate Geometry
+			dist, bearing := calculateGeom(telemetry.Latitude, telemetry.Longitude, lat, lon)
+
+			// Calculate Score for each size
+			scoreM := h.calculator.CalculateVisibilityForSize(
+				telemetry.Heading,
+				telemetry.AltitudeAGL,
+				bearing,
+				dist,
+				visibility.SizeM,
+				telemetry.IsOnGround,
+			)
+			scoreL := h.calculator.CalculateVisibilityForSize(
+				telemetry.Heading,
+				telemetry.AltitudeAGL,
+				bearing,
+				dist,
+				visibility.SizeL,
+				telemetry.IsOnGround,
+			)
+			scoreXL := h.calculator.CalculateVisibilityForSize(
+				telemetry.Heading,
+				telemetry.AltitudeAGL,
+				bearing,
+				dist,
+				visibility.SizeXL,
+				telemetry.IsOnGround,
+			)
+
+			gridM = append(gridM, scoreM)
+			gridL = append(gridL, scoreL)
+			gridXL = append(gridXL, scoreXL)
+		}
+	}
+
+	// 4. Response
+	resp := map[string]interface{}{
+		"gridM":  gridM,
+		"gridL":  gridL,
+		"gridXL": gridXL,
+		"rows":   res,
+		"cols":   res,
+		"bounds": map[string]float64{
+			"north": north, "east": east, "south": south, "west": west,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// Simple Haversine/Bearing helper
+func calculateGeom(lat1, lon1, lat2, lon2 float64) (distNM, bearing float64) {
+	// ... implementation ...
+	// Quick implementation for the tool
+	const R = 3440.065 // nm
+
+	dLat := (lat2 - lat1) * math.Pi / 180.0
+	dLon := (lon2 - lon1) * math.Pi / 180.0
+
+	lat1Rad := lat1 * math.Pi / 180.0
+	lat2Rad := lat2 * math.Pi / 180.0
+
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Sin(dLon/2)*math.Sin(dLon/2)*math.Cos(lat1Rad)*math.Cos(lat2Rad)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+
+	distNM = R * c
+
+	y := math.Sin(dLon) * math.Cos(lat2Rad)
+	x := math.Cos(lat1Rad)*math.Sin(lat2Rad) -
+		math.Sin(lat1Rad)*math.Cos(lat2Rad)*math.Cos(dLon)
+	brng := math.Atan2(y, x) * 180 / math.Pi
+
+	return distNM, brng
+}

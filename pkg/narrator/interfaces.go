@@ -1,0 +1,34 @@
+package narrator
+
+import (
+	"context"
+
+	"phileasgo/pkg/model"
+)
+
+// POIProvider defines the interface for POI management.
+type POIProvider interface {
+	GetPOI(ctx context.Context, qid string) (*model.POI, error)
+	GetBestCandidate() *model.POI // Used by job, but maybe not by service directly? Service uses GetPOI.
+	// Actually AIService uses GetPOI in PlayPOI.
+}
+
+// GeoProvider defines the interface for geographic services.
+type GeoProvider interface {
+	GetCountry(lat, lon float64) string
+	GetLocation(lat, lon float64) model.LocationInfo
+}
+
+// WikiProvider defines the interface for Wikipedia access.
+type WikiProvider interface {
+	GetArticleContent(ctx context.Context, title, lang string) (string, error)
+}
+
+// BeaconProvider defines the interface for beacon/marker management.
+type BeaconProvider interface {
+	SetTarget(ctx context.Context, lat, lon float64) error
+	Clear()
+}
+
+// AudioProvider alias for audio.Service to keep imports clean or use direct import.
+// We can just use audio.Service directly.

@@ -1,0 +1,118 @@
+package mocksim
+
+import (
+	"context"
+	"testing"
+	"time"
+)
+
+func waitForReq(t *testing.T, check func() bool, timeout time.Duration, msg string) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if check() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Errorf("Timeout waiting for: %s", msg)
+}
+
+func TestStateTransitions(t *testing.T) {
+	// Use short durations for testing
+	cfg := Config{
+		DurationParked: 50 * time.Millisecond,
+		DurationTaxi:   50 * time.Millisecond,
+		DurationHold:   50 * time.Millisecond,
+		StartLat:       0,
+		StartLon:       0,
+	}
+
+	client := NewClient(cfg)
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// 1. Initial State: PARKED
+	waitForReq(t, func() bool {
+		tel, _ := client.GetTelemetry(ctx)
+		return tel.IsOnGround && tel.GroundSpeed == 0
+	}, 1*time.Second, "Initial PARKED")
+}
+
+func TestStateSequence(t *testing.T) {
+	// Durations longer than tick (100ms) to ensure we catch them
+	cfg := Config{
+		DurationParked: 200 * time.Millisecond,
+		DurationTaxi:   200 * time.Millisecond,
+		DurationHold:   200 * time.Millisecond,
+	}
+	client := NewClient(cfg)
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// 1. PARKED: Expect Speed 0
+	waitForReq(t, func() bool {
+		tel, _ := client.GetTelemetry(ctx)
+		return tel.IsOnGround && tel.GroundSpeed == 0
+	}, 1*time.Second, "ParKed State")
+
+	// 2. TAXI: Expect Speed 15 eventually
+	waitForReq(t, func() bool {
+		tel, _ := client.GetTelemetry(ctx)
+		return tel.IsOnGround && tel.GroundSpeed == 15.0
+	}, 2*time.Second, "Taxi State")
+
+	// 3. HOLD: Expect Speed 0 eventually
+	waitForReq(t, func() bool {
+		tel, _ := client.GetTelemetry(ctx)
+		// We can distinguish PARKED vs HOLD by time or state internal,
+		// but externally they look similar (Ground+0kts).
+		// However, we know we were just in TAXI.
+		return tel.IsOnGround && tel.GroundSpeed == 0
+	}, 2*time.Second, "Hold State")
+
+	// 4. AIRBORNE: Expect Ground=false, Speed=120
+	// At 500fpm, it takes ~6s to reach the 50ft AGL threshold for !IsOnGround
+	waitForReq(t, func() bool {
+		tel, _ := client.GetTelemetry(ctx)
+		return !tel.IsOnGround && tel.GroundSpeed == 120.0
+	}, 10*time.Second, "Airborne State")
+}
+
+func TestPhysics(t *testing.T) {
+	cfg := Config{
+		DurationParked: 0,
+		DurationTaxi:   10 * time.Minute, // Stay in Taxi
+		StartLat:       0,
+		StartLon:       0,
+	}
+	client := NewClient(cfg)
+	defer client.Close()
+
+	// Force heading North
+	client.mu.Lock()
+	client.tel.Heading = 0 // North
+	client.mu.Unlock()
+
+	waitForReq(t, func() bool {
+		tel, _ := client.GetTelemetry(context.Background())
+		return tel.Latitude > 0.00001
+	}, 2*time.Second, "Movement North")
+}
+
+func TestScenario(t *testing.T) {
+	cfg := Config{
+		DurationParked: 0,
+		DurationTaxi:   0,
+		DurationHold:   0,
+	}
+	client := NewClient(cfg)
+	defer client.Close()
+
+	// Wait for climb to start
+	waitForReq(t, func() bool {
+		tel, _ := client.GetTelemetry(context.Background())
+		return tel.VerticalSpeed == 500.0
+	}, 1*time.Second, "Initial Climb 500fpm")
+}

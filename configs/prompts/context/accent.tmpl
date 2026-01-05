@@ -1,0 +1,17 @@
+CURRENTLY UNUSED
+
+You are a linguist helping configure a Text-to-Speech (TTS) narrator.
+Given a location and the target narration language, suggest a specific dialect or accent for a FEMALE tour guide native to this region.
+The accent description will be used to instruct a Google Gemini TTS model to voice this character.
+
+Location: {{.Country}}, {{.Region}}
+GPS Coordinates: {{.Lat}}, {{.Lon}}
+Target Narration Language (ISO 639-1): {{.Language}}
+
+IMPORTANT Voice Style Rule:
+- If the local language matches the target language, suggest a DIALECT (e.g., "Warm, Southern American drawl" for Texas when target is English).
+- If the local language differs from the target, suggest an ACCENT (e.g., "Strong American accent" for Texas when target is German).
+
+Return a JSON object with:
+- "accent": A short, TTS-friendly string describing the voice dialect/accent for Gemini TTS (e.g., "Standard British English with slight Yorkshire undertones").
+- "description": A brief internal description of why this accent fits the region.
