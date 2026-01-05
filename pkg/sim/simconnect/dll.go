@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"syscall"
 	"unsafe"
-
-	"golang.org/x/sys/windows/registry"
 )
 
 // DLL and procedure handles
@@ -81,27 +79,29 @@ const (
 	OBJECT_ID_USER uint32 = 0
 )
 
-// FindDLL searches for SimConnect.dll in common installation paths.
-// Works with both Microsoft Store and Steam versions of MSFS.
-// Returns the path if found, or an error if not found.
+// FindDLL returns the path to SimConnect.dll.
+// It first tries to extract the embedded DLL (bundled at build time).
+// Falls back to SDK paths for development environments.
 func FindDLL() (string, error) {
+	// Try embedded DLL first (bundled at build time)
+	if path, err := extractEmbeddedDLL(); err == nil {
+		return path, nil
+	}
+
+	// Fallback: Check SDK paths for development
 	var paths []string
 
-	// Check MSFS_SDK environment variable first
+	// Check MSFS_SDK environment variable
 	if sdkPath := os.Getenv("MSFS_SDK"); sdkPath != "" {
 		paths = append(paths, filepath.Join(sdkPath, "SimConnect SDK", "lib", "SimConnect.dll"))
 	}
 
-	// Check common SDK installation paths
+	// Check common SDK installation paths (MSFS 2020 and 2024)
 	paths = append(paths,
+		`C:\MSFS 2024 SDK\SimConnect SDK\lib\SimConnect.dll`,
 		`C:\MSFS SDK\SimConnect SDK\lib\SimConnect.dll`,
 		`C:\Program Files (x86)\Microsoft Flight Simulator SDK\SimConnect SDK\lib\SimConnect.dll`,
 	)
-
-	// Try to find MSFS installation via registry (works for Store and Steam)
-	if msfsPath := findMSFSInstallPath(); msfsPath != "" {
-		paths = append(paths, filepath.Join(msfsPath, "SimConnect.dll"))
-	}
 
 	// Check each path
 	for _, p := range paths {
@@ -110,37 +110,7 @@ func FindDLL() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("SimConnect.dll not found; install MSFS SDK or set MSFS_SDK environment variable")
-}
-
-// findMSFSInstallPath attempts to locate MSFS installation directory via registry.
-func findMSFSInstallPath() string {
-	// Steam installation
-	steamPaths := []string{
-		`SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1250410`,
-		`SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1250410`,
-	}
-	for _, path := range steamPaths {
-		if key, err := registry.OpenKey(registry.LOCAL_MACHINE, path, registry.QUERY_VALUE); err == nil {
-			val, _, err := key.GetStringValue("InstallLocation")
-			key.Close()
-			if err == nil && val != "" {
-				return val
-			}
-		}
-	}
-
-	// Microsoft Store - check for common installation paths
-	localAppData := os.Getenv("LOCALAPPDATA")
-	if localAppData != "" {
-		storePath := filepath.Join(localAppData, "Packages", "Microsoft.FlightSimulator_8wekyb3d8bbwe", "LocalCache", "Packages", "Official", "OneStore")
-		if _, err := os.Stat(storePath); err == nil {
-			// Store version found, but SimConnect is typically in SDK, not game folder
-			return ""
-		}
-	}
-
-	return ""
+	return "", fmt.Errorf("SimConnect.dll not found; embedded DLL missing and no SDK installed")
 }
 
 // LoadDLL loads the SimConnect.dll from the specified path.

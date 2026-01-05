@@ -9,6 +9,7 @@ all: build-web test build
 build: build-web build-app
 
 build-app:
+	powershell -ExecutionPolicy Bypass -File scripts/copy_simconnect.ps1
 	go build -o $(APP_NAME).exe $(CMD_PATH)
 
 build-web:

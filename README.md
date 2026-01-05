@@ -15,6 +15,8 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 
 ## Requirements
 
+## Requirements
+
 - Windows 10/11
 - Microsoft Flight Simulator 2020 or 2024 (Steam or Microsoft Store)
 - Google Gemini API key (**required**)
@@ -28,6 +30,7 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
    ```powershell
    .\install.ps1
    ```
+   (alternatively, right-click install.ps1 and select "Run with PowerShell")
 4. Edit `configs/phileas.yaml` and add your Gemini API key
 
 The install script will:
@@ -69,6 +72,7 @@ Prerequisites:
 - Go 1.21+
 - Node.js 18+
 - npm
+- **MSFS SDK** (required for SimConnect.dll)
 
 ```bash
 # Install Go dependencies
@@ -95,6 +99,16 @@ PhileasGo uses data from:
 - [Wikipedia](https://www.wikipedia.org/) - Article content for narration
 - [GeoNames](https://www.geonames.org/) - City and geographic data
 - [LittleNavMap MSFS POIs](https://flightsim.to/file/81114/littlenavmap-msfs-poi-s) - MSFS-specific landmarks
+
+## Project History
+
+I started this project to see how far I could get purely by vibecoding. I always wanted something like a tour guide for MSFS, I went so far as to talk Brian of SayIntentions into adding a "tour guide" feature to his product, but I wasn't happy with the result. 
+
+I vibecoded a series of three Python clients with growing complexity (and resource usage), and encountered the limits of current vibecoding tools (repeatedly). This fourth attempt in Go was meant to explore how a stricter language, a more structured codebase, and access to the Python proof-of-concept implementations would improve agents' abilities to manage the complexity.
+
+It turned out so well that I'm releasing it as a public project (let's call it a "public backup"). I'm sure the code is not pretty (I don't actually code in Go, that was part of the experiment), but the resource usage is plausible and, at least for me, it appears to do what it's supposed to do.
+
+I expect to be the only user for the foreseeable future, so at this point I don't care to put together a binary release. Let me know if you feel I should (or which missing LLM/TTS services you feel the project should support).
 
 ## License
 
