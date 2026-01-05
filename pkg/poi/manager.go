@@ -255,6 +255,24 @@ func (m *Manager) PruneByDistance(lat, lon, heading, thresholdKm float64) int {
 	return count
 }
 
+// CountScoredAbove returns the number of tracked POIs with a score strictly greater than the threshold.
+// It stops counting once the limit is reached to save resources.
+func (m *Manager) CountScoredAbove(threshold float64, limit int) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	count := 0
+	for _, p := range m.trackedPOIs {
+		if p.Score > threshold {
+			count++
+			if count >= limit {
+				return limit
+			}
+		}
+	}
+	return count
+}
+
 // GetBestCandidate returns the currently tracked POI with the highest score.
 func (m *Manager) GetBestCandidate() *model.POI {
 	m.mu.RLock()

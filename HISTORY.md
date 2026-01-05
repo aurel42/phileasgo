@@ -1,5 +1,20 @@
 ﻿# Release History
 
+## v0.2.5
+- **Feature**: **Dynamic Narration Length (Relative Dominance)**
+    - Implemented a "Relative Dominance" strategy for narration length.
+    - **Logic**:
+        - **High Competition**: If >1 high-quality rivals exist, skew narration shorter (to cover more POIs).
+        - **Low Competition**: If 0-1 rivals (Lone Wolf), skew narration longer for better detail.
+        - **Balanced**: Otherwise, standard random length.
+    - **Optimization**: Updated `POIProvider.CountScoredAbove` to accept a `limit` parameter, stopping early (at 2) to save CPU cycles in dense areas.
+### UNIT-TESTS
+- Added `pkg/narrator/length_test.go` to verify statistical skew behavior.
+- Added `pkg/narrator/sampling_test.go` to verify basic bounds and step logic.
+
+### BUG FIXES
+- **UI**: Fixed an issue where played POIs were hidden from the map if they were played more than 1 hour ago. They now remain visible indefinitely (blue marker).
+
 ## v0.2.4
 - **Feature**: **POI Eviction & Re-hydration**
     - Implemented a memory management strategy to keep the application lightweight during long flights.

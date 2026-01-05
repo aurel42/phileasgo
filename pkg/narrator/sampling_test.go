@@ -13,11 +13,12 @@ func TestSampleNarrationLength(t *testing.T) {
 
 	// Use a nil-heavy service since we only test the pure function
 	s := &AIService{
-		cfg: cfg,
+		cfg:    cfg,
+		poiMgr: &MockPOIProvider{},
 	}
 
 	for i := 0; i < 1000; i++ {
-		val := s.sampleNarrationLength()
+		val := s.sampleNarrationLength(nil)
 
 		if val < 100 {
 			t.Errorf("Sampled value %d below min 100", val)
@@ -34,12 +35,12 @@ func TestSampleNarrationLength(t *testing.T) {
 // TestSampleNarrationLength_EdgeCases verifies behavior with weird config values.
 func TestSampleNarrationLength_EdgeCases(t *testing.T) {
 	cfg := config.DefaultConfig()
-	s := &AIService{cfg: cfg}
+	s := &AIService{cfg: cfg, poiMgr: &MockPOIProvider{}}
 
 	// Case 1: Max <= Min -> returns Min
 	cfg.Narrator.NarrationLengthMin = 500
 	cfg.Narrator.NarrationLengthMax = 400
-	val := s.sampleNarrationLength()
+	val := s.sampleNarrationLength(nil)
 	if val != 500 {
 		t.Errorf("Expected 500 for inverted range, got %d", val)
 	}
@@ -47,7 +48,7 @@ func TestSampleNarrationLength_EdgeCases(t *testing.T) {
 	// Case 2: Zero values -> defaults (Min 400)
 	cfg.Narrator.NarrationLengthMin = 0
 	cfg.Narrator.NarrationLengthMax = 0
-	val2 := s.sampleNarrationLength()
+	val2 := s.sampleNarrationLength(nil)
 	// Default logic: defaults min=400, max=600 if 0
 	if val2 < 400 || val2 > 600 {
 		t.Errorf("Expected default range 400-600, got %d", val2)

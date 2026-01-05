@@ -9,8 +9,8 @@ import (
 // POIProvider defines the interface for POI management.
 type POIProvider interface {
 	GetPOI(ctx context.Context, qid string) (*model.POI, error)
-	GetBestCandidate() *model.POI // Used by job, but maybe not by service directly? Service uses GetPOI.
-	// Actually AIService uses GetPOI in PlayPOI.
+	GetBestCandidate() *model.POI
+	CountScoredAbove(threshold float64, limit int) int
 }
 
 // GeoProvider defines the interface for geographic services.

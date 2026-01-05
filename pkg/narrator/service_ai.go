@@ -618,7 +618,7 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		Country:           cc,
 		TargetRegion:      region,
 		Region:            region,
-		MaxWords:          s.sampleNarrationLength(),
+		MaxWords:          s.sampleNarrationLength(p),
 		RecentPoisContext: s.fetchRecentContext(ctx, p.Lat, p.Lon),
 		RecentContext:     s.fetchRecentContext(ctx, p.Lat, p.Lon),
 		Lat:               tel.Latitude,
@@ -833,12 +833,12 @@ func (s *AIService) fetchRecentContext(ctx context.Context, lat, lon float64) st
 	return strings.Join(contextParts, ", ")
 }
 
-// PromptData struct for templates
+// NarrationPromptData struct for templates
 type NarrationPromptData struct {
 	TourGuideName     string
-	Persona           string // Generic field for template
-	Accent            string // Generic field for template
-	Language          string // Generic field for template
+	Persona           string
+	Accent            string
+	Language          string
 	FemalePersona     string
 	FemaleAccent      string
 	PassengerMale     string
@@ -846,35 +846,34 @@ type NarrationPromptData struct {
 	MaleAccent        string
 	FlightStage       string
 	NameNative        string
-	POINameNative     string // Alias for NameNative (used in templates?)
+	POINameNative     string
 	NameUser          string
-	POINameUser       string // Alias for NameUser (used in templates?)
+	POINameUser       string
 	Category          string
 	WikipediaText     string
 	NavInstruction    string
 	TargetLanguage    string
 	TargetCountry     string
-	Country           string // Alias for TargetCountry
+	Country           string
 	TargetRegion      string
-	Region            string // Alias for TargetRegion
+	Region            string
 	Lat               float64
 	Lon               float64
 	MaxWords          int
 	RecentPoisContext string
-	RecentContext     string // Alias for RecentPoisContext
+	RecentContext     string
 	UnitsInstruction  string
 	TTSInstructions   string
 	Interests         []string
-	// Flight Telemetry for Context
-	AltitudeMSL  float64
-	AltitudeAGL  float64
-	Heading      float64
-	GroundSpeed  float64
-	PredictedLat float64
-	PredictedLon float64
+	AltitudeMSL       float64
+	AltitudeAGL       float64
+	Heading           float64
+	GroundSpeed       float64
+	PredictedLat      float64
+	PredictedLon      float64
 }
 
-func (s *AIService) sampleNarrationLength() int {
+func (s *AIService) sampleNarrationLength(p *model.POI) int {
 	minL := s.cfg.Narrator.NarrationLengthMin
 	maxL := s.cfg.Narrator.NarrationLengthMax
 	if minL == 0 {
@@ -887,8 +886,73 @@ func (s *AIService) sampleNarrationLength() int {
 		return minL
 	}
 
-	// Steps of 10
-	steps := (maxL - minL) / 10
-	step := rand.Intn(steps + 1)
-	return minL + step*10
+	// Dynamic Length Logic: Relative Dominance
+	// "Rivals" are other POIs with > 50% of the winner's score.
+	// Note: CountScoredAbove includes the winner itself if score > 0.
+	threshold := 0.0
+	if p != nil {
+		threshold = p.Score * 0.5
+	}
+
+	// We only need to know if there are > 1 rivals (so limit=2 is sufficient to know if count >= 2)
+	// Actually, if we want to confirm "rivals > 1", that means Total >= 2 (Me + 1).
+	// So finding 2 is enough to trigger the "min_skew".
+	rivals := s.poiMgr.CountScoredAbove(threshold, 2)
+
+	// Default Strategy: Uniform Random
+	strategy := "uniform"
+
+	// If p.Score is 0 (manual play?), handle gracefully (rivals will be ALL POIs > 0)
+	// Assuming normal flow:
+	// If rivals > 1 (Winner + at least 1 other) -> Skew Short (High Competition)
+	if rivals > 1 {
+		strategy = "min_skew"
+	} else if rivals <= 1 {
+		// Winner is alone (or score is 0 and no others > 0) -> Skew Long (Lone Wolf)
+		strategy = "max_skew"
+	}
+
+	score := 0.0
+	if p != nil {
+		score = p.Score
+	}
+	slog.Debug("Narrator: Sampling Length", "strategy", strategy, "rivals", rivals, "score", score, "threshold", threshold)
+
+	// Helper to get a random value in range
+	randomVal := func() int {
+		steps := (maxL - minL) / 10
+		step := rand.Intn(steps + 1)
+		return minL + step*10
+	}
+
+	// Pool Selection
+	poolSize := 3
+	pool := make([]int, poolSize)
+	for i := 0; i < poolSize; i++ {
+		pool[i] = randomVal()
+	}
+
+	switch strategy {
+	case "min_skew":
+		// Pick smallest
+		minVal := pool[0]
+		for _, v := range pool {
+			if v < minVal {
+				minVal = v
+			}
+		}
+		return minVal
+	case "max_skew":
+		// Pick largest
+		maxVal := pool[0]
+		for _, v := range pool {
+			if v > maxVal {
+				maxVal = v
+			}
+		}
+		return maxVal
+	default:
+		// Pick first (which is random)
+		return pool[0]
+	}
 }

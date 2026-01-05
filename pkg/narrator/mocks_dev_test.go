@@ -80,10 +80,11 @@ func (m *MockPOIProvider) GetPOI(ctx context.Context, qid string) (*model.POI, e
 	return nil, nil
 }
 func (m *MockPOIProvider) GetBestCandidate() *model.POI {
-	if m.GetBestFunc != nil {
-		return m.GetBestFunc()
-	}
 	return nil
+}
+
+func (m *MockPOIProvider) CountScoredAbove(threshold float64, limit int) int {
+	return 0 // default for tests
 }
 
 type MockGeo struct {
