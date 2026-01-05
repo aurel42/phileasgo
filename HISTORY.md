@@ -4,6 +4,9 @@
 - **Enhancement**: **Embedded SimConnect.dll**
   - The application now embeds the SimConnect DLL directly into the executable at build time.
   - SDK is now only required for building from source.
+- **Fix**: Corrected web build output path in `vite.config.ts` to prevent creation of duplicate `internal/ui/internal` directory.
+- **Refactor**: Improved Makefile PowerShell compatibility using `scripts/copy_simconnect.ps1` for robust DLL copying.
+- **Cleanup**: Removed unused `findMSFSInstallPath` function (lint fix) and updated `.gitignore` to exclude build-time artifacts.
 
 ## v0.2.1
 - **Fix**: Resolved `deferInLoop` lint error in `pkg/sim/simconnect/dll.go` by closing registry keys immediately after use instead of deferring inside the loop.
