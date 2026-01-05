@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.4
+- **Feature**: **POI Eviction & Re-hydration**
+    - Implemented a memory management strategy to keep the application lightweight during long flights.
+    - **Eviction**: Automatically removes POIs that are **> 90km away** (configurable via `max_dist_km + 10km`) AND located **behind** the aircraft.
+    - **Re-hydration**: Implemented smart cache eviction for distant tiles. If the aircraft performs a U-Turn and re-enters a previously visited area, the system now "forgets" that it recently checked those tiles, allowing the scheduler to re-fetch them (hits DB cache) and restore the POIs to the map.
+    - **Job**: Added a periodic `EvictionJob` (every 30s) to orchestrate this cleanup.
+- **Refactor**: **Thread Safety**
+    - Added `sync.RWMutex` to `wikidata.Service` to protect the in-memory tile cache (`recentTiles`) which is now accessed concurrently by the Scheduler and the Eviction Job.
+
 ## v0.2.3
 - **Fix**: **Startup Crash (SimConnect DLL Loading)**
     - Resolved `failed to load SimConnect.dll` error by updating `sim_helper.go` to use an empty path, enabling the new auto-discovery logic (embedded DLL extraction).

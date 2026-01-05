@@ -255,6 +255,7 @@ func setupScheduler(ctx context.Context, cfg *config.Config, simClient sim.Clien
 	}))
 	sched.AddJob(core.NewNarrationJob(cfg, ns, ns.POIManager()))
 	sched.AddJob(core.NewDynamicConfigJob(cfg, ns.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc))
+	sched.AddJob(core.NewEvictionJob(cfg, svcs.PoiMgr, svcs.WikiSvc))
 	return sched
 }
 

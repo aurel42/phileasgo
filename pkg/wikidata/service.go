@@ -40,6 +40,7 @@ type Service struct {
 	logger     *slog.Logger
 
 	// In-memory cache to avoid spamming the DB for tiles we verified recently
+	recentMu    sync.RWMutex
 	recentTiles map[string]time.Time
 
 	// Spatial Deduplication
@@ -152,11 +153,16 @@ func (s *Service) processTick(ctx context.Context) {
 		key := c.Tile.Key()
 
 		// Memory Cache Check
-		if _, ok := s.recentTiles[key]; ok {
+		s.recentMu.RLock()
+		_, ok := s.recentTiles[key]
+		s.recentMu.RUnlock()
+		if ok {
 			continue // Checked recently, skip
 		}
 
+		s.recentMu.Lock()
 		s.recentTiles[key] = time.Now() // Mark before fetch to prevent immediate retry logic overlap
+		s.recentMu.Unlock()
 
 		s.logger.Debug("Checking tile", "key", key, "dist_km", fmt.Sprintf("%.1f", c.Dist), "airborne", isAirborne, "hdg", int(hdg))
 		s.fetchTile(ctx, c)
@@ -297,7 +303,6 @@ func (s *Service) GetArticlesForTile(ctx context.Context, tileKey string) ([]Art
 func (s *Service) ReprocessNearTiles(ctx context.Context, lat, lon, radiusKm float64) error {
 	s.logger.Info("ReprocessNearTiles triggered", "lat", lat, "lon", lon, "radius", radiusKm)
 
-	// List all cached tiles.
 	// Potential Optimization: If cache is huge, this list is slow.
 	// Better to have a spatial index of cached tiles, but for now this works.
 	keys, err := s.store.ListCacheKeys(ctx, "wd_hex_")
@@ -354,6 +359,53 @@ func (s *Service) ReprocessNearTiles(ctx context.Context, lat, lon, radiusKm flo
 	}
 	s.logger.Info("ReprocessNearTiles complete", "component", "wikidata", "tiles_checked", tilesChecked, "dynamic_pois_added", rescuedCount, "total_articles", totalArticles)
 	return nil
+}
+
+// EvictFarTiles removes tiles from the recent cache if they are beyond the threshold distance.
+// This allows them to be re-fetched if the user returns to them.
+func (s *Service) EvictFarTiles(lat, lon, thresholdKm float64) int {
+	// 1. Snapshot keys to avoid deep locking issues if logic is complex
+	// But simple distance check is fast.
+	s.recentMu.Lock()
+	defer s.recentMu.Unlock()
+
+	// Need grid helper to parse key.
+	// We access s.scheduler.grid directly? It's public enough?
+	// s.scheduler is private field. But we are in same package 'wikidata'.
+	// No, scheduler is struct in same package.
+	// But Grid methods might need export. NewGrid returns *Grid.
+	// Let's assume we can parse key manually if needed,
+	// but the correct way is s.scheduler.grid.ParseKey(key) if it existed.
+	// Instead, let's just parse "q,r" manually as we know the format.
+
+	count := 0
+	for key, t := range s.recentTiles {
+		var q, r int
+		n, _ := fmt.Sscanf(key, "%d,%d", &q, &r)
+		if n != 2 {
+			continue
+		}
+
+		// Use scheduler grid to get center
+		cLat, cLon := s.scheduler.grid.TileCenter(HexTile{Row: q, Col: r})
+
+		// Check Distance (geo.Distance returns meters)
+		distKm := geo.Distance(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: cLat, Lon: cLon}) / 1000.0
+
+		if distKm > thresholdKm {
+			delete(s.recentTiles, key)
+			count++
+			// Also log? Debug level.
+		}
+		// Also clean up old entries by time?
+		// For now just distance as requested.
+		_ = t // unused
+	}
+
+	if count > 0 {
+		s.logger.Debug("Evicted far tiles from memory", "count", count, "threshold_km", thresholdKm)
+	}
+	return count
 }
 
 // ProcessTileData takes raw SPARQL JSON, parses it, runs classification, ENRICHES, and SAVES to DB.

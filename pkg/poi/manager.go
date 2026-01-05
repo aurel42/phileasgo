@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"sync"
 	"time"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/scorer"
 	"phileasgo/pkg/sim"
@@ -206,7 +208,49 @@ func (m *Manager) PruneTracked(olderThan time.Duration) int {
 		}
 	}
 	if count > 0 {
-		m.logger.Debug("Pruned tracked POIs", "removed", count, "remaining", len(m.trackedPOIs))
+		m.logger.Debug("Pruned tracked POIs (Time)", "removed", count, "remaining", len(m.trackedPOIs))
+	}
+	return count
+}
+
+// PruneByDistance removes POIs that are beyond the threshold distance and in the rear semi-circle.
+func (m *Manager) PruneByDistance(lat, lon, heading, thresholdKm float64) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	count := 0
+	// Pre-calculate threshold in meters for geo.Distance check? geo.Distance returns meters.
+	// thresholdKm is in KM.
+	thresholdM := thresholdKm * 1000.0
+
+	for id, p := range m.trackedPOIs {
+		// 1. Distance Check
+		distM := geo.Distance(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: p.Lat, Lon: p.Lon})
+		if distM <= thresholdM {
+			continue // Keep it
+		}
+
+		// 2. Relative Bearing Check (Are we moving AWAY from it?)
+		// Calculate bearing FROM aircraft TO POI
+		bearingToPOI := geo.Bearing(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: p.Lat, Lon: p.Lon})
+
+		// Diff = Abs(Heading - Bearing)
+		// We want to know if it's "Behind" us.
+		// Behind means the angle difference is > 90 degrees.
+		diff := math.Abs(heading - bearingToPOI)
+		if diff > 180 {
+			diff = 360 - diff
+		}
+
+		if diff > 90 {
+			// It is behind us and far away. Evict.
+			delete(m.trackedPOIs, id)
+			count++
+		}
+	}
+
+	if count > 0 {
+		m.logger.Debug("Pruned tracked POIs (Distance)", "removed", count, "remaining", len(m.trackedPOIs))
 	}
 	return count
 }
