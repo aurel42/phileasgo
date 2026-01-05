@@ -22,7 +22,7 @@ func initializeSimClient(ctx context.Context, cfg *config.Config) (sim.Client, e
 	// Default or Explicit SimConnect
 	slog.Info("Sim Source: SimConnect (Default)")
 	// SimConnect Client - DLL is in lib/ folder, copied to bin/ by Makefile
-	sc, err := simconnect.NewClient("PhileasGo", "SimConnect.dll")
+	sc, err := simconnect.NewClient("PhileasGo", "")
 	if err != nil {
 		slog.Error("Failed to create SimConnect client, falling back to Mock", "error", err)
 		return mocksim.NewClient(mocksim.DefaultConfig()), nil
