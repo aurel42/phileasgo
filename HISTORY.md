@@ -1,5 +1,31 @@
 ﻿# Release History
 
+## v0.2.3
+- **Fix**: **Startup Crash (SimConnect DLL Loading)**
+    - Resolved `failed to load SimConnect.dll` error by updating `sim_helper.go` to use an empty path, enabling the new auto-discovery logic (embedded DLL extraction).
+- **Fix**: **Spurious Telemetry Validation**
+    - Implemented `validateTelemetry` in SimConnect client to discard garbage data often sent during initialization or VR state changes.
+    - Filters "Null Island" coordinates (0,0).
+    - Filters spurious equatorial/polar mix coordinates (lat~0, |lon|~90).
+    - Filters impossible state contradictions (On Ground + High Altitude).
+    - Prevents "Navajo in Berlin" essay triggers caused by momentary telemetry glitches.
+- **Fix**: **Azure TTS Prompt Engineering**
+    - Updated Azure TTS system prompt to strictly forbid HTML/CSS styling (e.g., `font-family` spans) in the output, which were causing silence or errors in the TTS engine.
+    - **Truncation Workaround**: Implemented automatic silence injection (`25ms` break) after every closing `</lang>` tag in the SSML payload. This forces the TTS engine to flush its audio buffer, preventing the last syllables of foreign words from being cut off during context switches.
+- **Fix**: **Missing Airfields (e.g., Bautzen EDAB)**
+    - Resolved issue where certain airfields were dropped because they hit tile fetch limits before sorting.
+    - **Increased Tile Capacity**: Raised `max_articles` from 500 to 1000 per tile to handle dense data regions without dropping valid POIs via `wikibase:around` pre-filtering.
+- **Fix**: **Nameless "Ghost" POIs & Dynamic Language Resolution**
+    - Resolved issue where POIs in border regions (e.g., DE/CZ) were ingested without names due to language mismatches (looking for German articles for Czech entities).
+    - Implemented a **Dynamic Language Mapper**: Phileas now learns the primary language for every country from Wikidata and prioritizes it over hardcoded assumptions.
+    - Added **Label Service Fallback**: If no Wikipedia article exists in the target languages, the system now falls back to the Wikidata Label (`rdfs:label`) to ensure every POI has a name.
+    - Enforced **Strict Validation**: POIs that remain nameless after all fallbacks are now explicitly dropped to prevent "Q-ID" only narrations.
+- **Fix**: **Replay UI Synchronization**
+    - Resolved issue where replaying a narration left the UI in an "Idle" state with no title or info card.
+    - **Backend State Tracking**: The `AIService` now persists the `lastPOI` and `lastEssayTopic` state specifically for replay scenarios.
+    - **State Restoration**: The `ReplayLast` method now proactively restores the narration context (Title, ID, Info Card data) to the frontend before triggering audio playback.
+    - The UI now correctly displays the "Playing" status (Green Badge), Title, and full Info Card during a replay.
+
 ## v0.2.2
 - **Enhancement**: **Embedded SimConnect.dll**
   - The application now embeds the SimConnect DLL directly into the executable at build time.

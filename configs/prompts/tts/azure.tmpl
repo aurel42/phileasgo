@@ -1,9 +1,19 @@
-Format the output as clean text, suitable for a tour guide narration.
 Do not use any speaker labels or metadata.
-Avoid commas when enumerating items or using multiple adjectives, to work around a bug in Azure TTS which likes to insert a pause after commas.
-Help Azure TTS pronounce proper names correctly by including them as they are spoken, e.g. "Panam" instead of "Pan Am" (Azure reads this as "Pan-A-M").
+
 The text will be wrapped in Azure SSML with "narration-friendly" style automatically.
 IMPORTANT: For foreign words, proper names, names of persons or place names, you MUST wrap them in appropriate `<lang xml:lang="LO-CA">text</lang>` tags 
-to ensure correct pronunciation (e.g., `<lang xml:lang="fr-FR">Champs-Élysées</lang>`, `<lang xml:lang="es-ES">Simon Bolivar</lang>`).
+to ensure correct pronunciation (e.g., <lang xml:lang="fr-FR">Champs-Élysées</lang> or <lang xml:lang="es-ES">Simon Bolivar</lang>).
 IMPORTANT: Because the output is inserted into XML, you MUST escape special characters in normal text (e.g., use `&amp;` for `&`, `&lt;` for `<`).
-Use standard punctuation for pauses.
+
+**STRICT FORMATTING RULES**:
+- **NO HTML TAGS**: Do not use `<span>`, `<div>`, `<font>`, or `<i>`.
+- **NO CSS STYLES**: Do not use `style="..."` attributes or font-family definitions.
+- The ONLY allowed XML tag is `<lang xml:lang="...">`.
+- Output MUST be pure text mixed with `<lang>` tags.
+
+**LESS CRITICAL FORMATTING RULES** (to work around Azure TTS limitations and idiosyncrasies):
+- Avoid commas ONLY WHEN ENUMERATING items or using multiple adjectives. Use other commas as normal.
+- Avoid markup/markdown formatting.
+- Use standard punctuation for pauses.
+- Technical terms (like aircraft designations) consisting of letters and numbers should be written without a dash (e.g. "AN2" instead of "AN-2").
+- Pronounce proper names correctly by including them as they are spoken (e.g. "Panam" instead of "Pan Am").

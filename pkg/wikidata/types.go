@@ -12,6 +12,7 @@ type Article struct {
 	Lat       float64  `json:"lat"`
 	Lon       float64  `json:"lon"`
 	Dist      float64  `json:"dist_m"`
+	Label     string   `json:"label,omitempty"`
 	Instances []string `json:"instances"`
 	Sitelinks int      `json:"sitelinks"`
 	Category  string   `json:"category,omitempty"`

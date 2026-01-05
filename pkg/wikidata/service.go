@@ -45,6 +45,9 @@ type Service struct {
 	// Spatial Deduplication
 	inflightMu    sync.Mutex
 	inflightTiles map[string]bool
+	mapper        *LanguageMapper
+
+	// Configuration
 
 	// Configuration
 	userLang string
@@ -90,6 +93,7 @@ func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Cl
 		recentTiles:   make(map[string]time.Time),
 		inflightTiles: make(map[string]bool),
 		userLang:      normalizedLang,
+		mapper:        NewLanguageMapper(st, rc, slog.With("component", "mapper")),
 	}
 }
 
@@ -99,6 +103,11 @@ func (s *Service) Start(ctx context.Context) {
 	defer ticker.Stop()
 
 	s.logger.Info("Wikidata Service Started")
+
+	// Start Language Mapper
+	if err := s.mapper.Start(ctx); err != nil {
+		s.logger.Warn("LanguageMapper failed to start (continuing with defaults)", "error", err)
+	}
 
 	for {
 		select {
@@ -179,7 +188,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 
 	// Dynamic Language
 	country := s.geo.GetCountry(centerLat, centerLon)
-	localLang := s.geo.GetLanguage(country)
+	localLang := s.mapper.GetLanguage(country)
 
 	query := buildQuery(centerLat, centerLon, localLang, s.userLang, s.cfg.Area.MaxArticles)
 
@@ -221,7 +230,7 @@ func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int) s
 
 	query := fmt.Sprintf(`SELECT DISTINCT ?item ?lat ?lon ?sitelinks 
             (GROUP_CONCAT(DISTINCT ?instance_of_uri; separator=",") AS ?instances) 
-            ?title_local_val ?title_en_val ?title_user_val
+            ?title_local_val ?title_en_val ?title_user_val ?itemLabel
             ?area ?height ?length ?width
         WHERE { 
             SERVICE wikibase:around { 
@@ -230,6 +239,10 @@ func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int) s
                 bd:serviceParam wikibase:radius "%s" . 
             } 
             ?item p:P625/psv:P625 [ wikibase:geoLatitude ?lat ; wikibase:geoLongitude ?lon ] . 
+            
+            # Label Service
+            SERVICE wikibase:label { bd:serviceParam wikibase:language "%s,%s,en". }
+
             OPTIONAL { ?item wdt:P31 ?instance_of_uri . } 
             OPTIONAL { ?item wikibase:sitelinks ?sitelinks . } 
             OPTIONAL { ?item wdt:P2046 ?area . }
@@ -260,9 +273,9 @@ func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int) s
                 schema:name ?title_user_val . 
             } 
         } 
-        GROUP BY ?item ?lat ?lon ?sitelinks ?title_local_val ?title_en_val ?title_user_val ?area ?height ?length ?width
+        GROUP BY ?item ?lat ?lon ?sitelinks ?title_local_val ?title_en_val ?title_user_val ?itemLabel ?area ?height ?length ?width
         ORDER BY DESC(?sitelinks) 
-        LIMIT %d`, lon, lat, radius, localLang, userLang, localLang, localLang, userLang, userLang, maxArticles)
+        LIMIT %d`, lon, lat, radius, localLang, userLang, localLang, userLang, localLang, localLang, userLang, userLang, maxArticles)
 
 	return query
 }
@@ -375,7 +388,7 @@ func (s *Service) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat
 
 	// 5. Enrichment & Saving
 	country := s.geo.GetCountry(centerLat, centerLon)
-	localLang := s.geo.GetLanguage(country)
+	localLang := s.mapper.GetLanguage(country)
 
 	if len(processed) > 0 {
 		err = s.enrichAndSave(ctx, processed, localLang, "en")
@@ -445,30 +458,9 @@ func (s *Service) enrichAndSave(ctx context.Context, articles []Article, localLa
 	var candidates []*model.POI
 
 	for i := range articles {
-		a := &articles[i]
-		// Identify Lengths
-		bestURL, maxLength := s.determineBestArticle(a, lengths, localLang, userLang)
-
-		poi := &model.POI{
-			WikidataID:          a.QID,
-			Source:              "wikidata",
-			Category:            a.Category,
-			Lat:                 a.Lat,
-			Lon:                 a.Lon,
-			Sitelinks:           a.Sitelinks,
-			NameEn:              a.TitleEn,
-			NameLocal:           a.Title,
-			NameUser:            a.TitleUser,
-			WPURL:               bestURL,
-			WPArticleLength:     maxLength,
-			TriggerQID:          "",
-			CreatedAt:           time.Now(),
-			DimensionMultiplier: a.DimensionMultiplier,
+		if p := s.constructPOI(&articles[i], lengths, localLang, userLang); p != nil {
+			candidates = append(candidates, p)
 		}
-
-		// Populate Icon from Classifier Config
-		poi.Icon = s.getIcon(a.Category)
-		candidates = append(candidates, poi)
 	}
 
 	// 5. MERGE DUPLICATES (Spatial Gobbling)
@@ -486,6 +478,50 @@ func (s *Service) enrichAndSave(ctx context.Context, articles []Article, localLa
 	return nil
 }
 
+func (s *Service) constructPOI(a *Article, lengths map[string]map[string]int, localLang, userLang string) *model.POI {
+	// Identify Lengths
+	bestURL, maxLength := s.determineBestArticle(a, lengths, localLang, userLang)
+
+	// Strict Validation & Label Fallback
+	nameLocal := a.Title
+	nameEn := a.TitleEn
+	nameUser := a.TitleUser
+
+	// If no titles found (Nameless Ghost), try fallback to Label
+	if nameLocal == "" && nameEn == "" && nameUser == "" {
+		if a.Label == "" {
+			return nil // Strict Drop
+		}
+		// Rescued by Label
+		nameLocal = a.Label
+		nameEn = a.Label // Fallback
+		if bestURL == "" {
+			bestURL = "https://www.wikidata.org/wiki/" + a.QID
+		}
+	}
+
+	poi := &model.POI{
+		WikidataID:          a.QID,
+		Source:              "wikidata",
+		Category:            a.Category,
+		Lat:                 a.Lat,
+		Lon:                 a.Lon,
+		Sitelinks:           a.Sitelinks,
+		NameEn:              nameEn,
+		NameLocal:           nameLocal,
+		NameUser:            nameUser,
+		WPURL:               bestURL,
+		WPArticleLength:     maxLength,
+		TriggerQID:          "",
+		CreatedAt:           time.Now(),
+		DimensionMultiplier: a.DimensionMultiplier,
+	}
+
+	// Populate Icon from Classifier Config
+	poi.Icon = s.getIcon(a.Category)
+	return poi
+}
+
 func (s *Service) determineBestArticle(a *Article, lengths map[string]map[string]int, localLang, userLang string) (url string, length int) {
 	// Identify Lengths
 	lenLocal := lengths[localLang][a.Title]
@@ -497,7 +533,10 @@ func (s *Service) determineBestArticle(a *Article, lengths map[string]map[string
 
 	// Determine Best Article (Max Length)
 	maxLength := lenLocal
-	bestURL := fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", localLang, strings.ReplaceAll(a.Title, " ", "_"))
+	var bestURL string
+	if a.Title != "" {
+		bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", localLang, strings.ReplaceAll(a.Title, " ", "_"))
+	}
 
 	// Check En
 	if lenEn > maxLength {
@@ -510,13 +549,16 @@ func (s *Service) determineBestArticle(a *Article, lengths map[string]map[string
 		bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", userLang, strings.ReplaceAll(a.TitleUser, " ", "_"))
 	}
 
-	// Safety: If no lengths found (API fail), default to local URL or En
-	if maxLength == 0 {
-		// Fallback preference: User > En > Local
-		if a.TitleUser != "" {
+	// Safety: If no lengths found (API fail or missing articles), default to available title
+	// Safety: If no lengths found (API fail or missing articles), default to available title
+	if bestURL == "" {
+		switch {
+		case a.TitleUser != "":
 			bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", userLang, strings.ReplaceAll(a.TitleUser, " ", "_"))
-		} else if a.TitleEn != "" {
+		case a.TitleEn != "":
 			bestURL = fmt.Sprintf("https://en.wikipedia.org/wiki/%s", strings.ReplaceAll(a.TitleEn, " ", "_"))
+		case a.Title != "":
+			bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", localLang, strings.ReplaceAll(a.Title, " ", "_"))
 		}
 	}
 	return bestURL, maxLength

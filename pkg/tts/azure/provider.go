@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/tts"
@@ -50,10 +51,13 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 	// We use "narration-friendly" style as requested.
 	// We do NOT escape XML here because the LLM is instructed to produce valid SSML/XML-safe text.
 	// UPDATE: Removed mstts:express-as because it interferes with nested <lang> tags for multilingual voices.
-	// See: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-synthesis-markup-voice#speaking-styles
+	// UPDATE: Workaround for truncation - inject silence after closing lang tag.
+	re := regexp.MustCompile(`</lang>`)
+	processedText := re.ReplaceAllString(text, `</lang><break time="25ms"/>`)
+
 	ssml := fmt.Sprintf(
 		`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'><voice name='%s'>%s</voice></speak>`,
-		vid, text,
+		vid, processedText,
 	)
 
 	// 3. Validate SSML (catch LLM errors)

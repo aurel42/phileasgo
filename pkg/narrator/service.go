@@ -39,6 +39,8 @@ type Service interface {
 	CurrentPOI() *model.POI
 	// CurrentTitle returns the title of the current narration.
 	CurrentTitle() string
+	// ReplayLast triggers replay of the last narrated item and restores its state.
+	ReplayLast(ctx context.Context) bool
 }
 
 // StubService is a stub implementation of the narrator service.
@@ -170,4 +172,10 @@ func (s *StubService) CurrentPOI() *model.POI {
 // CurrentTitle returns the title of the current narration (stub: empty).
 func (s *StubService) CurrentTitle() string {
 	return ""
+}
+
+// ReplayLast replays the last narration (stub: always false).
+func (s *StubService) ReplayLast(ctx context.Context) bool {
+	slog.Info("Narrator stub: ReplayLast requested")
+	return false
 }

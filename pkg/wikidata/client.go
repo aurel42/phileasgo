@@ -361,6 +361,7 @@ func parseBindings(resp sparqlResponse) []Article {
 			Title:     val(b, "title_local_val"),
 			TitleEn:   val(b, "title_en_val"),
 			TitleUser: val(b, "title_user_val"),
+			Label:     val(b, "itemLabel"),
 			Lat:       lat,
 			Lon:       lon,
 			Sitelinks: sitelinks,

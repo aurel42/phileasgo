@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"sync"
 	"time"
 	"unsafe"
@@ -409,6 +410,12 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 		data := (*TelemetryData)(dataPtr)
 
 		c.telemetryMu.Lock()
+		defer c.telemetryMu.Unlock()
+
+		// Validate telemetry before processing
+		if !c.validateTelemetry(data) {
+			return
+		}
 
 		// Log camera state changes at DEBUG
 		if c.cameraState != data.Camera {
@@ -452,6 +459,29 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 			}
 			c.telemetry.FlightStage = sim.DetermineFlightStage(&c.telemetry)
 		}
-		c.telemetryMu.Unlock()
 	}
+}
+
+// validateTelemetry checks for spurious data patterns common in SimConnect.
+// Returns true if telemetry is valid, false if it should be discarded.
+func (c *Client) validateTelemetry(data *TelemetryData) bool {
+	// 1. Null Island check: Lat/Lon both effectively zero
+	if math.Abs(data.Latitude) < 0.1 && math.Abs(data.Longitude) < 0.1 {
+		return false
+	}
+
+	// 2. Spurious Equatorial check: Lat ~0 AND |Lon| ~90
+	// This specific pattern is known to occur as a glitch.
+	if math.Abs(data.Latitude) < 0.1 && math.Abs(math.Abs(data.Longitude)-90.0) < 0.1 {
+		return false
+	}
+
+	// 3. Ground/Altitude Contradiction
+	// If sim says we are on ground, but AGL is > 1000ft, something is wrong.
+	isOnGround := data.OnGround != 0
+	if isOnGround && data.AltitudeAGL > 1000 {
+		return false
+	}
+
+	return true
 }

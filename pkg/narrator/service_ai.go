@@ -49,8 +49,13 @@ type AIService struct {
 	currentPOI        *model.POI
 	currentTopic      *EssayTopic
 	currentEssayTitle string
-	essayH            *EssayHandler
-	interests         []string
+	// Replay State
+	lastPOI        *model.POI
+	lastEssayTopic *EssayTopic
+	lastEssayTitle string
+
+	essayH    *EssayHandler
+	interests []string
 }
 
 // NewAIService creates a new AI-powered narrator service.
@@ -277,11 +282,66 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 	return true
 }
 
+func (s *AIService) ReplayLast(ctx context.Context) bool {
+	// 1. Check Audio Replay Capability
+	if !s.audio.ReplayLastNarration() {
+		return false
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// 2. Restore State for UI
+	// 2. Restore State for UI
+	switch {
+	case s.lastPOI != nil:
+		slog.Info("Narrator: Replaying last POI", "title", s.lastPOI.NameEn)
+		s.currentPOI = s.lastPOI
+		s.active = true // Mark active so UI shows "PLAYING"
+	case s.lastEssayTopic != nil:
+		slog.Info("Narrator: Replaying last Essay", "title", s.lastEssayTitle)
+		s.currentTopic = s.lastEssayTopic
+		s.currentEssayTitle = s.lastEssayTitle
+		s.active = true
+	default:
+		// Audio replayed but we have no state?
+		slog.Warn("Narrator: Replaying audio but no state to restore")
+		return true
+	}
+
+	// 3. Launch Monitor to clear state when done
+	go func() {
+		ticker := time.NewTicker(200 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if !s.audio.IsBusy() {
+					s.mu.Lock()
+					s.active = false
+					s.currentPOI = nil
+					s.currentTopic = nil
+					s.currentEssayTitle = ""
+					s.mu.Unlock()
+					return
+				}
+			}
+		}
+	}()
+
+	return true
+}
+
 func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *sim.Telemetry) {
 	// active is already set true by PlayEssay
 	s.mu.Lock()
 	s.currentTopic = topic
 	s.currentEssayTitle = "" // Reset title until generated
+	s.lastPOI = nil          // Clear last POI since this is new
+	s.lastEssayTopic = topic // Set for replay
+	s.lastEssayTitle = ""    // Will update if generated
 	s.mu.Unlock()
 
 	defer func() {
@@ -345,6 +405,7 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 			title := strings.TrimSpace(strings.TrimPrefix(firstLine, "TITLE:"))
 			s.mu.Lock()
 			s.currentEssayTitle = title
+			s.lastEssayTitle = title // Capture for replay
 			s.mu.Unlock()
 
 			// Remove title line from script for TTS
@@ -411,6 +472,9 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, manual bool, t
 	// active is already set true by PlayPOI
 	s.mu.Lock()
 	s.currentPOI = p
+	s.lastPOI = p          // Capture for replay
+	s.lastEssayTopic = nil // Clear essay since this is new
+	s.lastEssayTitle = ""
 	s.mu.Unlock()
 
 	defer func() {

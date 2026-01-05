@@ -129,7 +129,7 @@ categories:
   Railway:
     qids:
       "Q55488": "railway station"
-    weight: 1.0
+    weight: 0.4
     icon: "rail"
     sitelinks_min: 5
     size: "M"

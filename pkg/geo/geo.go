@@ -175,35 +175,6 @@ func (s *Service) GetCountry(lat, lon float64) string {
 	return loc.CountryCode
 }
 
-// countryLanguages maps country codes to their primary language.
-var countryLanguages = map[string]string{
-	"US": "en", "GB": "en", "AU": "en", "NZ": "en", "IE": "en", "CA": "en",
-	"FR": "fr", "BE": "fr", "MC": "fr",
-	"DE": "de", "AT": "de", "CH": "de",
-	"ES": "es", "MX": "es", "AR": "es", "CO": "es", "CL": "es",
-	"IT": "it", "SM": "it",
-	"PT": "pt", "BR": "pt",
-	"RU": "ru", "BY": "ru", "KZ": "ru",
-	"JP": "ja",
-	"CN": "zh", "TW": "zh",
-	"NL": "nl",
-	"SE": "sv",
-	"NO": "no",
-	"DK": "da",
-	"FI": "fi",
-	"PL": "pl",
-	"TR": "tr",
-	"GR": "el",
-}
-
-// GetLanguage returns the primary language for a country code.
-func (s *Service) GetLanguage(countryCode string) string {
-	if lang, ok := countryLanguages[countryCode]; ok {
-		return lang
-	}
-	return "en"
-}
-
 func (s *Service) getGridKey(lat, lon float64) int {
 	latKey := int(math.Floor(lat))
 	lonKey := int(math.Floor(lon))
