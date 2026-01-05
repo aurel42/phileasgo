@@ -1,5 +1,17 @@
 ﻿# Release History
 
+## v0.2.1
+- **Fix**: Resolved `deferInLoop` lint error in `pkg/sim/simconnect/dll.go` by closing registry keys immediately after use instead of deferring inside the loop.
+
+## v0.2.0
+- **Distribution**: Prepared project for public GitHub release.
+    - **Makefile**: Removed debug targets, updated web path to `internal/ui/web`, fixed build order, added `vendor` target, output exe to project root.
+    - **Install Script**: Created idempotent `install.ps1` that downloads GeoNames data, prompts for MSFS POIs, and generates config.
+    - **SimConnect**: Added `FindDLL()` auto-discovery for SimConnect.dll (supports Steam and Microsoft Store MSFS installations).
+    - **Config**: Added `--init-config` flag to generate default config file and exit.
+    - **Documentation**: Created `README.md` with installation, configuration, and usage instructions.
+    - **License**: Added MIT License.
+
 ## v0.1.188
 - **Feature**: **Visibility Telemetry (Fixed)**
     - Instrumented `Ambient In Cloud` and `AMBIENT VISIBILITY` (fixed casing).

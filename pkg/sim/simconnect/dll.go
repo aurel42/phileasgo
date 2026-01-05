@@ -122,8 +122,9 @@ func findMSFSInstallPath() string {
 	}
 	for _, path := range steamPaths {
 		if key, err := registry.OpenKey(registry.LOCAL_MACHINE, path, registry.QUERY_VALUE); err == nil {
-			defer key.Close()
-			if val, _, err := key.GetStringValue("InstallLocation"); err == nil && val != "" {
+			val, _, err := key.GetStringValue("InstallLocation")
+			key.Close()
+			if err == nil && val != "" {
 				return val
 			}
 		}

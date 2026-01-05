@@ -16,6 +16,8 @@ bin/
 logs/
 configs/phileas.yaml
 data/phileas.db*
+data/cities1000.txt
+data/Master.csv
 vendor/
 
 # Frontend
