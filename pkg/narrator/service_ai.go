@@ -178,7 +178,6 @@ func (s *AIService) Stats() map[string]any {
 	for k, v := range s.stats {
 		res[k] = v
 	}
-	s.mu.RLock()
 	// Add prediction window stats
 	if len(s.latencies) > 0 {
 		var sum time.Duration
@@ -188,7 +187,6 @@ func (s *AIService) Stats() map[string]any {
 		avg := sum / time.Duration(len(s.latencies))
 		res["latency_avg_ms"] = avg.Milliseconds()
 	}
-	s.mu.RUnlock()
 	return res
 }
 
@@ -199,20 +197,7 @@ func (s *AIService) updateLatency(d time.Duration) {
 	if len(s.latencies) > 10 {
 		s.latencies = s.latencies[1:]
 	}
-	slog.Info("Narrator: Updated latency stats", "new_latency", d, "rolling_window_size", len(s.latencies))
-}
-
-func (s *AIService) getPredictedLatency() time.Duration {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if len(s.latencies) == 0 {
-		return 60 * time.Second
-	}
-	var sum time.Duration
-	for _, d := range s.latencies {
-		sum += d
-	}
-	return sum / time.Duration(len(s.latencies))
+	slog.Debug("Narrator: Updated latency stats", "new_latency", d, "rolling_window_size", len(s.latencies))
 }
 
 // POIManager returns the internal POI manager.
@@ -257,7 +242,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 		return
 	}
 
-	go s.narratePOI(context.Background(), p, manual, tel, time.Now())
+	go s.narratePOI(context.Background(), p, tel, time.Now())
 }
 
 // PlayEssay triggers a regional essay narration.
@@ -481,7 +466,7 @@ func (s *AIService) ResetSkipCooldown() {
 	s.skipCooldown = false
 }
 
-func (s *AIService) narratePOI(ctx context.Context, p *model.POI, manual bool, tel *sim.Telemetry, startTime time.Time) {
+func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telemetry, startTime time.Time) {
 	// active is already set true by PlayPOI
 	s.mu.Lock()
 	s.currentPOI = p
@@ -499,13 +484,6 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, manual bool, t
 		s.mu.Unlock()
 	}()
 
-	slog.Info("Narrator: Narrating POI", "name", p.DisplayName(), "qid", p.WikidataID)
-
-	// 0. Update Prediction Window based on rolling average
-	predLatency := s.getPredictedLatency()
-	slog.Info("Narrator: Setting prediction window", "duration", predLatency)
-	s.sim.SetPredictionWindow(predLatency)
-
 	// 0a. Mark as played immediately to prevent re-selection during generation/skip
 	p.LastPlayed = time.Now()
 	if err := s.st.SavePOI(ctx, p); err != nil {
@@ -514,6 +492,9 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, manual bool, t
 
 	// 1. Gather Context & Build Prompt
 	promptData := s.buildPromptData(ctx, p, tel)
+
+	slog.Info("Narrator: Narrating POI", "name", p.DisplayName(), "qid", p.WikidataID, "relative_dominance", promptData.DominanceStrategy)
+
 	prompt, err := s.prompts.Render("narrator/script.tmpl", promptData)
 	if err != nil {
 		slog.Error("Narrator: Failed to render prompt", "error", err)
@@ -573,6 +554,17 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, manual bool, t
 		return
 	}
 
+	// Log Stats
+	genWords := len(strings.Fields(script))
+	duration := s.audio.Duration()
+	slog.Info("Narrator: Narration stats",
+		"name", p.DisplayName(),
+		"qid", p.WikidataID,
+		"max_words_requested", promptData.MaxWords,
+		"words_received", genWords,
+		"audio_duration", duration,
+	)
+
 	// Block until playback finishes so state remains active
 	// We check every 100ms
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -612,6 +604,7 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		tel = &t
 	}
 	nav := s.calculateNavInstruction(p, tel)
+	maxWords, domStrat := s.sampleNarrationLength(p)
 
 	return NarrationPromptData{
 		TourGuideName:     "Ava", // TODO: Get from voice profile
@@ -636,7 +629,8 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		Country:           cc,
 		TargetRegion:      region,
 		Region:            region,
-		MaxWords:          s.sampleNarrationLength(p),
+		MaxWords:          maxWords,
+		DominanceStrategy: domStrat,
 		RecentPoisContext: s.fetchRecentContext(ctx, p.Lat, p.Lon),
 		RecentContext:     s.fetchRecentContext(ctx, p.Lat, p.Lon),
 		Lat:               tel.Latitude,
@@ -889,9 +883,10 @@ type NarrationPromptData struct {
 	GroundSpeed       float64
 	PredictedLat      float64
 	PredictedLon      float64
+	DominanceStrategy string
 }
 
-func (s *AIService) sampleNarrationLength(p *model.POI) int {
+func (s *AIService) sampleNarrationLength(p *model.POI) (words int, strategy string) {
 	minL := s.cfg.Narrator.NarrationLengthMin
 	maxL := s.cfg.Narrator.NarrationLengthMax
 	if minL == 0 {
@@ -901,7 +896,7 @@ func (s *AIService) sampleNarrationLength(p *model.POI) int {
 		maxL = 600
 	}
 	if maxL <= minL {
-		return minL
+		return minL, "fixed"
 	}
 
 	// Dynamic Length Logic: Relative Dominance
@@ -918,7 +913,7 @@ func (s *AIService) sampleNarrationLength(p *model.POI) int {
 	rivals := s.poiMgr.CountScoredAbove(threshold, 2)
 
 	// Default Strategy: Uniform Random
-	strategy := "uniform"
+	strategy = "uniform"
 
 	// If p.Score is 0 (manual play?), handle gracefully (rivals will be ALL POIs > 0)
 	// Assuming normal flow:
@@ -950,6 +945,7 @@ func (s *AIService) sampleNarrationLength(p *model.POI) int {
 		pool[i] = randomVal()
 	}
 
+	var result int
 	switch strategy {
 	case "min_skew":
 		// Pick smallest
@@ -959,7 +955,7 @@ func (s *AIService) sampleNarrationLength(p *model.POI) int {
 				minVal = v
 			}
 		}
-		return minVal
+		result = minVal
 	case "max_skew":
 		// Pick largest
 		maxVal := pool[0]
@@ -968,9 +964,10 @@ func (s *AIService) sampleNarrationLength(p *model.POI) int {
 				maxVal = v
 			}
 		}
-		return maxVal
+		result = maxVal
 	default:
 		// Pick first (which is random)
-		return pool[0]
+		result = pool[0]
 	}
+	return result, strategy
 }

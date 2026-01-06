@@ -1,21 +1,39 @@
-Do not use any speaker labels or metadata.
+Output Formatting Phase: SSML Conversion
+For the final output, you must strictly format the generated text as an Azure Neural TTS script. Apply the following expert SSML rules to ensure perfect pronunciation and syntax:
 
-The text will be wrapped in Azure SSML with "narration-friendly" style automatically.
-IMPORTANT: For foreign words, proper names, names of persons or place names, you MUST wrap them in appropriate `<lang xml:lang="LO-CA">text</lang>` tags 
-to ensure correct pronunciation (e.g., <lang xml:lang="fr-FR">Champs-Élysées</lang> or <lang xml:lang="es-ES">Simon Bolivar</lang>).
-IMPORTANT: Because the output is inserted into XML, you MUST escape special characters in normal text (e.g., use `&amp;` for `&`, `&lt;` for `<`).
+General Output Constraints
+1. Format: Output ONLY raw text mixed with valid SSML tags.
+2. Structure: Do not use HTML (div, b, etc.), Markdown, or CSS.
+3. XML Escaping: You must escape special characters in the text content to prevent XML parsing errors (e.g., & becomes &amp;, < becomes &lt;). Do not escape the brackets of the SSML tags themselves.
 
-**STRICT FORMATTING RULES**:
-- **NO HTML TAGS**: Do not use `<span>`, `<div>`, `<font>`, or `<i>`.
-- **NO CSS STYLES**: Do not use `style="..."` attributes or font-family definitions.
-- The ONLY allowed XML tags are `<lang xml:lang="...">` and `<phoneme alphabet="ipa" ph="...">`.
-- Use `<phoneme>` tags for complex compound words or names where standard pronunciation might fail (e.g., `<phoneme alphabet="ipa" ph="ˈzeːpyˌʁaːmɪdə">Seepyramide</phoneme>`).
-- Output MUST be pure text mixed with valid SSML tags.
+SSML Tagging Rules
 
-**LESS CRITICAL FORMATTING RULES** (to work around Azure TTS limitations and idiosyncrasies):
-- Avoid commas ONLY WHEN ENUMERATING items or using multiple adjectives. Use other commas as normal.
-- Avoid markup/markdown formatting.
-- Use standard punctuation for pauses.
-- Technical terms (like aircraft designations) consisting of letters and numbers should be written without a dash (e.g. "AN2" instead of "AN-2").
-- Pronounce proper names correctly by including them as they are spoken (e.g. "Panam" instead of "Pan Am").
-- Spell out all numbers as text as they are supposed to be read (e.g. "eighteen seventy seventy one" instead of "1870/71").
+1. Language Switching (Critical Anti-Truncation)
+Wrap ALL foreign proper names and phrases in the lang tag.
+IMPORTANT: The TTS engine has a bug where it truncates long foreign words. You MUST split foreign compound words with hyphens inside the tag.
+- Standard: <lang xml:lang="fr-FR">Champs-Élysées</lang>
+- Compound Fix: <lang xml:lang="de-DE">See-pyramide</lang> (Split "Seepyramide" into morphological parts).
+- Compound Fix: <lang xml:lang="nl-NL">Aansprakelijkheids-verzekering</lang> (Split long compounds).
+
+2. Numbers, Dates, and Units
+Use the say-as tag to strictly define how numbers are read.
+- Dates: <say-as interpret-as="date" format="y">1995</say-as>
+- Ordinals: <say-as interpret-as="ordinal">1st</say-as> or <say-as interpret-as="ordinal">3.</say-as>
+- Cardinals: <say-as interpret-as="cardinal">12</say-as>
+- Ranges: For ranges like "1870/71", split the tags: <say-as interpret-as="date" format="y">1870</say-as> to <say-as interpret-as="date" format="y">71</say-as>.
+
+3. Codes and Abbreviations
+Use the sub tag or say-as tag to ensure technical terms are spoken correctly while keeping the written text accurate.
+- Alphanumeric Codes: Use the sub tag to define the spoken alias.
+  Input: "The AN-2 aircraft..."
+  Output: "The <sub alias="A N Two">AN-2</sub> aircraft..."
+- Acronyms: Use say-as for letter-by-letter spelling.
+  Example: <say-as interpret-as="characters">USA</say-as>
+- Pronunciation Corrections: Use sub to fix common mispronunciations.
+  Example: <sub alias="Pan Am">Pan Am</sub>
+
+4. Pacing and Lists
+Control the speed of lists using the break tag rather than removing punctuation.
+- Standard List: "Apples, pears, and bananas."
+- Fast List (Enumeration): To reduce the pause between items without removing the comma, use a zero-strength break.
+  Example: "Apples<break strength="none"/>, pears<break strength="none"/>, and bananas."

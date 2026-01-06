@@ -1,5 +1,23 @@
 ﻿# Release History
 
+## v0.2.12
+- **Feature**: **Fish Audio Model Selection**
+    - Added support for specifying the Fish Audio model ID (e.g., `s1`) in configuration.
+    - Updated API client to pass `model` parameter in synthesis requests.
+    - Adapted fish.audio prompt template to speak in the voice and style of the Supreme Leader (will probably get boring fast, but it's fun to try)
+- **Debug**: **TTS Header Logging**
+    - Enhanced `tts.log` to include full request headers for deeper debugging of API interactions.
+- **Maintenance**: **Log Rotation**
+    - Changed log management strategy: logs are no longer truncated on startup. Instead, existing logs are rotated to `.old` (overwriting any previous `.old` file) to preserve the previous session's data for debugging.
+- **Feature**: **Dynamic TTS UI Label**
+    - The Info Panel now displays the active TTS provider name (e.g., "AZURE SPEECH") instead of a hardcoded label.
+- **Feature**: **Configurable Mock Simulator**
+    - Users can now configure the Mock Simulator's starting position (Lat/Lon/Alt/Heading) and phase durations in `phileas.yaml`.
+- **Improvement**: **Refined Logging**
+    - Downgraded noisy logs ("Setting prediction window", "Updated latency stats") to DEBUG.
+    - Added "Narrator: Narration stats" log showing requested word count, generated word count, and audio duration.
+    - Added "relative_dominance" strategy to the "Narrating POI" log to track dynamic length decisions.
+
 ## v0.2.11
 - **Maintenance**: **Project Structure**
     - Moved debugging and Proof-of-Concept scripts (`debug_simconnect`, `latency_check`, `mocksim`, `simtest`) to `cmd/experiments` to clean up the root `cmd` directory.
@@ -1393,4 +1411,3 @@
 - Added `bin/mocksim.exe` standalone executable for testing simulation logic.
 - Added `build-mocksim` Makefile target.
 - Refactored `pkg/sim/mock` to `pkg/sim/mocksim` for clarity.
-

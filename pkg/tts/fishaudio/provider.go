@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/tts"
@@ -22,6 +23,7 @@ const (
 type Provider struct {
 	apiKey  string
 	voiceID string // Default voice ID (reference_id)
+	modelID string // Model ID (e.g. "s1")
 	client  *http.Client
 }
 
@@ -30,6 +32,7 @@ func NewProvider(cfg config.FishAudioConfig) *Provider {
 	return &Provider{
 		apiKey:  cfg.Key,
 		voiceID: cfg.VoiceID,
+		modelID: cfg.Model,
 		client:  &http.Client{},
 	}
 }
@@ -38,6 +41,7 @@ func NewProvider(cfg config.FishAudioConfig) *Provider {
 type requestBody struct {
 	Text        string `json:"text"`
 	ReferenceID string `json:"reference_id"`
+	ModelID     string `json:"model,omitempty"` // Added model field
 	Format      string `json:"format"`
 	Mp3Bitrate  int    `json:"mp3_bitrate,omitempty"`
 	OpusBitrate int    `json:"opus_bitrate,omitempty"`
@@ -56,9 +60,11 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 	}
 
 	// 2. Prepare Request
+	// 2. Prepare Request
 	reqData := requestBody{
 		Text:        text,
 		ReferenceID: vid,
+		ModelID:     p.modelID,
 		Format:      "mp3",
 		Mp3Bitrate:  128, // Standard quality
 		Latency:     "normal",
@@ -77,22 +83,29 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
+	// Construct debug info
+	var headerLog strings.Builder
+	for k, v := range req.Header {
+		headerLog.WriteString(fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", ")))
+	}
+	logContent := fmt.Sprintf("HEADERS:\n%s\nPAYLOAD:\n%s", headerLog.String(), text)
+
 	// 3. Execute Request
 	resp, err := p.client.Do(req)
 	if err != nil {
-		tts.Log("FISH", text, 0, err)
+		tts.Log("FISH", logContent, 0, err)
 		return "", fmt.Errorf("api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		tts.Log("FISH", text, resp.StatusCode, nil)
+		tts.Log("FISH", logContent, resp.StatusCode, nil)
 		body, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("fish audio api error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	// 4. Save Output
-	tts.Log("FISH", text, 200, nil)
+	tts.Log("FISH", logContent, 200, nil)
 	// Ensure extension
 	ext := "mp3"
 	filename := outputPath

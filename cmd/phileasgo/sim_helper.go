@@ -1,8 +1,8 @@
 package main
 
 import (
-	"context"
 	"log/slog"
+	"time"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/sim"
@@ -10,13 +10,21 @@ import (
 	"phileasgo/pkg/sim/simconnect"
 )
 
-func initializeSimClient(ctx context.Context, cfg *config.Config) (sim.Client, error) {
+func initializeSimClient(cfg *config.Config) (sim.Client, error) {
 	simSource := cfg.Sim.Provider
 
 	// Default to SimConnect unless explicitly set to "mock"
 	if simSource == "mock" {
 		slog.Info("Sim Source: Mock")
-		return mocksim.NewClient(mocksim.DefaultConfig()), nil
+		return mocksim.NewClient(mocksim.Config{
+			DurationParked: time.Duration(cfg.Sim.Mock.DurationParked),
+			DurationTaxi:   time.Duration(cfg.Sim.Mock.DurationTaxi),
+			DurationHold:   time.Duration(cfg.Sim.Mock.DurationHold),
+			StartLat:       cfg.Sim.Mock.StartLat,
+			StartLon:       cfg.Sim.Mock.StartLon,
+			StartAlt:       cfg.Sim.Mock.StartAlt,
+			StartHeading:   cfg.Sim.Mock.StartHeading,
+		}), nil
 	}
 
 	// Default or Explicit SimConnect
@@ -25,7 +33,15 @@ func initializeSimClient(ctx context.Context, cfg *config.Config) (sim.Client, e
 	sc, err := simconnect.NewClient("PhileasGo", "")
 	if err != nil {
 		slog.Error("Failed to create SimConnect client, falling back to Mock", "error", err)
-		return mocksim.NewClient(mocksim.DefaultConfig()), nil
+		return mocksim.NewClient(mocksim.Config{
+			DurationParked: time.Duration(cfg.Sim.Mock.DurationParked),
+			DurationTaxi:   time.Duration(cfg.Sim.Mock.DurationTaxi),
+			DurationHold:   time.Duration(cfg.Sim.Mock.DurationHold),
+			StartLat:       cfg.Sim.Mock.StartLat,
+			StartLon:       cfg.Sim.Mock.StartLon,
+			StartAlt:       cfg.Sim.Mock.StartAlt,
+			StartHeading:   cfg.Sim.Mock.StartHeading,
+		}), nil
 	}
 	return sc, nil
 }

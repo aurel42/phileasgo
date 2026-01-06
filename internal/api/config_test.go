@@ -92,7 +92,7 @@ func TestHandleGetConfig(t *testing.T) {
 
 func TestHandleSetConfig(t *testing.T) {
 	// Simple test to ensure we can update sim source
-	st := &mockStore{state: make(map[string]string)}
+	st := &mockStore{state: nil}
 	_ = st
 	// Inject a SetState function if strictly mocking,
 	// but here we might need a better mock if SetState is called.

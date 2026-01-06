@@ -41,7 +41,7 @@ type NarratorStatusResponse struct {
 
 // HandlePlay handles POST /api/narrator/play
 func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
-	slog.Info("DEBUG: HandlePlay called")
+
 	var req PlayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)

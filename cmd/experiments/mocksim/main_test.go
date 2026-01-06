@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"phileasgo/pkg/sim/mocksim"
 )
@@ -15,7 +16,9 @@ func TestMockSimConfig(t *testing.T) {
 	}{
 		{
 			name: "DefaultConfig",
-			cfg:  mocksim.DefaultConfig(),
+			cfg: mocksim.Config{
+				DurationParked: 10 * time.Second,
+			},
 		},
 	}
 

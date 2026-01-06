@@ -155,7 +155,7 @@ func (c *Client) dispatch(provider string, j job) {
 		// Create new queue and start worker
 		q = make(chan job, 100)
 		c.queues[provider] = q
-		go c.worker(provider, q)
+		go c.worker(q)
 	}
 
 	// Non-blocking enqueue? No, we want to block or ideally buffer.
@@ -164,7 +164,7 @@ func (c *Client) dispatch(provider string, j job) {
 }
 
 // worker processes requests for a specific provider sequentially.
-func (c *Client) worker(provider string, q <-chan job) {
+func (c *Client) worker(q <-chan job) {
 	for j := range q {
 		// Check context before processing
 		if j.req.Context().Err() != nil {

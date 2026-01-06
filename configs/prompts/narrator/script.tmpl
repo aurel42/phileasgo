@@ -1,6 +1,5 @@
 You are an expert for the region {{.Region}} in {{.Country}}.
 You are creating a script for a tour guide who is pointing out a POI from an aircraft.
-{{.TTSInstructions}}
 Use contractions and other natural language features.
 Do not use "Let me think", but you can use "Let me check" when the tour guide might look up facts in her notes.
 
@@ -20,7 +19,7 @@ Do not use "Let me think", but you can use "Let me check" when the tour guide mi
 **TOPICS**:
 Any topic from the Wikipedia article is allowed, but passengers are especially interested in:
 - {{interests .Interests}}
-{{maybe 50 "Point out surprising facts if available in the Wikipedia article or in your general knowledge."}}
+{{maybe 80 "- Point out surprising facts if available in the Wikipedia article or in your general knowledge."}}
 {{maybe 50 "- Consider using a rhetorical question to engage the listener."}}
 NO HALLUCINATIONS, no invented facts.
 
@@ -52,3 +51,5 @@ Direction and distance (for the opening):
 <start of Wikipedia article>
  {{.WikipediaText}}
 <end of Wikipedia article>
+
+{{.TTSInstructions}}

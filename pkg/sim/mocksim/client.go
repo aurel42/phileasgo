@@ -30,18 +30,7 @@ type Config struct {
 	StartLat       float64
 	StartLon       float64
 	StartAlt       float64
-}
-
-// DefaultConfig returns the standard configuration with user-requested adjustments.
-func DefaultConfig() Config {
-	return Config{
-		DurationParked: 120 * time.Second,
-		DurationTaxi:   120 * time.Second,
-		DurationHold:   30 * time.Second,
-		StartLat:       51.6845,
-		StartLon:       14.4234,
-		StartAlt:       285.0,
-	}
+	StartHeading   float64
 }
 
 type scenarioStep struct {
@@ -80,7 +69,7 @@ func NewClient(cfg Config) *MockClient {
 			Longitude:   cfg.StartLon,
 			AltitudeMSL: cfg.StartAlt,
 			AltitudeAGL: 0,
-			Heading:     rand.Float64() * 360.0,
+			Heading:     cfg.StartHeading,
 			IsOnGround:  true,
 		},
 		groundAlt:    cfg.StartAlt,

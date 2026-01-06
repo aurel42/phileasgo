@@ -13,7 +13,15 @@ import (
 )
 
 func main() {
-	cfg := mocksim.DefaultConfig()
+	cfg := mocksim.Config{
+		DurationParked: 5 * time.Second,
+		DurationTaxi:   5 * time.Second,
+		DurationHold:   5 * time.Second,
+		StartLat:       51.6845,
+		StartLon:       14.4234,
+		StartAlt:       285.0,
+		StartHeading:   180.0,
+	}
 	client := mocksim.NewClient(cfg)
 	defer client.Close()
 

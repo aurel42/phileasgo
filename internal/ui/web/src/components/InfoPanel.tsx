@@ -263,7 +263,7 @@ export const InfoPanel = ({
 
                 {/* Edge TTS */}
                 <div className="flex-card stat-card">
-                    <div className="label">EDGE TTS</div>
+                    <div className="label">{ttsEngine.replace(/-/g, ' ').toUpperCase()}</div>
                     <div className="value">
                         <span className="stat-success">{ttsStats.api_success}</span>
                         <span className="stat-neutral"> / </span>

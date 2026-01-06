@@ -26,7 +26,19 @@ type Config struct {
 
 // SimConfig holds settings for the simulation connection.
 type SimConfig struct {
-	Provider string `yaml:"provider"` // "simconnect", "mock"
+	Provider string        `yaml:"provider"` // "simconnect", "mock"
+	Mock     MockSimConfig `yaml:"mock"`
+}
+
+// MockSimConfig holds settings for the mock simulation.
+type MockSimConfig struct {
+	StartLat       float64  `yaml:"start_lat"`
+	StartLon       float64  `yaml:"start_lon"`
+	StartAlt       float64  `yaml:"start_alt"`
+	StartHeading   float64  `yaml:"start_heading"`
+	DurationParked Duration `yaml:"duration_parked"`
+	DurationTaxi   Duration `yaml:"duration_taxi"`
+	DurationHold   Duration `yaml:"duration_hold"`
 }
 
 // LLMConfig holds settings for the Large Language Model provider.
@@ -46,6 +58,7 @@ type EdgeTTSConfig struct {
 type FishAudioConfig struct {
 	Key     string `yaml:"key"`   // API Key
 	VoiceID string `yaml:"voice"` // Reference ID
+	Model   string `yaml:"model"` // Model ID (e.g. "s1")
 }
 
 // AzureSpeechConfig holds settings for Azure Speech TTS.
@@ -212,6 +225,15 @@ func DefaultConfig() *Config {
 		},
 		Sim: SimConfig{
 			Provider: "simconnect",
+			Mock: MockSimConfig{
+				StartLat:       51.6845,
+				StartLon:       14.4234,
+				StartAlt:       285.0,
+				StartHeading:   0.0,
+				DurationParked: Duration(120 * time.Second),
+				DurationTaxi:   Duration(120 * time.Second),
+				DurationHold:   Duration(30 * time.Second),
+			},
 		},
 	}
 }

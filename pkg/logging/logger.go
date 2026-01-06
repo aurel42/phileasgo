@@ -18,8 +18,8 @@ var RequestLogger *slog.Logger
 // Init initializes the logging system based on configuration.
 // It returns a cleanup function to close log files.
 func Init(cfg *config.LogConfig) (func(), error) {
-	// Truncate all log files at startup
-	truncatePaths(cfg.Server.Path, cfg.Requests.Path, cfg.Gemini.Path, "logs/tts.log")
+	// Rotate all log files at startup
+	rotatePaths(cfg.Server.Path, cfg.Requests.Path, cfg.Gemini.Path, "logs/tts.log")
 
 	var closers []io.Closer
 
@@ -152,16 +152,25 @@ func (m *multiHandler) WithGroup(name string) slog.Handler {
 	return &multiHandler{handlers: newHandlers}
 }
 
-// truncatePaths truncates the given log files if they exist.
-// This is called at the start of Init to ensure logs are fresh each run.
-func truncatePaths(paths ...string) {
+// rotatePaths rotates the given log files if they exist by renaming them to .old.
+// This is called at the start of Init to ensure logs are fresh each run but previous logs are kept.
+func rotatePaths(paths ...string) {
 	for _, p := range paths {
 		if p == "" {
 			continue
 		}
 		dir := filepath.Dir(p)
-		if err := os.MkdirAll(dir, 0o755); err == nil {
-			_ = os.Truncate(p, 0)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			continue
+		}
+
+		// If file exists, rotate it
+		if _, err := os.Stat(p); err == nil {
+			oldPath := p + ".old"
+			// Remove existing .old if present
+			_ = os.Remove(oldPath)
+			// Rename current to .old
+			_ = os.Rename(p, oldPath)
 		}
 	}
 }

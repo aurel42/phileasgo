@@ -85,7 +85,7 @@ func run(ctx context.Context, configPath string) error {
 		slog.Error("Maintenance tasks failed", "error", err)
 	}
 
-	simClient, err := initializeSimClient(ctx, appCfg)
+	simClient, err := initializeSimClient(appCfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize sim client: %w", err)
 	}
@@ -119,7 +119,7 @@ func run(ctx context.Context, configPath string) error {
 	telH := api.NewTelemetryHandler()
 
 	// Scheduler
-	sched := setupScheduler(ctx, appCfg, simClient, st, narratorSvc, promptMgr, wdValidator, svcs, telH)
+	sched := setupScheduler(appCfg, simClient, st, narratorSvc, promptMgr, wdValidator, svcs, telH)
 	go sched.Start(ctx)
 
 	// Visibility
@@ -248,7 +248,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 	return runServerLifecycle(ctx, srv, quit)
 }
 
-func setupScheduler(ctx context.Context, cfg *config.Config, simClient sim.Client, st store.Store, ns *narrator.AIService, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, sink core.TelemetrySink) *core.Scheduler {
+func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, ns *narrator.AIService, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, sink core.TelemetrySink) *core.Scheduler {
 	sched := core.NewScheduler(cfg, simClient, sink)
 	sched.AddJob(core.NewDistanceJob("DistanceSync", 5000, func(c context.Context, t sim.Telemetry) {
 		_ = st.MarkEntitiesSeen(c, map[string][]string{})
