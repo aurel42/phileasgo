@@ -1,5 +1,9 @@
 ﻿# Release History
 
+## v0.2.8 (Hotfix)
+- **Fix**: Resolved panic in Gemini client logger caused by nil `SearchEntryPoint` in `GroundingMetadata`.
+- **Refactor**: Extracted logging logic to `client_helper.go` and added comprehensive table-driven tests.
+
 ## v0.2.7
 - **Fix**: Resolved issue where SimConnect "Cinematic" camera state (16) was treated as unknown, causing the UI to report "Disconnected". It is now correctly mapped to **Active** state.
 - **Log**: Added `GroundingMetadata` verification logging to Gemini client to confirm search tool usage.
