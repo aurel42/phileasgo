@@ -3,6 +3,9 @@ export interface AudioStatus {
     is_paused: boolean;
     is_user_paused: boolean;
     volume: number;
+    title: string;
+    position: number;
+    duration: number;
 }
 
 export interface NarratorStatus {

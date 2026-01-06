@@ -129,10 +129,47 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
                 </div>
             </div>
 
-            {/* Title Row */}
+            {/* Title Row with Progress */}
             {showTitle && displayTitle && (
-                <div className="playback-title">
-                    {displayTitle}
+                <div className="playback-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    {/* Circular Progress */}
+                    {status?.duration && status.duration > 0 && (
+                        <div style={{ position: 'relative', width: '14px', height: '14px', flexShrink: 0 }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" style={{ transform: 'rotate(-90deg)' }}>
+                                <circle
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    fill="none"
+                                    stroke="#444"
+                                    strokeWidth="4"
+                                />
+                                <circle
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    fill="none"
+                                    stroke={isPaused ? '#fbc02d' : '#4caf50'}
+                                    strokeWidth="4"
+                                    strokeDasharray={`${2 * Math.PI * 10}`}
+                                    strokeDashoffset={`${2 * Math.PI * 10 * (1 - (status.position / status.duration))}`}
+                                    strokeLinecap="round"
+                                    style={{ transition: 'stroke-dashoffset 0.5s linear' }}
+                                />
+                            </svg>
+                        </div>
+                    )}
+
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {displayTitle}
+                    </span>
+
+                    {/* Time */}
+                    {status?.duration && status.duration > 0 && (
+                        <span style={{ fontSize: '10px', color: '#888', fontFamily: 'monospace', flexShrink: 0 }}>
+                            -{Math.floor(status.duration - status.position)}s
+                        </span>
+                    )}
                 </div>
             )}
         </div>
