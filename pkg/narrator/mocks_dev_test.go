@@ -67,6 +67,8 @@ func (m *MockAudio) IsUserPaused() bool        { return false }
 func (m *MockAudio) ResetUserPause()           {}
 func (m *MockAudio) LastNarrationFile() string { return m.LastFile }
 func (m *MockAudio) ReplayLastNarration() bool { return m.PlayErr == nil }
+func (m *MockAudio) Position() time.Duration   { return 0 }
+func (m *MockAudio) Duration() time.Duration   { return 0 }
 
 type MockPOIProvider struct {
 	GetPOIFunc  func(ctx context.Context, qid string) (*model.POI, error)

@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.6
+- **Feature**: **Audio Playback UI Enhancements**
+    - The Info Panel now displays a "NOW PLAYING" section when narration is active.
+    - **UI**: Shows the Title of the narration (POI Name or Essay Topic).
+    - **Progress**: Displays a circular progress indicator that fills clockwise and a digital timer (Current / Total Duration).
+    - **Backend**: Updated Audio Manager to track and expose real-time playback position and duration via the API.
+### UNIT-TESTS
+- Added `Position()` and `Duration()` methods to `pkg/audio` and verified via `manager_test.go`.
+- Updated mocks in `pkg/narrator` to support the expanded interface.
+
 ## v0.2.5
 - **Feature**: **Dynamic Narration Length (Relative Dominance)**
     - Implemented a "Relative Dominance" strategy for narration length.

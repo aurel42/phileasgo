@@ -18,6 +18,13 @@ interface InfoPanelProps {
     onMinPoiScoreChange: (score: number) => void;
 }
 
+const formatTime = (seconds: number): string => {
+    if (!seconds && seconds !== 0) return "--:--";
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
 export const InfoPanel = ({
     telemetry, status, isRetrying, units, onUnitsChange,
     showCacheLayer, onCacheLayerChange,
@@ -31,6 +38,13 @@ export const InfoPanel = ({
     const [configOpen, setConfigOpen] = useState(false);
     const [simSource, setSimSource] = useState<string>('mock');
     const [volume, setVolume] = useState<number>(1.0);
+    const [audioStatus, setAudioStatus] = useState<{
+        is_playing: boolean;
+        is_paused: boolean;
+        title: string;
+        position: number;
+        duration: number;
+    } | null>(null);
     const [stats, setStats] = useState<any>(null); // Quick any for stats map
 
     useEffect(() => {
@@ -47,16 +61,33 @@ export const InfoPanel = ({
                 .catch(e => console.error("Failed to fetch stats", e));
         }
 
+        const fetchAudio = () => {
+            fetch('/api/audio/status')
+                .then(r => r.json())
+                .then(data => setAudioStatus(data))
+                .catch(e => console.error("Failed to fetch audio status", e));
+        }
+
         // Fetch immediately
         fetchVersion();
         fetchStats();
+        fetchAudio();
 
         // Then poll every 5 seconds to detect backend restart with new version
         const interval = setInterval(() => {
             fetchVersion();
             fetchStats();
         }, 5000);
-        return () => clearInterval(interval);
+
+        // Poll audio more frequently
+        const audioInterval = setInterval(() => {
+            fetchAudio();
+        }, 1000);
+
+        return () => {
+            clearInterval(interval);
+            clearInterval(audioInterval);
+        };
     }, []);
 
     useEffect(() => {
@@ -271,6 +302,56 @@ export const InfoPanel = ({
                 </div>
             </div>
 
+
+            {/* AUDIO PLAYBACK */}
+            {
+                audioStatus && (audioStatus.is_playing || audioStatus.is_paused) && (
+                    <div className="hud-card col-layout" style={{ marginBottom: '12px' }}>
+                        <div className="label">NOW PLAYING</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 500, color: '#fff' }}>
+                                {audioStatus.title || 'Unknown Title'}
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: '#ccc' }}>
+                                {/* Circular Progress */}
+                                <div style={{ position: 'relative', width: '24px', height: '24px' }}>
+                                    <svg width="24" height="24" viewBox="0 0 24 24" style={{ transform: 'rotate(-90deg)' }}>
+                                        {/* Background Circle */}
+                                        <circle
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            fill="none"
+                                            stroke="#444"
+                                            strokeWidth="3"
+                                        />
+                                        {/* Progress Circle */}
+                                        <circle
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            fill="none"
+                                            stroke={audioStatus.is_paused ? '#fbc02d' : '#4caf50'}
+                                            strokeWidth="3"
+                                            strokeDasharray={`${2 * Math.PI * 10}`}
+                                            strokeDashoffset={`${2 * Math.PI * 10 * (1 - (audioStatus.duration > 0 ? audioStatus.position / audioStatus.duration : 0))}`}
+                                            strokeLinecap="round"
+                                            style={{ transition: 'stroke-dashoffset 0.5s linear' }}
+                                        />
+                                    </svg>
+                                </div>
+
+                                {/* Time */}
+                                <div style={{ fontFamily: 'monospace' }}>
+                                    {formatTime(audioStatus.position)} / {formatTime(audioStatus.duration)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
             {/* CONFIGURATION */}
             <div className="hud-card col-layout" style={{ gap: configOpen ? '12px' : '0' }}>
                 <div
@@ -412,6 +493,6 @@ export const InfoPanel = ({
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };

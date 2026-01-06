@@ -44,6 +44,10 @@ type Service interface {
 	LastNarrationFile() string
 	// ReplayLastNarration replays the last narration. Returns true if successful.
 	ReplayLastNarration() bool
+	// Position returns the current playback position.
+	Position() time.Duration
+	// Duration returns the total duration of the current audio.
+	Duration() time.Duration
 }
 
 // Manager implements the Service interface using gopxl/beep.
@@ -57,6 +61,8 @@ type Manager struct {
 	speakerInitialized bool
 	currentSampleRate  beep.SampleRate
 	streamer           *effects.Volume // Added for volume control
+	trackStreamer      beep.StreamSeeker
+	trackFormat        beep.Format
 }
 
 // New creates a new Manager instance.
@@ -130,7 +136,10 @@ func (m *Manager) Play(filepath string, startPaused bool) error {
 		Volume:   volumeToPower(m.volume),
 		Silent:   m.volume <= 0.01,
 	}
+
 	m.streamer = volStreamer
+	m.trackStreamer = streamer
+	m.trackFormat = format
 
 	// Wrap in control for pause/resume
 	m.ctrl = &beep.Ctrl{Streamer: volStreamer, Paused: startPaused}
@@ -290,4 +299,24 @@ func (m *Manager) ReplayLastNarration() bool {
 	}
 
 	return m.Play(lastFile, false) == nil
+}
+
+// Position returns the current playback position.
+func (m *Manager) Position() time.Duration {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.trackStreamer == nil || m.trackFormat.SampleRate == 0 {
+		return 0
+	}
+	return m.trackFormat.SampleRate.D(m.trackStreamer.Position())
+}
+
+// Duration returns the total duration of the current audio.
+func (m *Manager) Duration() time.Duration {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.trackStreamer == nil || m.trackFormat.SampleRate == 0 {
+		return 0
+	}
+	return m.trackFormat.SampleRate.D(m.trackStreamer.Len())
 }

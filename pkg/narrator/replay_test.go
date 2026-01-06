@@ -3,6 +3,7 @@ package narrator
 import (
 	"context"
 	"testing"
+	"time"
 
 	"phileasgo/pkg/model"
 )
@@ -132,3 +133,5 @@ func (m *MockAudioService) IsUserPaused() bool                      { return fal
 func (m *MockAudioService) ResetUserPause()                         {}
 func (m *MockAudioService) LastNarrationFile() string               { return "" }
 func (m *MockAudioService) ReplayLastNarration() bool               { return m.ShouldReplay }
+func (m *MockAudioService) Position() time.Duration                 { return 0 }
+func (m *MockAudioService) Duration() time.Duration                 { return 0 }

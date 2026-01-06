@@ -43,6 +43,9 @@ type AudioStatusResponse struct {
 	IsPaused     bool    `json:"is_paused"`
 	IsUserPaused bool    `json:"is_user_paused"`
 	Volume       float64 `json:"volume"`
+	Title        string  `json:"title"`
+	Position     float64 `json:"position"` // Seconds
+	Duration     float64 `json:"duration"` // Seconds
 }
 
 // HandleControl handles POST /api/audio/control
@@ -134,6 +137,9 @@ func (h *AudioHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		IsPaused:     h.audio.IsPaused(),
 		IsUserPaused: h.audio.IsUserPaused(),
 		Volume:       h.audio.Volume(),
+		Title:        h.narrator.CurrentTitle(),
+		Position:     h.audio.Position().Seconds(),
+		Duration:     h.audio.Duration().Seconds(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
