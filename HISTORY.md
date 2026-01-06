@@ -1,9 +1,14 @@
 ﻿# Release History
 
+## v0.2.14
+- **UX**: **Responsive Playback Status**
+    - Implemented optimistic UI updates for the "Play" button.
+    - When clicked, the UI now instantly shows a "Loading..." state instead of waiting for the next server poll, providing immediate feedback that the request has been received.
+    - Fixed a bug where the "Preparing" status was occasionally skipped in the UI.
+
 ## v0.2.13
 - **UX**: **Click-Through Aircraft Icon**
     - The aircraft icon on the map is now "transparent" to mouse clicks (`interactive={false}`).
-    - This allows users to easily select POI markers that happen to be located directly underneath the aircraft symbol, which was previously a frustration during flight.
 
 ## v0.2.12
 - **Feature**: **Fish Audio Model Selection**

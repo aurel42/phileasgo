@@ -1,6 +1,8 @@
 
 import { useEffect, useState } from 'react';
 import type { POI } from '../hooks/usePOIs';
+import { useQueryClient } from '@tanstack/react-query';
+import type { AudioStatus } from '../types/audio';
 
 interface POIInfoPanelProps {
     poi: POI | null;
@@ -44,6 +46,7 @@ const formatTimeAgo = (dateStr: string) => {
 
 export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         if (!poi) {
@@ -80,14 +83,31 @@ export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
     const localName = getLocalNameIfDifferent(poi, primaryName);
 
     const handlePlay = async () => {
+        // Optimistic update
+        queryClient.setQueryData(['audioStatus'], (old: AudioStatus | undefined) => {
+            if (!old) return old;
+            return {
+                ...old,
+                is_playing: true,
+                title: 'Loading: ' + primaryName,
+                // zero out progress
+                position: 0,
+                duration: 0
+            };
+        });
+
         try {
             await fetch('/api/narrator/play', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ poi_id: poi.wikidata_id })
             });
+            // Force immediate refetch to get real state if it happened fast
+            queryClient.invalidateQueries({ queryKey: ['audioStatus'] });
         } catch (e) {
             console.error("Failed to trigger play", e);
+            // Revert on error? Handled by next poll usually.
+            queryClient.invalidateQueries({ queryKey: ['audioStatus'] });
         }
     };
 
