@@ -33,5 +33,5 @@ export const AircraftMarker = ({ lat, lon, heading }: AircraftMarkerProps) => {
         }
     }, [lat, lon]);
 
-    return <Marker position={[lat, lon]} icon={icon} ref={markerRef} pane="aircraftPane" />;
+    return <Marker position={[lat, lon]} icon={icon} ref={markerRef} pane="aircraftPane" interactive={false} />;
 };

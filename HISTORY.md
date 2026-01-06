@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.13
+- **UX**: **Click-Through Aircraft Icon**
+    - The aircraft icon on the map is now "transparent" to mouse clicks (`interactive={false}`).
+    - This allows users to easily select POI markers that happen to be located directly underneath the aircraft symbol, which was previously a frustration during flight.
+
 ## v0.2.12
 - **Feature**: **Fish Audio Model Selection**
     - Added support for specifying the Fish Audio model ID (e.g., `s1`) in configuration.
