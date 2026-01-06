@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.10
+- **Fix**: **Advanced Azure TTS Pronunciation**
+    - Updated SSML strategy to prevent word truncation (e.g. "Seepyramide" -> "Se") by injecting punctuation inside `<lang>` tags if missing.
+    - Updated Prompt Template to explicitly authorize the use of SSML `<phoneme>` tags (IPA) by the LLM for complex cases.
+    - Removed previous `<break>` injection workaround which was ineffective for mid-word truncation.
+- **Fix**: **Gemini Logging**
+    - Improved `Gemini` logs to warn (rather than confusingly info-log) when Grounding/Search metadata is present but empty.
+- **Maintenance**: **Log Rotation**
+    - Added `logs/tts.log` to the list of log files truncated on application startup.
+
 ## v0.2.9
 - **Feature**: **Dynamic TTS UI & Telemetry**
     - The Info Panel now dynamically updates to show the stats of the *active* TTS engine (e.g., "AZURE SPEECH", "FISH AUDIO") instead of hardcoded labels.

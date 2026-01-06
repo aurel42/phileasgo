@@ -19,7 +19,7 @@ var RequestLogger *slog.Logger
 // It returns a cleanup function to close log files.
 func Init(cfg *config.LogConfig) (func(), error) {
 	// Truncate all log files at startup
-	truncatePaths(cfg.Server.Path, cfg.Requests.Path, cfg.Gemini.Path)
+	truncatePaths(cfg.Server.Path, cfg.Requests.Path, cfg.Gemini.Path, "logs/tts.log")
 
 	var closers []io.Closer
 
