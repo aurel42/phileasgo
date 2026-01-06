@@ -4,8 +4,10 @@
 - **Feature**: **Audio Playback UI Enhancements**
     - **UI**: Shows the Title of the narration (POI Name or Essay Topic).
     - **UI**: Aligned telemetry items to the top of their cards for better consistency.
+    - **UI**: Removed the "Visibility" telemetry card as data was unreliable.
     - **Progress**: Displays a circular progress indicator and total duration (M:SS) after the title.
-    - **Backend**: Updated Audio Manager to track and expose real-time playback position and duration via the API.
+    - **Backend**: Update Audio Manager to track and expose real-time playback position and duration via the API.
+    - **Backend**: Removed `InCloud` and `VisualRange` telemetry tracking.
 ### UNIT-TESTS
 - Added `Position()` and `Duration()` methods to `pkg/audio` and verified via `manager_test.go`.
 - Updated mocks in `pkg/narrator` to support the expanded interface.

@@ -283,8 +283,6 @@ func (c *Client) setupDataDefinitions() error {
 		{"PLANE ALT ABOVE GROUND", "Feet", DATATYPE_FLOAT64},
 		{"PLANE HEADING DEGREES TRUE", "Degrees", DATATYPE_FLOAT64},
 		{"GROUND VELOCITY", "Knots", DATATYPE_FLOAT64},
-		{"Ambient In Cloud", "Bool", DATATYPE_FLOAT64},
-		{"AMBIENT VISIBILITY", "Meters", DATATYPE_FLOAT64},
 		{"SIM ON GROUND", "Bool", DATATYPE_INT32},
 		{"GENERAL ENG COMBUSTION:1", "Bool", DATATYPE_INT32},
 		{"CAMERA STATE", "Enum", DATATYPE_INT32},
@@ -453,8 +451,6 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 				GroundSpeed:        data.GroundSpeed,
 				PredictedLatitude:  pred.Lat,
 				PredictedLongitude: pred.Lon,
-				AmbientInCloud:     data.AmbientInCloud,
-				AmbientVisibility:  data.AmbientVisibility,
 				IsOnGround:         data.OnGround != 0 || data.AltitudeAGL < 50,
 			}
 			c.telemetry.FlightStage = sim.DetermineFlightStage(&c.telemetry)

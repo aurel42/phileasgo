@@ -43,11 +43,9 @@ type Telemetry struct {
 	GroundSpeed   float64 // Knots
 	VerticalSpeed float64 // Feet per minute
 	// Predicted position (1 min ahead)
+	// Predicted position (1 min ahead)
 	PredictedLatitude  float64
 	PredictedLongitude float64
-	// Visibility / Weather
-	AmbientInCloud    float64 // 1.0 if inside cloud, 0.0 otherwise
-	AmbientVisibility float64 // Meters
 
 	IsOnGround  bool   // True if parked or taxiing
 	FlightStage string // Ground, Takeoff, Climb, Cruise, Approach, Landing

@@ -8,8 +8,5 @@ export interface Telemetry {
     VerticalSpeed: number;
     IsOnGround: boolean;
     FlightStage?: string;
-    // Visibility
-    AmbientInCloud?: number;
-    AmbientVisibility?: number;
     SimState: 'active' | 'inactive' | 'disconnected';
 }

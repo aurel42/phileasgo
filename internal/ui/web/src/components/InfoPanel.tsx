@@ -185,16 +185,7 @@ export const InfoPanel = ({
                     </div>
                 </div>
 
-                {/* 4. VISIBILITY */}
-                <div className="flex-card">
-                    <div className="label">VISIBILITY</div>
-                    <div className="value">
-                        {(telemetry.AmbientVisibility !== undefined) ? (telemetry.AmbientVisibility / 1000).toFixed(1) : '-'} <span className="unit">km</span>
-                    </div>
-                    <div className="sub-value" style={{ fontSize: '10px', color: telemetry.AmbientInCloud ? '#d32f2f' : '#666' }}>
-                        In Cloud: {telemetry.AmbientInCloud ? 'YES' : 'NO'}
-                    </div>
-                </div>
+
 
                 {/* 5. FLIGHT STAGE & CONNECTION */}
                 <div className="flex-card" style={{ flex: '1 1 80px', alignItems: 'center', justifyContent: 'center' }}>

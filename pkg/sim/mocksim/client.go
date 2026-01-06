@@ -208,17 +208,6 @@ func (m *MockClient) update() {
 		)
 		m.tel.PredictedLatitude = pred.Lat
 		m.tel.PredictedLongitude = pred.Lon
-
-		// Simulate Weather/Visibility
-		// Simple toggle every ~30s
-		cycle := int(stateDuration.Seconds()) % 60
-		if cycle > 30 && cycle < 50 {
-			m.tel.AmbientInCloud = 1.0
-			m.tel.AmbientVisibility = 500.0 // 500m visibility
-		} else {
-			m.tel.AmbientInCloud = 0.0
-			m.tel.AmbientVisibility = 80000.0 // 80km visibility
-		}
 	}
 
 	// Always update IsOnGround based on state and altitude

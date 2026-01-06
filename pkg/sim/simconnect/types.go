@@ -74,18 +74,16 @@ type InitPosition struct {
 // TelemetryData is the struct for reading user aircraft telemetry.
 // Order must match the AddToDataDefinition calls.
 type TelemetryData struct {
-	Latitude          float64
-	Longitude         float64
-	AltitudeMSL       float64
-	AltitudeAGL       float64
-	Heading           float64
-	GroundSpeed       float64
-	AmbientInCloud    float64
-	AmbientVisibility float64
-	OnGround          int32
-	Engine            int32
-	Camera            int32
-	_                 int32 // Padding for 8-byte alignment
+	Latitude    float64
+	Longitude   float64
+	AltitudeMSL float64
+	AltitudeAGL float64
+	Heading     float64
+	GroundSpeed float64
+	OnGround    int32
+	Engine      int32
+	Camera      int32
+	_           int32 // Padding for 8-byte alignment
 }
 
 // MarkerUpdateData is the struct for updating marker positions.
