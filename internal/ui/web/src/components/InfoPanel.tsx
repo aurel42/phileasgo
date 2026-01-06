@@ -47,6 +47,10 @@ export const InfoPanel = ({
                 .catch(e => console.error("Failed to fetch stats", e));
         }
 
+        // Initial fetch
+        fetchVersion();
+        fetchStats();
+
         // Then poll every 5 seconds to detect backend restart with new version
         const interval = setInterval(() => {
             fetchVersion();
