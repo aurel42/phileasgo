@@ -4,7 +4,7 @@
 - **Feature**: **Audio Playback UI Enhancements**
     - **UI**: Shows the Title of the narration (POI Name or Essay Topic).
     - **UI**: Aligned telemetry items to the top of their cards for better consistency.
-    - **Progress**: Displays a compact circular progress indicator and remaining time (e.g. `-14s`) next to the title.
+    - **Progress**: Displays a circular progress indicator and total duration (M:SS) after the title.
     - **Backend**: Updated Audio Manager to track and expose real-time playback position and duration via the API.
 ### UNIT-TESTS
 - Added `Position()` and `Duration()` methods to `pkg/audio` and verified via `manager_test.go`.

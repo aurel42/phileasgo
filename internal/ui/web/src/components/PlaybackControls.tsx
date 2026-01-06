@@ -47,6 +47,13 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
     const showTitle = narratorStatus?.playback_status && narratorStatus.playback_status !== 'idle';
     const displayTitle = narratorStatus?.current_title || "";
 
+    const formatTime = (seconds: number) => {
+        if (!seconds && seconds !== 0) return "0:00";
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    };
+
     return (
         <div className="playback-controls">
             {/* Controls Row */}
@@ -132,6 +139,17 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
             {/* Title Row with Progress */}
             {showTitle && displayTitle && (
                 <div className="playback-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    <span style={{
+                        flex: '0 1 auto',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        color: 'var(--accent)',
+                        fontWeight: 600
+                    }}>
+                        {displayTitle}
+                    </span>
+
                     {/* Circular Progress */}
                     {status?.duration && status.duration > 0 && (
                         <div style={{ position: 'relative', width: '14px', height: '14px', flexShrink: 0 }}>
@@ -160,14 +178,10 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
                         </div>
                     )}
 
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {displayTitle}
-                    </span>
-
-                    {/* Time */}
+                    {/* Total Duration */}
                     {status?.duration && status.duration > 0 && (
-                        <span style={{ fontSize: '10px', color: '#888', fontFamily: 'monospace', flexShrink: 0 }}>
-                            -{Math.floor(status.duration - status.position)}s
+                        <span style={{ fontSize: '12px', color: '#888', fontFamily: 'monospace', flexShrink: 0 }}>
+                            {formatTime(status.duration)}
                         </span>
                     )}
                 </div>

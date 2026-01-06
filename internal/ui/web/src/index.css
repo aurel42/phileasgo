@@ -602,7 +602,7 @@ body {
 
 .playback-title {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--accent);
   text-transform: uppercase;
