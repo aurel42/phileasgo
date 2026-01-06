@@ -18,6 +18,7 @@ var ActiveCameraStates = map[int32]bool{
 	2:  true, // Cockpit
 	3:  true, // Chase
 	4:  true, // Drone
+	16: true, // Cinematic
 	30: true, // Cockpit VR
 	34: true, // Chase VR
 }

@@ -1,5 +1,9 @@
 ﻿# Release History
 
+## v0.2.7
+- **Fix**: Resolved issue where SimConnect "Cinematic" camera state (16) was treated as unknown, causing the UI to report "Disconnected". It is now correctly mapped to **Active** state.
+- **Log**: Added `GroundingMetadata` verification logging to Gemini client to confirm search tool usage.
+
 ## v0.2.6
 - **Feature**: **Audio Playback UI Enhancements**
     - **UI**: Shows the Title of the narration (POI Name or Essay Topic).
