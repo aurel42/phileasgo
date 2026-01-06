@@ -19,5 +19,5 @@ export interface NarratorStatusResponse {
     current_poi?: POI;
     current_title?: string;
     narrated_count: number;
-    stats: Record<string, any>;
+    stats: Record<string, unknown>;
 }

@@ -47,24 +47,32 @@ export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
 
     useEffect(() => {
         if (!poi) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setThumbnailUrl(null);
             return;
         }
 
-        if (poi.thumbnail_url) {
-            setThumbnailUrl(poi.thumbnail_url);
-            return;
-        }
+        const fetchThumbnail = async () => {
+            if (poi.thumbnail_url) {
+                setThumbnailUrl(poi.thumbnail_url);
+                return;
+            }
 
-        fetch(`/api/pois/${poi.wikidata_id}/thumbnail`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.thumbnail_url) {
-                    setThumbnailUrl(data.thumbnail_url);
+            try {
+                const res = await fetch(`/api/pois/${poi.wikidata_id}/thumbnail`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.url) {
+                        setThumbnailUrl(data.url);
+                    }
                 }
-            })
-            .catch(e => console.error("Failed to fetch thumbnail", e));
-    }, [poi?.wikidata_id]);
+            } catch (e) {
+                console.error("Failed to fetch thumbnail", e);
+            }
+        };
+
+        fetchThumbnail();
+    }, [poi]);
 
     if (!poi) return null;
 
@@ -113,10 +121,10 @@ export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
                     <div className="value" style={{ fontSize: '16px', marginBottom: '4px', textTransform: 'none', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingRight: '24px' }}>
                         {primaryName}
                         <button
-                            onClick={(e) => { 
+                            onClick={(e) => {
                                 console.log("Play button clicked for", poi.wikidata_id);
-                                e.stopPropagation(); 
-                                handlePlay(); 
+                                e.stopPropagation();
+                                handlePlay();
                             }}
                             title="Play Narration"
                             style={{

@@ -123,6 +123,23 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 		return "", fmt.Errorf("generate text error: %w", err)
 	}
 
+	// Check for Search/Grounding Metadata
+	if len(resp.Candidates) > 0 {
+		cand := resp.Candidates[0]
+		if cand.GroundingMetadata != nil {
+			snippets := len(cand.GroundingMetadata.GroundingChunks)
+			slog.Info("Gemini: Google Search used",
+				"intent", name,
+				"snippets", snippets,
+				"search_query", cand.GroundingMetadata.SearchEntryPoint.RenderedContent)
+		} else {
+			// Explicitly log if NO search was used for narration/essay to help debug
+			if name == "narration" || name == "essay" {
+				slog.Warn("Gemini: Google Search tool configured but NOT used by model", "intent", name)
+			}
+		}
+	}
+
 	text, err := getResponseText(resp)
 	if err != nil {
 		c.logPrompt(name, prompt, fmt.Sprintf("TEXT_PARSE_ERROR: %v", err))

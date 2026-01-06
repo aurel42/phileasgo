@@ -79,9 +79,12 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		case h.audio.IsBusy():
 			// Busy but not playing = Paused
 			status = "paused"
-		default:
-			// Active but audio not busy = generating
+		case h.narrator.IsGenerating():
+			// Active and generating = preparing
 			status = "preparing"
+		default:
+			// Active but not playing/generating = Cooldown/Finishing
+			status = "idle"
 		}
 	}
 

@@ -67,6 +67,7 @@ export const VisibilityLayer = ({ enabled }: { enabled: boolean }) => {
 
     useEffect(() => {
         if (!enabled) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLayers({ urlM: null, urlL: null, urlXL: null, bounds: null });
             return;
         }

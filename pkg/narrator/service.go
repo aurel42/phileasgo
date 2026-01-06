@@ -17,6 +17,8 @@ type Service interface {
 	Stop()
 	// IsActive returns true if narrator is currently generating or playing.
 	IsActive() bool
+	// IsGenerating returns true if narrator is currently generating script/audio.
+	IsGenerating() bool
 	// NarratedCount returns the number of narrated POIs in this session.
 	NarratedCount() int
 	// Stats returns narrator statistics.
@@ -91,6 +93,11 @@ func (s *StubService) IsActive() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.active
+}
+
+// IsGenerating returns true if narrator is currently generating (stub).
+func (s *StubService) IsGenerating() bool {
+	return false // Stub doesn't generate
 }
 
 // NarratedCount returns the number of narrated POIs.

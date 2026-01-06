@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import type { Telemetry } from '../types/telemetry';
-// @ts-ignore
 import packageJson from '../../package.json';
 
 interface InfoPanelProps {
@@ -31,7 +30,8 @@ export const InfoPanel = ({
     const [configOpen, setConfigOpen] = useState(false);
     const [simSource, setSimSource] = useState<string>('mock');
     const [volume, setVolume] = useState<number>(1.0);
-    const [stats, setStats] = useState<any>(null); // Quick any for stats map
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [stats, setStats] = useState<any>(null);
 
     useEffect(() => {
         const fetchVersion = () => {

@@ -27,11 +27,13 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
     const isUserPaused = status?.is_user_paused ?? false;
     const volume = status?.volume ?? 1.0;
 
+    const isPreparing = narratorStatus?.playback_status === 'preparing';
+
     // Determine badge text/color
     let badgeText = "IDLE";
     let badgeColor = "#666";
 
-    if (narratorStatus?.playback_status === 'preparing') {
+    if (isPreparing) {
         badgeText = "PREPARING";
         badgeColor = "#eab308"; // Yellow-500
     } else if (narratorStatus?.playback_status === 'playing') {
@@ -151,7 +153,7 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
                     </span>
 
                     {/* Circular Progress */}
-                    {status?.duration && status.duration > 0 && (
+                    {(!isPreparing && (status?.duration || 0) > 0) ? (
                         <div style={{ position: 'relative', width: '14px', height: '14px', flexShrink: 0 }}>
                             <svg width="14" height="14" viewBox="0 0 24 24" style={{ transform: 'rotate(-90deg)' }}>
                                 <circle
@@ -170,20 +172,20 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
                                     stroke={isPaused ? '#fbc02d' : '#4caf50'}
                                     strokeWidth="4"
                                     strokeDasharray={`${2 * Math.PI * 10}`}
-                                    strokeDashoffset={`${2 * Math.PI * 10 * (1 - (status.position / status.duration))}`}
+                                    strokeDashoffset={`${2 * Math.PI * 10 * (1 - ((status?.position || 0) / (status?.duration || 1)))}`}
                                     strokeLinecap="round"
                                     style={{ transition: 'stroke-dashoffset 0.5s linear' }}
                                 />
                             </svg>
                         </div>
-                    )}
+                    ) : null}
 
                     {/* Total Duration */}
-                    {status?.duration && status.duration > 0 && (
+                    {(!isPreparing && (status?.duration || 0) > 0) ? (
                         <span style={{ fontSize: '12px', color: '#888', fontFamily: 'monospace', flexShrink: 0 }}>
-                            {formatTime(status.duration)}
+                            {formatTime(status?.duration || 0)}
                         </span>
-                    )}
+                    ) : null}
                 </div>
             )}
         </div>

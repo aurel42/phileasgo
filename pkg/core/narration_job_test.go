@@ -21,6 +21,7 @@ type mockNarratorService struct {
 
 func (m *mockNarratorService) IsPlaying() bool      { return m.isPlaying }
 func (m *mockNarratorService) IsActive() bool       { return m.isActive }
+func (m *mockNarratorService) IsGenerating() bool   { return false }
 func (m *mockNarratorService) IsPaused() bool       { return m.isPaused }
 func (m *mockNarratorService) CurrentTitle() string { return "" }
 func (m *mockNarratorService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {

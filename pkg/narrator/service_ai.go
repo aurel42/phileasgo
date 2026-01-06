@@ -41,6 +41,7 @@ type AIService struct {
 	mu            sync.RWMutex
 	running       bool
 	active        bool
+	generating    bool
 	skipCooldown  bool
 	narratedCount int
 	stats         map[string]any
@@ -118,6 +119,13 @@ func (s *AIService) IsActive() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.active
+}
+
+// IsGenerating returns true if narrator is currently generating script/audio.
+func (s *AIService) IsGenerating() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.generating
 }
 
 // IsPlaying returns true if narrator is currently playing audio (or checking busy state).
@@ -348,6 +356,7 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		time.Sleep(3 * time.Second)
 		s.mu.Lock()
 		s.active = false
+		s.generating = false
 		s.currentTopic = nil
 		s.currentEssayTitle = ""
 		s.mu.Unlock()
@@ -425,6 +434,10 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	audioFile := outputPath + "." + format
 
 	// Playback
+	s.mu.Lock()
+	s.generating = false
+	s.mu.Unlock()
+
 	if err := s.audio.Play(audioFile, false); err != nil {
 		slog.Error("Narrator: Playback failed", "path", audioFile, "error", err)
 		return
@@ -481,6 +494,7 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, manual bool, t
 		time.Sleep(3 * time.Second)
 		s.mu.Lock()
 		s.active = false
+		s.generating = false
 		s.currentPOI = nil
 		s.mu.Unlock()
 	}()
@@ -547,6 +561,10 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, manual bool, t
 	s.updateLatency(latency)
 
 	// 6. Playback
+	s.mu.Lock()
+	s.generating = false
+	s.mu.Unlock()
+
 	if err := s.audio.Play(audioFile, false); err != nil {
 		slog.Error("Narrator: Playback failed", "path", audioFile, "error", err)
 		if s.beaconSvc != nil {

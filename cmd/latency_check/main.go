@@ -47,7 +47,7 @@ func main() {
 	}
 }
 
-func benchmarkEndpoint(url string, n int, concurrency int) {
+func benchmarkEndpoint(url string, n, concurrency int) {
 	results := make([]LatencyStats, n)
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, concurrency)
@@ -87,7 +87,7 @@ func benchmarkEndpoint(url string, n int, concurrency int) {
 		fmt.Printf("  Errors: %d/%d\n", errorsCount, n)
 	}
 	if len(totalDurations) == 0 {
-		fmt.Println("  No successful requests.\n")
+		fmt.Println("  No successful requests.")
 		return
 	}
 
@@ -107,7 +107,7 @@ func measureLatency(url string) LatencyStats {
 	var stats LatencyStats
 	var start, dnsStart, connStart, wroteRequest time.Time
 
-	req, _ := http.NewRequest("GET", url, nil)
+	req, _ := http.NewRequest("GET", url, http.NoBody)
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(dsi httptrace.DNSStartInfo) { dnsStart = time.Now() },
 		DNSDone: func(ddi httptrace.DNSDoneInfo) {
