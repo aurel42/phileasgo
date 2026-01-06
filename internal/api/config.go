@@ -8,23 +8,26 @@ import (
 	"log/slog"
 	"net/http"
 
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/store"
 )
 
 // ConfigHandler handles configuration API requests.
 type ConfigHandler struct {
-	store store.Store
+	store  store.Store
+	appCfg *config.Config
 }
 
 // NewConfigHandler creates a new ConfigHandler.
-func NewConfigHandler(st store.Store) *ConfigHandler {
-	return &ConfigHandler{store: st}
+func NewConfigHandler(st store.Store, appCfg *config.Config) *ConfigHandler {
+	return &ConfigHandler{store: st, appCfg: appCfg}
 }
 
 // ConfigResponse represents the config API response.
 type ConfigResponse struct {
 	SimSource           string  `json:"sim_source"`
 	Units               string  `json:"units"`
+	TTSEngine           string  `json:"tts_engine"`
 	ShowCacheLayer      bool    `json:"show_cache_layer"`
 	ShowVisibilityLayer bool    `json:"show_visibility_layer"`
 	MinPOIScore         float64 `json:"min_poi_score"`
@@ -82,6 +85,7 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 	resp := ConfigResponse{
 		SimSource:           simSource,
 		Units:               units,
+		TTSEngine:           h.appCfg.TTS.Engine,
 		ShowCacheLayer:      showCacheBool,
 		ShowVisibilityLayer: showVisBool,
 		MinPOIScore:         minScore,

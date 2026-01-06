@@ -8,8 +8,9 @@ IMPORTANT: Because the output is inserted into XML, you MUST escape special char
 **STRICT FORMATTING RULES**:
 - **NO HTML TAGS**: Do not use `<span>`, `<div>`, `<font>`, or `<i>`.
 - **NO CSS STYLES**: Do not use `style="..."` attributes or font-family definitions.
-- The ONLY allowed XML tag is `<lang xml:lang="...">`.
-- Output MUST be pure text mixed with `<lang>` tags.
+- The ONLY allowed XML tags are `<lang xml:lang="...">` and `<phoneme alphabet="ipa" ph="...">`.
+- Use `<phoneme>` tags for complex compound words or names where standard pronunciation might fail (e.g., `<phoneme alphabet="ipa" ph="ˈzeːpyˌʁaːmɪdə">Seepyramide</phoneme>`).
+- Output MUST be pure text mixed with valid SSML tags.
 
 **LESS CRITICAL FORMATTING RULES** (to work around Azure TTS limitations and idiosyncrasies):
 - Avoid commas ONLY WHEN ENUMERATING items or using multiple adjectives. Use other commas as normal.

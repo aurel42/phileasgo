@@ -29,6 +29,7 @@ export const InfoPanel = ({
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
     const [configOpen, setConfigOpen] = useState(false);
     const [simSource, setSimSource] = useState<string>('mock');
+    const [ttsEngine, setTtsEngine] = useState<string>('edge-tts');
     const [volume, setVolume] = useState<number>(1.0);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [stats, setStats] = useState<any>(null);
@@ -67,6 +68,9 @@ export const InfoPanel = ({
             .then(r => r.json())
             .then(data => {
                 setSimSource(data.sim_source || 'mock');
+                if (data.tts_engine) {
+                    setTtsEngine(data.tts_engine);
+                }
                 if (data.volume !== undefined) {
                     setVolume(data.volume);
                 }
@@ -152,7 +156,10 @@ export const InfoPanel = ({
     const wdStats = stats?.providers?.wikidata || { api_success: 0, api_zero: 0, api_errors: 0, hit_rate: 0 };
     const wpStats = stats?.providers?.wikipedia || { api_success: 0, api_zero: 0, api_errors: 0, hit_rate: 0 };
     const geminiStats = stats?.providers?.gemini || { api_success: 0, api_zero: 0, api_errors: 0, hit_rate: 0 };
-    const ttsStats = stats?.providers?.['edge-tts'] || { api_success: 0, api_zero: 0, api_errors: 0, hit_rate: 0 };
+
+    // Normalize engine name for stats lookup (config usually returns 'azure-speech' or 'edge-tts')
+    // We strictly use what the config returns, assuming stats uses the same key.
+    const ttsStats = stats?.providers?.[ttsEngine] || { api_success: 0, api_zero: 0, api_errors: 0, hit_rate: 0 };
 
     const sysMem = stats?.system?.memory_alloc_mb || 0;
     const sysMemMax = stats?.system?.memory_max_mb || 0;

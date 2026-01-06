@@ -230,7 +230,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 	shutdownFunc := func() { quit <- syscall.SIGTERM }
 
 	statsH := api.NewStatsHandler(tr, svcs.PoiMgr)
-	configH := api.NewConfigHandler(st)
+	configH := api.NewConfigHandler(st, cfg)
 
 	srv := api.NewServer(cfg.Server.Address,
 		telH,

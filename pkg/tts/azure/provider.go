@@ -12,6 +12,7 @@ import (
 	"regexp"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/tts"
 )
 
@@ -22,10 +23,11 @@ type Provider struct {
 	voiceID string
 	client  *http.Client
 	url     string
+	tracker *tracker.Tracker
 }
 
 // NewProvider creates a new Azure Speech TTS provider.
-func NewProvider(cfg config.AzureSpeechConfig) *Provider {
+func NewProvider(cfg config.AzureSpeechConfig, t *tracker.Tracker) *Provider {
 	url := fmt.Sprintf("https://%s.tts.speech.microsoft.com/cognitiveservices/v1", cfg.Region)
 	return &Provider{
 		key:     cfg.Key,
@@ -33,6 +35,7 @@ func NewProvider(cfg config.AzureSpeechConfig) *Provider {
 		voiceID: cfg.VoiceID,
 		client:  &http.Client{},
 		url:     url,
+		tracker: t,
 	}
 }
 
@@ -47,29 +50,10 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 		return "", fmt.Errorf("no voice ID configured for Azure Speech")
 	}
 
-	// 2. Build SSML
-	// We use "narration-friendly" style as requested.
-	// We do NOT escape XML here because the LLM is instructed to produce valid SSML/XML-safe text.
-	// UPDATE: Removed mstts:express-as because it interferes with nested <lang> tags for multilingual voices.
-	// UPDATE: Workaround for truncation - inject silence after closing lang tag.
-	re := regexp.MustCompile(`</lang>`)
-	processedText := re.ReplaceAllString(text, `</lang><break time="25ms"/>`)
+	// 2. Build & Validate SSML
+	ssml := p.buildSSML(vid, text)
 
-	ssml := fmt.Sprintf(
-		`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'><voice name='%s'>%s</voice></speak>`,
-		vid, processedText,
-	)
-
-	// 3. Validate SSML (catch LLM errors)
-	// 3. Validate SSML (catch LLM errors)
-	if err := validateSSML(ssml); err != nil {
-		// Fallback: escape text and rebuild minimal SSML
-		escapedText := escapeXML(text)
-		ssml = fmt.Sprintf(
-			`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'><voice name='%s'>%s</voice></speak>`,
-			vid, escapedText,
-		)
-	}
+	// 3. Execute Request
 
 	req, err := http.NewRequestWithContext(ctx, "POST", p.url, bytes.NewBufferString(ssml))
 	if err != nil {
@@ -85,6 +69,9 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 	resp, err := p.client.Do(req)
 	if err != nil {
 		tts.Log("AZURE", ssml, 0, err)
+		if p.tracker != nil {
+			p.tracker.TrackAPIFailure("azure-speech")
+		}
 		return "", fmt.Errorf("api request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -98,6 +85,10 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 		}
 		if bodyStr == "" {
 			bodyStr = "[empty body]"
+		}
+
+		if p.tracker != nil {
+			p.tracker.TrackAPIFailure("azure-speech")
 		}
 
 		return "", fmt.Errorf("azure speech api error (status %d): %s", resp.StatusCode, bodyStr)
@@ -118,7 +109,14 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 	defer f.Close()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
+		if p.tracker != nil {
+			p.tracker.TrackAPIFailure("azure-speech")
+		}
 		return "", fmt.Errorf("failed to write audio to file: %w", err)
+	}
+
+	if p.tracker != nil {
+		p.tracker.TrackAPISuccess("azure-speech")
 	}
 
 	return ext, nil
@@ -151,11 +149,56 @@ func validateSSML(ssml string) error {
 	return nil
 }
 
-// escapeXML escapes special XML characters in text.
-func escapeXML(text string) string {
-	var buf bytes.Buffer
-	if err := xml.EscapeText(&buf, []byte(text)); err != nil {
-		return text // fallback to original on error
+func (p *Provider) buildSSML(vid, text string) string {
+	// 0. Pre-emptive Repair: Fix common hallucinations (e.g. xml:ID)
+	text = repairSSML(text)
+
+	// We use "narration-friendly" style as requested.
+	// We do NOT escape XML here because the LLM is instructed to produce valid SSML/XML-safe text.
+	// UPDATE: Removed mstts:express-as because it interferes with nested <lang> tags for multilingual voices.
+	// UPDATE: Workaround for word truncation (e.g. "Seepyramide" -> "Se").
+	// Injecting punctuation inside the tag forces the model to complete the phonetic sequence.
+	// We use a comma for a less invasive pause than a period.
+
+	// Regex matches closing tag, capturing the content before it if it lacks punctuation.
+	// However, complex regex replacement with Go's re2 is limited (no lookbehind).
+	// Safer approach: Find `</lang>` and look backwards? Or Iterate?
+	// Simplest robust method for now: Replace `</lang>` with `,</lang>`?
+	// But we shouldn't add double punctuation if it ends with `.` or `,`.
+	// Let's use ReplaceAllStringFunc.
+
+	reLangEnd := regexp.MustCompile(`([^.?!,])</lang>`)
+	processedText := reLangEnd.ReplaceAllString(text, `$1,</lang>`)
+
+	ssml := fmt.Sprintf(
+		`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'><voice name='%s'>%s</voice></speak>`,
+		vid, processedText,
+	)
+
+	// Validate SSML (catch LLM errors like malformed tags)
+	if err := validateSSML(ssml); err != nil {
+		// Fallback: Strip tags to prevent reading out "less than..." and just read plain text.
+		cleanText := stripTags(text)
+		return fmt.Sprintf(
+			`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'><voice name='%s'>%s</voice></speak>`,
+			vid, cleanText,
+		)
 	}
-	return buf.String()
+	return ssml
+}
+
+// repairSSML attempts to fix common SSML malformations from LLMs.
+func repairSSML(text string) string {
+	// 1. Remove invalid "xml:ID" attributes which Gemini sometimes hallucinates.
+	// Matches: xml:ID">, xml:ID="foo", xml:ID
+	reID := regexp.MustCompile(`\s+xml:ID[^>]*`)
+	text = reID.ReplaceAllString(text, "")
+
+	return text
+}
+
+// stripTags removes all XML/HTML tags from the text.
+func stripTags(text string) string {
+	re := regexp.MustCompile(`<[^>]*>`)
+	return re.ReplaceAllString(text, "")
 }

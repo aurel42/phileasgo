@@ -139,7 +139,7 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
             </div>
 
             {/* Title Row with Progress */}
-            {showTitle && displayTitle && (
+            {showTitle && (
                 <div className="playback-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                     <span style={{
                         flex: '0 1 auto',
@@ -149,7 +149,7 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
                         color: 'var(--accent)',
                         fontWeight: 600
                     }}>
-                        {displayTitle}
+                        {displayTitle || (isPreparing ? "Loading..." : "")}
                     </span>
 
                     {/* Circular Progress */}

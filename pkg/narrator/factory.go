@@ -34,7 +34,7 @@ func NewTTSProvider(cfg *config.TTSConfig, t *tracker.Tracker) (tts.Provider, er
 	case "fish-audio", "fishaudio":
 		return fishaudio.NewProvider(cfg.FishAudio), nil
 	case "azure", "azure-speech":
-		return azure.NewProvider(cfg.AzureSpeech), nil
+		return azure.NewProvider(cfg.AzureSpeech, t), nil
 	default:
 		return nil, fmt.Errorf("unknown tts engine: %s", cfg.Engine)
 	}

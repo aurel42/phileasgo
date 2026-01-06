@@ -9,20 +9,34 @@ import (
 // logGoogleSearchUsage logs the usage of the Google Search tool.
 // It is extracted for unit testing and nil-safety.
 func logGoogleSearchUsage(name string, meta *genai.GroundingMetadata) {
+	used := false
+	query := ""
+	snippets := 0
+
 	if meta != nil {
-		snippets := len(meta.GroundingChunks)
-		query := ""
-		if meta.SearchEntryPoint != nil {
-			query = meta.SearchEntryPoint.RenderedContent
+		snippets = len(meta.GroundingChunks)
+		if len(meta.WebSearchQueries) > 0 {
+			used = true
+			query = meta.WebSearchQueries[0]
 		}
+		if meta.SearchEntryPoint != nil {
+			used = true
+			if query == "" {
+				query = "[embedded in RenderedContent]"
+			}
+		}
+		if snippets > 0 {
+			used = true
+		}
+	}
+
+	if used {
 		slog.Info("Gemini: Google Search used",
 			"intent", name,
 			"snippets", snippets,
 			"search_query", query)
-	} else {
+	} else if name == "narration" || name == "essay" {
 		// Explicitly log if NO search was used for narration/essay to help debug
-		if name == "narration" || name == "essay" {
-			slog.Warn("Gemini: Google Search tool configured but NOT used by model", "intent", name)
-		}
+		slog.Warn("Gemini: Google Search tool configured but NOT used by model", "intent", name)
 	}
 }

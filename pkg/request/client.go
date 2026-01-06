@@ -214,7 +214,7 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 	baseDelay := 500 * time.Millisecond
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		slog.Debug("Network Request", "url", req.URL.String(), "attempt", attempt+1)
+		slog.Debug("Network Request", "host", req.URL.Host, "path", req.URL.Path, "attempt", attempt+1)
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			// Network errors -> Retry?

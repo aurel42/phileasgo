@@ -1,5 +1,21 @@
 ﻿# Release History
 
+## v0.2.9
+- **Feature**: **Dynamic TTS UI & Telemetry**
+    - The Info Panel now dynamically updates to show the stats of the *active* TTS engine (e.g., "AZURE SPEECH", "FISH AUDIO") instead of hardcoded labels.
+    - Implemented API-level tracking for Azure Speech success/failure rates.
+- **Fix**: **SSML Robustness (Azure Speech)**
+    - Implemented pre-emptive "Repair Logic" to strip hallucinated XML attributes (like `xml:ID`) from Gemini output *before* SSML validation.
+    - This allows valid language tags (`<lang>`) to be preserved and handled correctly by Azure, preventing the engine from reading raw XML tags aloud due to fallback escaping.
+- **Fix**: **Logging Noise**
+    - Reduced verbosity of network request logs by excluding query parameters (specifically massive SPARQL queries), logging only Host and Path.
+    - Fixed Gemini log to output the actual search query used (`WebSearchQueries`) instead of the CSS-laden `RenderedContent`.
+- **Fix**: **Playback UI Status**
+    - Resolved regression where the "Preparing" status was invisible because the title row was hidden when empty. Added "Loading..." fallback title.
+### UNIT-TESTS
+- Added table-driven tests for `ConfigurationHandler` to verify dynamic TTS config exposure.
+- Added comprehensive SSML repair and validation tests in `pkg/tts/azure/provider_test.go`.
+
 ## v0.2.8 (Hotfix)
 - **Fix**: Resolved panic in Gemini client logger caused by nil `SearchEntryPoint` in `GroundingMetadata`.
 - **Refactor**: Extracted logging logic to `client_helper.go` and added comprehensive table-driven tests.

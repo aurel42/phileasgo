@@ -30,8 +30,9 @@ func TestLogGoogleSearchUsage(t *testing.T) {
 			meta: &genai.GroundingMetadata{
 				GroundingChunks: []*genai.GroundingChunk{{}},
 				SearchEntryPoint: &genai.SearchEntryPoint{
-					RenderedContent: "test query",
+					RenderedContent: "<html>ignore me</html>",
 				},
+				WebSearchQueries: []string{"actual query"},
 			},
 		},
 		{
