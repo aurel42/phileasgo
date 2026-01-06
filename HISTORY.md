@@ -1,5 +1,9 @@
 ﻿# Release History
 
+## v0.2.11
+- **Maintenance**: **Project Structure**
+    - Moved debugging and Proof-of-Concept scripts (`debug_simconnect`, `latency_check`, `mocksim`, `simtest`) to `cmd/experiments` to clean up the root `cmd` directory.
+
 ## v0.2.10
 - **Fix**: **Advanced Azure TTS Pronunciation**
     - Updated SSML strategy to prevent word truncation (e.g. "Seepyramide" -> "Se") by injecting punctuation inside `<lang>` tags if missing.
