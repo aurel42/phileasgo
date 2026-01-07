@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"phileasgo/pkg/cache"
+	"phileasgo/pkg/model"
 	"phileasgo/pkg/request"
 )
 
 const (
-	langMapCacheKey = "sys_lang_map"
+	langMapCacheKey = "sys_lang_map_v3"
 	refreshInterval = 30 * 24 * time.Hour // Refresh monthly
 )
 
@@ -24,7 +25,7 @@ type LanguageMapper struct {
 	client  *request.Client // Use Request Client directly for fetching map
 	logger  *slog.Logger
 	mu      sync.RWMutex
-	mapping map[string]string // CountryCode (ISO 2) -> LangCode (ISO 2)
+	mapping map[string]model.LanguageInfo // CountryCode (ISO 2) -> LanguageInfo
 }
 
 // NewLanguageMapper creates a new mapper.
@@ -33,7 +34,7 @@ func NewLanguageMapper(c cache.Cacher, rc *request.Client, logger *slog.Logger) 
 		cache:   c,
 		client:  rc,
 		logger:  logger,
-		mapping: make(map[string]string),
+		mapping: make(map[string]model.LanguageInfo),
 	}
 }
 
@@ -61,21 +62,22 @@ func (m *LanguageMapper) Start(ctx context.Context) error {
 	return nil
 }
 
-// GetLanguage returns the primary language for a given country code.
-// Returns "en" if not found or empty.
-func (m *LanguageMapper) GetLanguage(countryCode string) string {
+// GetLanguage returns the primary language info for a given country code.
+// Returns {Code: "en", Name: "English"} if not found or empty.
+func (m *LanguageMapper) GetLanguage(countryCode string) model.LanguageInfo {
+	fallback := model.LanguageInfo{Code: "en", Name: "English"}
 	if countryCode == "" {
-		return "en"
+		return fallback
 	}
 
 	m.mu.RLock()
-	lang, ok := m.mapping[countryCode]
+	info, ok := m.mapping[countryCode]
 	m.mu.RUnlock()
 
-	if ok && lang != "" {
-		return lang
+	if ok && info.Code != "" {
+		return info
 	}
-	return "en" // Default fallback
+	return fallback
 }
 
 func (m *LanguageMapper) load(ctx context.Context) error {
@@ -84,7 +86,7 @@ func (m *LanguageMapper) load(ctx context.Context) error {
 		return nil // Not found is fine
 	}
 
-	var loaded map[string]string
+	var loaded map[string]model.LanguageInfo
 	if err := json.Unmarshal(data, &loaded); err != nil {
 		return err
 	}
@@ -107,10 +109,11 @@ func (m *LanguageMapper) save(ctx context.Context) error {
 
 func (m *LanguageMapper) refresh(ctx context.Context) error {
 	query := `
-	SELECT DISTINCT ?countryCode ?langCode WHERE {
+	SELECT DISTINCT ?countryCode ?langCode ?officialLangLabel WHERE {
 	  ?c wdt:P297 ?countryCode ;
 		 wdt:P37 ?officialLang .
 	  ?officialLang wdt:P424 ?langCode .
+	  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 	}
 	`
 	// Simple wrapper for SPARQL request
@@ -138,15 +141,19 @@ func (m *LanguageMapper) refresh(ctx context.Context) error {
 		return err
 	}
 
-	newMap := make(map[string]string)
+	newMap := make(map[string]model.LanguageInfo)
 	for _, b := range result.Results.Bindings {
 		cc := val(b, "countryCode")
 		lc := val(b, "langCode")
+		ln := val(b, "officialLangLabel") // Label Service provides this
+
 		if cc != "" && lc != "" {
 			// Basic conflict resolution: just take the first one encountered (SPARQL order arbitrary)
-			// Better: Prefer specific ones? No, official is usually fine.
 			if _, exists := newMap[cc]; !exists {
-				newMap[cc] = lc
+				if ln == "" {
+					ln = "Unknown" // Should be filled by label service, but just in case
+				}
+				newMap[cc] = model.LanguageInfo{Code: lc, Name: ln}
 			}
 		}
 	}

@@ -105,10 +105,14 @@ func (s *Service) Start(ctx context.Context) {
 
 	s.logger.Info("Wikidata Service Started")
 
-	// Start Language Mapper
-	if err := s.mapper.Start(ctx); err != nil {
+	// Start Language Mapper with dedicated timeout (detached from main startup deadline if any)
+	// This ensures we have enough time to fetch the map even if startup was tight.
+	// We run this synchronously before the loop to ensure the mapper is ready.
+	initCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	if err := s.mapper.Start(initCtx); err != nil {
 		s.logger.Warn("LanguageMapper failed to start (continuing with defaults)", "error", err)
 	}
+	cancel()
 
 	for {
 		select {
@@ -129,6 +133,11 @@ func (s *Service) WikipediaClient() *wikipedia.Client {
 // GeoService returns the internal Geo service.
 func (s *Service) GeoService() *geo.Service {
 	return s.geo
+}
+
+// GetLanguageInfo returns language details for a country code (implements LanguageResolver).
+func (s *Service) GetLanguageInfo(countryCode string) model.LanguageInfo {
+	return s.mapper.GetLanguage(countryCode)
 }
 
 func (s *Service) processTick(ctx context.Context) {
@@ -194,9 +203,9 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 
 	// Dynamic Language
 	country := s.geo.GetCountry(centerLat, centerLon)
-	localLang := s.mapper.GetLanguage(country)
+	localLangInfo := s.mapper.GetLanguage(country)
 
-	query := buildQuery(centerLat, centerLon, localLang, s.userLang, s.cfg.Area.MaxArticles)
+	query := buildQuery(centerLat, centerLon, localLangInfo.Code, s.userLang, s.cfg.Area.MaxArticles)
 
 	// 2. Execute (Requester handles caching and core tracking)
 	articles, rawJSON, err := s.client.QuerySPARQL(ctx, query, c.Tile.Key())
@@ -440,10 +449,10 @@ func (s *Service) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat
 
 	// 5. Enrichment & Saving
 	country := s.geo.GetCountry(centerLat, centerLon)
-	localLang := s.mapper.GetLanguage(country)
+	localLangInfo := s.mapper.GetLanguage(country)
 
 	if len(processed) > 0 {
-		err = s.enrichAndSave(ctx, processed, localLang, "en")
+		err = s.enrichAndSave(ctx, processed, localLangInfo.Code, "en")
 	}
 
 	// 6. Mark remaining unprocessed articles as seen (those that failed filters like sitelinks)

@@ -3,6 +3,7 @@ package wikidata
 import (
 	"context"
 	"encoding/json"
+	"phileasgo/pkg/model"
 	"testing"
 )
 
@@ -34,9 +35,9 @@ func TestLanguageMapper_LoadSave(t *testing.T) {
 	mc := &mockCacher{data: make(map[string][]byte)}
 
 	// data to save
-	dataMap := map[string]string{
-		"CZ": "cs",
-		"DE": "de",
+	dataMap := map[string]model.LanguageInfo{
+		"CZ": {Code: "cs", Name: "Czech"},
+		"DE": {Code: "de", Name: "German"},
 	}
 
 	lm := &LanguageMapper{
@@ -50,37 +51,37 @@ func TestLanguageMapper_LoadSave(t *testing.T) {
 	}
 
 	// Verify cache content
-	cachedData, ok := mc.data["sys_lang_map"]
+	cachedData, ok := mc.data[langMapCacheKey]
 	if !ok {
 		t.Fatal("Cache missing key")
 	}
 
-	var loadedData map[string]string
+	var loadedData map[string]model.LanguageInfo
 	if err := json.Unmarshal(cachedData, &loadedData); err != nil {
 		t.Fatal(err)
 	}
-	if loadedData["CZ"] != "cs" {
+	if loadedData["CZ"].Code != "cs" {
 		t.Errorf("Saved content mismatch")
 	}
 
 	// Test Load (from cache)
 	lm2 := &LanguageMapper{
 		cache:   mc,
-		mapping: make(map[string]string),
+		mapping: make(map[string]model.LanguageInfo),
 	}
 	if err := lm2.load(context.Background()); err != nil {
 		t.Errorf("load() failed: %v", err)
 	}
-	if lm2.GetLanguage("CZ") != "cs" {
-		t.Errorf("GetLanguage(CZ) = %s, want cs", lm2.GetLanguage("CZ"))
+	if lm2.GetLanguage("CZ").Code != "cs" {
+		t.Errorf("GetLanguage(CZ) = %v, want cs", lm2.GetLanguage("CZ"))
 	}
 }
 
 func TestLanguageMapper_GetLanguage(t *testing.T) {
 	lm := &LanguageMapper{
-		mapping: map[string]string{
-			"US": "en",
-			"FR": "fr",
+		mapping: map[string]model.LanguageInfo{
+			"US": {Code: "en", Name: "English"},
+			"FR": {Code: "fr", Name: "French"},
 		},
 	}
 
@@ -95,8 +96,8 @@ func TestLanguageMapper_GetLanguage(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if got := lm.GetLanguage(tt.country); got != tt.want {
-			t.Errorf("GetLanguage(%s) = %s, want %s", tt.country, got, tt.want)
+		if got := lm.GetLanguage(tt.country); got.Code != tt.want {
+			t.Errorf("GetLanguage(%s) = %v, want %s", tt.country, got, tt.want)
 		}
 	}
 }

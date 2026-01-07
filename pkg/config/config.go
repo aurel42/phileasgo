@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -295,7 +296,17 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to save config file: %w", err)
 	}
 
+	// Validate TargetLanguage format (xx-YY)
+	if !isValidLocale(cfg.Narrator.TargetLanguage) {
+		return nil, fmt.Errorf("invalid target_language format '%s': must be 'xx-YY' (e.g. 'en-US', 'de-DE')", cfg.Narrator.TargetLanguage)
+	}
+
 	return cfg, nil
+}
+
+func isValidLocale(s string) bool {
+	matched, _ := regexp.MatchString(`^[a-z]{2}-[A-Z]{2}$`, s)
+	return matched
 }
 
 // Save writes the configuration to the path.

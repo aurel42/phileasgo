@@ -133,6 +133,7 @@ func (c *Client) PostWithHeaders(ctx context.Context, u string, body []byte, hea
 }
 
 func normalizeProvider(host string) string {
+	// Group all wikidata subdomains (www, query, etc.) into one "wikidata" provider for serialization
 	if strings.HasSuffix(host, ".wikidata.org") || host == "wikidata.org" {
 		return "wikidata"
 	}
@@ -155,19 +156,24 @@ func (c *Client) dispatch(provider string, j job) {
 		// Create new queue and start worker
 		q = make(chan job, 100)
 		c.queues[provider] = q
-		go c.worker(q)
+		go c.worker(provider, q)
 	}
 
-	// Non-blocking enqueue? No, we want to block or ideally buffer.
-	// But if queue is full, we block the caller of Get().
-	q <- j
+	// We block here if the queue is full, effectively throttling the caller
+	select {
+	case q <- j:
+	case <-j.req.Context().Done():
+		// Caller gave up before we could even enqueue
+		j.respChan <- jobResult{err: j.req.Context().Err()}
+	}
 }
 
 // worker processes requests for a specific provider sequentially.
-func (c *Client) worker(q <-chan job) {
+func (c *Client) worker(provider string, q <-chan job) {
 	for j := range q {
 		// Check context before processing
 		if j.req.Context().Err() != nil {
+			slog.Warn("Job dropped from queue (context expired)", "provider", provider, "error", j.req.Context().Err())
 			j.respChan <- jobResult{err: j.req.Context().Err()}
 			continue
 		}
@@ -186,7 +192,6 @@ func (c *Client) worker(q <-chan job) {
 
 		body, err := c.executeWithBackoff(j.req)
 
-		provider := normalizeProvider(j.req.URL.Host)
 		if err == nil {
 			c.tracker.TrackAPISuccess(provider)
 			// Cache result (Only if key is provided)
@@ -201,10 +206,8 @@ func (c *Client) worker(q <-chan job) {
 
 		j.respChan <- jobResult{body: body, err: err}
 
-		// Optional: Downtime between requests?
-		// User requirement: "supports downtimes between requests"
-		// We could add a small sleep here if configured.
-		time.Sleep(100 * time.Millisecond) // hardcoded safety gap
+		// Hardcoded safety gap to prevent hitting rate limits
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -214,22 +217,45 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 	baseDelay := 500 * time.Millisecond
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
+		// Verify context is still alive before dialing
+		if req.Context().Err() != nil {
+			return nil, req.Context().Err()
+		}
+
 		slog.Debug("Network Request", "host", req.URL.Host, "path", req.URL.Path, "attempt", attempt+1)
 		resp, err := c.httpClient.Do(req)
+
 		if err != nil {
-			// Network errors -> Retry?
-			// For simplicity, retry on network errors
+			// Check if the error is a context cancellation from OUR side
+			if req.Context().Err() != nil {
+				return nil, req.Context().Err()
+			}
+
+			// Otherwise, it's a network error or server timeout
 			slog.Warn("Request failed, retrying", "url", req.URL, "attempt", attempt+1, "error", err)
-			time.Sleep(time.Duration(math.Pow(2, float64(attempt))) * baseDelay)
-			continue
+
+			// Simple exponential backoff
+			sleepDur := time.Duration(math.Pow(2, float64(attempt))) * baseDelay
+			select {
+			case <-time.After(sleepDur):
+				continue
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			}
 		}
 
 		// Handle Status Codes
 		if resp.StatusCode == 429 || (resp.StatusCode >= 500 && resp.StatusCode < 600) {
 			resp.Body.Close()
 			slog.Warn("API Backoff", "status", resp.StatusCode, "url", req.URL, "attempt", attempt+1)
-			time.Sleep(time.Duration(math.Pow(2, float64(attempt))) * baseDelay)
-			continue
+
+			sleepDur := time.Duration(math.Pow(2, float64(attempt))) * baseDelay
+			select {
+			case <-time.After(sleepDur):
+				continue
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			}
 		}
 
 		if resp.StatusCode >= 400 {

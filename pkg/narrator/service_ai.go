@@ -37,6 +37,7 @@ type AIService struct {
 	sim       sim.Client
 	st        store.Store
 	wiki      WikiProvider
+	langRes   LanguageResolver
 
 	mu            sync.RWMutex
 	running       bool
@@ -72,6 +73,7 @@ func NewAIService(
 	simClient sim.Client,
 	st store.Store,
 	wikiClient WikiProvider,
+	langRes LanguageResolver,
 	essayH *EssayHandler,
 	interests []string,
 ) *AIService {
@@ -87,6 +89,7 @@ func NewAIService(
 		sim:          simClient,
 		st:           st,
 		wiki:         wikiClient,
+		langRes:      langRes,
 		stats:        make(map[string]any),
 		latencies:    make([]time.Duration, 0, 10),
 		essayH:       essayH,
@@ -379,8 +382,8 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		Lat:              tel.Latitude,
 		Lon:              tel.Longitude,
 		UnitsInstruction: s.fetchUnitsInstruction(),
-		TTSInstructions:  s.fetchTTSInstructions(),
 	}
+	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
 
 	prompt, err := s.essayH.BuildPrompt(ctx, topic, &pd)
 	if err != nil {
@@ -610,48 +613,78 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 	nav := s.calculateNavInstruction(p, tel)
 	maxWords, domStrat := s.sampleNarrationLength(p)
 
-	return NarrationPromptData{
-		TourGuideName:     "Ava", // TODO: Get from voice profile
-		Persona:           "Intelligent, fascinating",
-		Accent:            "Neutral",
-		Language:          s.cfg.Narrator.TargetLanguage,
-		FemalePersona:     "Intelligent, fascinating",
-		FemaleAccent:      "Neutral",
-		PassengerMale:     "Andrew",
-		MalePersona:       "Curious traveler",
-		MaleAccent:        "Neutral",
-		FlightStage:       determineFlightStage(tel),
-		NameNative:        p.NameLocal,
-		POINameNative:     p.NameLocal,
-		NameUser:          p.DisplayName(),
-		POINameUser:       p.DisplayName(),
-		Category:          p.Category,
-		WikipediaText:     s.fetchWikipediaText(ctx, p),
-		NavInstruction:    nav,
-		TargetLanguage:    s.cfg.Narrator.TargetLanguage,
-		TargetCountry:     cc,
-		Country:           cc,
-		TargetRegion:      region,
-		Region:            region,
-		MaxWords:          maxWords,
-		DominanceStrategy: domStrat,
-		RecentPoisContext: s.fetchRecentContext(ctx, p.Lat, p.Lon),
-		RecentContext:     s.fetchRecentContext(ctx, p.Lat, p.Lon),
-		Lat:               tel.Latitude,
-		Lon:               tel.Longitude,
-		UnitsInstruction:  s.fetchUnitsInstruction(),
-		TTSInstructions:   s.fetchTTSInstructions(),
-		Interests:         s.interests,
-		AltitudeMSL:       tel.AltitudeMSL,
-		AltitudeAGL:       tel.AltitudeAGL,
-		Heading:           tel.Heading,
-		GroundSpeed:       tel.GroundSpeed,
-		PredictedLat:      tel.PredictedLatitude,
-		PredictedLon:      tel.PredictedLongitude,
+	// Language Logic (User's Target Language)
+	targetLang := s.cfg.Narrator.TargetLanguage
+	langCode := "en"
+	langName := "English"
+	langLocale := targetLang
+
+	// Parse "de-DE" -> "DE"
+	parts := strings.Split(targetLang, "-")
+	if len(parts) == 2 {
+		// Valid locale format
+		targetCC := parts[1]
+		if s.langRes != nil {
+			info := s.langRes.GetLanguageInfo(targetCC)
+			langCode = info.Code
+			langName = info.Name
+		} else {
+			// Fallback if resolver missing (unlikely in prod)
+			langCode = parts[0]
+		}
+	} else if len(parts) > 0 {
+		// Fallback for non-standard config (though validation should catch this)
+		langCode = parts[0]
 	}
+
+	pd := NarrationPromptData{
+		TourGuideName:        "Ava", // TODO: Get from voice profile
+		Persona:              "Intelligent, fascinating",
+		Accent:               "Neutral",
+		Language:             targetLang,
+		Language_code:        langCode,
+		Language_name:        langName,
+		Language_region_code: langLocale,
+		FemalePersona:        "Intelligent, fascinating",
+		FemaleAccent:         "Neutral",
+		PassengerMale:        "Andrew",
+		MalePersona:          "Curious traveler",
+		MaleAccent:           "Neutral",
+		FlightStage:          determineFlightStage(tel),
+		NameNative:           p.NameLocal,
+		POINameNative:        p.NameLocal,
+		NameUser:             p.DisplayName(),
+		POINameUser:          p.DisplayName(),
+		Category:             p.Category,
+		WikipediaText:        s.fetchWikipediaText(ctx, p),
+		NavInstruction:       nav,
+		TargetLanguage:       s.cfg.Narrator.TargetLanguage,
+		TargetCountry:        cc,
+		Country:              cc,
+		TargetRegion:         region,
+		Region:               region,
+		MaxWords:             maxWords,
+		DominanceStrategy:    domStrat,
+		RecentPoisContext:    s.fetchRecentContext(ctx, p.Lat, p.Lon),
+		RecentContext:        s.fetchRecentContext(ctx, p.Lat, p.Lon),
+		Lat:                  tel.Latitude,
+		Lon:                  tel.Longitude,
+		UnitsInstruction:     s.fetchUnitsInstruction(),
+		Interests:            s.interests,
+		AltitudeMSL:          tel.AltitudeMSL,
+		AltitudeAGL:          tel.AltitudeAGL,
+		Heading:              tel.Heading,
+		GroundSpeed:          tel.GroundSpeed,
+		PredictedLat:         tel.PredictedLatitude,
+		PredictedLon:         tel.PredictedLongitude,
+	}
+	// Fetch TTS instructions with full context
+	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
+
+	return pd
 }
 
-func (s *AIService) fetchTTSInstructions() string {
+func (s *AIService) fetchTTSInstructions(data any) string {
 	var tmplName string
 	// engines: sapi, windows-sapi, edge, edge-tts, fish-audio
 	switch strings.ToLower(s.cfg.TTS.Engine) {
@@ -664,7 +697,7 @@ func (s *AIService) fetchTTSInstructions() string {
 		tmplName = "tts/edge-tts.tmpl"
 	}
 
-	content, err := s.prompts.Render(tmplName, nil)
+	content, err := s.prompts.Render(tmplName, data)
 	if err != nil {
 		// Fallback if template missing
 		slog.Warn("Narrator: Failed to render TTS template, using fallback", "template", tmplName, "error", err)
@@ -855,43 +888,46 @@ func (s *AIService) fetchRecentContext(ctx context.Context, lat, lon float64) st
 
 // NarrationPromptData struct for templates
 type NarrationPromptData struct {
-	TourGuideName     string
-	Persona           string
-	Accent            string
-	Language          string
-	FemalePersona     string
-	FemaleAccent      string
-	PassengerMale     string
-	MalePersona       string
-	MaleAccent        string
-	FlightStage       string
-	NameNative        string
-	POINameNative     string
-	NameUser          string
-	POINameUser       string
-	Category          string
-	WikipediaText     string
-	NavInstruction    string
-	TargetLanguage    string
-	TargetCountry     string
-	Country           string
-	TargetRegion      string
-	Region            string
-	Lat               float64
-	Lon               float64
-	MaxWords          int
-	RecentPoisContext string
-	RecentContext     string
-	UnitsInstruction  string
-	TTSInstructions   string
-	Interests         []string
-	AltitudeMSL       float64
-	AltitudeAGL       float64
-	Heading           float64
-	GroundSpeed       float64
-	PredictedLat      float64
-	PredictedLon      float64
-	DominanceStrategy string
+	TourGuideName        string
+	Persona              string
+	Accent               string
+	Language             string
+	Language_code        string
+	Language_name        string
+	Language_region_code string
+	FemalePersona        string
+	FemaleAccent         string
+	PassengerMale        string
+	MalePersona          string
+	MaleAccent           string
+	FlightStage          string
+	NameNative           string
+	POINameNative        string
+	NameUser             string
+	POINameUser          string
+	Category             string
+	WikipediaText        string
+	NavInstruction       string
+	TargetLanguage       string
+	TargetCountry        string
+	Country              string
+	TargetRegion         string
+	Region               string
+	Lat                  float64
+	Lon                  float64
+	MaxWords             int
+	RecentPoisContext    string
+	RecentContext        string
+	UnitsInstruction     string
+	TTSInstructions      string
+	Interests            []string
+	AltitudeMSL          float64
+	AltitudeAGL          float64
+	Heading              float64
+	GroundSpeed          float64
+	PredictedLat         float64
+	PredictedLon         float64
+	DominanceStrategy    string
 }
 
 func (s *AIService) sampleNarrationLength(p *model.POI) (words int, strategy string) {

@@ -119,7 +119,7 @@ func TestAIService_PlayPOI(t *testing.T) {
 			mockWiki := &MockWiki{Content: tt.wikiContent, Err: tt.wikiErr}
 			mockBeacon := &MockBeacon{}
 
-			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil)
+			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil)
 			svc.Start()
 
 			// Call PlayPOI (synchronous wrapper logic needed or wait?)
@@ -218,7 +218,7 @@ func TestAIService_ContextAndNav(t *testing.T) {
 			_ = os.MkdirAll(filepath.Join(tmpDir, "common"), 0o755)
 			pm, _ := prompts.NewManager(tmpDir)
 
-			svc := NewAIService(&config.Config{}, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil)
+			svc := NewAIService(&config.Config{}, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil)
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, &tt.telemetry)
@@ -239,7 +239,7 @@ func TestAIService_ContextAndNav(t *testing.T) {
 func TestAIService_Lifecycle(t *testing.T) {
 	// Simple coverage for Start/Stop/Stats
 	pm, _ := prompts.NewManager(t.TempDir())
-	svc := NewAIService(&config.Config{}, &MockLLM{}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{}, &MockBeacon{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWiki{}, nil, nil)
+	svc := NewAIService(&config.Config{}, &MockLLM{}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{}, &MockBeacon{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWiki{}, nil, nil, nil)
 
 	if svc.running {
 		t.Error("should not be running initially")
@@ -334,7 +334,7 @@ func TestAIService_NavUnits(t *testing.T) {
 
 			pm, _ := prompts.NewManager(tmpDir)
 
-			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil)
+			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil)
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), "QTest", true, &tt.telemetry)
@@ -365,7 +365,7 @@ func TestAIService_BeaconCleanup(t *testing.T) {
 	// Scenario: LLM fails, Beacon should be cleared
 	svc := NewAIService(&config.Config{}, &MockLLM{Err: errors.New("fail")}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
 		return &model.POI{}, nil
-	}}, mockBeacon, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWiki{}, nil, nil)
+	}}, mockBeacon, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWiki{}, nil, nil, nil)
 
 	svc.Start()
 	svc.PlayPOI(context.Background(), "Q1", true, &sim.Telemetry{})

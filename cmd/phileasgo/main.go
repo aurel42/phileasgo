@@ -209,13 +209,17 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 }
 
 func verifyStartup(ctx context.Context, catCfg *config.CategoriesConfig, v *wikidata.Validator) {
+	// Use a dedicated timeout for startup verification to avoid inherited deadline issues
+	verifyCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
 	catQIDs := make(map[string]string)
 	for _, data := range catCfg.Categories {
 		for qid, name := range data.QIDs {
 			catQIDs[qid] = name
 		}
 	}
-	_ = v.VerifyStartupConfig(ctx, catQIDs)
+	_ = v.VerifyStartupConfig(verifyCtx, catQIDs)
 }
 
 func initVisibility() *visibility.Calculator {
@@ -340,7 +344,15 @@ func createAIService(
 		simClient,
 		st,
 		wikiSvc.WikipediaClient(),
+		wikiSvc,
 		essayH,
 		interests,
 	)
+	// Inject resolver manually since NewAIService signature update failed in previous step logic?
+	// No, NewAIService signature WAS updated in service_ai.go.
+	// I need to match the signature:
+	// NewAIService(..., st store.Store, wikiClient WikiProvider, langRes LanguageResolver, essayH *EssayHandler, interests []string)
+	// My previous main.go edit removed `wikiSvc` (langRes).
+	// I need to PUT IT BACK in the right place.
+
 }

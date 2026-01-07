@@ -1,5 +1,19 @@
 ﻿# Release History
 
+## v0.2.19
+- **Fix**: **Startup Resilience**
+    - Decoupled critical startup checks (Validator, Language Mapper) from the main application context using independent 60s timeouts.
+    - Prevents "context deadline exceeded" errors during initialization on slower environments or when using strict deadlines.
+- **Fix**: **Language Name Resolution**
+    - Resolved issue where `{{.Language_name}}` resolved to "Unknown" in prompts due to a SPARQL query variable mismatch (`?langLabel` vs `?officialLangLabel`).
+    - Invalidated language map cache (`v3`) to ensure fresh data fetch.
+- **Fix**: **Template Context ("No Value")**
+    - Resolved issue where TTS templates (e.g., `azure.tmpl`) rendered as "no value" for variable macros.
+    - Refactored `AIService` to pass the full `NarrationPromptData` context to the TTS instruction renderer, ensuring all variables are available.
+- **Improvement**: **Request Client Robustness**
+    - Enhanced `request.Client` to explicitly log when jobs are dropped from the queue due to context expiry.
+    - Improved backoff logic to retry on network errors and 429/5xx status codes while respecting cancellation.
+
 ## v0.2.18
 - **Config**: **TTS Log Path**
     - The path for the TTS debug log is now configurable via `phileas.yaml` (default: `logs/tts.log`).

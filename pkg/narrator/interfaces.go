@@ -24,6 +24,11 @@ type WikiProvider interface {
 	GetArticleContent(ctx context.Context, title, lang string) (string, error)
 }
 
+// LanguageResolver defines the interface for resolving language details.
+type LanguageResolver interface {
+	GetLanguageInfo(countryCode string) model.LanguageInfo
+}
+
 // BeaconProvider defines the interface for beacon/marker management.
 type BeaconProvider interface {
 	SetTarget(ctx context.Context, lat, lon float64) error
