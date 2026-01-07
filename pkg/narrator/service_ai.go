@@ -794,6 +794,10 @@ func (s *AIService) fetchWikipediaText(ctx context.Context, p *model.POI) string
 	if p.WPURL == "" {
 		return ""
 	}
+	// Safeguard: If URL is still pointing to Wikidata (failed rescue), do not attempt fetch
+	if strings.Contains(p.WPURL, "wikidata.org") {
+		return ""
+	}
 
 	// Parse Title/Lang from URL: https://en.wikipedia.org/wiki/Title
 	parts := strings.Split(p.WPURL, "/")

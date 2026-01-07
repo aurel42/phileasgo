@@ -2,7 +2,7 @@ package wikidata
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,115 +12,194 @@ import (
 	"phileasgo/pkg/tracker"
 )
 
-type mockCacher struct{}
+type mockCache struct{}
 
-func (m *mockCacher) GetCache(ctx context.Context, key string) ([]byte, bool)    { return nil, false }
-func (m *mockCacher) SetCache(ctx context.Context, key string, val []byte) error { return nil }
+func (m *mockCache) GetCache(ctx context.Context, key string) ([]byte, bool)    { return nil, false }
+func (m *mockCache) SetCache(ctx context.Context, key string, val []byte) error { return nil }
 
-func TestGetEntitiesBatch(t *testing.T) {
-	// 1. Mock Server
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		ids := q.Get("ids")
-		if ids == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		// Mock response using the actual struct but without anonymous types to avoid tag issues
-		type Ent struct {
-			Labels map[string]struct {
-				Value string `json:"value"`
-			} `json:"labels"`
-			Claims map[string][]struct {
-				Mainsnak map[string]interface{} `json:"mainsnak"`
-			} `json:"claims"`
-		}
-
-		resp := struct {
-			Entities map[string]Ent `json:"entities"`
-		}{
-			Entities: make(map[string]Ent),
-		}
-
-		// Add Q1
-		resp.Entities["Q1"] = Ent{
-			Labels: map[string]struct {
-				Value string `json:"value"`
-			}{
-				"en": {Value: "Label 1"},
-			},
-		}
-
-		// Add Q2 with P31
-		resp.Entities["Q2"] = Ent{
-			Labels: map[string]struct {
-				Value string `json:"value"`
-			}{
-				"en": {Value: "Label 2"},
-			},
-			Claims: map[string][]struct {
-				Mainsnak map[string]interface{} `json:"mainsnak"`
-			}{
-				"P31": {
-					{
-						Mainsnak: map[string]interface{}{
-							"datavalue": map[string]interface{}{
-								"type": "wikibase-entityid",
-								"value": map[string]interface{}{
-									"entity-type": "item",
-									"id":          "Q5",
-								},
-							},
+func TestFetchFallbackData(t *testing.T) {
+	tests := []struct {
+		name       string
+		qids       []string
+		mockResp   string
+		mockStatus int
+		wantErr    bool
+		wantCount  int
+		wantLabel  string
+	}{
+		{
+			name: "Success with labels and sitelinks",
+			qids: []string{"Q1"},
+			mockResp: `{
+				"entities": {
+					"Q1": {
+						"labels": {
+							"en": {"value": "Tower"}
 						},
-					},
-				},
-				"P18": { // Image - string value
-					{
-						Mainsnak: map[string]interface{}{
-							"datavalue": map[string]interface{}{
-								"type":  "string",
-								"value": "Image.jpg",
-							},
-						},
-					},
-				},
-			},
-		}
+						"sitelinks": {
+							"enwiki": {"site": "enwiki", "title": "Tower"}
+						}
+					}
+				}
+			}`,
+			mockStatus: http.StatusOK,
+			wantErr:    false,
+			wantCount:  1,
+			wantLabel:  "Tower",
+		},
+		{
+			name:       "Empty QID list",
+			qids:       []string{},
+			mockResp:   "",
+			mockStatus: http.StatusOK,
+			wantErr:    false,
+			wantCount:  0,
+		},
+		{
+			name:       "API Error",
+			qids:       []string{"Q1"},
+			mockResp:   `{"error": "bad"}`,
+			mockStatus: http.StatusInternalServerError,
+			wantErr:    true,
+			wantCount:  0,
+		},
+		{
+			name:       "Malformed JSON",
+			qids:       []string{"Q1"},
+			mockResp:   `{invalid json}`,
+			mockStatus: http.StatusOK,
+			wantErr:    true,
+			wantCount:  0,
+		},
+	}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(resp)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/w/api.php" {
+					t.Errorf("Expected path /w/api.php, got %s", r.URL.Path)
+				}
+				action := r.URL.Query().Get("action")
+				if action != "wbgetentities" {
+					t.Errorf("Expected action wbgetentities, got %s", action)
+				}
+				w.WriteHeader(tt.mockStatus)
+				fmt.Fprint(w, tt.mockResp)
+			}))
+			defer server.Close()
+
+			trk := tracker.New()
+			mc := &mockCache{}
+			reqClient := request.New(mc, trk)
+			client := NewClient(reqClient, slog.Default())
+			client.APIEndpoint = server.URL + "/w/api.php"
+
+			got, err := client.FetchFallbackData(context.Background(), tt.qids)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("FetchFallbackData() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				if len(got) != tt.wantCount {
+					t.Errorf("FetchFallbackData() count = %d, want %d", len(got), tt.wantCount)
+				}
+				if tt.wantCount > 0 {
+					if l := got["Q1"].Labels["en"]; l != tt.wantLabel {
+						t.Errorf("FetchFallbackData() label = %s, want %s", l, tt.wantLabel)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGetEntityClaims(t *testing.T) {
+	// Simple test for existing method to boost coverage
+	mockResp := `{
+		"entities": {
+			"Q1": {
+				"labels": {"en": {"value": "MyLabel"}},
+				"claims": {
+					"P31": [
+						{"mainsnak": {"datavalue": {"value": {"id": "Q5"}}}}
+					]
+				}
+			}
+		}
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, mockResp)
 	}))
-	defer ts.Close()
+	defer server.Close()
 
-	// 2. Setup Client
-	tr := tracker.New()
-	reqClient := request.New(&mockCacher{}, tr)
-
+	trk := tracker.New()
+	mc := &mockCache{}
+	reqClient := request.New(mc, trk)
 	client := NewClient(reqClient, slog.Default())
-	client.APIEndpoint = ts.URL
+	client.APIEndpoint = server.URL + "/w/api.php"
 
-	// 3. Test
-	ctx := context.Background()
-	results, err := client.GetEntitiesBatch(ctx, []string{"Q1", "Q2"})
+	targets, label, err := client.GetEntityClaims(context.Background(), "Q1", "P31")
 	if err != nil {
-		t.Fatalf("GetEntitiesBatch failed: %v", err)
+		t.Fatalf("GetEntityClaims failed: %v", err)
 	}
-
-	if len(results) != 2 {
-		t.Errorf("Expected 2 results, got %d", len(results))
+	if label != "MyLabel" {
+		t.Errorf("Expected label MyLabel, got %s", label)
 	}
-
-	if results["Q1"].Labels["en"] != "Label 1" {
-		t.Errorf("Q1 label mismatch: %s", results["Q1"].Labels["en"])
+	if len(targets) != 1 || targets[0] != "Q5" {
+		t.Errorf("Expected target Q5, got %v", targets)
 	}
+}
 
-	if results["Q2"].Labels["en"] != "Label 2" {
-		t.Errorf("Q2 label mismatch: %s", results["Q2"].Labels["en"])
+func TestQuerySPARQL(t *testing.T) {
+	mockResp := `{
+		"results": {
+			"bindings": [
+				{
+					"item": {"value": "http://www.wikidata.org/entity/Q1"},
+					"lat": {"value": "50.5"},
+					"lon": {"value": "14.5"},
+					"sitelinks": {"value": "10"},
+					"title_local_val": {"value": "LocalTitle"},
+					"itemLabel": {"value": "LabelTitle"},
+					"instances": {"value": "http://www.wikidata.org/entity/Q5,http://www.wikidata.org/entity/Q6"}
+				}
+			]
+		}
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, mockResp)
+	}))
+	defer server.Close()
+
+	trk := tracker.New()
+	mc := &mockCache{}
+	reqClient := request.New(mc, trk)
+	client := NewClient(reqClient, slog.Default())
+	client.SPARQLEndpoint = server.URL + "/sparql"
+
+	articles, _, err := client.QuerySPARQL(context.Background(), "SELECT * WHERE {}", "")
+	if err != nil {
+		t.Fatalf("QuerySPARQL failed: %v", err)
 	}
-
-	p31 := results["Q2"].Claims["P31"]
-	if len(p31) != 1 || p31[0] != "Q5" {
-		t.Errorf("Q2 P31 claims mismatch: %v", p31)
+	if len(articles) != 1 {
+		t.Fatalf("Expected 1 article, got %d", len(articles))
+	}
+	a := articles[0]
+	if a.QID != "Q1" {
+		t.Errorf("Expected QID Q1, got %s", a.QID)
+	}
+	if a.Lat != 50.5 || a.Lon != 14.5 {
+		t.Errorf("Expected coords 50.5,14.5, got %f,%f", a.Lat, a.Lon)
+	}
+	if a.Sitelinks != 10 {
+		t.Errorf("Expected 10 sitelinks, got %d", a.Sitelinks)
+	}
+	if len(a.Instances) != 2 {
+		t.Errorf("Expected 2 instances, got %d", len(a.Instances))
 	}
 }

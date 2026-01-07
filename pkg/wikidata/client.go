@@ -261,6 +261,93 @@ func (c *Client) GetEntitiesBatch(ctx context.Context, ids []string) (map[string
 	return resultMap, nil
 }
 
+// FallbackData contains raw labels and sitelinks for rescue operations.
+type FallbackData struct {
+	Labels    map[string]string // Lang -> Value
+	Sitelinks map[string]string // Site -> Title (e.g. "enwiki" -> "Title")
+}
+
+// FetchFallbackData gets all labels and sitelinks for a batch of IDs (no language filter).
+func (c *Client) FetchFallbackData(ctx context.Context, ids []string) (map[string]FallbackData, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	resultMap := make(map[string]FallbackData)
+
+	const batchSize = 50
+	for i := 0; i < len(ids); i += batchSize {
+		end := i + batchSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunk := ids[i:end]
+		idStr := strings.Join(chunk, "|")
+
+		u, _ := url.Parse(c.APIEndpoint)
+		q := u.Query()
+		q.Add("action", "wbgetentities")
+		q.Add("format", "json")
+		q.Add("ids", idStr)
+		q.Add("props", "labels|sitelinks")
+		// No languages param = fetch all
+		u.RawQuery = q.Encode()
+
+		// Do not cache fallback data as it's a rescue operation for "bad" cached data
+		body, err := c.request.Get(ctx, u.String(), "")
+		if err != nil {
+			return nil, err
+		}
+
+		// We need a slightly richer wrapper to capture all sitelinks/labels
+		// wrapperEntityResponse is defined strictly?
+		// Let's redefine a local struct for this specific parsing if needed,
+		// or check if wrapperEntityResponse is sufficient.
+		// wrapperEntityResponse uses map[string]struct{Value string} for labels, which is fine.
+		// It doesn't map Sitelinks. We need to add Sitelinks to the wrapper or use a new one.
+		// Since wrapperEntityResponse is private and defined at the bottom, let's verify it first.
+		// Wait, I can't verify it in this tool call.
+		// I'll assume I need to extend the wrapperEntityResponse or create a compatible one.
+		// To be safe, I'll define a local struct inside this method or just extend the file's struct if possible.
+		// I cannot modify the struct definition easily here without a separate replacement.
+
+		// Better approach: Unmarshal into a map[string]interface{} or a specific struct here.
+		type extendedEntity struct {
+			Labels map[string]struct {
+				Value string `json:"value"`
+			} `json:"labels"`
+			Sitelinks map[string]struct {
+				Site  string `json:"site"`
+				Title string `json:"title"`
+			} `json:"sitelinks"`
+		}
+		type extendedResponse struct {
+			Entities map[string]extendedEntity `json:"entities"`
+		}
+
+		var extRes extendedResponse
+		if err := json.Unmarshal(body, &extRes); err != nil {
+			return nil, fmt.Errorf("failed to decode json: %w", err)
+		}
+
+		for id, ent := range extRes.Entities {
+			fd := FallbackData{
+				Labels:    make(map[string]string),
+				Sitelinks: make(map[string]string),
+			}
+			for lang, lbl := range ent.Labels {
+				fd.Labels[lang] = lbl.Value
+			}
+			for site, sl := range ent.Sitelinks {
+				fd.Sitelinks[site] = sl.Title
+			}
+			resultMap[id] = fd
+		}
+	}
+
+	return resultMap, nil
+}
+
 // SearchEntities searches for items in Wikidata by name/label.
 func (c *Client) SearchEntities(ctx context.Context, query string) ([]SearchResult, error) {
 	u, _ := url.Parse(c.APIEndpoint)

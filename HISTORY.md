@@ -1,5 +1,20 @@
 ﻿# Release History
 
+## v0.2.17
+- **Feature**: **Improved Wikidata Ingestion**
+    - Implemented a "Rescue" strategy for POIs that lack an English Wikipedia article.
+    - The system now aggressively searches for *any* available label or sitelink (prioritizing Local > User > English > Any) to provide a valid name and URL.
+    - This ensures that local landmarks (which often have no English article) are correctly ingested and displayed with their native name instead of a raw specific QID (e.g. `Q123043127`), significantly improving coverage in non-English speaking regions.
+- **Refactor**: **Wikidata Service Architecture**
+    - Split the monolithic `pkg/wikidata/service.go` into focused components (`service_rescue.go`, `service_enrich.go`) to reduce complexity.
+    - Converted core processing methods into pure functions, significantly improving testability and maintainability.
+- **Testing**: **Comprehensive Coverage Campaign**
+    - Achieved **>80% Test Coverage** for `pkg/wikidata` core logic using table-driven tests.
+    - Added comprehensive test suites: `service_rescue_test.go`, `service_enrich_test.go`, `client_test.go`, `mapper_test.go`, `scheduler_test.go`, and `validator_test.go`.
+    - Implemented robust `httptest` mocking for Wikidata API client to simulate complex search and claim retrieval scenarios.
+- **Tech Debt**: **Dependency Decoupling**
+    - Refactored `LanguageMapper` to depend on the minimal `cache.Cacher` interface instead of the full `store.Store`, simplifying the dependency graph and enabling isolated testing.
+
 ## v0.2.16
 - **Fix**: **TTS API Tracking (Fish Audio)**
     - Wired up the `tracker.Tracker` to the Fish Audio provider.

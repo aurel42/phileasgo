@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"phileasgo/pkg/cache"
 	"phileasgo/pkg/request"
-	"phileasgo/pkg/store"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 
 // LanguageMapper handles dynamic resolution of Country Code -> Primary Language.
 type LanguageMapper struct {
-	store   store.Store
+	cache   cache.Cacher
 	client  *request.Client // Use Request Client directly for fetching map
 	logger  *slog.Logger
 	mu      sync.RWMutex
@@ -28,9 +28,9 @@ type LanguageMapper struct {
 }
 
 // NewLanguageMapper creates a new mapper.
-func NewLanguageMapper(st store.Store, rc *request.Client, logger *slog.Logger) *LanguageMapper {
+func NewLanguageMapper(c cache.Cacher, rc *request.Client, logger *slog.Logger) *LanguageMapper {
 	return &LanguageMapper{
-		store:   st,
+		cache:   c,
 		client:  rc,
 		logger:  logger,
 		mapping: make(map[string]string),
@@ -79,7 +79,7 @@ func (m *LanguageMapper) GetLanguage(countryCode string) string {
 }
 
 func (m *LanguageMapper) load(ctx context.Context) error {
-	data, ok := m.store.GetCache(ctx, langMapCacheKey)
+	data, ok := m.cache.GetCache(ctx, langMapCacheKey)
 	if !ok {
 		return nil // Not found is fine
 	}
@@ -102,7 +102,7 @@ func (m *LanguageMapper) save(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return m.store.SetCache(ctx, langMapCacheKey, data)
+	return m.cache.SetCache(ctx, langMapCacheKey, data)
 }
 
 func (m *LanguageMapper) refresh(ctx context.Context) error {

@@ -3,102 +3,100 @@ package wikidata
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
-	"os"
 	"testing"
-	"time"
-
-	"phileasgo/pkg/model"
 )
 
-// MockStore for testing
-type MockStore struct {
-	cache map[string][]byte
+// Reuse mockCache logic locally or import?
+// mockCache definition in client_test.go is not exported.
+// I will define a local mock for simplicity.
+
+type mockCacher struct {
+	data map[string][]byte
 }
 
-func (m *MockStore) GetCache(ctx context.Context, key string) ([]byte, bool) {
-	val, ok := m.cache[key]
+func (m *mockCacher) GetCache(ctx context.Context, key string) ([]byte, bool) {
+	if m.data == nil {
+		return nil, false
+	}
+	val, ok := m.data[key]
 	return val, ok
 }
-
-func (m *MockStore) SetCache(ctx context.Context, key string, data []byte) error {
-	m.cache[key] = data
+func (m *mockCacher) SetCache(ctx context.Context, key string, val []byte) error {
+	if m.data == nil {
+		m.data = make(map[string][]byte)
+	}
+	m.data[key] = val
 	return nil
 }
 
-// Stubs for interface compliance
-// Stubs for interface compliance
-func (m *MockStore) ListCacheKeys(ctx context.Context, prefix string) ([]string, error) {
-	return nil, nil
-}
-func (m *MockStore) GetPOIsBatch(ctx context.Context, qids []string) (map[string]*model.POI, error) {
-	return nil, nil
-}
-func (m *MockStore) GetSeenEntitiesBatch(ctx context.Context, qids []string) (map[string][]string, error) {
-	return nil, nil
-}
-func (m *MockStore) MarkEntitiesSeen(ctx context.Context, data map[string][]string) error { return nil }
-func (m *MockStore) SavePOI(ctx context.Context, poi *model.POI) error                    { return nil }
+func TestLanguageMapper_LoadSave(t *testing.T) {
+	// Mock Cache
+	mc := &mockCacher{data: make(map[string][]byte)}
 
-// Missing Stubs
-func (m *MockStore) GetPOI(ctx context.Context, wikidataID string) (*model.POI, error) {
-	return nil, nil
+	// data to save
+	dataMap := map[string]string{
+		"CZ": "cs",
+		"DE": "de",
+	}
+
+	lm := &LanguageMapper{
+		cache:   mc,
+		mapping: dataMap,
+	}
+
+	// Test Save (to cache)
+	if err := lm.save(context.Background()); err != nil {
+		t.Errorf("save() failed: %v", err)
+	}
+
+	// Verify cache content
+	cachedData, ok := mc.data["sys_lang_map"]
+	if !ok {
+		t.Fatal("Cache missing key")
+	}
+
+	var loadedData map[string]string
+	if err := json.Unmarshal(cachedData, &loadedData); err != nil {
+		t.Fatal(err)
+	}
+	if loadedData["CZ"] != "cs" {
+		t.Errorf("Saved content mismatch")
+	}
+
+	// Test Load (from cache)
+	lm2 := &LanguageMapper{
+		cache:   mc,
+		mapping: make(map[string]string),
+	}
+	if err := lm2.load(context.Background()); err != nil {
+		t.Errorf("load() failed: %v", err)
+	}
+	if lm2.GetLanguage("CZ") != "cs" {
+		t.Errorf("GetLanguage(CZ) = %s, want cs", lm2.GetLanguage("CZ"))
+	}
 }
-func (m *MockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error) {
-	return nil, nil
-}
-func (m *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
-func (m *MockStore) HasCache(ctx context.Context, key string) (bool, error)              { return false, nil }
-func (m *MockStore) GetState(ctx context.Context, key string) (string, bool)             { return "", false }
-func (m *MockStore) SetState(ctx context.Context, key, val string) error                 { return nil }
-func (m *MockStore) GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error) {
-	return nil, nil
-}
-func (m *MockStore) SaveMSFSPOI(ctx context.Context, poi *model.MSFSPOI) error { return nil }
-func (m *MockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) (bool, error) {
-	return false, nil
-}
-func (m *MockStore) GetHierarchy(ctx context.Context, qid string) (*model.WikidataHierarchy, error) {
-	return nil, nil
-}
-func (m *MockStore) SaveHierarchy(ctx context.Context, h *model.WikidataHierarchy) error { return nil }
-func (m *MockStore) GetClassification(ctx context.Context, qid string) (category string, found bool, err error) {
-	return "", false, nil
-}
-func (m *MockStore) SaveClassification(ctx context.Context, qid, category string, parents []string, label string) error {
-	return nil
-}
-func (m *MockStore) GetArticle(ctx context.Context, uuid string) (*model.Article, error) {
-	return nil, nil
-}
-func (m *MockStore) SaveArticle(ctx context.Context, article *model.Article) error { return nil }
-func (m *MockStore) Close() error                                                  { return nil }
 
 func TestLanguageMapper_GetLanguage(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	store := &MockStore{cache: make(map[string][]byte)}
-
-	mapper := NewLanguageMapper(store, nil, logger) // Client is nil, we won't refresh
-
-	// Test Empty
-	if got := mapper.GetLanguage("CZ"); got != "en" {
-		t.Errorf("GetLanguage(CZ) empty = %v, want en", got)
+	lm := &LanguageMapper{
+		mapping: map[string]string{
+			"US": "en",
+			"FR": "fr",
+		},
 	}
 
-	// Test Pre-loaded
-	initial := map[string]string{"CZ": "cs", "FR": "fr"}
-	data, _ := json.Marshal(initial)
-	store.SetCache(context.Background(), langMapCacheKey, data)
-
-	mapper.load(context.Background())
-
-	if got := mapper.GetLanguage("CZ"); got != "cs" {
-		t.Errorf("GetLanguage(CZ) = %v, want cs", got)
+	tests := []struct {
+		country string
+		want    string
+	}{
+		{"US", "en"},
+		{"FR", "fr"},
+		{"UNKNOWN", "en"}, // Default fallback
+		{"", "en"},
 	}
-	if got := mapper.GetLanguage("FR"); got != "fr" {
-		t.Errorf("GetLanguage(FR) = %v, want fr", got)
-	}
-	if got := mapper.GetLanguage("XX"); got != "en" {
-		t.Errorf("GetLanguage(XX) = %v, want en", got)
+
+	for _, tt := range tests {
+		if got := lm.GetLanguage(tt.country); got != tt.want {
+			t.Errorf("GetLanguage(%s) = %s, want %s", tt.country, got, tt.want)
+		}
 	}
 }

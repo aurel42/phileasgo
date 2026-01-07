@@ -1,126 +1,97 @@
 package wikidata
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"log/slog"
-	"os"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
 )
 
 func TestValidator_ValidateBatch(t *testing.T) {
-	// We need a real requester to test the API or a mock.
-	// Since we are in planning/exec, I'll use a stubbed client if possible or just check logic.
+	// Mock Server handling both wbgetentities and wbsearchentities
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		action := r.URL.Query().Get("action")
 
-	// For now, let's just make sure it compiles and doesn't panic with nil client (well it will panic)
-	// I'll skip the actual network test here unless I have a good mock.
-	t.Skip("Skipping live validator test")
-}
-
-func TestValidator_Logic(t *testing.T) {
-	// Stub test to verify compilation
-	tr := tracker.New()
-	req := request.New(nil, tr)
-	client := NewClient(req, slog.New(slog.NewTextHandler(os.Stdout, nil)))
-	v := NewValidator(client)
-
-	if v == nil {
-		t.Fatal("Validator should not be nil")
-	}
-}
-
-// TestTryDirectMatch tests the direct match logic for QID validation.
-func TestTryDirectMatch(t *testing.T) {
-	tr := tracker.New()
-	req := request.New(nil, tr)
-	client := NewClient(req, slog.New(slog.NewTextHandler(os.Stdout, nil)))
-	v := NewValidator(client)
-
-	tests := []struct {
-		name         string
-		inputName    string
-		inputQID     string
-		actualLabels map[string]string
-		wantMatch    bool
-	}{
-		{
-			name:         "exact match lowercase",
-			inputName:    "castle",
-			inputQID:     "Q23413",
-			actualLabels: map[string]string{"Q23413": "castle"},
-			wantMatch:    true,
-		},
-		{
-			name:         "contains match",
-			inputName:    "castle",
-			inputQID:     "Q23413",
-			actualLabels: map[string]string{"Q23413": "medieval castle"},
-			wantMatch:    true,
-		},
-		{
-			name:         "reverse contains match",
-			inputName:    "medieval castle",
-			inputQID:     "Q23413",
-			actualLabels: map[string]string{"Q23413": "castle"},
-			wantMatch:    true,
-		},
-		{
-			name:         "no match",
-			inputName:    "castle",
-			inputQID:     "Q23413",
-			actualLabels: map[string]string{"Q23413": "palace"},
-			wantMatch:    false,
-		},
-		{
-			name:         "empty QID",
-			inputName:    "castle",
-			inputQID:     "",
-			actualLabels: map[string]string{},
-			wantMatch:    false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, ok := v.tryDirectMatch(tc.inputName, tc.inputQID, tc.actualLabels)
-			if ok != tc.wantMatch {
-				t.Errorf("tryDirectMatch(%q, %q) = %v, want %v", tc.inputName, tc.inputQID, ok, tc.wantMatch)
+		if action == "wbgetentities" {
+			// Mock Direct Lookup
+			ids := r.URL.Query().Get("ids")
+			if strings.Contains(ids, "Q1") {
+				fmt.Fprint(w, `{"entities": {"Q1": {"labels": {"en": {"value": "Castle"}} } }}`)
+				return
 			}
-			if ok && result.QID != tc.inputQID {
-				t.Errorf("Expected QID %s, got %s", tc.inputQID, result.QID)
+			if strings.Contains(ids, "Q2") {
+				// Mismatch simulation
+				fmt.Fprint(w, `{"entities": {"Q2": {"labels": {"en": {"value": "River"}} } }}`)
+				return
 			}
-		})
-	}
-}
-
-// TestExtractQIDs tests the QID extraction from suggestions.
-func TestExtractQIDs(t *testing.T) {
-	tr := tracker.New()
-	req := request.New(nil, tr)
-	client := NewClient(req, slog.New(slog.NewTextHandler(os.Stdout, nil)))
-	v := NewValidator(client)
-
-	suggestions := map[string]string{
-		"castle":   "Q23413",
-		"palace":   "Q16560",
-		"invalid":  "not-a-qid",
-		"empty":    "",
-		"numbered": "Q12345",
-	}
-
-	qids := v.extractQIDs(suggestions)
-
-	// Should only extract valid QIDs starting with Q
-	if len(qids) != 3 {
-		t.Errorf("Expected 3 valid QIDs, got %d: %v", len(qids), qids)
-	}
-
-	// Verify all extracted are valid
-	for _, qid := range qids {
-		if !strings.HasPrefix(qid, "Q") {
-			t.Errorf("Invalid QID extracted: %s", qid)
+			fmt.Fprint(w, `{"entities": {}}`)
+			return
 		}
+
+		if action == "wbsearchentities" {
+			search := r.URL.Query().Get("search")
+			if search == "Tower" {
+				fmt.Fprint(w, `{"search": [{"id": "Q3", "label": "The Tower"}]}`)
+				return
+			}
+			fmt.Fprint(w, `{"search": []}`)
+			return
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	// Setup Validator
+	trk := tracker.New()
+	reqClient := request.New(&mockCacher{}, trk) // Reuse mockCacher from mapper_test (if exported) or redefine?
+	// mockCacher in mapper_test.go is not exported. I need to redefine it here or make it common.
+	// Redefining for speed.
+
+	client := NewClient(reqClient, slog.Default())
+	client.APIEndpoint = server.URL
+
+	v := NewValidator(client)
+
+	// Test Cases
+	suggestions := map[string]string{
+		"Castle": "Q1",  // Exact match (Label "Castle")
+		"Lake":   "Q2",  // Mismatch (Label "River") -> Fallback (fail)
+		"Tower":  "Q99", // Bad QID -> Fallback search "Tower" -> Finds "Q3"
+	}
+
+	ctx := context.Background()
+	results := v.ValidateBatch(ctx, suggestions)
+
+	// Verify "Castle" -> Q1
+	if res, ok := results["Castle"]; !ok || res.QID != "Q1" {
+		t.Errorf("Expected Castle -> Q1, got %v", res)
+	}
+
+	// Verify "Lake" -> Should fail or be validated?
+	// ValidateBatch:
+	// 1. fetchLabels(Q1, Q2, Q99). Q2->River.
+	// 2. tryDirectMatch("Lake", "Q2", ...) -> "river" != "lake" -> false.
+	// 3. trySearchFallback("Lake") -> empty -> false.
+	// So "Lake" should be missing.
+	if _, ok := results["Lake"]; ok {
+		t.Errorf("Expected Lake to be invalid, but got %v", results["Lake"])
+	}
+
+	// Verify "Tower" -> Search fallback -> Q3
+	if res, ok := results["Tower"]; !ok || res.QID != "Q3" {
+		t.Errorf("Expected Tower -> Q3 (rescued), got %v", res)
 	}
 }
+
+// Redefine mockCacher here to avoid import cycles or undefined refs if different package (same package but separate files)
+type mockCacherV struct{}
+
+func (m *mockCacherV) GetCache(ctx context.Context, key string) ([]byte, bool)    { return nil, false }
+func (m *mockCacherV) SetCache(ctx context.Context, key string, val []byte) error { return nil }
