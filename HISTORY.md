@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.18
+- **Config**: **TTS Log Path**
+    - The path for the TTS debug log is now configurable via `phileas.yaml` (default: `logs/tts.log`).
+    - This allows users to redirect or organize logs as needed without code changes.
+
 ## v0.2.17
 - **Feature**: **Improved Wikidata Ingestion**
     - Implemented a "Rescue" strategy for POIs that lack an English Wikipedia article.
