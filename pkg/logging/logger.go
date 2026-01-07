@@ -19,7 +19,7 @@ var RequestLogger *slog.Logger
 // It returns a cleanup function to close log files.
 func Init(cfg *config.LogConfig) (func(), error) {
 	// Rotate all log files at startup
-	rotatePaths(cfg.Server.Path, cfg.Requests.Path, cfg.Gemini.Path, "logs/tts.log")
+	rotatePaths(cfg.Server.Path, cfg.Requests.Path, cfg.Gemini.Path, cfg.TTS.Path)
 
 	var closers []io.Closer
 

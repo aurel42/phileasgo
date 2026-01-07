@@ -102,6 +102,7 @@ type LogConfig struct {
 	Server   LogSettings `yaml:"server"`
 	Requests LogSettings `yaml:"requests"`
 	Gemini   LogSettings `yaml:"gemini"`
+	TTS      LogSettings `yaml:"tts"`
 }
 
 // DBConfig holds database settings.
@@ -175,6 +176,10 @@ func DefaultConfig() *Config {
 			},
 			Gemini: LogSettings{
 				Path:  "./logs/gemini.log",
+				Level: "DEBUG",
+			},
+			TTS: LogSettings{
+				Path:  "./logs/tts.log",
 				Level: "DEBUG",
 			},
 		},

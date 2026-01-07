@@ -73,6 +73,9 @@ func run(ctx context.Context, configPath string) error {
 	}
 	defer cleanupLogs()
 
+	// Configure TTS Logging
+	tts.SetLogPath(appCfg.Log.TTS.Path)
+
 	slog.Info("PhileasGo Started", "version", version.Version)
 
 	dbConn, st, err := initDB(appCfg)

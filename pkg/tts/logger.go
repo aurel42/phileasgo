@@ -4,14 +4,28 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
-// Log appends the TTS prompt and status to logs/tts.log.
+var (
+	logPath = "logs/tts.log"
+	mu      sync.RWMutex
+)
+
+// SetLogPath configures the path for the TTS log file.
+func SetLogPath(path string) {
+	mu.Lock()
+	defer mu.Unlock()
+	logPath = path
+}
+
+// Log appends the TTS prompt and status to the configured log file.
 // This is a shared helper for all TTS providers to ensure consistent debugging visibility.
 func Log(provider, prompt string, status int, err error) {
-	// Hardcoded path as requested for debugging
-	path := "logs/tts.log"
+	mu.RLock()
+	path := logPath
+	mu.RUnlock()
 
 	_ = os.MkdirAll(filepath.Dir(path), 0o755)
 
