@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/tts"
 )
 
@@ -25,15 +26,17 @@ type Provider struct {
 	voiceID string // Default voice ID (reference_id)
 	modelID string // Model ID (e.g. "s1")
 	client  *http.Client
+	tracker *tracker.Tracker
 }
 
 // NewProvider creates a new Fish Audio TTS provider.
-func NewProvider(cfg config.FishAudioConfig) *Provider {
+func NewProvider(cfg config.FishAudioConfig, t *tracker.Tracker) *Provider {
 	return &Provider{
 		apiKey:  cfg.Key,
 		voiceID: cfg.VoiceID,
 		modelID: cfg.Model,
 		client:  &http.Client{},
+		tracker: t,
 	}
 }
 
@@ -94,12 +97,18 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 	resp, err := p.client.Do(req)
 	if err != nil {
 		tts.Log("FISH", logContent, 0, err)
+		if p.tracker != nil {
+			p.tracker.TrackAPIFailure("fish-audio")
+		}
 		return "", fmt.Errorf("api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		tts.Log("FISH", logContent, resp.StatusCode, nil)
+		if p.tracker != nil {
+			p.tracker.TrackAPIFailure("fish-audio")
+		}
 		body, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("fish audio api error (status %d): %s", resp.StatusCode, string(body))
 	}
@@ -120,7 +129,14 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 	defer f.Close()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
+		if p.tracker != nil {
+			p.tracker.TrackAPIFailure("fish-audio")
+		}
 		return "", fmt.Errorf("failed to write audio to file: %w", err)
+	}
+
+	if p.tracker != nil {
+		p.tracker.TrackAPISuccess("fish-audio")
 	}
 
 	return ext, nil

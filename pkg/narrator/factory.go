@@ -32,7 +32,7 @@ func NewTTSProvider(cfg *config.TTSConfig, t *tracker.Tracker) (tts.Provider, er
 	case "edge", "edge-tts":
 		return edgetts.NewProvider(t), nil
 	case "fish-audio", "fishaudio":
-		return fishaudio.NewProvider(cfg.FishAudio), nil
+		return fishaudio.NewProvider(cfg.FishAudio, t), nil
 	case "azure", "azure-speech":
 		return azure.NewProvider(cfg.AzureSpeech, t), nil
 	default:

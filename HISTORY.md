@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.16
+- **Fix**: **TTS API Tracking (Fish Audio)**
+    - Wired up the `tracker.Tracker` to the Fish Audio provider.
+    - Providing correct `APISuccess` and `APIFailures` statistics to the Info Panel.
+    - Injected tracker dependency via `narrator.NewTTSProvider` factory.
+
 ## v0.2.15
 - **Refactor**: **Narrator Architecture & Testing**
     - Refactored `NarratorHandler` (`internal/api/narrator.go`) to use Interface Segregation Principle with local `AudioController` and `NarratorController` interfaces, removing dependencies on package-wide monolithic services.
