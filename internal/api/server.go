@@ -38,6 +38,7 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 	// 2f. POI Endpoints
 	mux.HandleFunc("GET /api/pois/tracked", pois.HandleTracked)
 	mux.HandleFunc("GET /api/pois/{id}/thumbnail", pois.HandleThumbnail)
+	mux.HandleFunc("POST /api/pois/reset-last-played", pois.HandleResetLastPlayed)
 
 	// 2g. Visibility Endpoint
 	mux.HandleFunc("GET /api/map/visibility", vis.Handler)

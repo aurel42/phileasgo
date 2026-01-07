@@ -47,9 +47,10 @@ func (m *MockStore) GetPOI(ctx context.Context, wikidataID string) (*model.POI, 
 func (m *MockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error) {
 	return nil, nil
 }
-func (m *MockStore) HasCache(ctx context.Context, key string) (bool, error)  { return false, nil }
-func (m *MockStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
-func (m *MockStore) SetState(ctx context.Context, key, val string) error     { return nil }
+func (m *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
+func (m *MockStore) HasCache(ctx context.Context, key string) (bool, error)              { return false, nil }
+func (m *MockStore) GetState(ctx context.Context, key string) (string, bool)             { return "", false }
+func (m *MockStore) SetState(ctx context.Context, key, val string) error                 { return nil }
 func (m *MockStore) GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error) {
 	return nil, nil
 }

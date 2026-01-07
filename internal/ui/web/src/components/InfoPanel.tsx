@@ -380,6 +380,40 @@ export const InfoPanel = ({
 
                         <div className="config-label" style={{ marginTop: '16px', color: '#ff4444' }}>DANGER ZONE</div>
                         <button
+                            onClick={() => {
+                                if (confirm('Are you sure you want to RESET history for POIs within 100km? This cannot be undone.')) {
+                                    fetch('/api/pois/reset-last-played', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            lat: telemetry?.Latitude || 0,
+                                            lon: telemetry?.Longitude || 0
+                                        })
+                                    }).then(res => {
+                                        if (res.ok) alert('History reset successfully. Marker colors will update shortly.');
+                                        else alert('Failed to reset history.');
+                                    }).catch(e => console.error(e));
+                                }
+                            }}
+                            style={{
+                                marginTop: '4px',
+                                padding: '6px 12px',
+                                background: 'rgba(255, 152, 0, 0.1)',
+                                color: '#f57c00',
+                                border: '1px solid #f57c00',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '10px',
+                                fontWeight: 'bold',
+                                width: '100%',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseOver={(e) => { e.currentTarget.style.background = '#f57c00'; e.currentTarget.style.color = 'white'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 152, 0, 0.1)'; e.currentTarget.style.color = '#f57c00'; }}
+                        >
+                            RESET HISTORY (100km)
+                        </button>
+                        <button
                             onClick={() => { if (confirm('Are you sure you want to SHUTDOWN the server?')) fetch('/api/shutdown', { method: 'POST' }) }}
                             style={{
                                 marginTop: '8px',

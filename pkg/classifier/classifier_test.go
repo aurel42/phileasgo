@@ -142,6 +142,7 @@ func (m *MockStore) HasCache(ctx context.Context, key string) (bool, error)     
 func (m *MockStore) ListCacheKeys(ctx context.Context, prefix string) ([]string, error) {
 	return nil, nil
 }
+func (m *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
 func (m *MockStore) GetArticle(ctx context.Context, uuid string) (*model.Article, error) {
 	return nil, nil
 }

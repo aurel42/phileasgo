@@ -163,7 +163,8 @@ func (m *MockStore) GetPOIsBatch(ctx context.Context, ids []string) (map[string]
 func (m *MockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error) {
 	return m.RecentPOIs, nil
 }
-func (m *MockStore) SaveArticle(ctx context.Context, a *model.Article) error { return nil }
+func (m *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
+func (m *MockStore) SaveArticle(ctx context.Context, a *model.Article) error             { return nil }
 func (m *MockStore) GetArticle(ctx context.Context, uuid string) (*model.Article, error) {
 	if m.Articles != nil {
 		if a, ok := m.Articles[uuid]; ok {

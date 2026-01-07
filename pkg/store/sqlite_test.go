@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"phileasgo/pkg/db"
 	"phileasgo/pkg/model"
@@ -30,6 +31,7 @@ func TestSQLiteStore(t *testing.T) {
 	testArticles(t, ctx, store)
 	testCache(t, ctx, store)
 	testState(t, ctx, store)
+	testResetLastPlayed(t, ctx, store)
 }
 
 func testPOI(t *testing.T, ctx context.Context, store *SQLiteStore) {
@@ -186,6 +188,52 @@ func testState(t *testing.T, ctx context.Context, store *SQLiteStore) {
 		}
 		if sVal != "my_val" {
 			t.Errorf("Expected 'my_val', got '%s'", sVal)
+		}
+	})
+}
+
+func testResetLastPlayed(t *testing.T, ctx context.Context, store *SQLiteStore) {
+	t.Run("ResetLastPlayed", func(t *testing.T) {
+		tPlayed := time.Now().Add(-1 * time.Hour)
+
+		// 1. Setup Data
+		// POI 1: Center (0,0), Played
+		p1 := &model.POI{WikidataID: "R1", Lat: 0.0, Lon: 0.0, LastPlayed: tPlayed}
+		// POI 2: Far (10,10), Played (Approx > 1000km)
+		p2 := &model.POI{WikidataID: "R2", Lat: 10.0, Lon: 10.0, LastPlayed: tPlayed}
+		// POI 3: Close (0.1, 0.1), Played (Approx 15km)
+		p3 := &model.POI{WikidataID: "R3", Lat: 0.1, Lon: 0.1, LastPlayed: tPlayed}
+		// POI 4: Center, Not Played
+		p4 := &model.POI{WikidataID: "R4", Lat: 0.0, Lon: 0.0}
+
+		_ = store.SavePOI(ctx, p1)
+		_ = store.SavePOI(ctx, p2)
+		_ = store.SavePOI(ctx, p3)
+		_ = store.SavePOI(ctx, p4)
+
+		// 2. Reset within 100km of (0,0)
+		// 100km radius approx < 1 degree.
+		err := store.ResetLastPlayed(ctx, 0.0, 0.0, 100000.0)
+		if err != nil {
+			t.Fatalf("ResetLastPlayed failed: %v", err)
+		}
+
+		// 3. Verify
+		// R1 should be reset
+		if p, _ := store.GetPOI(ctx, "R1"); !p.LastPlayed.IsZero() {
+			t.Errorf("R1 should be reset, got %v", p.LastPlayed)
+		}
+		// R2 should remain played (far)
+		if p, _ := store.GetPOI(ctx, "R2"); p.LastPlayed.IsZero() {
+			t.Errorf("R2 should not be reset")
+		}
+		// R3 should be reset (close)
+		if p, _ := store.GetPOI(ctx, "R3"); !p.LastPlayed.IsZero() {
+			t.Errorf("R3 should be reset, got %v", p.LastPlayed)
+		}
+		// R4 should remain zero
+		if p, _ := store.GetPOI(ctx, "R4"); !p.LastPlayed.IsZero() {
+			t.Errorf("R4 should remain unplayed, got %v", p.LastPlayed)
 		}
 	})
 }

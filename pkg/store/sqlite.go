@@ -22,6 +22,7 @@ type Store interface {
 	GetPOIsBatch(ctx context.Context, wikidataIDs []string) (map[string]*model.POI, error)
 	SavePOI(ctx context.Context, poi *model.POI) error
 	GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error)
+	ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error
 
 	// Cache
 	GetCache(ctx context.Context, key string) ([]byte, bool)
@@ -253,6 +254,25 @@ func (s *SQLiteStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time
 		results = append(results, &p)
 	}
 	return results, nil
+}
+
+func (s *SQLiteStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error {
+	// Crude approx: 1 deg lat ~= 111km.
+	// radius is in meters.
+	degRadius := (radius / 1000.0) / 111.0
+	// Slightly conservative box
+	minLat, maxLat := lat-degRadius, lat+degRadius
+	minLon, maxLon := lon-degRadius, lon+degRadius
+
+	query := `UPDATE poi SET last_played = NULL 
+			  WHERE lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?`
+
+	// Note: We don't do strict Great Circle check here for efficiency,
+	// relying on the box approximation which is fine for "nearby" reset.
+	// If needed, we can select IDs first with Go-based distance check and then update.
+
+	_, err := s.db.ExecContext(ctx, query, minLat, maxLat, minLon, maxLon)
+	return err
 }
 
 // --- MSFS ---

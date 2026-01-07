@@ -125,3 +125,31 @@ func (h *POIHandler) fetchAndCacheThumbnail(ctx context.Context, p *model.POI) (
 	}
 	return thumbURL, nil
 }
+
+// HandleResetLastPlayed handles POST /api/pois/reset-last-played
+func (h *POIHandler) HandleResetLastPlayed(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Lat float64 `json:"lat"`
+		Lon float64 `json:"lon"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// 100km radius
+	if err := h.mgr.ResetLastPlayed(r.Context(), req.Lat, req.Lon, 100000.0); err != nil {
+		slog.Error("Failed to reset history", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("Reset last_played timestamp for POIs", "lat", req.Lat, "lon", req.Lon, "radius_m", 100000)
+
+	w.WriteHeader(http.StatusOK)
+}

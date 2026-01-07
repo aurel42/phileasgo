@@ -1,23 +1,49 @@
 package api
 
 import (
+	"context" // Added
 	"encoding/json"
 	"log/slog"
-	"net/http"
 
-	"phileasgo/pkg/audio"
+	"net/http"
+	"reflect"
+	"sync"
+
 	"phileasgo/pkg/model"
-	"phileasgo/pkg/narrator"
+	"phileasgo/pkg/sim"
 )
+
+// AudioController defines methods for controlling audio playback.
+type AudioController interface {
+	IsPlaying() bool
+	IsBusy() bool
+	ResetUserPause()
+	Resume()
+	IsUserPaused() bool // Added
+}
+
+// NarratorController defines methods for controlling and viewing narration state.
+type NarratorController interface {
+	IsActive() bool
+	IsGenerating() bool
+	PlayPOI(ctx context.Context, id string, manual bool, tel *sim.Telemetry)
+	CurrentPOI() *model.POI
+	CurrentTitle() string
+	NarratedCount() int
+	Stats() map[string]any
+}
 
 // NarratorHandler handles narrator control endpoints.
 type NarratorHandler struct {
-	audio    audio.Service
-	narrator narrator.Service
+	audio    AudioController
+	narrator NarratorController
+
+	statusMu           sync.Mutex
+	lastStatusResponse *NarratorStatusResponse
 }
 
 // NewNarratorHandler creates a new NarratorHandler.
-func NewNarratorHandler(audioMgr audio.Service, narratorSvc narrator.Service) *NarratorHandler {
+func NewNarratorHandler(audioMgr AudioController, narratorSvc NarratorController) *NarratorHandler {
 	return &NarratorHandler{
 		audio:    audioMgr,
 		narrator: narratorSvc,
@@ -96,6 +122,16 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		NarratedCount:  h.narrator.NarratedCount(),
 		Stats:          h.narrator.Stats(),
 	}
+
+	// Check if state changed
+	h.statusMu.Lock()
+	if !reflect.DeepEqual(h.lastStatusResponse, &resp) {
+		slog.Debug("Narrator state changed", "old", h.lastStatusResponse, "new", resp)
+		// Create a copy to store
+		stored := resp
+		h.lastStatusResponse = &stored
+	}
+	h.statusMu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {

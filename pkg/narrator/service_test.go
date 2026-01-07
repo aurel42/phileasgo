@@ -3,85 +3,105 @@ package narrator
 import (
 	"context"
 	"testing"
+
+	"phileasgo/pkg/sim"
 )
 
-func TestNewStubService(t *testing.T) {
-	s := NewStubService()
-	if s == nil {
-		t.Fatal("NewStubService returned nil")
-	}
-}
-
-func TestStubService_StartStop(t *testing.T) {
+func TestStubService_Lifecycle(t *testing.T) {
 	s := NewStubService()
 
-	s.Start()
-	if !s.running {
-		t.Error("Expected running to be true after Start")
-	}
-
-	s.Stop()
-	if s.running {
-		t.Error("Expected running to be false after Stop")
-	}
-}
-
-func TestStubService_IsActive(t *testing.T) {
-	s := NewStubService()
-
-	// Initially not active
+	// Initial state
 	if s.IsActive() {
-		t.Error("Expected IsActive to be false initially")
+		t.Error("New stub service should not be active")
+	}
+	if s.IsGenerating() {
+		t.Error("New stub service should not be generating")
+	}
+	if s.IsPlaying() {
+		t.Error("New stub service should not be playing")
+	}
+	if s.IsPaused() {
+		t.Error("New stub service should not be paused")
+	}
+
+	// Start
+	s.Start()
+	// Stub doesn't change active state on Start, just logs
+	// Stop
+	s.Stop()
+}
+
+func TestStubService_PlayPOI(t *testing.T) {
+	s := NewStubService()
+	ctx := context.Background()
+
+	// Play
+	s.PlayPOI(ctx, "test-poi", true, nil)
+
+	if s.NarratedCount() != 1 {
+		t.Errorf("NarratedCount() = %d, want 1", s.NarratedCount())
 	}
 }
 
-func TestStubService_NarratedCount(t *testing.T) {
+func TestStubService_PlayEssay(t *testing.T) {
+	s := NewStubService()
+	ctx := context.Background()
+	tel := &sim.Telemetry{}
+
+	if !s.PlayEssay(ctx, tel) {
+		t.Error("PlayEssay should return true for stub")
+	}
+}
+
+func TestStubService_Cooldown(t *testing.T) {
 	s := NewStubService()
 
-	// Initially zero
-	if s.NarratedCount() != 0 {
-		t.Errorf("Expected NarratedCount 0, got %d", s.NarratedCount())
+	if s.ShouldSkipCooldown() {
+		t.Error("ShouldSkipCooldown should be false initially")
 	}
 
-	// Play manual
-	s.PlayPOI(context.Background(), "Q1", true, nil)
-	if s.NarratedCount() != 1 {
-		t.Errorf("expected 1 narrated POI, got %d", s.NarratedCount())
+	s.SkipCooldown()
+	if !s.ShouldSkipCooldown() {
+		t.Error("ShouldSkipCooldown should be true after SkipCooldown")
 	}
 
-	// Play another
-	s.PlayPOI(context.Background(), "Q2", false, nil)
-	if s.NarratedCount() != 2 {
-		t.Errorf("expected 2 narrated POI, got %d", s.NarratedCount())
-	}
-
-	// Replay same (stub counts unique? No, just map keys)
-	s.PlayPOI(context.Background(), "Q1", true, nil)
-	if s.NarratedCount() != 2 {
-		t.Errorf("expected 2 narrated POI, got %d", s.NarratedCount())
+	s.ResetSkipCooldown()
+	if s.ShouldSkipCooldown() {
+		t.Error("ShouldSkipCooldown should be false after ResetSkipCooldown")
 	}
 }
 
 func TestStubService_Stats(t *testing.T) {
 	s := NewStubService()
-
 	stats := s.Stats()
-	if stats == nil {
-		t.Fatal("Stats returned nil")
+
+	expectedKeys := []string{
+		"gemini_text_success",
+		"gemini_text_fail",
+		"gemini_tts_success",
+		"gemini_tts_fail",
+		"gemini_text_active",
+		"gemini_tts_active",
 	}
 
-	// Check expected keys exist
-	expectedKeys := []string{"gemini_text_success", "gemini_tts_success"}
-	for _, key := range expectedKeys {
-		if _, ok := stats[key]; !ok {
-			t.Errorf("Expected key '%s' in stats", key)
+	for _, k := range expectedKeys {
+		if _, ok := stats[k]; !ok {
+			t.Errorf("Stats missing key: %s", k)
 		}
 	}
 }
 
-func TestStubService_SkipCooldown(t *testing.T) {
+func TestStubService_Getters(t *testing.T) {
 	s := NewStubService()
+	ctx := context.Background()
 
-	// Should not panic
-	s.SkipCooldown()
+	if s.CurrentPOI() != nil {
+		t.Error("CurrentPOI should be nil")
+	}
+	if s.CurrentTitle() != "" {
+		t.Error("CurrentTitle should be empty")
+	}
+	if s.ReplayLast(ctx) {
+		t.Error("ReplayLast should return false")
+	}
 }

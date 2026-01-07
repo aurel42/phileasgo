@@ -230,6 +230,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 		return
 	}
 	s.active = true
+	s.generating = true
 	s.mu.Unlock()
 
 	// Fetch POI from manager
@@ -238,6 +239,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 		slog.Error("Narrator: Failed to fetch POI", "poi_id", poiID, "error", err)
 		s.mu.Lock()
 		s.active = false
+		s.generating = false
 		s.mu.Unlock()
 		return
 	}
@@ -258,6 +260,7 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 		return false
 	}
 	s.active = true
+	s.generating = true
 	s.mu.Unlock()
 
 	slog.Info("Narrator: Triggering Essay")
@@ -267,6 +270,7 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 		slog.Error("Narrator: Failed to select essay topic", "error", err)
 		s.mu.Lock()
 		s.active = false
+		s.generating = false
 		s.mu.Unlock()
 		return false
 	}
@@ -419,14 +423,14 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	audioFile := outputPath + "." + format
 
 	// Playback
-	s.mu.Lock()
-	s.generating = false
-	s.mu.Unlock()
-
 	if err := s.audio.Play(audioFile, false); err != nil {
 		slog.Error("Narrator: Playback failed", "path", audioFile, "error", err)
 		return
 	}
+
+	s.mu.Lock()
+	s.generating = false
+	s.mu.Unlock()
 
 	// Wait for finish
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -542,10 +546,6 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telem
 	s.updateLatency(latency)
 
 	// 6. Playback
-	s.mu.Lock()
-	s.generating = false
-	s.mu.Unlock()
-
 	if err := s.audio.Play(audioFile, false); err != nil {
 		slog.Error("Narrator: Playback failed", "path", audioFile, "error", err)
 		if s.beaconSvc != nil {
@@ -553,6 +553,10 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telem
 		}
 		return
 	}
+
+	s.mu.Lock()
+	s.generating = false
+	s.mu.Unlock()
 
 	// Log Stats
 	genWords := len(strings.Fields(script))

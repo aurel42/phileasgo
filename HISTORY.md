@@ -1,5 +1,26 @@
 ﻿# Release History
 
+## v0.2.15
+- **Refactor**: **Narrator Architecture & Testing**
+    - Refactored `NarratorHandler` (`internal/api/narrator.go`) to use Interface Segregation Principle with local `AudioController` and `NarratorController` interfaces, removing dependencies on package-wide monolithic services.
+    - Updated `narrator_test.go` to use simplified mocks, drastically improving test readability and maintainability.
+    - Achieved **82% Test Coverage** for `pkg/narrator` by adding comprehensive table-driven tests for:
+        - `factory.go`: Provider instantiation logic.
+        - `service_utils.go`: Telemetry analysis helper (flight stage determination).
+        - `service.go`: Full `StubService` lifecycle.
+        - `service_ai_logic.go`: Complex AI logic including navigation instruction generation (Ground/Airborne/Clock Position/Relative), unit conversion (Imperial/Metric), and latency tracking.
+- **Log**: **Narrator State Tracking**
+    - Implemented state tracking in `NarratorHandler` (via `HandleStatus`) to log state changes (e.g., Idle -> Playing) at INFO level.
+    - Verified logging behavior with unit tests.
+- **Feature**: **Reset Nearby Narrations**
+    - Added a "DANGER ZONE" button to the Info Panel to reset narration history for POIs within 100km.
+    - Useful for content creators or testing to replay a specific flight segment without manually clearing the database.
+    - Implemented with a specialized spatial update query for efficiency.
+- **Fix**: **"Preparing" State**
+    - Resolved a regression where the "Preparing" status was never shown in the UI because the `generating` flag was not being set in the backend.
+- **Tweak**: **Fish Audio Prompts**
+    - Updated prompt template to explicitly forbid markdown emphasis (asterisks) which are not supported by the engine.
+
 ## v0.2.14
 - **UX**: **Responsive Playback Status**
     - Implemented optimistic UI updates for the "Play" button.

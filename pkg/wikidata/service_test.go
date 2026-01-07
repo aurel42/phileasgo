@@ -32,9 +32,10 @@ func (m *mockStore) SavePOI(ctx context.Context, p *model.POI) error { return ni
 func (m *mockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error) {
 	return nil, nil
 }
-func (m *mockStore) GetCache(ctx context.Context, key string) ([]byte, bool)    { return nil, false }
-func (m *mockStore) HasCache(ctx context.Context, key string) (bool, error)     { return false, nil }
-func (m *mockStore) SetCache(ctx context.Context, key string, val []byte) error { return nil }
+func (m *mockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
+func (m *mockStore) GetCache(ctx context.Context, key string) ([]byte, bool)             { return nil, false }
+func (m *mockStore) HasCache(ctx context.Context, key string) (bool, error)              { return false, nil }
+func (m *mockStore) SetCache(ctx context.Context, key string, val []byte) error          { return nil }
 func (m *mockStore) ListCacheKeys(ctx context.Context, prefix string) ([]string, error) {
 	return nil, nil
 }

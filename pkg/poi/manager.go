@@ -346,3 +346,18 @@ func (m *Manager) StartScoring(ctx context.Context, simClient sim.Client, sc *sc
 		}
 	}
 }
+
+// ResetLastPlayed resets the last_played timestamp for POIs within the given radius (meters).
+func (m *Manager) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error {
+	// 1. Reset in-memory state for immediate feedback.
+	// We reset ALL tracked POIs (simplified approach) to ensure immediate UI update
+	// for everything currently loaded/visible.
+	m.mu.Lock()
+	for _, p := range m.trackedPOIs {
+		p.LastPlayed = time.Time{} // Zero time
+	}
+	m.mu.Unlock()
+
+	// 2. Reset in DB (remains spatial to preserve far history if relevant)
+	return m.store.ResetLastPlayed(ctx, lat, lon, radius)
+}
