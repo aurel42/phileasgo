@@ -4,6 +4,7 @@ import { Circle, useMap } from 'react-leaflet';
 interface CacheTile {
     Lat: number;
     Lon: number;
+    Radius?: number; // Optional, in km
 }
 
 export const CacheLayer = () => {
@@ -18,7 +19,7 @@ export const CacheLayer = () => {
                     if (r.ok) return r.json();
                     return [];
                 })
-                .then(data => setTiles(data))
+                .then(data => setTiles(data || []))
                 .catch(e => console.error("Failed to fetch cache layer", e));
         };
 
@@ -34,7 +35,7 @@ export const CacheLayer = () => {
                 <Circle
                     key={i}
                     center={[t.Lat, t.Lon]}
-                    radius={10000} // 10km fixed
+                    radius={(t.Radius || 9.8) * 1000} // CacheTile radius is in km, Circle needs meters
                     pathOptions={{
                         color: 'white',
                         fillColor: 'white',

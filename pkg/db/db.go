@@ -116,6 +116,12 @@ func (d *DB) migrate() error {
 			value BLOB,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
+		`CREATE TABLE IF NOT EXISTS cache_geodata (
+			key TEXT PRIMARY KEY,
+			data BLOB,
+			radius_km REAL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);`,
 		`CREATE TABLE IF NOT EXISTS seen_entities (
 			qid TEXT PRIMARY KEY,
 			instances TEXT,

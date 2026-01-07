@@ -8,6 +8,7 @@ require (
 	github.com/gopxl/beep/v2 v2.1.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/stretchr/testify v1.11.1
+	github.com/uber/h3-go/v4 v4.4.0
 	google.golang.org/api v0.258.0
 	google.golang.org/genai v1.40.0
 	gopkg.in/yaml.v3 v3.0.1

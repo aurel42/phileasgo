@@ -1,5 +1,21 @@
 ﻿# Release History
 
+## v0.2.21 (2026-01-08)
+- **Feature**: **Dynamic H3 Radius**
+    - Transitioned from a fixed global radius to a geometry-based dynamic calculation.
+    - The system now computes the exact circumradius of each H3 tile (plus a 50m buffer) ensures 100% coverage without gaps or excessive overlap.
+    - Added `cache_geodata` table to store raw tile responses with their specific query radius.
+    - Updated `CacheLayer` to visualize the actual dynamic radius of cached tiles on the map.
+- **UX**: **Immediate Beacon Spawning**
+    - POI Markers (Balloons) now spawn instantly when narration is triggered, providing immediate visual feedback while the AI script is generating.
+    - Previously, markers would only appear after the LLM generation was complete (~2-5s delay).
+- **Config**: **Configurable Fetch Distance**
+    - Wikidata scheduler now limits searches based on a configurable maximum distance (`max_dist_km`), optimizing performance for different flight profiles.
+- **Fix**: **Stability & Linting**
+    - Resolved syntax errors in `service.go` and variable shadowing in `sqlite.go`.
+    - Updated `MockStore` implementations across test suites (`pkg/poi`, `pkg/classifier`) to support the new Geodata cache methods.
+    - Updated `README.md` to reflect current LLM model usage (Gemini 2.5 Flash Lite).
+
 ## v0.2.20
 - **Refactor**: **Narrator Service Architecture**
     - Decomposed the monolithic `service_ai.go` into focused files: `service_ai_workflow.go` (orchestration), `service_ai_data.go` (data fetching), and `service_ai_logic.go` (navigation calculations).

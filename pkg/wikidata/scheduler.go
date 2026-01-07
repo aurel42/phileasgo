@@ -5,6 +5,8 @@ import (
 	"sort"
 )
 
+const spacingKm = 15.0 // Approx center-to-center distance for H3 Res 5
+
 // Scheduler determines the next tile to fetch.
 type Scheduler struct {
 	grid      *Grid

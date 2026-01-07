@@ -83,10 +83,16 @@ The web UI shows:
 
 ## Building from Source
 
+- [LittleNavMap MSFS POIs](https://flightsim.to/file/81114/littlenavmap-msfs-poi-s) - MSFS-specific landmarks
+- [Uber H3](https://h3geo.org/) - Hexagonal hierarchical spatial index
+
+## Building from Source
+
 Prerequisites:
 - Go 1.21+
 - Node.js 18+
 - npm
+- **C Compiler (MinGW/GCC)** (required for H3 CGO)
 - **MSFS SDK** (required solely for SimConnect.dll)
 
 ```bash

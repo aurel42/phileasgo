@@ -191,6 +191,12 @@ func (m *MockStore) SetCache(ctx context.Context, key string, val []byte) error 
 func (m *MockStore) ListCacheKeys(ctx context.Context, prefix string) ([]string, error) {
 	return nil, nil
 }
+func (m *MockStore) GetGeodataCache(ctx context.Context, key string) ([]byte, float64, bool) {
+	return nil, 0, false
+}
+func (m *MockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius float64) error {
+	return nil
+}
 
 func (m *MockStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
 func (m *MockStore) SetState(ctx context.Context, key, val string) error     { return nil }

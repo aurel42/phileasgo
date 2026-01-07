@@ -41,6 +41,14 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 		s.mu.Unlock()
 		return
 	}
+	if p == nil {
+		slog.Warn("Narrator: POI not found", "poi_id", poiID)
+		s.mu.Lock()
+		s.active = false
+		s.generating = false
+		s.mu.Unlock()
+		return
+	}
 
 	go s.narratePOI(context.Background(), p, tel, time.Now())
 }

@@ -1,7 +1,5 @@
 package wikidata
 
-import "strconv"
-
 // Article represents a Wikipedia article with geodata and metadata.
 // It maps to the SPARQL result fields.
 type Article struct {
@@ -29,16 +27,15 @@ type Article struct {
 	DimensionMultiplier float64 `json:"dimension_multiplier,omitempty"`
 }
 
-// HexTile represents a single hexagonal grid cell.
+// HexTile represents a single H3 grid cell.
 type HexTile struct {
-	Row int
-	Col int
+	Index string
 }
 
 // Key returns the cache key for this tile.
-// Format: wd_hex_{row}_{col}
+// Format: wd_h3_{index}
 func (h HexTile) Key() string {
-	return "wd_hex_" + strconv.Itoa(h.Row) + "_" + strconv.Itoa(h.Col)
+	return "wd_h3_" + h.Index
 }
 
 // EntityMetadata contains raw Wikidata entity data (Labels and Claims).

@@ -205,13 +205,29 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 	country := s.geo.GetCountry(centerLat, centerLon)
 	localLangInfo := s.mapper.GetLanguage(country)
 
-	query := buildQuery(centerLat, centerLon, localLangInfo.Code, s.userLang, s.cfg.Area.MaxArticles)
+	// Calculate precise radius for this specific tile geometry
+	// Add 50m buffer for safety against floating point math
+	precisionRadius := s.scheduler.grid.TileRadius(c.Tile) + 0.05
+
+	// Create formatted string for SPARQL (e.g. "9.81")
+	radiusStr := fmt.Sprintf("%.2f", precisionRadius)
+	if precisionRadius < 1.0 { // Fallback sanity check, though TileRadius should be ~8-12km
+		radiusStr = "9.8"
+		precisionRadius = 9.8
+	}
+
+	query := buildQuery(centerLat, centerLon, localLangInfo.Code, s.userLang, s.cfg.Area.MaxArticles, radiusStr)
 
 	// 2. Execute (Requester handles caching and core tracking)
 	articles, rawJSON, err := s.client.QuerySPARQL(ctx, query, c.Tile.Key())
 	if err != nil {
 		s.logger.Error("SPARQL Failed", "error", err)
 		return
+	}
+
+	// Cache Geodata (Raw JSON + Radius Metadata)
+	if err := s.store.SetGeodataCache(ctx, c.Tile.Key(), []byte(rawJSON), precisionRadius); err != nil {
+		s.logger.Warn("Failed to save geodata cache", "key", c.Tile.Key(), "error", err)
 	}
 
 	// 4. Process, Enrich, and Save
@@ -230,9 +246,11 @@ func (s *Service) gridCenter(t HexTile) (lat, lon float64) {
 	return s.scheduler.grid.TileCenter(t)
 }
 
-func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int) string {
-	// Radius 10km fixed
-	radius := "10"
+func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int, radius string) string {
+	// Radius passed dynamically
+	if radius == "" {
+		radius = "9.8" // Fallback
+	}
 	if localLang == "" {
 		localLang = "en"
 	}
@@ -314,7 +332,7 @@ func (s *Service) ReprocessNearTiles(ctx context.Context, lat, lon, radiusKm flo
 
 	// Potential Optimization: If cache is huge, this list is slow.
 	// Better to have a spatial index of cached tiles, but for now this works.
-	keys, err := s.store.ListCacheKeys(ctx, "wd_hex_")
+	keys, err := s.store.ListCacheKeys(ctx, "wd_h3_")
 	if err != nil {
 		return fmt.Errorf("failed to list cache keys: %w", err)
 	}
@@ -324,24 +342,13 @@ func (s *Service) ReprocessNearTiles(ctx context.Context, lat, lon, radiusKm flo
 	rescuedCount := 0
 	totalArticles := 0
 	for _, k := range keys {
-		// Key format: wd_hex_{row}_{col}
-		if len(k) <= 7 {
+		// Key format: wd_h3_{index}
+		if len(k) <= 6 {
 			continue
 		}
-		parts := strings.Split(k[7:], "_")
-		if len(parts) != 2 {
-			continue
-		}
+		index := k[6:]
 
-		var row, col int
-		if _, err := fmt.Sscanf(parts[0], "%d", &row); err != nil {
-			continue
-		}
-		if _, err := fmt.Sscanf(parts[1], "%d", &col); err != nil {
-			continue
-		}
-
-		tile := HexTile{Row: row, Col: col}
+		tile := HexTile{Index: index}
 		cLat, cLon := s.gridCenter(tile)
 
 		dist := DistKm(lat, lon, cLat, cLon)
@@ -389,14 +396,13 @@ func (s *Service) EvictFarTiles(lat, lon, thresholdKm float64) int {
 
 	count := 0
 	for key, t := range s.recentTiles {
-		var q, r int
-		n, _ := fmt.Sscanf(key, "%d,%d", &q, &r)
-		if n != 2 {
+		if !strings.HasPrefix(key, "wd_h3_") {
 			continue
 		}
+		index := strings.TrimPrefix(key, "wd_h3_")
 
 		// Use scheduler grid to get center
-		cLat, cLon := s.scheduler.grid.TileCenter(HexTile{Row: q, Col: r})
+		cLat, cLon := s.scheduler.grid.TileCenter(HexTile{Index: index})
 
 		// Check Distance (geo.Distance returns meters)
 		distKm := geo.Distance(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: cLat, Lon: cLon}) / 1000.0
@@ -802,41 +808,46 @@ func getArticleDimensions(a *Article) (h, l, area float64) {
 	return h, l, area
 }
 
-// GetCachedTiles returns a list of centers for cached tiles within radiusKm of (lat, lon).
-func (s *Service) GetCachedTiles(ctx context.Context, lat, lon, radiusKm float64) ([]struct{ Lat, Lon float64 }, error) {
-	keys, err := s.store.ListCacheKeys(ctx, "wd_hex_")
+// CachedTile represents a visualization circle on the map.
+type CachedTile struct {
+	Lat    float64 `json:"lat"`
+	Lon    float64 `json:"lon"`
+	Radius float64 `json:"radius"`
+}
+
+// GetCachedTiles returns a list of cached tiles with their centers and queried radii.
+func (s *Service) GetCachedTiles(ctx context.Context, lat, lon, radiusKm float64) ([]CachedTile, error) {
+	keys, err := s.store.ListCacheKeys(ctx, "wd_h3_")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list cache keys: %w", err)
 	}
 
-	var results []struct{ Lat, Lon float64 }
+	var results []CachedTile
 
 	for _, k := range keys {
-		// Key format: wd_hex_{row}_{col}
-		if len(k) <= 7 {
+		// Key format: wd_h3_{index}
+		if len(k) <= 6 {
 			continue
 		}
-		parts := strings.Split(k[7:], "_")
-		if len(parts) != 2 {
-			continue
-		}
+		index := k[6:]
 
-		var row, col int
-		if _, err := fmt.Sscanf(parts[0], "%d", &row); err != nil {
-			continue
-		}
-		if _, err := fmt.Sscanf(parts[1], "%d", &col); err != nil {
-			continue
-		}
-
-		tile := HexTile{Row: row, Col: col}
+		tile := HexTile{Index: index}
 		// Uses named return: lat, lon
 		cLat, cLon := s.gridCenter(tile)
 
+		// Optimization: Check distance before fetching metadata
 		dist := DistKm(lat, lon, cLat, cLon)
-		if dist <= radiusKm {
-			results = append(results, struct{ Lat, Lon float64 }{Lat: cLat, Lon: cLon})
+		if dist > radiusKm {
+			continue
 		}
+
+		// Fetch metadata (radius)
+		_, r, ok := s.store.GetGeodataCache(ctx, k)
+		if !ok || r <= 0 {
+			r = 9800.0 / 1000.0 // Default 9.8km if missing in metadata
+		}
+
+		results = append(results, CachedTile{Lat: cLat, Lon: cLon, Radius: r})
 	}
 
 	return results, nil
