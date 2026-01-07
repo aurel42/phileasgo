@@ -71,8 +71,10 @@ func (m *MockAudio) Position() time.Duration   { return 0 }
 func (m *MockAudio) Duration() time.Duration   { return 0 }
 
 type MockPOIProvider struct {
-	GetPOIFunc  func(ctx context.Context, qid string) (*model.POI, error)
-	GetBestFunc func() *model.POI
+	GetPOIFunc func(ctx context.Context, qid string) (*model.POI, error)
+
+	GetBestFunc          func() *model.POI
+	CountScoredAboveFunc func(threshold float64, limit int) int
 }
 
 func (m *MockPOIProvider) GetPOI(ctx context.Context, qid string) (*model.POI, error) {
@@ -86,11 +88,15 @@ func (m *MockPOIProvider) GetBestCandidate() *model.POI {
 }
 
 func (m *MockPOIProvider) CountScoredAbove(threshold float64, limit int) int {
+	if m.CountScoredAboveFunc != nil {
+		return m.CountScoredAboveFunc(threshold, limit)
+	}
 	return 0 // default for tests
 }
 
 type MockGeo struct {
 	Country string
+	City    string
 }
 
 func (m *MockGeo) GetCountry(lat, lon float64) string {
@@ -98,18 +104,22 @@ func (m *MockGeo) GetCountry(lat, lon float64) string {
 }
 
 func (m *MockGeo) GetLocation(lat, lon float64) model.LocationInfo {
+	city := m.City
+	if city == "" {
+		city = "MockCity"
+	}
 	return model.LocationInfo{
-		CityName:    "MockCity",
+		CityName:    city,
 		CountryCode: m.Country,
 	}
 }
 
-type MockWiki struct {
+type MockWikipedia struct {
 	Content string
 	Err     error
 }
 
-func (m *MockWiki) GetArticleContent(ctx context.Context, title, lang string) (string, error) {
+func (m *MockWikipedia) GetArticleContent(ctx context.Context, title, lang string) (string, error) {
 	return m.Content, m.Err
 }
 

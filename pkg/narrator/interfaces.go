@@ -19,8 +19,8 @@ type GeoProvider interface {
 	GetLocation(lat, lon float64) model.LocationInfo
 }
 
-// WikiProvider defines the interface for Wikipedia access.
-type WikiProvider interface {
+// WikipediaProvider defines the interface for Wikipedia access.
+type WikipediaProvider interface {
 	GetArticleContent(ctx context.Context, title, lang string) (string, error)
 }
 

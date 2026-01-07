@@ -18,24 +18,26 @@ import (
 
 // Provider implements tts.Provider for Azure Speech.
 type Provider struct {
-	key     string
-	region  string
-	voiceID string
-	client  *http.Client
-	url     string
-	tracker *tracker.Tracker
+	key      string
+	region   string
+	voiceID  string
+	language string
+	client   *http.Client
+	url      string
+	tracker  *tracker.Tracker
 }
 
 // NewProvider creates a new Azure Speech TTS provider.
-func NewProvider(cfg config.AzureSpeechConfig, t *tracker.Tracker) *Provider {
+func NewProvider(cfg config.AzureSpeechConfig, lang string, t *tracker.Tracker) *Provider {
 	url := fmt.Sprintf("https://%s.tts.speech.microsoft.com/cognitiveservices/v1", cfg.Region)
 	return &Provider{
-		key:     cfg.Key,
-		region:  cfg.Region,
-		voiceID: cfg.VoiceID,
-		client:  &http.Client{},
-		url:     url,
-		tracker: t,
+		key:      cfg.Key,
+		region:   cfg.Region,
+		voiceID:  cfg.VoiceID,
+		language: lang,
+		client:   &http.Client{},
+		url:      url,
+		tracker:  t,
 	}
 }
 
@@ -171,8 +173,8 @@ func (p *Provider) buildSSML(vid, text string) string {
 	processedText := reLangEnd.ReplaceAllString(text, `$1,</lang>`)
 
 	ssml := fmt.Sprintf(
-		`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'><voice name='%s'>%s</voice></speak>`,
-		vid, processedText,
+		`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='%s'><voice name='%s'>%s</voice></speak>`,
+		p.language, vid, processedText,
 	)
 
 	// Validate SSML (catch LLM errors like malformed tags)
@@ -180,8 +182,8 @@ func (p *Provider) buildSSML(vid, text string) string {
 		// Fallback: Strip tags to prevent reading out "less than..." and just read plain text.
 		cleanText := stripTags(text)
 		return fmt.Sprintf(
-			`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='en-US'><voice name='%s'>%s</voice></speak>`,
-			vid, cleanText,
+			`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='%s'><voice name='%s'>%s</voice></speak>`,
+			p.language, vid, cleanText,
 		)
 	}
 	return ssml

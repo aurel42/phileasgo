@@ -101,7 +101,7 @@ func TestNewTTSProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewTTSProvider(tt.cfg, tracker)
+			_, err := NewTTSProvider(tt.cfg, "en-US", tracker)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewTTSProvider() error = %v, wantErr %v", err, tt.wantErr)
 			}

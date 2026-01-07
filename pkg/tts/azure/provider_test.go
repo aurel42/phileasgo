@@ -38,7 +38,7 @@ func TestProvider_Structure(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewProvider(tt.cfg, tt.tracker)
+			p := NewProvider(tt.cfg, "en-US", tt.tracker)
 			if p == nil {
 				t.Fatal("NewProvider returned nil")
 			}
@@ -57,7 +57,7 @@ func TestProvider_Structure(t *testing.T) {
 // var _ tts.Provider = (*Provider)(nil)
 
 func TestBuildSSML(t *testing.T) {
-	p := NewProvider(config.AzureSpeechConfig{VoiceID: "test-voice"}, nil)
+	p := NewProvider(config.AzureSpeechConfig{VoiceID: "test-voice"}, "en-US", nil)
 
 	tests := []struct {
 		name     string

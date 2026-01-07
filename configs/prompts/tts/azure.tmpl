@@ -9,20 +9,27 @@ General Output Constraints
 SSML Tagging Rules
 
 1. Language Switching (Critical Anti-Truncation)
-Wrap ALL foreign proper names and phrases in the lang tag.
+Wrap ALL foreign (ie. not {{.Language_name}})proper names and phrases in the lang tag.
 IMPORTANT: The TTS engine has a bug where it truncates long foreign words. You MUST split foreign compound words with hyphens inside the tag.
-- Standard: <lang xml:lang="fr-FR">Champs-Élysées</lang>
-- Compound Fix: <lang xml:lang="de-DE">See-pyramide</lang> (Split "Seepyramide" into morphological parts).
-- Compound Fix: <lang xml:lang="nl-NL">Aansprakelijkheids-verzekering</lang> (Split long compounds).
 
-2. Numbers, Dates, and Units
+2. Native Hesitation Padding (Filled Pauses)
+To create a natural buffer around foreign terms, you must identify the standard "filled pause" (vocalized hesitation) native to the target language (e.g., "euh" for French, "ähm" for German, "eto" for Japanese).
+- Action: Insert this hesitation sound at the very start and very end of the text content, strictly INSIDE the <lang> tag.
+- Constraint: Ensure there is a space between the hesitation sound and the main word.
+
+Examples of Combined Logic (Rules 1 & 2):
+- French (Standard): <lang xml:lang="fr-FR">euh Champs-Élysées euh</lang>
+- German (Compound Fix + Hesitation): <lang xml:lang="de-DE">ähm See-pyramide ähm</lang>
+- Spanish: <lang xml:lang="es-ES">eh Sagrada Familia eh</lang>
+
+3. Numbers, Dates, and Units
 Use the say-as tag to strictly define how numbers are read.
 - Dates: <say-as interpret-as="date" format="y">1995</say-as>
 - Ordinals: <say-as interpret-as="ordinal">1st</say-as> or <say-as interpret-as="ordinal">3.</say-as>
 - Cardinals: <say-as interpret-as="cardinal">12</say-as>
 - Ranges: For ranges like "1870/71", split the tags: <say-as interpret-as="date" format="y">1870</say-as> to <say-as interpret-as="date" format="y">71</say-as>.
 
-3. Codes and Abbreviations
+4. Codes and Abbreviations
 Use the sub tag or say-as tag to ensure technical terms are spoken correctly while keeping the written text accurate.
 - Alphanumeric Codes: Use the sub tag to define the spoken alias.
   Input: "The AN-2 aircraft..."
@@ -32,7 +39,7 @@ Use the sub tag or say-as tag to ensure technical terms are spoken correctly whi
 - Pronunciation Corrections: Use sub to fix common mispronunciations.
   Example: <sub alias="Pan Am">Pan Am</sub>
 
-4. Pacing and Lists
+5. Pacing and Lists
 Control the speed of lists using the break tag rather than removing punctuation.
 - Standard List: "Apples, pears, and bananas."
 - Fast List (Enumeration): To reduce the pause between items without removing the comma, use a zero-strength break.

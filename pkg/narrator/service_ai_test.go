@@ -116,7 +116,7 @@ func TestAIService_PlayPOI(t *testing.T) {
 				Latitude: 10.0, Longitude: 20.0, Heading: 0,
 			}}
 			mockStore := &MockStore{}
-			mockWiki := &MockWiki{Content: tt.wikiContent, Err: tt.wikiErr}
+			mockWiki := &MockWikipedia{Content: tt.wikiContent, Err: tt.wikiErr}
 			mockBeacon := &MockBeacon{}
 
 			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil)
@@ -159,7 +159,7 @@ func TestAIService_PlayPOI(t *testing.T) {
 	}
 }
 
-func TestAIService_ContextAndNav(t *testing.T) {
+func TestAIService_ContextAndNav_V2(t *testing.T) {
 	tests := []struct {
 		name           string
 		poi            *model.POI
@@ -171,12 +171,13 @@ func TestAIService_ContextAndNav(t *testing.T) {
 		{
 			name: "With Nav Instruction",
 			poi: &model.POI{
-				WikidataID: "QNav", Lat: 10.01, Lon: 20.0, // North of user
+				WikidataID: "QNav", Lat: 10.05, Lon: 20.0, // North of user (>4.5km)
 			},
 			telemetry: sim.Telemetry{
 				Latitude: 10.0, Longitude: 20.0, Heading: 0, // Heading North
 			},
-			expectInPrompt: []string{"Straight ahead", "less than a mile"}, // 1.1km ~ 0.68 miles
+			// 0.05 deg ~ 5.5km -> "At your 12 o'clock, about 3 miles away" (Airborne > 4.5km)
+			expectInPrompt: []string{"At your 12 o'clock", "about"},
 		},
 		{
 			name: "With Recent POIs",
@@ -209,7 +210,7 @@ func TestAIService_ContextAndNav(t *testing.T) {
 			mockTTS := &MockTTS{Format: "mp3"}
 			mockAudio := &MockAudio{}
 			mockGeo := &MockGeo{Country: "US"}
-			mockWiki := &MockWiki{Content: tt.wikiContent}
+			mockWiki := &MockWikipedia{Content: tt.wikiContent}
 			mockBeacon := &MockBeacon{}
 			// Temp prompts
 			tmpDir := t.TempDir()
@@ -239,7 +240,7 @@ func TestAIService_ContextAndNav(t *testing.T) {
 func TestAIService_Lifecycle(t *testing.T) {
 	// Simple coverage for Start/Stop/Stats
 	pm, _ := prompts.NewManager(t.TempDir())
-	svc := NewAIService(&config.Config{}, &MockLLM{}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{}, &MockBeacon{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWiki{}, nil, nil, nil)
+	svc := NewAIService(&config.Config{}, &MockLLM{}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{}, &MockBeacon{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil)
 
 	if svc.running {
 		t.Error("should not be running initially")
@@ -271,21 +272,21 @@ func TestAIService_NavUnits(t *testing.T) {
 		{
 			name:           "Imperial Default (>1 mile)",
 			units:          "imperial",
-			poi:            &model.POI{Lat: 10.02, Lon: 20.0}, // ~2.2km = ~1.2nm
+			poi:            &model.POI{Lat: 10.05, Lon: 20.0}, // ~5.5km
 			telemetry:      sim.Telemetry{Latitude: 10.0, Longitude: 20.0, Heading: 0},
 			expectInPrompt: []string{"miles"},
 		},
 		{
 			name:           "Metric (>1 km)",
 			units:          "metric",
-			poi:            &model.POI{Lat: 10.02, Lon: 20.0}, // ~2.2km
+			poi:            &model.POI{Lat: 10.05, Lon: 20.0}, // ~5.5km
 			telemetry:      sim.Telemetry{Latitude: 10.0, Longitude: 20.0, Heading: 0},
-			expectInPrompt: []string{"kilometers", "about 2 kilometers"},
+			expectInPrompt: []string{"kilometers", "about 6 kilometers"},
 		},
 		{
 			name:           "Hybrid -> Metric",
 			units:          "hybrid",
-			poi:            &model.POI{Lat: 10.02, Lon: 20.0},
+			poi:            &model.POI{Lat: 10.05, Lon: 20.0},
 			telemetry:      sim.Telemetry{Latitude: 10.0, Longitude: 20.0, Heading: 0},
 			expectInPrompt: []string{"kilometers"},
 		},
@@ -318,7 +319,7 @@ func TestAIService_NavUnits(t *testing.T) {
 			mockAudio := &MockAudio{}
 			mockGeo := &MockGeo{Country: "US"}
 			mockStore := &MockStore{}
-			mockWiki := &MockWiki{Content: "Wiki"}
+			mockWiki := &MockWikipedia{Content: "Wiki"}
 			mockBeacon := &MockBeacon{}
 
 			// Init Prompts
@@ -365,7 +366,7 @@ func TestAIService_BeaconCleanup(t *testing.T) {
 	// Scenario: LLM fails, Beacon should be cleared
 	svc := NewAIService(&config.Config{}, &MockLLM{Err: errors.New("fail")}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
 		return &model.POI{}, nil
-	}}, mockBeacon, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWiki{}, nil, nil, nil)
+	}}, mockBeacon, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil)
 
 	svc.Start()
 	svc.PlayPOI(context.Background(), "Q1", true, &sim.Telemetry{})

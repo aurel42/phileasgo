@@ -1,5 +1,17 @@
 ﻿# Release History
 
+## v0.2.20
+- **Refactor**: **Narrator Service Architecture**
+    - Decomposed the monolithic `service_ai.go` into focused files: `service_ai_workflow.go` (orchestration), `service_ai_data.go` (data fetching), and `service_ai_logic.go` (navigation calculations).
+    - Improves maintainability, testability, and adheres to idiomatic Go practices.
+- **Feature**: **Simplified Navigation Logic (4.5km Threshold)**
+    - Introduced a universal 4.5 km threshold for navigation instructions.
+    - **Distance < 4.5 km**: Distance is omitted. Ground: silence. Airborne: relative direction ("Straight ahead", "On your left").
+    - **Distance >= 4.5 km**: Distance is stated. Ground: cardinal direction ("To the North"). Airborne: clock position ("At your 12 o'clock").
+- **Refactor**: **Naming Conventions**
+    - Renamed `WikiProvider` → `WikipediaProvider` and `MockWiki` → `MockWikipedia` to comply with project rules (no "Wiki" abbreviation).
+- **Testing**: Created `service_ai_logic_test.go` and `service_ai_data_test.go` with comprehensive table-driven tests.
+
 ## v0.2.19
 - **Fix**: **Startup Resilience**
     - Decoupled critical startup checks (Validator, Language Mapper) from the main application context using independent 60s timeouts.
