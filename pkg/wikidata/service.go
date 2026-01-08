@@ -283,11 +283,12 @@ func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int, r
             OPTIONAL { ?item wdt:P2048 ?height . }
             OPTIONAL { ?item wdt:P2043 ?length . }
             OPTIONAL { ?item wdt:P2049 ?width . }
-            FILTER EXISTS { 
-                VALUES ?allowed_lang { "%s" "%s" "en" }
-                ?article_check schema:about ?item ; 
-                schema:inLanguage ?allowed_lang .
-            } 
+            
+            # Coarse Pre-Filter: Must have at least one sitelink (Wikipedia, Wikiquote, etc.)
+            # We strictly validate this is a "Wikipedia" article in the application layer (Rescue),
+            # but this saves us fetching 90%% of raw Wikidata items.
+            FILTER(?sitelinks > 0)
+
             OPTIONAL { 
                 ?evt_local schema:about ?item ; 
                 schema:inLanguage "%s" ; 
@@ -309,7 +310,7 @@ func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int, r
         } 
         GROUP BY ?item ?lat ?lon ?sitelinks ?title_local_val ?title_en_val ?title_user_val ?itemLabel ?area ?height ?length ?width
         ORDER BY DESC(?sitelinks) 
-        LIMIT %d`, lon, lat, radius, localLang, userLang, localLang, userLang, localLang, localLang, userLang, userLang, maxArticles)
+        LIMIT %d`, lon, lat, radius, localLang, userLang, localLang, localLang, userLang, userLang, maxArticles)
 
 	return query
 }

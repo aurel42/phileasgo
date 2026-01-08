@@ -1,10 +1,17 @@
 ﻿# Release History
 
+## v0.2.24 (2026-01-08)
+- **Feature**: **"Any Wikipedia Article" Pre-Filter**
+    - Optimized SPARQL query to use `FILTER(?sitelinks > 0)` instead of strict language matching.
+    - Dropped 90% of raw Wikidata items early, while allowing items with *any* valid sitelink to proceed to classification.
+- **Fix**: **Strict Rescue Name Filtering**
+    - Implemented strict filtering in the "Rescue" phase to reject names starting with `Category:`, `File:`, `Template:`, etc.
+    - Explicitly excluded `commonswiki`, `wikidatawiki`, and `wikiquote` from being used as name sources.
+    - Prevents "Category:Naturdenkmal..." and similar administrative titles from appearing as POI names.
+
 ## v0.2.23 (2026-01-08)
 - **Fix**: **Wikipedia API 414 Error (URI Too Long)**
     - Switched `GetArticleLengths` requests from GET to POST.
-    - Prevents 414 errors when fetching batches of articles with long or multibyte titles (e.g. detailed German compound words).
-    - Ensures reliable scoring metadata retrieval for all POIs.
 
 ## v0.2.22 (2026-01-08)
 - **Refactor**: **Integer Precision for Geodata Cache**

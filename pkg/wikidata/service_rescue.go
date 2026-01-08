@@ -58,11 +58,42 @@ func rescuePOIName(p *model.POI, fd FallbackData, localLang, userLang string, lo
 
 func findBestName(fd FallbackData, localLang, userLang string) string {
 	// Priority: Local > User > En (Labels ARE UNRELIABLE/MESSY, USE SITELINKS ONLY)
-	// We map lang pointers to site keys (e.g. "fr" -> "frwiki")
+	// Strictly check for valid Wikipedia sites (e.g. "enwiki", "dewiki") and exclude "commonswiki", "wikidatawiki".
+
+	isValidSite := func(site string) bool {
+		// Must end in "wiki"
+		if !strings.HasSuffix(site, "wiki") {
+			return false
+		}
+		// Explicit exclusion of non-content projects
+		if site == "commonswiki" || site == "wikidatawiki" || site == "specieswiki" || site == "metawiki" || site == "sourceswiki" {
+			return false
+		}
+		if strings.Contains(site, "quote") {
+			return false
+		}
+		return true
+	}
+
+	isValidTitle := func(title string) bool {
+		// Basic namespace filter (English + Common identifiers)
+		// We can't catch every language's "Category:" (e.g. "Kategorie:"), but excluding Commons handles most.
+		prefixes := []string{"Category:", "File:", "Template:", "Portal:", "Help:", "User:", "Talk:", "MediaWiki:"}
+		for _, p := range prefixes {
+			if strings.HasPrefix(title, p) {
+				return false
+			}
+		}
+		return true
+	}
 
 	trySite := func(lang string) string {
-		if val, ok := fd.Sitelinks[lang+"wiki"]; ok && val != "" {
-			return val
+		siteKey := lang + "wiki"
+		if val, ok := fd.Sitelinks[siteKey]; ok && val != "" {
+			// Even if it's the right language, check for namespaces (e.g. "Category:...")
+			if isValidTitle(val) {
+				return val
+			}
 		}
 		return ""
 	}
@@ -77,14 +108,14 @@ func findBestName(fd FallbackData, localLang, userLang string) string {
 		return val
 	}
 
-	// Fallback to any sitelink title
-	for _, title := range fd.Sitelinks {
-		if title != "" {
+	// Fallback to any VALID sitelink title (Standard Wikipedia only)
+	for site, title := range fd.Sitelinks {
+		if title != "" && isValidSite(site) && isValidTitle(title) {
 			return title
 		}
 	}
 
-	// Do NOT fallback to Labels. They contain raw Wikitext garbage sometimes.
+	// Do NOT fallback to Labels.
 	return ""
 }
 

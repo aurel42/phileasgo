@@ -112,7 +112,7 @@ func TestFindBestName(t *testing.T) {
 			want:      "Russian_Only",
 		},
 		{
-			name: "Fallback to any sitelink",
+			name: "Fallback to any VALID sitelink (jawiki)",
 			fd: FallbackData{
 				Labels:    map[string]string{},
 				Sitelinks: map[string]string{"jawiki": "Tokyo_Tower_Wiki"},
@@ -120,6 +120,42 @@ func TestFindBestName(t *testing.T) {
 			localLang: "fr",
 			userLang:  "en",
 			want:      "Tokyo_Tower_Wiki",
+		},
+		{
+			name: "Reject Category Namespace",
+			fd: FallbackData{
+				Sitelinks: map[string]string{"enwiki": "Category:Trees_in_Germany"},
+			},
+			localLang: "en",
+			userLang:  "en",
+			want:      "",
+		},
+		{
+			name: "Reject File/Image Namespace",
+			fd: FallbackData{
+				Sitelinks: map[string]string{"enwiki": "File:Tree.jpg"},
+			},
+			localLang: "en",
+			userLang:  "en",
+			want:      "",
+		},
+		{
+			name: "Reject Commons Wiki",
+			fd: FallbackData{
+				Sitelinks: map[string]string{"commonswiki": "Category:Naturdenkmal"},
+			},
+			localLang: "en",
+			userLang:  "en",
+			want:      "",
+		},
+		{
+			name: "Reject Wikiquote",
+			fd: FallbackData{
+				Sitelinks: map[string]string{"enwikiquote": "Tree_Quotes"},
+			},
+			localLang: "en",
+			userLang:  "en",
+			want:      "",
 		},
 		{
 			name: "Empty",
