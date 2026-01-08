@@ -5,6 +5,7 @@
     - Removed arbitrary "Rescue" logic. Instead, the system now fetches Wikipedia titles for *all* relevant local languages (e.g. at borders).
     - It retrieves article lengths for all candidates and selects the language with the **longest** Wikipedia article as the definitive "Local Name" for the POI.
     - Improved strictness: Articles are only ingested if they exist in English, the User's language, or one of the detected local languages.
+    - **Fix**: Reduced cyclomatic complexity in article selection logic.
 
 ## v0.2.26 (2026-01-08)
 - **Feature**: **Multi-Language Sampling for Borders**

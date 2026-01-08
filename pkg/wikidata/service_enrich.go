@@ -111,40 +111,7 @@ func determineBestArticle(a *Article, lengths map[string]map[string]int, localLa
 	}
 
 	// 2. Find Best Local Candidate
-	bestLocalLang := ""
-	bestLocalTitle := ""
-	maxLocalLen := 0
-
-	// Iterate over all available local titles (de, pl, etc.)
-	for lang, title := range a.LocalTitles {
-		l := lengths[lang][title]
-		if l > maxLocalLen {
-			maxLocalLen = l
-			bestLocalLang = lang
-			bestLocalTitle = title
-		}
-		// Tie-breaker? Maybe prefer 'localLang' (tile center) if lengths equal?
-		if l == maxLocalLen && maxLocalLen > 0 {
-			if lang == localLang {
-				bestLocalLang = lang
-				bestLocalTitle = title
-			}
-		}
-	}
-	// Fallback if no length info (or 0 length), pick tile center language if present
-	if bestLocalTitle == "" {
-		if t, ok := a.LocalTitles[localLang]; ok {
-			bestLocalLang = localLang
-			bestLocalTitle = t
-		} else {
-			// Pick random first?
-			for l, t := range a.LocalTitles {
-				bestLocalLang = l
-				bestLocalTitle = t
-				break
-			}
-		}
-	}
+	bestLocalLang, bestLocalTitle, maxLocalLen := findBestLocalCandidate(a, lengths, localLang)
 
 	// 3. Determine Overall Best URL (for narration content)
 	maxLength := maxLocalLen
@@ -179,6 +146,40 @@ func determineBestArticle(a *Article, lengths map[string]map[string]int, localLa
 	}
 
 	return bestURL, bestLocalTitle, maxLength
+}
+
+func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, localLang string) (bestLang, bestTitle string, maxLen int) {
+	// Iterate over all available local titles (de, pl, etc.)
+	for lang, title := range a.LocalTitles {
+		l := lengths[lang][title]
+		if l > maxLen {
+			maxLen = l
+			bestLang = lang
+			bestTitle = title
+		}
+		// Tie-breaker? Maybe prefer 'localLang' (tile center) if lengths equal?
+		if l == maxLen && maxLen > 0 {
+			if lang == localLang {
+				bestLang = lang
+				bestTitle = title
+			}
+		}
+	}
+	// Fallback if no length info (or 0 length), pick tile center language if present
+	if bestTitle == "" {
+		if t, ok := a.LocalTitles[localLang]; ok {
+			bestLang = localLang
+			bestTitle = t
+		} else {
+			// Pick random first?
+			for l, t := range a.LocalTitles {
+				bestLang = l
+				bestTitle = t
+				break
+			}
+		}
+	}
+	return
 }
 
 func replaceSpace(s string) string {
