@@ -322,6 +322,16 @@ func Save(path string, cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
+
+	header := []byte(`# PhileasGo Configuration
+# ---------------------
+# Supported Units:
+#   Duration: ns, us (or µs), ms, s, m, h, d (day), w (week)
+#   Distance: m (meters), km (kilometers), nm (nautical miles)
+
+`)
+	data = append(header, data...)
+
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
