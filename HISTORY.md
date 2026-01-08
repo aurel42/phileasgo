@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.28 (2026-01-08)
+- **Configuration**: **Defaults Overhaul**
+    - Updated default values across LLM profiles, logging, Wikidata parameters, and narrator settings for production-ready deployments.
+    - Migrated from deprecated `gemini-2.0-flash` to `gemini-2.5-flash-lite`.
+- **Configuration**: **Improved Generated Config File**
+    - Added documentation header, inline `# Options:` comments for enum fields, and locale examples.
+- **Fix**: **Wikipedia/Wikidata API Stats Tracking**
+    - Resolved bug where API call statistics showed 0 in the UI due to a provider key mismatch between cache and API tracking.
+
 ## v0.2.27 (2026-01-08)
 - **Refactor**: **Best Local Language Selection**
     - Removed arbitrary "Rescue" logic. Instead, the system now fetches Wikipedia titles for *all* relevant local languages (e.g. at borders).

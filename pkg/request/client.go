@@ -90,7 +90,7 @@ func (c *Client) GetWithHeaders(ctx context.Context, u string, headers map[strin
 	respChan := make(chan jobResult, 1)
 	j := job{req: req, headers: headers, cacheKey: cacheKey, respChan: respChan}
 
-	c.dispatch(host, j)
+	c.dispatch(provider, j)
 
 	// 3. Wait for Result
 	select {
@@ -113,6 +113,7 @@ func (c *Client) PostWithHeaders(ctx context.Context, u string, body []byte, hea
 		return nil, fmt.Errorf("invalid url: %w", err)
 	}
 	host := parsedURL.Host
+	provider := normalizeProvider(host)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(body))
 	if err != nil {
@@ -122,7 +123,7 @@ func (c *Client) PostWithHeaders(ctx context.Context, u string, body []byte, hea
 	respChan := make(chan jobResult, 1)
 	j := job{req: req, headers: headers, respChan: respChan}
 
-	c.dispatch(host, j)
+	c.dispatch(provider, j)
 
 	select {
 	case <-ctx.Done():

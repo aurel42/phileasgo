@@ -211,12 +211,12 @@ func DefaultConfig() *Config {
 		},
 		LLM: LLMConfig{
 			Provider: "gemini",
-			Model:    "gemini-2.0-flash",
+			Model:    "gemini-2.5-flash-lite", // gemini-2.0-flash deprecated
 			Key:      "",
 			Profiles: map[string]string{
-				"essay":          "gemini-2.5-flash-lite",
+				"essay":          "gemini-2.5-flash",
 				"narration":      "gemini-2.5-flash-lite",
-				"dynamic_config": "gemini-2.5-flash-lite",
+				"dynamic_config": "gemini-2.5-flash",
 			},
 		},
 		Narrator: NarratorConfig{
@@ -331,6 +331,21 @@ func Save(path string, cfg *Config) error {
 
 `)
 	data = append(header, data...)
+
+	// Inject comments for Enum fields
+	// We use regex to find the keys with indentation to ensure we place comments correctly.
+
+	// TTS Engine Options
+	reEngine := regexp.MustCompile(`(?m)^(\s+)engine:`)
+	data = reEngine.ReplaceAll(data, []byte("${1}# Options: windows-sapi, edge-tts, fish-audio, azure-speech\n${1}engine:"))
+
+	// Narrator Units Options
+	reUnits := regexp.MustCompile(`(?m)^(\s+)units:`)
+	data = reUnits.ReplaceAll(data, []byte("${1}# Options: metric, imperial, hybrid\n${1}units:"))
+
+	// Temperature Jitter Comment
+	reTemp := regexp.MustCompile(`(?m)^(\s+)temperature_jitter:`)
+	data = reTemp.ReplaceAll(data, []byte("${1}# Bell curve: most likely 1.0, range [0.7, 1.3]\n${1}temperature_jitter:"))
 
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
