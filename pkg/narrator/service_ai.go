@@ -188,12 +188,22 @@ func (s *AIService) Stats() map[string]any {
 
 func (s *AIService) updateLatency(d time.Duration) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.latencies = append(s.latencies, d)
 	if len(s.latencies) > 10 {
 		s.latencies = s.latencies[1:]
 	}
-	slog.Debug("Narrator: Updated latency stats", "new_latency", d, "rolling_window_size", len(s.latencies))
+
+	// Calculate rolling average and update prediction window
+	var sum time.Duration
+	for _, lat := range s.latencies {
+		sum += lat
+	}
+	avg := sum / time.Duration(len(s.latencies))
+	s.mu.Unlock()
+
+	// Update the sim's prediction window with the observed latency
+	s.sim.SetPredictionWindow(avg)
+	slog.Debug("Narrator: Updated latency stats", "new_latency", d, "rolling_window_size", len(s.latencies), "new_prediction_window", avg)
 }
 
 // POIManager returns the internal POI manager.

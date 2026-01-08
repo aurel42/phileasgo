@@ -1,5 +1,12 @@
 ﻿# Release History
 
+## v0.2.34 (2026-01-08)
+- **Fix**: **Dynamic Prediction Window**
+    - Fixed regression where aircraft position prediction was stuck at 60s instead of adapting to observed LLM+TTS latency.
+    - `updateLatency()` now calls `SetPredictionWindow(avg)` to complete the feedback loop.
+- **Maintenance**: **Reduced Log Spam**
+    - Commented out high-frequency DEBUG logs: "Job firing", "Merged POI", "Insufficient sitelinks", "Article dropped", "Traversing hierarchy", "Ignored category found in hierarchy".
+
 ## v0.2.33 (2026-01-08)
 - **Regression Fix**: **Scheduler Runs with Invalid Telemetry**
     - Fixed issue where Wikidata and POI Scoring services would run their ticker loops when the simulator was disconnected or inactive, causing requests to "Null Island" (0,0 coordinates).

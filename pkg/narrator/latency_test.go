@@ -13,6 +13,7 @@ func TestLatencyTracking(t *testing.T) {
 		cfg:       config.DefaultConfig(),
 		latencies: make([]time.Duration, 0, 10),
 		stats:     make(map[string]any),
+		sim:       &MockSim{}, // Required for SetPredictionWindow call
 	}
 
 	// Helper to calculate predicted latency manually (copy of logic)

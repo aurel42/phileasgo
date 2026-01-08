@@ -765,7 +765,7 @@ func (s *Service) checkPOIStatus(a *Article, dc DimClassifier) (isPOI, rescued b
 		if a.Sitelinks >= minLinks {
 			isPOI = true
 		} else {
-			s.logger.Debug("Insufficient sitelinks for category", "qid", a.QID, "category", a.Category, "links", a.Sitelinks, "min", minLinks)
+			// slog.Debug("Insufficient sitelinks for category", "qid", a.QID, "category", a.Category, "links", a.Sitelinks, "min", minLinks)
 		}
 	}
 
@@ -782,7 +782,7 @@ func (s *Service) checkPOIStatus(a *Article, dc DimClassifier) (isPOI, rescued b
 			}
 		} else if a.Category == "" {
 			// Not rescued
-			s.logger.Debug("Article dropped: Unclassified and failed rescue", "qid", a.QID, "sitelinks", a.Sitelinks)
+			// slog.Debug("Article dropped: Unclassified and failed rescue", "qid", a.QID, "sitelinks", a.Sitelinks)
 		}
 
 		// Apply Multiplier (regardless of rescue status)

@@ -69,10 +69,10 @@ func MergePOIs(candidates []*model.POI, cfg *config.CategoriesConfig, logger *sl
 				// We drop 'cand'.
 				isDuplicate = true
 				if logger != nil {
-					logger.Debug("Merged POI",
-						"kept", acc.DisplayName(), "kept_qid", acc.WikidataID, "kept_len", acc.WPArticleLength,
-						"dropped", cand.DisplayName(), "dropped_qid", cand.WikidataID, "dropped_len", cand.WPArticleLength,
-						"dist_m", distMeters, "threshold", mergeDist)
+					// slog.Debug("Merged POI",
+					// 	"kept", acc.DisplayName(), "kept_qid", acc.WikidataID, "kept_len", acc.WPArticleLength,
+					// 	"dropped", cand.DisplayName(), "dropped_qid", cand.WikidataID, "dropped_len", cand.WPArticleLength,
+					// 	"dist_m", distMeters, "threshold", mergeDist)
 				}
 				break
 			}

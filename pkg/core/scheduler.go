@@ -257,7 +257,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 	// 3. Evaluate Jobs
 	for _, job := range s.jobs {
 		if job.ShouldFire(&tel) {
-			slog.Debug("Job firing", "job", job.Name())
+			// slog.Debug("Job firing", "job", job.Name())
 			// Fire and forget
 			go job.Run(ctx, &tel)
 		}
