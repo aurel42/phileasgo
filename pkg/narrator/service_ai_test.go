@@ -135,7 +135,7 @@ func TestAIService_PlayPOI(t *testing.T) {
 			// Hack: In `mocks_dev_test`, we can add a channel to signal completion in MockAudio if successful.
 
 			// For this test, I'll rely on a small sleep for simplicity as it's a unit test with mocks (fast).
-			svc.PlayPOI(context.Background(), tt.poiID, true, &sim.Telemetry{})
+			svc.PlayPOI(context.Background(), tt.poiID, true, &sim.Telemetry{}, "uniform")
 
 			// Wait a bit
 			time.Sleep(200 * time.Millisecond)
@@ -222,7 +222,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			svc := NewAIService(&config.Config{}, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil)
 			svc.Start()
 
-			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, &tt.telemetry)
+			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, &tt.telemetry, "uniform")
 			time.Sleep(20 * time.Millisecond) // Wait for go routine
 
 			for _, expect := range tt.expectInPrompt {
@@ -338,7 +338,7 @@ func TestAIService_NavUnits(t *testing.T) {
 			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil)
 			svc.Start()
 
-			svc.PlayPOI(context.Background(), "QTest", true, &tt.telemetry)
+			svc.PlayPOI(context.Background(), "QTest", true, &tt.telemetry, "uniform")
 			time.Sleep(50 * time.Millisecond) // Wait for goroutine
 
 			if capturedPrompt == "" {
@@ -369,7 +369,7 @@ func TestAIService_BeaconCleanup(t *testing.T) {
 	}}, mockBeacon, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
 
 	svc.Start()
-	svc.PlayPOI(context.Background(), "Q1", true, &sim.Telemetry{})
+	svc.PlayPOI(context.Background(), "Q1", true, &sim.Telemetry{}, "uniform")
 	time.Sleep(50 * time.Millisecond) // Wait for go routine
 
 	if !mockBeacon.Cleared {

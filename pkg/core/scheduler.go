@@ -38,7 +38,7 @@ func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider) *Na
 		poiMgr:   pm,
 		lastTime: time.Now(),
 	}
-	j.calculateNextDuration(1.0)
+	j.calculateCooldown(1.0, narrator.StrategyUniform)
 	return j
 }
 
@@ -148,8 +148,9 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 
 	slog.Info("NarrationJob: Triggering narration", "name", best.DisplayName(), "score", fmt.Sprintf("%.2f", best.Score))
 
-	j.narrator.PlayPOI(ctx, best.WikidataID, false, t)
-	j.calculateNextDuration(1.0)
+	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer))
+	j.narrator.PlayPOI(ctx, best.WikidataID, false, t, strategy)
+	j.calculateCooldown(1.0, strategy)
 }
 
 func (j *NarrationJob) tryEssay(ctx context.Context, t *sim.Telemetry) {
@@ -159,11 +160,11 @@ func (j *NarrationJob) tryEssay(ctx context.Context, t *sim.Telemetry) {
 	}
 
 	if j.narrator.PlayEssay(ctx, t) {
-		j.calculateNextDuration(2.0)
+		j.calculateCooldown(2.0, narrator.StrategyUniform)
 	}
 }
 
-func (j *NarrationJob) calculateNextDuration(multiplier float64) {
+func (j *NarrationJob) calculateCooldown(multiplier float64, strategy string) {
 	cMin := int64(j.cfg.Narrator.CooldownMin)
 	cMax := int64(j.cfg.Narrator.CooldownMax)
 

@@ -54,7 +54,7 @@ func TestSampleNarrationLength_RelativeDominance(t *testing.T) {
 
 	sumHigh := 0
 	for i := 0; i < iterations; i++ {
-		val, _ := svcHigh.sampleNarrationLength(&model.POI{Score: 100})
+		val, _ := svcHigh.sampleNarrationLength(&model.POI{Score: 100}, "")
 		sumHigh += val
 	}
 	avgHigh := float64(sumHigh) / float64(iterations)
@@ -71,7 +71,7 @@ func TestSampleNarrationLength_RelativeDominance(t *testing.T) {
 
 	sumLow := 0
 	for i := 0; i < iterations; i++ {
-		val, _ := svcLow.sampleNarrationLength(&model.POI{Score: 100})
+		val, _ := svcLow.sampleNarrationLength(&model.POI{Score: 100}, "")
 		sumLow += val
 	}
 	avgLow := float64(sumLow) / float64(iterations)

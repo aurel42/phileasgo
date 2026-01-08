@@ -50,7 +50,7 @@ func TestBuildPromptData(t *testing.T) {
 			WPURL:      "https://en.wikipedia.org/wiki/Foo",
 		}
 
-		pd := svc.buildPromptData(context.Background(), poi, nil)
+		pd := svc.buildPromptData(context.Background(), poi, nil, "uniform")
 
 		// Assertions
 		if pd.TourGuideName != "Ava" {
@@ -75,7 +75,7 @@ func TestBuildPromptData(t *testing.T) {
 	t.Run("Language Parsing", func(t *testing.T) {
 		svc.cfg.Narrator.TargetLanguage = "de-DE"
 		poi := &model.POI{Lat: 10, Lon: 20}
-		pd := svc.buildPromptData(context.Background(), poi, nil)
+		pd := svc.buildPromptData(context.Background(), poi, nil, "uniform")
 		if pd.Language_code != "de" { // "de" is fallback if no resolver
 			t.Errorf("Expected de, got %s", pd.Language_code)
 		}
@@ -219,7 +219,7 @@ func TestSampleNarrationLength_Logic(t *testing.T) {
 			mockPOI.CountScoredAboveFunc = func(threshold float64, limit int) int {
 				return tt.rivalsCount
 			}
-			_, strat := svc.sampleNarrationLength(&model.POI{Score: 10})
+			_, strat := svc.sampleNarrationLength(&model.POI{Score: 10}, "")
 			if strat != tt.expectStrat {
 				t.Errorf("Expected strategy %s, got %s", tt.expectStrat, strat)
 			}

@@ -26,7 +26,7 @@ type AudioController interface {
 type NarratorController interface {
 	IsActive() bool
 	IsGenerating() bool
-	PlayPOI(ctx context.Context, id string, manual bool, tel *sim.Telemetry)
+	PlayPOI(ctx context.Context, id string, manual bool, tel *sim.Telemetry, strategy string)
 	CurrentPOI() *model.POI
 	CurrentTitle() string
 	NarratedCount() int
@@ -80,8 +80,8 @@ func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
 		h.audio.Resume()
 	}
 
-	// Trigger narration
-	h.narrator.PlayPOI(r.Context(), req.POIID, true, nil)
+	// Trigger narration (Manual play -> uniform strategy, or pass explicitly if needed)
+	h.narrator.PlayPOI(r.Context(), req.POIID, true, nil, "uniform")
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]string{

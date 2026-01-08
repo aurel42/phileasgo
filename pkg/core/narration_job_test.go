@@ -28,7 +28,7 @@ func (m *mockNarratorService) PlayEssay(ctx context.Context, tel *sim.Telemetry)
 	m.playEssayCalled = true
 	return true
 }
-func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry) {
+func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string) {
 	m.playPOICalled = true
 }
 
@@ -38,6 +38,10 @@ type mockPOIManager struct {
 
 func (m *mockPOIManager) GetBestCandidate() *model.POI {
 	return m.best
+}
+
+func (m *mockPOIManager) CountScoredAbove(threshold float64, limit int) int {
+	return 0 // simplified
 }
 
 func TestNarrationJob_GroundSuppression(t *testing.T) {

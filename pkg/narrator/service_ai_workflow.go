@@ -15,7 +15,7 @@ import (
 )
 
 // PlayPOI triggers narration for a specific POI.
-func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry) {
+func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string) {
 	if manual {
 		slog.Info("Narrator: Manual play requested", "poi_id", poiID)
 	} else {
@@ -51,7 +51,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 		return
 	}
 
-	go s.narratePOI(context.Background(), p, tel, time.Now())
+	go s.narratePOI(context.Background(), p, tel, time.Now(), strategy)
 }
 
 // PlayEssay triggers a regional essay narration.
@@ -276,7 +276,7 @@ func (s *AIService) ResetSkipCooldown() {
 	s.skipCooldown = false
 }
 
-func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telemetry, startTime time.Time) {
+func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telemetry, startTime time.Time, strategy string) {
 	// active is already set true by PlayPOI
 	s.mu.Lock()
 	s.currentPOI = p
@@ -297,7 +297,7 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telem
 	// NOTE: LastPlayed is now set AFTER successful TTS (not here) to avoid "consuming" POI on failure
 
 	// 1. Gather Context & Build Prompt
-	promptData := s.buildPromptData(ctx, p, tel)
+	promptData := s.buildPromptData(ctx, p, tel, strategy)
 
 	slog.Info("Narrator: Narrating POI", "name", p.DisplayName(), "qid", p.WikidataID, "relative_dominance", promptData.DominanceStrategy)
 

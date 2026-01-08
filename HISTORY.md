@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.37 (2026-01-08)
+- **Feature**: **Cooldown Skew Mechanism**
+    - Implemented a unified skew strategy (Min/Max/Uniform) based on POI density (rival count).
+    - Ensures `MaxWords` and subsequent `Cooldown` are consistent for each narration.
+    - Centralized skew logic in `pkg/narrator/skew.go`.
+
 ## v0.2.36 (2026-01-08)
 - **Fix**: **Frontend Stats Display**
     - `InfoPanel` now correctly displays statistics for fallback TTS providers (e.g. `edge-tts`) even when they are not the primary configured engine.

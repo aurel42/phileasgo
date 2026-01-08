@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 	"phileasgo/pkg/sim"
 )
 
-func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.Telemetry) NarrationPromptData {
+func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.Telemetry, strategy string) NarrationPromptData {
 	// CC & Lang
 	loc := s.geoSvc.GetLocation(p.Lat, p.Lon)
 	cc := loc.CountryCode
@@ -28,7 +27,7 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		tel = &t
 	}
 	nav := s.calculateNavInstruction(p, tel)
-	maxWords, domStrat := s.sampleNarrationLength(p)
+	maxWords, domStrat := s.sampleNarrationLength(p, strategy)
 
 	// Language Logic (User's Target Language)
 	targetLang := s.cfg.Narrator.TargetLanguage
@@ -243,7 +242,7 @@ type NarrationPromptData struct {
 	DominanceStrategy    string
 }
 
-func (s *AIService) sampleNarrationLength(p *model.POI) (words int, strategy string) {
+func (s *AIService) sampleNarrationLength(p *model.POI, strategy string) (words int, strategyUsed string) {
 	minL := s.cfg.Narrator.NarrationLengthMin
 	maxL := s.cfg.Narrator.NarrationLengthMax
 	if minL == 0 {
@@ -256,67 +255,14 @@ func (s *AIService) sampleNarrationLength(p *model.POI) (words int, strategy str
 		return minL, "fixed"
 	}
 
-	// Dynamic Length Logic: Relative Dominance
-	// "Rivals" are other POIs with > 50% of the winner's score.
-	// Note: CountScoredAbove includes the winner itself if score > 0.
-	threshold := 0.0
-	if p != nil {
-		threshold = p.Score * 0.5
+	// Strategy is already determined by scheduler and passed in.
+	// But if strategy is empty (e.g. manual play or legacy call logic?), fallback to calculating it.
+	if strategy == "" {
+		strategy = DetermineSkewStrategy(p, s.poiMgr)
 	}
 
-	// We only need to know if there are > 1 rivals (so limit=2 is sufficient to know if count >= 2)
-	rivals := s.poiMgr.CountScoredAbove(threshold, 2)
+	slog.Debug("Narrator: Sampling Length", "strategy", strategy)
 
-	// Default Strategy: Uniform Random
-	strategy = "uniform"
-
-	// If rivals > 1 (Winner + at least 1 other) -> Skew Short (High Competition)
-	if rivals > 1 {
-		strategy = "min_skew"
-	} else if rivals <= 1 {
-		// Winner is alone -> Skew Long (Lone Wolf)
-		strategy = "max_skew"
-	}
-
-	slog.Debug("Narrator: Sampling Length", "strategy", strategy, "rivals", rivals)
-
-	// Helper to get a random value in range
-	randomVal := func() int {
-		steps := (maxL - minL) / 10
-		step := rand.Intn(steps + 1)
-		return minL + step*10
-	}
-
-	// Pool Selection
-	poolSize := 3
-	pool := make([]int, poolSize)
-	for i := 0; i < poolSize; i++ {
-		pool[i] = randomVal()
-	}
-
-	var result int
-	switch strategy {
-	case "min_skew":
-		// Pick smallest
-		minVal := pool[0]
-		for _, v := range pool {
-			if v < minVal {
-				minVal = v
-			}
-		}
-		result = minVal
-	case "max_skew":
-		// Pick largest
-		maxVal := pool[0]
-		for _, v := range pool {
-			if v > maxVal {
-				maxVal = v
-			}
-		}
-		result = maxVal
-	default:
-		// Pick first
-		result = pool[0]
-	}
+	result := SampleSkewedValue(minL, maxL, strategy)
 	return result, strategy
 }

@@ -26,7 +26,7 @@ type Service interface {
 	// IsPlaying returns true if narration audio is currently playing.
 	IsPlaying() bool
 	// PlayPOI triggers narration for a specific POI.
-	PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry)
+	PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string)
 	// PlayEssay triggers a regional essay narration.
 	PlayEssay(ctx context.Context, tel *sim.Telemetry) bool
 	// SkipCooldown forces the cooldown to expire immediately.
@@ -120,7 +120,7 @@ func (s *StubService) Stats() map[string]any {
 }
 
 // PlayPOI triggers narration for a specific POI (stub: just logs).
-func (s *StubService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry) {
+func (s *StubService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if manual {

@@ -38,7 +38,7 @@ type MockNarratorService struct {
 
 func (m *MockNarratorService) IsActive() bool     { return m.active }
 func (m *MockNarratorService) IsGenerating() bool { return m.generating }
-func (m *MockNarratorService) PlayPOI(ctx context.Context, id string, manual bool, tel *sim.Telemetry) {
+func (m *MockNarratorService) PlayPOI(ctx context.Context, id string, manual bool, tel *sim.Telemetry, strategy string) {
 }
 func (m *MockNarratorService) CurrentPOI() *model.POI { return m.currentPOI }
 func (m *MockNarratorService) CurrentTitle() string   { return m.currentTitle }
