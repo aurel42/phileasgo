@@ -39,15 +39,20 @@ func NewEvictionJob(
 }
 
 func (j *EvictionJob) ShouldFire(t *sim.Telemetry) bool {
-	// Simple periodic check, e.g., every 30s or every 5km.
-	// We use 30s as a good balance.
+	// Prevent eviction on ground to keep loaded POIs available while parked/taxiing.
+	if t != nil && t.IsOnGround {
+		return false
+	}
+
+	// Simple periodic check
+	// We use 300s (5m) to allow plenty of time for turn-arounds before cache eviction.
 	if j.TryLock() {
 		j.Unlock()
 	} else {
 		return false
 	}
 
-	if time.Since(j.lastRunTime) >= 30*time.Second {
+	if time.Since(j.lastRunTime) >= 300*time.Second {
 		return true
 	}
 

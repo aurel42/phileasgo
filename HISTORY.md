@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.39 (2026-01-08)
+- **Improvement**: **Eviction Job Optimization**
+    - Reduced eviction frequency from 30s to **300s** (5 minutes) to prevent aggressive cache clearing.
+    - Added **Ground Safety Check**: Eviction is now skipped when the aircraft is on the ground (parked or taxiing), ensuring loaded POIs remain available during turnaround.
+
 ## v0.2.38 (2026-01-08)
 - **Fix**: **Remote Narration After Teleport**
     - Implemented a **Location Consistency Check** in the POI Scheduler.
