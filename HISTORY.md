@@ -1,5 +1,9 @@
 ﻿# Release History
 
+## v0.2.36 (2026-01-08)
+- **Fix**: **Frontend Stats Display**
+    - `InfoPanel` now correctly displays statistics for fallback TTS providers (e.g. `edge-tts`) even when they are not the primary configured engine.
+
 ## v0.2.35 (2026-01-08)
 - **Fix**: **Edge TTS Connectivity (Sec-MS-GEC)**
     - Resolved `websocket: bad handshake` (403 Forbidden) errors by implementing the required `Sec-MS-GEC` token generation and `MUID` cookie usage.

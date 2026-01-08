@@ -267,9 +267,26 @@ export const InfoPanel = ({
                     <div className="value">
                         <span className="stat-success">{ttsStats.api_success}</span>
                         <span className="stat-neutral"> / </span>
+                        <span className="stat-neutral">{ttsStats.api_zero}</span>
+                        <span className="stat-neutral"> / </span>
                         <span className="stat-error">{ttsStats.api_errors}</span>
                     </div>
                 </div>
+
+                {/* Fallback Edge TTS (if active and not primary) */}
+                {ttsEngine !== 'edge-tts' && stats?.providers?.['edge-tts'] &&
+                    (stats.providers['edge-tts'].api_success > 0 || stats.providers['edge-tts'].api_errors > 0) && (
+                        <div className="flex-card stat-card">
+                            <div className="label">EDGE TTS (FALLBACK)</div>
+                            <div className="value">
+                                <span className="stat-success">{stats.providers['edge-tts'].api_success}</span>
+                                <span className="stat-neutral"> / </span>
+                                <span className="stat-neutral">{stats.providers['edge-tts'].api_zero}</span>
+                                <span className="stat-neutral"> / </span>
+                                <span className="stat-error">{stats.providers['edge-tts'].api_errors}</span>
+                            </div>
+                        </div>
+                    )}
             </div>
 
 
