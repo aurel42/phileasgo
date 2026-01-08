@@ -57,22 +57,24 @@ func rescuePOIName(p *model.POI, fd FallbackData, localLang, userLang string, lo
 }
 
 func findBestName(fd FallbackData, localLang, userLang string) string {
-	// Priority: Local > User > En
-	if val, ok := fd.Labels[localLang]; ok && val != "" {
-		return val
-	}
-	if val, ok := fd.Labels[userLang]; ok && val != "" {
-		return val
-	}
-	if val, ok := fd.Labels["en"]; ok && val != "" {
-		return val
+	// Priority: Local > User > En (Labels ARE UNRELIABLE/MESSY, USE SITELINKS ONLY)
+	// We map lang pointers to site keys (e.g. "fr" -> "frwiki")
+
+	trySite := func(lang string) string {
+		if val, ok := fd.Sitelinks[lang+"wiki"]; ok && val != "" {
+			return val
+		}
+		return ""
 	}
 
-	// Fallback to any label
-	for _, v := range fd.Labels {
-		if v != "" {
-			return v
-		}
+	if val := trySite(localLang); val != "" {
+		return val
+	}
+	if val := trySite(userLang); val != "" {
+		return val
+	}
+	if val := trySite("en"); val != "" {
+		return val
 	}
 
 	// Fallback to any sitelink title
@@ -81,6 +83,8 @@ func findBestName(fd FallbackData, localLang, userLang string) string {
 			return title
 		}
 	}
+
+	// Do NOT fallback to Labels. They contain raw Wikitext garbage sometimes.
 	return ""
 }
 

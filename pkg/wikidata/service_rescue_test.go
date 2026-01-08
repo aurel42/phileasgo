@@ -62,50 +62,64 @@ func TestFindBestName(t *testing.T) {
 		want      string
 	}{
 		{
-			name: "Local lang exists",
+			name: "Local lang LABEL ignored",
 			fd: FallbackData{
 				Labels: map[string]string{"fr": "Tour", "en": "Tower"},
 			},
 			localLang: "fr",
 			userLang:  "de",
-			want:      "Tour",
+			want:      "", // Labels are ignored
 		},
 		{
-			name: "User lang exists",
+			name: "Local lang SITELINK used",
 			fd: FallbackData{
-				Labels: map[string]string{"de": "Turm", "en": "Tower"},
-			},
-			localLang: "fr",
-			userLang:  "de",
-			want:      "Turm",
-		},
-		{
-			name: "Only English",
-			fd: FallbackData{
-				Labels: map[string]string{"en": "Tower"},
-			},
-			localLang: "fr",
-			userLang:  "es",
-			want:      "Tower",
-		},
-		{
-			name: "Fallback to any label",
-			fd: FallbackData{
-				Labels: map[string]string{"jp": "TokyoTower"},
-			},
-			localLang: "fr",
-			userLang:  "en",
-			want:      "TokyoTower",
-		},
-		{
-			name: "Fallback to Sitelink",
-			fd: FallbackData{
-				Labels:    map[string]string{},
 				Sitelinks: map[string]string{"frwiki": "Tour_Wikipedia"},
 			},
 			localLang: "fr",
-			userLang:  "en",
+			userLang:  "de",
 			want:      "Tour_Wikipedia",
+		},
+		{
+			name: "User lang SITELINK used",
+			fd: FallbackData{
+				Sitelinks: map[string]string{"dewiki": "Turm_Wiki"},
+			},
+			localLang: "fr",
+			userLang:  "de",
+			want:      "Turm_Wiki",
+		},
+		{
+			// Belgium Case: Mapper thinks it's French (local=fr), User is English.
+			// POI is only in Dutch (nlwiki). Should fallback to nlwiki.
+			name: "Belgium Case (Local mismatch, fallback to other)",
+			fd: FallbackData{
+				Sitelinks: map[string]string{"nlwiki": "Atomium_Dutch"},
+			},
+			localLang: "fr",
+			userLang:  "en",
+			want:      "Atomium_Dutch",
+		},
+		{
+			// Exclave Case: Flying over Country A (local=A-lang), User=English.
+			// POI is physically in B-lang theory but actually only has C-lang?
+			// Or simply: POI is exotic and only has 'ruwiki'.
+			name: "Exclave/Border Case (No local/user match, fallback to any)",
+			fd: FallbackData{
+				Sitelinks: map[string]string{"ruwiki": "Russian_Only"},
+			},
+			localLang: "pl", // Poland
+			userLang:  "en",
+			want:      "Russian_Only",
+		},
+		{
+			name: "Fallback to any sitelink",
+			fd: FallbackData{
+				Labels:    map[string]string{},
+				Sitelinks: map[string]string{"jawiki": "Tokyo_Tower_Wiki"},
+			},
+			localLang: "fr",
+			userLang:  "en",
+			want:      "Tokyo_Tower_Wiki",
 		},
 		{
 			name: "Empty",
@@ -207,7 +221,7 @@ func TestRescuePOIName(t *testing.T) {
 		wantChanged bool
 	}{
 		{
-			name: "Update QID name",
+			name: "Update QID name (Ignore Label)",
 			poi: &model.POI{
 				WikidataID: "Q1",
 				NameUser:   "Q1",
@@ -215,8 +229,20 @@ func TestRescuePOIName(t *testing.T) {
 			fd: FallbackData{
 				Labels: map[string]string{"en": "Real Name"},
 			},
-			wantName:    "Real Name",
-			wantChanged: true,
+			wantName:    "Q1", // Label ignored
+			wantChanged: false,
+		},
+		{
+			name: "Update QID name (Use Sitelink)",
+			poi: &model.POI{
+				WikidataID: "Q1",
+				NameUser:   "Q1",
+			},
+			fd: FallbackData{
+				Sitelinks: map[string]string{"enwiki": "Real_Page"},
+			},
+			wantName:    "Real_Page",
+			wantChanged: true, // Sitelink used
 		},
 		{
 			name: "No valid label found",

@@ -124,11 +124,13 @@ func TestConstructPOI(t *testing.T) {
 			wantURL:  "https://en.wikipedia.org/wiki/Tower",
 		},
 		{
-			name: "Unnamed Dropped (No Label)",
+			name: "Unnamed (No Label) - Allowed for Rescue",
 			article: Article{
 				QID: "Q2",
 			},
-			wantPOI: false,
+			wantPOI:  true, // Allowed to proceed to rescue
+			wantName: "",
+			wantURL:  "https://www.wikidata.org/wiki/Q2",
 		},
 		{
 			name: "Unnamed Rescued by Label",
@@ -137,16 +139,18 @@ func TestConstructPOI(t *testing.T) {
 				Label: "Ghost Castle",
 			},
 			wantPOI:  true,
-			wantName: "Ghost Castle",
+			wantName: "", // Now empty, waiting for rescue
 			wantURL:  "https://www.wikidata.org/wiki/Q3",
 		},
 		{
-			name: "Unnamed Rescued by Label falls back to QID if label is empty? No, Label is required.",
+			name: "Unnamed (Empty Label) - Allowed for Rescue",
 			article: Article{
 				QID:   "Q4",
 				Label: "",
 			},
-			wantPOI: false,
+			wantPOI:  true, // Allowed to proceed to rescue
+			wantName: "",
+			wantURL:  "https://www.wikidata.org/wiki/Q4",
 		},
 	}
 

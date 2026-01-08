@@ -1,20 +1,31 @@
 ﻿# Release History
 
+## v0.2.22 (2026-01-08)
+- **Refactor**: **Integer Precision for Geodata Cache**
+    - Changed `cache_geodata` schema to store radius in integer meters (`radius_m`) instead of floating-point kilometers.
+    - Eliminates floating-point drift and simplifies frontend rendering logic.
+- **Fix**: **Strict Name Selection**
+    - Enforced strict "Wikipedia Article Title" requirement for POIs.
+    - Removed fallback to Wikidata Labels, preventing raw Wikitext or internal identifiers from appearing as POI names.
+    - Improved "Rescue" logic to strictly prioritize Sitelinks (Wikipedia URLs) over Labels.
+    - Verified edge cases (Exclaves, Belgium) with new table-driven tests.
+- **Testing**: **H3 Coverage**
+    - Added comprehensive table-driven tests for H3 Grid and Scheduler logic.
+
 ## v0.2.21 (2026-01-08)
-- **Feature**: **Dynamic H3 Radius**
-    - Transitioned from a fixed global radius to a geometry-based dynamic calculation.
-    - The system now computes the exact circumradius of each H3 tile (plus a 50m buffer) ensures 100% coverage without gaps or excessive overlap.
-    - Added `cache_geodata` table to store raw tile responses with their specific query radius.
-    - Updated `CacheLayer` to visualize the actual dynamic radius of cached tiles on the map.
-- **UX**: **Immediate Beacon Spawning**
-    - POI Markers (Balloons) now spawn instantly when narration is triggered, providing immediate visual feedback while the AI script is generating.
-    - Previously, markers would only appear after the LLM generation was complete (~2-5s delay).
-- **Config**: **Configurable Fetch Distance**
-    - Wikidata scheduler now limits searches based on a configurable maximum distance (`max_dist_km`), optimizing performance for different flight profiles.
-- **Fix**: **Stability & Linting**
-    - Resolved syntax errors in `service.go` and variable shadowing in `sqlite.go`.
-    - Updated `MockStore` implementations across test suites (`pkg/poi`, `pkg/classifier`) to support the new Geodata cache methods.
-    - Updated `README.md` to reflect current LLM model usage (Gemini 2.5 Flash Lite).
+- **Architecture**: **Migration to Uber H3**
+    - Completely replaced the custom axial hexagonal grid implementation with **Uber H3** (Hierarchical Hexagonal Geospatial Indexing System).
+    - Standardized on **Resolution 5** (~8.5km edge length) for Wikidata tile caching.
+    - Updated `HexTile` implementation to use standard H3 indices (string) instead of custom Row/Col coordinates.
+    - **Breaking Change**: Cache keys migrated from `wd_hex_` to `wd_h3_`. Old cache entries will be ignored/pruned.
+- **Feature**: **Dynamic Tile Geometry**
+    - The system now computes the exact circumradius of each H3 tile (plus a 50m buffer) for SPARQL queries.
+    - Added `cache_geodata` table to store specific query radius meta-data for visualization.
+    - Updated `CacheLayer` to visualize the actual true-geometry radius of cached tiles on the map.
+- **Fix**: **Narrator Stability**
+    - Resolved race condition where playing a missing or evicted POI could cause a nil pointer dereference in the workflow.
+- **Build**: **H3 CGO Requirement**
+    - Added requirement for a C Compiler (MinGW/GCC) to build the project due to the new H3 library dependency (CGO).
 
 ## v0.2.20
 - **Refactor**: **Narrator Service Architecture**

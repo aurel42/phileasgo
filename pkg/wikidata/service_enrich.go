@@ -3,6 +3,7 @@ package wikidata
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,6 +26,20 @@ func (s *Service) enrichAndSave(ctx context.Context, articles []Article, localLa
 	if err := s.rescueUnnamedPOIs(ctx, candidates, localLang, userLang); err != nil {
 		s.logger.Warn("Rescue failed", "error", err)
 	}
+
+	// 5b. FILTER UNRESOLVED: If rescue failed (still QID name), drop them.
+	// We strictly want Wikipedia titles.
+	var distinctCandidates []*model.POI
+	// We reuse 'identifyRescueCandidates' logic which uses regex.
+	// But simple DisplayName == QID check is enough if we trust DisplayName impl.
+	// Let's use the regex to be safe and consistent.
+	qidRegex := regexp.MustCompile(`^Q\d+$`)
+	for _, p := range candidates {
+		if !qidRegex.MatchString(p.DisplayName()) {
+			distinctCandidates = append(distinctCandidates, p)
+		}
+	}
+	candidates = distinctCandidates
 
 	// 5. MERGE DUPLICATES (Spatial Gobbling)
 	var finalPOIs []*model.POI = candidates
@@ -79,13 +94,11 @@ func constructPOI(a *Article, lengths map[string]map[string]int, localLang, user
 	nameEn := a.TitleEn
 	nameUser := a.TitleUser
 
-	// If no titles found (Nameless Ghost), try fallback to Label
+	// If no titles found (Nameless Ghost), we leave names empty.
+	// This allows rescueUnnamedPOIs to detect it (via DisplayName == QID)
+	// and attempt to find a version in another language.
+	// If rescue fails, we will filter it out later.
 	if nameLocal == "" && nameEn == "" && nameUser == "" {
-		if a.Label == "" {
-			return nil // Strict Drop
-		}
-		nameLocal = a.Label
-		nameEn = a.Label // Fallback
 		if bestURL == "" {
 			bestURL = "https://www.wikidata.org/wiki/" + a.QID
 		}

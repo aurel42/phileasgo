@@ -31,8 +31,8 @@ type Store interface {
 	ListCacheKeys(ctx context.Context, prefix string) ([]string, error)
 
 	// Geodata Cache
-	GetGeodataCache(ctx context.Context, key string) ([]byte, float64, bool)
-	SetGeodataCache(ctx context.Context, key string, val []byte, radius float64) error
+	GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool)
+	SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error
 
 	// State
 	GetState(ctx context.Context, key string) (string, bool)
@@ -608,8 +608,8 @@ func compress(data []byte) ([]byte, error) {
 
 // --- Geodata Cache ---
 
-func (s *SQLiteStore) GetGeodataCache(ctx context.Context, key string) (data []byte, radius float64, found bool) {
-	err := s.db.QueryRowContext(ctx, "SELECT data, radius_km FROM cache_geodata WHERE key = ?", key).Scan(&data, &radius)
+func (s *SQLiteStore) GetGeodataCache(ctx context.Context, key string) (data []byte, radius int, found bool) {
+	err := s.db.QueryRowContext(ctx, "SELECT data, radius_m FROM cache_geodata WHERE key = ?", key).Scan(&data, &radius)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, 0, false
 	}
@@ -628,14 +628,14 @@ func (s *SQLiteStore) GetGeodataCache(ctx context.Context, key string) (data []b
 	return data, radius, true
 }
 
-func (s *SQLiteStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius float64) error {
+func (s *SQLiteStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error {
 	// Transparent Compression
 	compressed, err := compress(val)
 	if err == nil {
 		val = compressed
 	}
 
-	query := `INSERT OR REPLACE INTO cache_geodata (key, data, radius_km, created_at) VALUES (?, ?, ?, ?)`
+	query := `INSERT OR REPLACE INTO cache_geodata (key, data, radius_m, created_at) VALUES (?, ?, ?, ?)`
 	_, err = s.db.ExecContext(ctx, query, key, val, radius, time.Now())
 	return err
 }

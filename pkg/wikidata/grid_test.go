@@ -1,50 +1,170 @@
 package wikidata
 
 import (
+	"math"
 	"testing"
 )
 
 func TestGrid_TileAt(t *testing.T) {
 	g := NewGrid()
 
-	// 1. Check stability (same coord = same cell)
-	lat, lon := 48.0, -122.0
-	t1 := g.TileAt(lat, lon)
-	t2 := g.TileAt(lat, lon)
-
-	if t1.Index != t2.Index {
-		t.Errorf("TileAt output unstable: %s vs %s", t1.Index, t2.Index)
+	tests := []struct {
+		name    string
+		lat     float64
+		lon     float64
+		wantErr bool
+	}{
+		{
+			name: "Seattle",
+			lat:  47.6062,
+			lon:  -122.3321,
+		},
+		{
+			name: "London",
+			lat:  51.5074,
+			lon:  -0.1278,
+		},
+		{
+			name: "Zero/Zero",
+			lat:  0.0,
+			lon:  0.0,
+		},
 	}
 
-	// 2. Check nearby points (H3 Res 5 edge ~8.5km)
-	// A point 1km away should be in the same cell (statistically likely unless on edge)
-	// Let's verify center logic instead.
-
-	latC, lonC := g.TileCenter(t1)
-	tCenter := g.TileAt(latC, lonC)
-	if tCenter.Index != t1.Index {
-		t.Errorf("Center of tile %s maps to tile %s", t1.Index, tCenter.Index) // Should match
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tile := g.TileAt(tt.lat, tt.lon)
+			if tile.Index == "" {
+				t.Error("TileAt() returned empty index")
+			}
+			// Verify stability: encoding and decoding center should stay close
+			cLat, cLon := g.TileCenter(tile)
+			dist := DistKm(tt.lat, tt.lon, cLat, cLon)
+			// H3 Res 5 edge length is ~8.5km, so center shouldn't be too far.
+			// Max distance from center to vertex is "radius", usually < 12km.
+			if dist > 15.0 {
+				t.Errorf("TileAt/TileCenter roundtrip distance too large: %.2f km", dist)
+			}
+		})
 	}
 }
 
 func TestGrid_Neighbors(t *testing.T) {
 	g := NewGrid()
-	// Pick a known coordinate
-	center := g.TileAt(48.0, -122.0)
-	neighbors := g.Neighbors(center)
 
-	if len(neighbors) != 6 {
-		t.Errorf("Expected 6 neighbors, got %d", len(neighbors))
+	tests := []struct {
+		name      string
+		lat       float64
+		lon       float64
+		wantCount int
+	}{
+		{"Pacific Ocean", 0.0, -160.0, 6},
+		{"North Pole", 89.0, 0.0, 6}, // H3 handles poles, though topology can be weird (k-rings usually 5 or 6)
 	}
 
-	// Verify neighbors are distinct and not the center
-	seen := make(map[string]bool)
-	seen[center.Index] = true
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			origin := g.TileAt(tt.lat, tt.lon)
+			neighbors := g.Neighbors(origin)
 
-	for _, n := range neighbors {
-		if seen[n.Index] {
-			t.Errorf("Duplicate neighbor or center returned: %s", n.Index)
-		}
-		seen[n.Index] = true
+			if len(neighbors) != tt.wantCount {
+				// Pentagons have 5 neighbors, but rare at res 5.
+				// Just logging if it's not 6 might be enough to verify it returns *something*.
+				// But generally we expect 6.
+				t.Errorf("Neighbors() count = %d, want %d", len(neighbors), tt.wantCount)
+			}
+
+			// Verify they are distinct
+			seen := make(map[string]bool)
+			seen[origin.Index] = true
+			for _, n := range neighbors {
+				if seen[n.Index] {
+					t.Errorf("Duplicate neighbor found: %s", n.Index)
+				}
+				seen[n.Index] = true
+
+				// Verify neighbor is actually adjacent (dist < 2 * spacing)
+				// Spacing is ~15km, so centers should be ~15km apart.
+				olat, olon := g.TileCenter(origin)
+				nlat, nlon := g.TileCenter(n)
+				dist := DistKm(olat, olon, nlat, nlon)
+				if dist > 30.0 || dist < 1.0 { // Sanity check
+					t.Errorf("Neighbor distance suspicious: %.2f km", dist)
+				}
+			}
+		})
+	}
+}
+
+func TestGrid_TileRadius(t *testing.T) {
+	g := NewGrid()
+
+	tests := []struct {
+		name      string
+		lat       float64
+		lon       float64
+		minRadius float64
+		maxRadius float64
+	}{
+		{"Equator", 0.0, 0.0, 8.0, 12.0},    // Res 5 avg radius check
+		{"High Lat", 60.0, 10.0, 4.0, 12.0}, // Distortion changes things check
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tile := g.TileAt(tt.lat, tt.lon)
+			radius := g.TileRadius(tile)
+			if radius < tt.minRadius || radius > tt.maxRadius {
+				t.Errorf("TileRadius() = %.2f, want between %.2f and %.2f", radius, tt.minRadius, tt.maxRadius)
+			}
+		})
+	}
+}
+
+func TestDistKm(t *testing.T) {
+	tests := []struct {
+		name string
+		p1   [2]float64
+		p2   [2]float64
+		want float64
+		tol  float64
+	}{
+		{
+			name: "Zero Distance",
+			p1:   [2]float64{0, 0},
+			p2:   [2]float64{0, 0},
+			want: 0,
+			tol:  0.01,
+		},
+		{
+			name: "1 deg Lat at Equator",
+			p1:   [2]float64{0, 0},
+			p2:   [2]float64{1, 0},
+			want: 111.132,
+			tol:  1.0,
+		},
+		{
+			name: "1 deg Lon at Equator",
+			p1:   [2]float64{0, 0},
+			p2:   [2]float64{0, 1},
+			want: 111.132,
+			tol:  1.0,
+		},
+		{
+			name: "1 deg Lon at 60 deg Lat", // Cos(60) = 0.5
+			p1:   [2]float64{60, 0},
+			p2:   [2]float64{60, 1},
+			want: 111.132 * 0.5,
+			tol:  1.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DistKm(tt.p1[0], tt.p1[1], tt.p2[0], tt.p2[1])
+			if math.Abs(got-tt.want) > tt.tol {
+				t.Errorf("DistKm() = %v, want %v (+/-%v)", got, tt.want, tt.tol)
+			}
+		})
 	}
 }

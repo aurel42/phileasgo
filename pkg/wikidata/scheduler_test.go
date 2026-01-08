@@ -33,41 +33,109 @@ func TestCalculateBearing(t *testing.T) {
 }
 
 func TestGetCandidates(t *testing.T) {
-	// Setup scheduler with small radius (enough for neighbors)
-	s := NewScheduler(50.0) // 50km
+	s := NewScheduler(100.0) // 100km max radius
 
-	lat, lon := 50.0, 14.0
-	heading := 0.0 // North
-	isAirborne := false
-
-	candidates := s.GetCandidates(lat, lon, heading, isAirborne)
-
-	if len(candidates) == 0 {
-		t.Fatal("Expected candidates, got 0")
+	tests := []struct {
+		name          string
+		lat           float64
+		lon           float64
+		heading       float64
+		isAirborne    bool
+		wantMin       int // Minimum number of candidates expected
+		checkSorting  bool
+		checkDistance bool
+		checkCone     bool
+	}{
+		{
+			name:          "Ground (All Directions)",
+			lat:           50.0,
+			lon:           14.0,
+			heading:       0.0,
+			isAirborne:    false,
+			wantMin:       10, // Should find many neighbors in 100km
+			checkSorting:  true,
+			checkDistance: true,
+			checkCone:     false,
+		},
+		{
+			name:          "Airborne North (Cone Filter)",
+			lat:           50.0,
+			lon:           14.0,
+			heading:       0.0, // North
+			isAirborne:    true,
+			wantMin:       3,
+			checkSorting:  true,
+			checkDistance: true,
+			checkCone:     true,
+		},
+		{
+			name:          "Airborne South (Cone Filter)",
+			lat:           50.0,
+			lon:           14.0,
+			heading:       180.0, // South
+			isAirborne:    true,
+			wantMin:       3, // Less than ground, but > 0
+			checkSorting:  true,
+			checkDistance: true,
+			checkCone:     true,
+		},
 	}
 
-	// Verify sorting (closest first)
-	prevDist := -1.0
-	for _, c := range candidates {
-		if c.Dist < prevDist {
-			t.Errorf("Candidates not sorted by distance: %f after %f", c.Dist, prevDist)
-		}
-		prevDist = c.Dist
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			candidates := s.GetCandidates(tt.lat, tt.lon, tt.heading, tt.isAirborne)
 
-	// Test Airborne Cone Logic
-	// If heading North (0), we shouldn't see South tiles unless current tile
-	isAirborne = true
-	candidatesAir := s.GetCandidates(lat, lon, heading, isAirborne)
+			// 1. Minimum Count Check
+			if len(candidates) < tt.wantMin {
+				t.Errorf("Got %d candidates, want at least %d", len(candidates), tt.wantMin)
+			}
 
-	if len(candidatesAir) == 0 {
-		t.Fatal("Expected airborne candidates, got 0")
-	}
-	// Verify candidates count is less than full circle (roughly)
-	// Though with small radius, grid discreteness affects this.
-	// Just ensure it runs without panic and returns subset.
-	if len(candidatesAir) >= len(candidates) && len(candidates) > 7 {
-		// Only if we have enough candidates to actually filter
-		// t.Logf("Airborne should filter some tiles. All: %d, Air: %d", len(candidates), len(candidatesAir))
+			// 2. Sorting Check (Closest Separation)
+			if tt.checkSorting {
+				prevDist := -1.0
+				for _, c := range candidates {
+					if c.Dist < prevDist {
+						t.Errorf("Sorting error: found dist %.2f after %.2f", c.Dist, prevDist)
+					}
+					prevDist = c.Dist
+				}
+			}
+
+			// 3. Max Distance Check
+			if tt.checkDistance {
+				for _, c := range candidates {
+					if c.Dist > 100.0+spacingKm { // allow small margin for center vs edge
+						t.Errorf("Candidate too far: %.2f km > 100km (limit)", c.Dist)
+					}
+				}
+			}
+
+			// 4. Cone Check
+			if tt.checkCone {
+				// Determine start tile to skip it (it's always valid)
+				g := NewGrid()
+				startTile := g.TileAt(tt.lat, tt.lon)
+
+				for _, c := range candidates {
+					if c.Tile == startTile {
+						continue
+					}
+
+					bearing := calculateBearing(tt.lat, tt.lon, c.Lat, c.Lon)
+					diff := math.Abs(bearing - tt.heading)
+					if diff > 180 {
+						diff = 360 - diff
+					}
+
+					// We use 30 degrees half-arc in scheduler.go
+					if diff > 35.0 { // Allow margin for large tiles (bearing to center vs tile edge?)
+						// Actually scheduler filters on CENTER.
+						// So center bearing difference should be strict <= 30.
+						// BUT float math + projection might add error. Let's say 32.
+						t.Errorf("Candidate outside cone: bearing %.1f vs heading %.1f (diff %.1f)", bearing, tt.heading, diff)
+					}
+				}
+			}
+		})
 	}
 }

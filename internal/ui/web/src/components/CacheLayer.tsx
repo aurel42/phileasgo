@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { Circle, useMap } from 'react-leaflet';
 
 interface CacheTile {
-    Lat: number;
-    Lon: number;
-    Radius?: number; // Optional, in km
+    lat: number;
+    lon: number;
+    radius?: number; // Optional, in meters
 }
 
 export const CacheLayer = () => {
@@ -34,8 +34,8 @@ export const CacheLayer = () => {
             {tiles.map((t, i) => (
                 <Circle
                     key={i}
-                    center={[t.Lat, t.Lon]}
-                    radius={(t.Radius || 9.8) * 1000} // CacheTile radius is in km, Circle needs meters
+                    center={[t.lat, t.lon]}
+                    radius={t.radius || 9800} // CacheTile radius is in meters
                     pathOptions={{
                         color: 'white',
                         fillColor: 'white',
@@ -47,4 +47,5 @@ export const CacheLayer = () => {
             ))}
         </>
     );
+
 };

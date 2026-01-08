@@ -119,7 +119,7 @@ func (d *DB) migrate() error {
 		`CREATE TABLE IF NOT EXISTS cache_geodata (
 			key TEXT PRIMARY KEY,
 			data BLOB,
-			radius_km REAL,
+			radius_m INTEGER,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
 		`CREATE TABLE IF NOT EXISTS seen_entities (

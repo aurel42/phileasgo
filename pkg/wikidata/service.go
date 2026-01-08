@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -205,15 +206,15 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 	country := s.geo.GetCountry(centerLat, centerLon)
 	localLangInfo := s.mapper.GetLanguage(country)
 
-	// Calculate precise radius for this specific tile geometry
+	// Calculate precise radius in meters for this specific tile geometry
 	// Add 50m buffer for safety against floating point math
-	precisionRadius := s.scheduler.grid.TileRadius(c.Tile) + 0.05
+	radiusMeters := int(math.Ceil((s.scheduler.grid.TileRadius(c.Tile) * 1000) + 50))
 
-	// Create formatted string for SPARQL (e.g. "9.81")
-	radiusStr := fmt.Sprintf("%.2f", precisionRadius)
-	if precisionRadius < 1.0 { // Fallback sanity check, though TileRadius should be ~8-12km
+	// Create formatted string for SPARQL (e.g. "9.810") - query expects KM
+	radiusStr := fmt.Sprintf("%.3f", float64(radiusMeters)/1000.0)
+	if radiusMeters < 1000 { // Fallback sanity check, though TileRadius should be ~8-12km
 		radiusStr = "9.8"
-		precisionRadius = 9.8
+		radiusMeters = 9800
 	}
 
 	query := buildQuery(centerLat, centerLon, localLangInfo.Code, s.userLang, s.cfg.Area.MaxArticles, radiusStr)
@@ -225,8 +226,8 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 		return
 	}
 
-	// Cache Geodata (Raw JSON + Radius Metadata)
-	if err := s.store.SetGeodataCache(ctx, c.Tile.Key(), []byte(rawJSON), precisionRadius); err != nil {
+	// Cache Geodata (Raw JSON + Radius Metadata in Meters)
+	if err := s.store.SetGeodataCache(ctx, c.Tile.Key(), []byte(rawJSON), radiusMeters); err != nil {
 		s.logger.Warn("Failed to save geodata cache", "key", c.Tile.Key(), "error", err)
 	}
 
@@ -812,7 +813,7 @@ func getArticleDimensions(a *Article) (h, l, area float64) {
 type CachedTile struct {
 	Lat    float64 `json:"lat"`
 	Lon    float64 `json:"lon"`
-	Radius float64 `json:"radius"`
+	Radius int     `json:"radius"`
 }
 
 // GetCachedTiles returns a list of cached tiles with their centers and queried radii.
@@ -844,7 +845,7 @@ func (s *Service) GetCachedTiles(ctx context.Context, lat, lon, radiusKm float64
 		// Fetch metadata (radius)
 		_, r, ok := s.store.GetGeodataCache(ctx, k)
 		if !ok || r <= 0 {
-			r = 9800.0 / 1000.0 // Default 9.8km if missing in metadata
+			r = 9800 // Default 9.8km if missing in metadata
 		}
 
 		results = append(results, CachedTile{Lat: cLat, Lon: cLon, Radius: r})
