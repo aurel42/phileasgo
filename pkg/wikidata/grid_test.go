@@ -121,6 +121,40 @@ func TestGrid_TileRadius(t *testing.T) {
 	}
 }
 
+func TestGrid_TileCorners(t *testing.T) {
+	g := NewGrid()
+
+	tests := []struct {
+		name    string
+		lat     float64
+		lon     float64
+		wantLen int
+	}{
+		{"Seattle", 47.6062, -122.3321, 6},
+		{"London", 51.5074, -0.1278, 6},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tile := g.TileAt(tt.lat, tt.lon)
+			corners := g.TileCorners(tile)
+
+			if len(corners) != tt.wantLen {
+				t.Errorf("TileCorners() count = %d, want %d", len(corners), tt.wantLen)
+			}
+
+			// Verify corners are reasonably close to the center
+			cLat, cLon := g.TileCenter(tile)
+			for i, c := range corners {
+				dist := DistKm(cLat, cLon, c.Lat, c.Lon)
+				if dist > 15.0 || dist < 1.0 { // Sanity check for Res 5
+					t.Errorf("Corner %d distance suspicious: %.2f km", i, dist)
+				}
+			}
+		})
+	}
+}
+
 func TestDistKm(t *testing.T) {
 	tests := []struct {
 		name string

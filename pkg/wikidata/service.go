@@ -202,9 +202,29 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 	// 2. Construct Query
 	centerLat, centerLon := s.gridCenter(c.Tile)
 
-	// Dynamic Language
-	country := s.geo.GetCountry(centerLat, centerLon)
-	localLangInfo := s.mapper.GetLanguage(country)
+	// Dynamic Language Sampling (Multi-Point)
+	// Sample center + 6 corners to detect all relevant languages in the tile (e.g. at borders)
+	langSet := make(map[string]bool)
+	points := append([]geo.Point{{Lat: centerLat, Lon: centerLon}}, s.scheduler.grid.TileCorners(c.Tile)...)
+
+	// Always include primary languages
+	langSet["en"] = true
+	langSet[s.userLang] = true
+	centerLang := "en" // Default
+
+	for i, p := range points {
+		country := s.geo.GetCountry(p.Lat, p.Lon)
+		info := s.mapper.GetLanguage(country)
+		langSet[info.Code] = true
+		if i == 0 {
+			centerLang = info.Code
+		}
+	}
+
+	allowedLangs := make([]string, 0, len(langSet))
+	for l := range langSet {
+		allowedLangs = append(allowedLangs, l)
+	}
 
 	// Calculate precise radius in meters for this specific tile geometry
 	// Add 50m buffer for safety against floating point math
@@ -217,7 +237,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 		radiusMeters = 9800
 	}
 
-	query := buildQuery(centerLat, centerLon, localLangInfo.Code, s.userLang, s.cfg.Area.MaxArticles, radiusStr)
+	query := buildQuery(centerLat, centerLon, centerLang, s.userLang, allowedLangs, s.cfg.Area.MaxArticles, radiusStr)
 
 	// 2. Execute (Requester handles caching and core tracking)
 	articles, rawJSON, err := s.client.QuerySPARQL(ctx, query, c.Tile.Key())
@@ -247,7 +267,7 @@ func (s *Service) gridCenter(t HexTile) (lat, lon float64) {
 	return s.scheduler.grid.TileCenter(t)
 }
 
-func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int, radius string) string {
+func buildQuery(lat, lon float64, localLang, userLang string, allowedLangs []string, maxArticles int, radius string) string {
 	// Radius passed dynamically
 	if radius == "" {
 		radius = "9.8" // Fallback
@@ -260,6 +280,16 @@ func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int, r
 	}
 	if maxArticles <= 0 {
 		maxArticles = 100 // Default fallback
+	}
+
+	// Build allowed languages string for VALUES clause
+	var langListBuilder strings.Builder
+	for _, l := range allowedLangs {
+		langListBuilder.WriteString(fmt.Sprintf("%q ", l))
+	}
+	langListStr := langListBuilder.String()
+	if langListStr == "" {
+		langListStr = "\"en\""
 	}
 
 	query := fmt.Sprintf(`SELECT DISTINCT ?item ?lat ?lon ?sitelinks 
@@ -284,10 +314,12 @@ func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int, r
             OPTIONAL { ?item wdt:P2043 ?length . }
             OPTIONAL { ?item wdt:P2049 ?width . }
             
-            # Coarse Pre-Filter: Must have at least one sitelink (Wikipedia, Wikiquote, etc.)
-            # We strictly validate this is a "Wikipedia" article in the application layer (Rescue),
-            # but this saves us fetching 90%% of raw Wikidata items.
-            FILTER(?sitelinks > 0)
+            # Language Filter: Item must exist in at least one of the relevant languages
+            FILTER EXISTS { 
+                VALUES ?allowed_lang { %s }
+                ?article_check schema:about ?item ; 
+                schema:inLanguage ?allowed_lang .
+            } 
 
             OPTIONAL { 
                 ?evt_local schema:about ?item ; 
@@ -310,7 +342,7 @@ func buildQuery(lat, lon float64, localLang, userLang string, maxArticles int, r
         } 
         GROUP BY ?item ?lat ?lon ?sitelinks ?title_local_val ?title_en_val ?title_user_val ?itemLabel ?area ?height ?length ?width
         ORDER BY DESC(?sitelinks) 
-        LIMIT %d`, lon, lat, radius, localLang, userLang, localLang, localLang, userLang, userLang, maxArticles)
+        LIMIT %d`, lon, lat, radius, localLang, userLang, langListStr, localLang, localLang, userLang, userLang, maxArticles)
 
 	return query
 }

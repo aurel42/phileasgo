@@ -20,6 +20,7 @@ data/cities1000.txt
 data/Master.csv
 vendor/
 pkg/sim/simconnect/lib/
+cmd/experiments/
 
 # Frontend
 internal/ui/dist/
@@ -35,3 +36,4 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+tmp/

@@ -2,6 +2,7 @@ package wikidata
 
 import (
 	"math"
+	"phileasgo/pkg/geo"
 
 	"github.com/uber/h3-go/v4"
 )
@@ -105,6 +106,28 @@ func (g *Grid) TileRadius(t HexTile) float64 {
 		}
 	}
 	return maxDist
+}
+
+// TileCorners returns the 6 vertices of the hex tile.
+func (g *Grid) TileCorners(t HexTile) []geo.Point {
+	if t.Index == "" {
+		return nil
+	}
+	cell := h3.CellFromString(t.Index)
+	if cell == 0 {
+		return nil
+	}
+
+	boundary, err := h3.CellToBoundary(cell)
+	if err != nil {
+		return nil
+	}
+
+	corners := make([]geo.Point, len(boundary))
+	for i, ll := range boundary {
+		corners[i] = geo.Point{Lat: ll.Lat, Lon: ll.Lng}
+	}
+	return corners
 }
 
 // DistKm calculates approximate distance between two points (Haversine approx for small distances).

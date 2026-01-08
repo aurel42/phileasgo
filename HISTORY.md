@@ -1,5 +1,12 @@
 ﻿# Release History
 
+## v0.2.26 (2026-01-08)
+- **Feature**: **Multi-Language Sampling for Borders**
+    - Implemented a more robust language detection strategy that samples not just the center of a tile, but all 6 corners.
+    - If a tile overlaps a border (e.g., Germany/Poland), the system now queries Wikidata for articles in *all* detected languages (e.g., `en`, `de`, `pl`).
+    - This ensures correct POI names are found even for exclaves or border regions where the center point might miss the relevant local language.
+    - Reverted the "Any Wikipedia" filter in favor of this strict but expanded language set to maintain data quality.
+
 ## v0.2.25 (2026-01-08)
 - **Fix**: **Blacklist Low-Quality Wikis**
     - Explicitly excluded `rowiki` (Romanian), `cewiki` (Cebuano), and `warwiki` (Waray) from name rescue sources.
