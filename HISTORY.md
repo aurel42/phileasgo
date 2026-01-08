@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.25 (2026-01-08)
+- **Fix**: **Blacklist Low-Quality Wikis**
+    - Explicitly excluded `rowiki` (Romanian), `cewiki` (Cebuano), and `warwiki` (Waray) from name rescue sources.
+    - Prevents mass-imported bot stubs (often minimal geographic entries) from being used as POI names when high-quality English or Local articles are missing.
+    - Ensures POI names are derived from human-curated content.
+
 ## v0.2.24 (2026-01-08)
 - **Feature**: **"Any Wikipedia Article" Pre-Filter**
     - Optimized SPARQL query to use `FILTER(?sitelinks > 0)` instead of strict language matching.

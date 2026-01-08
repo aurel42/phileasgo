@@ -69,6 +69,10 @@ func findBestName(fd FallbackData, localLang, userLang string) string {
 		if site == "commonswiki" || site == "wikidatawiki" || site == "specieswiki" || site == "metawiki" || site == "sourceswiki" {
 			return false
 		}
+		// Explicit exclusion of low-quality / bot-dominated wikis
+		if site == "rowiki" || site == "cewiki" || site == "warwiki" {
+			return false
+		}
 		if strings.Contains(site, "quote") {
 			return false
 		}

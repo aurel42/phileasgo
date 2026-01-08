@@ -158,6 +158,33 @@ func TestFindBestName(t *testing.T) {
 			want:      "",
 		},
 		{
+			name: "Reject Low Quality Wikis (rowiki)",
+			fd: FallbackData{
+				Sitelinks: map[string]string{"rowiki": "Stieleiche_Bot_Stub"},
+			},
+			localLang: "de", // Even if not local, should fail. If local was ro, it would still fail.
+			userLang:  "en",
+			want:      "",
+		},
+		{
+			name: "Reject Low Quality Wikis (cewiki)",
+			fd: FallbackData{
+				Sitelinks: map[string]string{"cewiki": "Bot_Article"},
+			},
+			localLang: "en",
+			userLang:  "en",
+			want:      "",
+		},
+		{
+			name: "Reject Low Quality Wikis (warwiki)",
+			fd: FallbackData{
+				Sitelinks: map[string]string{"warwiki": "Bot_Article"},
+			},
+			localLang: "en",
+			userLang:  "en",
+			want:      "",
+		},
+		{
 			name: "Empty",
 			fd: FallbackData{
 				Labels: map[string]string{},
