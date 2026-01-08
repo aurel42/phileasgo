@@ -79,7 +79,8 @@ type TTSConfig struct {
 
 // EssayConfig holds settings for essay narration.
 type EssayConfig struct {
-	Cooldown Duration `yaml:"cooldown"`
+	Cooldown       Duration `yaml:"cooldown"`
+	ScoreThreshold float64  `yaml:"score_threshold"`
 }
 
 // NarratorConfig holds settings for the AI narrator.
@@ -160,7 +161,7 @@ func DefaultConfig() *Config {
 				VoiceID: "en-US-AvaMultilingualNeural",
 			},
 			FishAudio: FishAudioConfig{
-				VoiceID: "389274291", // Example ID, placeholder
+				VoiceID: "e58b0d7efca34eb38d5c4985e378abcb",
 			},
 			AzureSpeech: AzureSpeechConfig{
 				VoiceID: "en-US-AvaMultilingualNeural",
@@ -169,7 +170,7 @@ func DefaultConfig() *Config {
 		Log: LogConfig{
 			Server: LogSettings{
 				Path:  "./logs/server.log",
-				Level: "DEBUG",
+				Level: "INFO",
 			},
 			Requests: LogSettings{
 				Path:  "./logs/requests.log",
@@ -177,11 +178,11 @@ func DefaultConfig() *Config {
 			},
 			Gemini: LogSettings{
 				Path:  "./logs/gemini.log",
-				Level: "DEBUG",
+				Level: "INFO",
 			},
 			TTS: LogSettings{
 				Path:  "./logs/tts.log",
-				Level: "DEBUG",
+				Level: "INFO",
 			},
 		},
 		DB: DBConfig{
@@ -199,8 +200,8 @@ func DefaultConfig() *Config {
 		},
 		Wikidata: WikidataConfig{
 			Area: AreaConfig{
-				MaxArticles: 100,
-				MaxDist:     100.0,
+				MaxArticles: 500,
+				MaxDist:     80.0,
 			},
 		},
 		Scorer: ScorerConfig{
@@ -212,21 +213,27 @@ func DefaultConfig() *Config {
 			Provider: "gemini",
 			Model:    "gemini-2.0-flash",
 			Key:      "",
+			Profiles: map[string]string{
+				"essay":          "gemini-2.5-flash-lite",
+				"narration":      "gemini-2.5-flash-lite",
+				"dynamic_config": "gemini-2.5-flash-lite",
+			},
 		},
 		Narrator: NarratorConfig{
 			AutoNarrate:        true,
 			MinScoreThreshold:  0.5,
 			CooldownMin:        Duration(30 * time.Second),
 			CooldownMax:        Duration(60 * time.Second),
-			RepeatTTL:          Duration(Week),
+			RepeatTTL:          Duration(30 * 24 * time.Hour), // 30d
 			TargetLanguage:     "en-US",
 			Units:              "hybrid",
-			NarrationLengthMin: 400,
-			NarrationLengthMax: 600,
+			NarrationLengthMin: 150,
+			NarrationLengthMax: 400,
 			TemperatureBase:    1.0,
-			TemperatureJitter:  0.2,
+			TemperatureJitter:  0.3,
 			Essay: EssayConfig{
-				Cooldown: Duration(15 * time.Minute),
+				Cooldown:       Duration(10 * time.Minute),
+				ScoreThreshold: 2.0,
 			},
 		},
 		Sim: SimConfig{
