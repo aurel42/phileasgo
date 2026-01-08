@@ -6,6 +6,7 @@ import type { AudioStatus } from '../types/audio';
 
 interface POIInfoPanelProps {
     poi: POI | null;
+    pois: POI[];  // Fresh POI list from polling
     aircraftHeading: number;
     onClose: () => void;
 }
@@ -44,14 +45,13 @@ const formatTimeAgo = (dateStr: string) => {
     return `${days}d ago`;
 };
 
-export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
+export const POIInfoPanel = ({ poi, pois, onClose }: POIInfoPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const queryClient = useQueryClient();
 
-    // Subscribe to POI list cache to detect updated thumbnail_url
-    const poisCache = queryClient.getQueryData(['pois']) as POI[] | undefined;
-    const freshPoi = poisCache?.find(p => p.wikidata_id === poi?.wikidata_id);
-    const cachedThumbnail = freshPoi?.thumbnail_url || poi?.thumbnail_url;
+    // Get fresh POI data from the polled pois array
+    const freshPoi = pois.find(p => p.wikidata_id === poi?.wikidata_id);
+    const thumbnailFromData = freshPoi?.thumbnail_url || poi?.thumbnail_url;
 
     useEffect(() => {
         if (!poi) {
@@ -60,9 +60,9 @@ export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
             return;
         }
 
-        // 1. Check if cached/fresh thumbnail is available
-        if (cachedThumbnail) {
-            setThumbnailUrl(cachedThumbnail);
+        // 1. Use thumbnail from fresh data if available
+        if (thumbnailFromData) {
+            setThumbnailUrl(thumbnailFromData);
             return;
         }
 
@@ -82,7 +82,7 @@ export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
         };
 
         fetchThumbnail();
-    }, [poi, cachedThumbnail]);
+    }, [poi, thumbnailFromData]);
 
     if (!poi) return null;
 

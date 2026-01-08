@@ -177,6 +177,7 @@ function App() {
           <POIInfoPanel
             key={selectedPOI.wikidata_id}
             poi={selectedPOI}
+            pois={pois}
             aircraftHeading={telemetry?.Heading || 0}
             onClose={handlePanelClose}
           />

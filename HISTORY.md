@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.32 (2026-01-08)
+- **Fix**: **Thumbnail Appears Immediately When Panel Opens**
+    - POIInfoPanel now receives `pois` array as prop, enabling real-time lookup of fresh POI data.
+    - Removed broken queryClient approach (pois wasn't in React Query cache).
+
 ## v0.2.31 (2026-01-08)
 - **Fix**: **Thumbnail Immediate Display**
     - POI Info Panel now watches for thumbnail updates in the POI cache, triggering re-render when data arrives.
