@@ -21,11 +21,21 @@ func TestGetArticleLengths(t *testing.T) {
 	// 1. Mock Server
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify Request
-		if r.URL.Query().Get("action") != "query" {
-			t.Errorf("Expected action=query, got %s", r.URL.Query().Get("action"))
+		// Verify Request
+		if r.Method != "POST" {
+			t.Errorf("Expected method POST, got %s", r.Method)
 		}
-		if r.URL.Query().Get("prop") != "info" {
-			t.Errorf("Expected prop=info, got %s", r.URL.Query().Get("prop"))
+		if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
+			t.Errorf("Expected Content-Type application/x-www-form-urlencoded, got %s", r.Header.Get("Content-Type"))
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("Failed to parse form: %v", err)
+		}
+		if r.Form.Get("action") != "query" {
+			t.Errorf("Expected action=query, got %s", r.Form.Get("action"))
+		}
+		if r.Form.Get("prop") != "info" {
+			t.Errorf("Expected prop=info, got %s", r.Form.Get("prop"))
 		}
 
 		// Mock Response

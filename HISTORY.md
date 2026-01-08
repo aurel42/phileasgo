@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.23 (2026-01-08)
+- **Fix**: **Wikipedia API 414 Error (URI Too Long)**
+    - Switched `GetArticleLengths` requests from GET to POST.
+    - Prevents 414 errors when fetching batches of articles with long or multibyte titles (e.g. detailed German compound words).
+    - Ensures reliable scoring metadata retrieval for all POIs.
+
 ## v0.2.22 (2026-01-08)
 - **Refactor**: **Integer Precision for Geodata Cache**
     - Changed `cache_geodata` schema to store radius in integer meters (`radius_m`) instead of floating-point kilometers.

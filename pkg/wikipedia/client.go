@@ -50,15 +50,19 @@ func (c *Client) GetArticleLengths(ctx context.Context, titles []string, lang st
 		}
 		batch := titles[i:end]
 
-		q := u.Query()
-		q.Add("action", "query")
-		q.Add("prop", "info")
-		q.Add("titles", strings.Join(batch, "|"))
-		q.Add("format", "json")
-		q.Add("redirects", "1") // Follow redirects
-		u.RawQuery = q.Encode()
+		// Use form values for POST body
+		form := url.Values{}
+		form.Add("action", "query")
+		form.Add("prop", "info")
+		form.Add("titles", strings.Join(batch, "|"))
+		form.Add("format", "json")
+		form.Add("redirects", "1")
 
-		body, err := c.request.Get(ctx, u.String(), "")
+		headers := map[string]string{
+			"Content-Type": "application/x-www-form-urlencoded",
+		}
+
+		body, err := c.request.PostWithHeaders(ctx, u.String(), []byte(form.Encode()), headers)
 		if err != nil {
 			// Log warning and continue? Or fail?
 			// For enrichment, partial failure is acceptable but here we return error.
@@ -74,18 +78,9 @@ func (c *Client) GetArticleLengths(ctx context.Context, titles []string, lang st
 			// page.Title is the normalized title (after redirects)
 			// We prioritize mapping the normalized title.
 			result[page.Title] = page.Length
-
-			// If it was a redirect, the original title might be lost in this mapping if we only use page.Title.
-			// The caller might expect inputs map to outputs.
-			// `redirects=1` provides a <redirects> list in response mapping "from" -> "to".
-			// We should technically handle this to map original requested titles to lengths.
-			// BUT for our use case (scoring), we likely use the normalized title for display anyway.
-
-			// IMPORTANT: If page is missing (invalid title), "missing" field is present. Length is 0 or undefined.
-			// struct parsing will give 0 for Length if missing.
 		}
 
-		// Map redirects to ensure original titles point to the length too?
+		// Map redirects to ensure original titles point to the length too
 		for _, r := range apiResp.Query.Redirects {
 			if length, ok := result[r.To]; ok {
 				result[r.From] = length
