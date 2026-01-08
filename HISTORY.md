@@ -1,5 +1,12 @@
 ﻿# Release History
 
+## v0.2.30 (2026-01-08)
+- **Feature**: **Thumbnail Fallback for Articles Without Page Image**
+    - When Wikipedia `pageimages` API returns no thumbnail, now falls back to the first non-SVG/GIF content image.
+    - Added `getFirstContentImage()` and `getImageURL()` helpers to `pkg/wikipedia/client.go`.
+- **Feature**: **POI Info Panel Thumbnail Sync**
+    - Panel now checks React Query cache for fresh POI data before making API calls for thumbnails.
+
 ## v0.2.29 (2026-01-08)
 - **Fix**: **Azure TTS 400 Errors (Nested SSML Tags)**
     - Resolved issue where LLM-generated `<speak>` and `<voice>` tags caused Azure to reject the request (HTTP 400).

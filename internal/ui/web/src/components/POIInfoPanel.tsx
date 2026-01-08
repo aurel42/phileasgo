@@ -56,11 +56,21 @@ export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
         }
 
         const fetchThumbnail = async () => {
+            // 1. Check if poi already has thumbnail_url
             if (poi.thumbnail_url) {
                 setThumbnailUrl(poi.thumbnail_url);
                 return;
             }
 
+            // 2. Check if fresh POI list has updated thumbnail (sync from poll)
+            const freshPois = queryClient.getQueryData(['pois']) as POI[] | undefined;
+            const freshPoi = freshPois?.find(p => p.wikidata_id === poi.wikidata_id);
+            if (freshPoi?.thumbnail_url) {
+                setThumbnailUrl(freshPoi.thumbnail_url);
+                return;
+            }
+
+            // 3. Fallback: Fetch thumbnail on-demand from API
             try {
                 const res = await fetch(`/api/pois/${poi.wikidata_id}/thumbnail`);
                 if (res.ok) {
@@ -75,7 +85,7 @@ export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
         };
 
         fetchThumbnail();
-    }, [poi]);
+    }, [poi, queryClient]);
 
     if (!poi) return null;
 

@@ -153,6 +153,7 @@ type response struct {
 }
 
 // GetThumbnail fetches the thumbnail URL for a Wikipedia article.
+// Falls back to the first non-vector content image if no page image is designated.
 func (c *Client) GetThumbnail(ctx context.Context, title, lang string) (string, error) {
 	if lang == "" {
 		lang = "en"
@@ -165,6 +166,7 @@ func (c *Client) GetThumbnail(ctx context.Context, title, lang string) (string, 
 		endpoint = fmt.Sprintf("https://%s.wikipedia.org/w/api.php", lang)
 	}
 
+	// First try: pageimages (designated page image)
 	u, _ := url.Parse(endpoint)
 	q := u.Query()
 	q.Add("action", "query")
@@ -200,5 +202,106 @@ func (c *Client) GetThumbnail(ctx context.Context, title, lang string) (string, 
 		}
 	}
 
-	return "", nil // No thumbnail available
+	// Fallback: Get first content image that isn't an SVG
+	return c.getFirstContentImage(ctx, title, lang, endpoint)
+}
+
+// getFirstContentImage fetches the first non-SVG image from the article's content.
+func (c *Client) getFirstContentImage(ctx context.Context, title, lang, endpoint string) (string, error) {
+	// Query for images list
+	u, _ := url.Parse(endpoint)
+	q := u.Query()
+	q.Add("action", "query")
+	q.Add("prop", "images")
+	q.Add("imlimit", "10") // Limit to first 10 images
+	q.Add("titles", title)
+	q.Add("format", "json")
+	q.Add("redirects", "1")
+	u.RawQuery = q.Encode()
+
+	body, err := c.request.Get(ctx, u.String(), "")
+	if err != nil {
+		return "", err
+	}
+
+	var imgResp struct {
+		Query struct {
+			Pages map[string]struct {
+				Images []struct {
+					Title string `json:"title"`
+				} `json:"images"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+	if err := json.Unmarshal(body, &imgResp); err != nil {
+		return "", fmt.Errorf("failed to decode images json: %w", err)
+	}
+
+	// Find first non-SVG image
+	var imageTitle string
+	for _, page := range imgResp.Query.Pages {
+		for _, img := range page.Images {
+			lower := strings.ToLower(img.Title)
+			// Skip vector graphics and icons
+			if strings.HasSuffix(lower, ".svg") || strings.HasSuffix(lower, ".gif") {
+				continue
+			}
+			imageTitle = img.Title
+			break
+		}
+		if imageTitle != "" {
+			break
+		}
+	}
+
+	if imageTitle == "" {
+		return "", nil // No suitable image found
+	}
+
+	// Get image URL via imageinfo
+	return c.getImageURL(ctx, imageTitle, lang, endpoint)
+}
+
+// getImageURL fetches the URL for a specific image file from Wikipedia.
+func (c *Client) getImageURL(ctx context.Context, imageTitle, lang, endpoint string) (string, error) {
+	u, _ := url.Parse(endpoint)
+	q := u.Query()
+	q.Add("action", "query")
+	q.Add("prop", "imageinfo")
+	q.Add("iiprop", "url")
+	q.Add("iiurlwidth", "800") // Request thumbnail at 800px width
+	q.Add("titles", imageTitle)
+	q.Add("format", "json")
+	u.RawQuery = q.Encode()
+
+	body, err := c.request.Get(ctx, u.String(), "")
+	if err != nil {
+		return "", err
+	}
+
+	var infoResp struct {
+		Query struct {
+			Pages map[string]struct {
+				ImageInfo []struct {
+					ThumbURL string `json:"thumburl"`
+					URL      string `json:"url"`
+				} `json:"imageinfo"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+	if err := json.Unmarshal(body, &infoResp); err != nil {
+		return "", fmt.Errorf("failed to decode imageinfo json: %w", err)
+	}
+
+	for _, page := range infoResp.Query.Pages {
+		if len(page.ImageInfo) > 0 {
+			// Prefer thumbnail URL if available
+			if page.ImageInfo[0].ThumbURL != "" {
+				return page.ImageInfo[0].ThumbURL, nil
+			}
+			return page.ImageInfo[0].URL, nil
+		}
+	}
+
+	return "", nil
 }
