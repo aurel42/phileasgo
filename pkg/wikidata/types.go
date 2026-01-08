@@ -3,19 +3,19 @@ package wikidata
 // Article represents a Wikipedia article with geodata and metadata.
 // It maps to the SPARQL result fields.
 type Article struct {
-	QID       string   `json:"qid"`
-	Title     string   `json:"title"`
-	TitleEn   string   `json:"title_en,omitempty"`
-	TitleUser string   `json:"title_user,omitempty"`
-	Lat       float64  `json:"lat"`
-	Lon       float64  `json:"lon"`
-	Dist      float64  `json:"dist_m"`
-	Label     string   `json:"label,omitempty"`
-	Instances []string `json:"instances"`
-	Sitelinks int      `json:"sitelinks"`
-	Category  string   `json:"category,omitempty"`
-	Ignored   bool     `json:"ignored,omitempty"`
-	Icon      string   `json:"icon,omitempty"`
+	QID         string            `json:"qid"`
+	LocalTitles map[string]string `json:"local_titles,omitempty"` // map[lang_code]title
+	TitleEn     string            `json:"title_en,omitempty"`
+	TitleUser   string            `json:"title_user,omitempty"`
+	Lat         float64           `json:"lat"`
+	Lon         float64           `json:"lon"`
+	Dist        float64           `json:"dist_m"`
+	Label       string            `json:"label,omitempty"`
+	Instances   []string          `json:"instances"`
+	Sitelinks   int               `json:"sitelinks"`
+	Category    string            `json:"category,omitempty"`
+	Ignored     bool              `json:"ignored,omitempty"`
+	Icon        string            `json:"icon,omitempty"`
 
 	// Physical Dimensions (from Wikidata properties)
 	Area   *float64 `json:"wd_area,omitempty"`

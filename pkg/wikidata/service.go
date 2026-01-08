@@ -294,7 +294,8 @@ func buildQuery(lat, lon float64, localLang, userLang string, allowedLangs []str
 
 	query := fmt.Sprintf(`SELECT DISTINCT ?item ?lat ?lon ?sitelinks 
             (GROUP_CONCAT(DISTINCT ?instance_of_uri; separator=",") AS ?instances) 
-            ?title_local_val ?title_en_val ?title_user_val ?itemLabel
+            (GROUP_CONCAT(DISTINCT ?local_title_pair; separator="|") AS ?local_titles)
+            ?title_en_val ?title_user_val ?itemLabel
             ?area ?height ?length ?width
         WHERE { 
             SERVICE wikibase:around { 
@@ -315,18 +316,17 @@ func buildQuery(lat, lon float64, localLang, userLang string, allowedLangs []str
             OPTIONAL { ?item wdt:P2049 ?width . }
             
             # Language Filter: Item must exist in at least one of the relevant languages
-            FILTER EXISTS { 
-                VALUES ?allowed_lang { %s }
-                ?article_check schema:about ?item ; 
-                schema:inLanguage ?allowed_lang .
-            } 
+            # And we capture the title for EACH allowed language
+            {
+                SELECT ?item (CONCAT(?lang, ":", ?title) AS ?local_title_pair) WHERE {
+                    VALUES ?lang { %s }
+                    ?article schema:about ?item ;
+                             schema:inLanguage ?lang ;
+                             schema:isPartOf [ wikibase:wikiGroup "wikipedia" ] ;
+                             schema:name ?title .
+                }
+            }
 
-            OPTIONAL { 
-                ?evt_local schema:about ?item ; 
-                schema:inLanguage "%s" ; 
-                schema:isPartOf <https://%s.wikipedia.org/> ; 
-                schema:name ?title_local_val . 
-            } 
             OPTIONAL { 
                 ?evt_en schema:about ?item ; 
                 schema:inLanguage "en" ; 
@@ -340,9 +340,9 @@ func buildQuery(lat, lon float64, localLang, userLang string, allowedLangs []str
                 schema:name ?title_user_val . 
             } 
         } 
-        GROUP BY ?item ?lat ?lon ?sitelinks ?title_local_val ?title_en_val ?title_user_val ?itemLabel ?area ?height ?length ?width
+        GROUP BY ?item ?lat ?lon ?sitelinks ?title_en_val ?title_user_val ?itemLabel ?area ?height ?length ?width
         ORDER BY DESC(?sitelinks) 
-        LIMIT %d`, lon, lat, radius, localLang, userLang, langListStr, localLang, localLang, userLang, userLang, maxArticles)
+        LIMIT %d`, lon, lat, radius, localLang, userLang, langListStr, userLang, userLang, maxArticles)
 
 	return query
 }
@@ -777,7 +777,7 @@ func (s *Service) checkPOIStatus(a *Article, dc DimClassifier) (isPOI, rescued b
 			}
 		} else if a.Category == "" {
 			// Not rescued
-			s.logger.Debug("Article dropped: Unclassified and failed rescue", "qid", a.QID, "title", a.Title)
+			s.logger.Debug("Article dropped: Unclassified and failed rescue", "qid", a.QID, "sitelinks", a.Sitelinks)
 		}
 
 		// Apply Multiplier (regardless of rescue status)
@@ -794,13 +794,13 @@ func (s *Service) assignRescueCategory(a *Article, h, l, area float64) {
 	switch {
 	case area > 0:
 		a.Category = "Area"
-		s.logger.Debug("Rescued article by Area", "title", a.Title, "qid", a.QID)
+		s.logger.Debug("Rescued article by Area", "title", a.LocalTitles, "qid", a.QID)
 	case h > 0:
 		a.Category = "Height"
-		s.logger.Debug("Rescued article by Height", "title", a.Title, "qid", a.QID)
+		s.logger.Debug("Rescued article by Height", "title", a.LocalTitles, "qid", a.QID)
 	case l > 0:
 		a.Category = "Length"
-		s.logger.Debug("Rescued article by Length", "title", a.Title, "qid", a.QID)
+		s.logger.Debug("Rescued article by Length", "title", a.LocalTitles, "qid", a.QID)
 	default:
 		a.Category = "Landmark"
 	}

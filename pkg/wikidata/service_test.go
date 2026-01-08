@@ -219,23 +219,24 @@ func TestProcessTileData(t *testing.T) {
 	t.Run("BuildQuery", func(t *testing.T) {
 		got := buildQuery(52.5, 13.4, "de", "en", []string{"de", "pl"}, 100, "10.0")
 
-		// Verify Language Filter structure (Order in VALUES is dependent on slice order input or map iteration upstream,
-		// but here we passed a slice {"de", "pl"}. The builder iterates the slice.
-		// Ah, the test failed because I checked specifically for { "de" "pl" } or { "pl" "de" }, but maybe quotes were wrong?
-		// Actually my implementation iterates the slice: for _, l := range allowedLangs.
-		// So it should be deterministic if the input slice is {"de", "pl"}.
-		// Let's check the failure output carefully if I could, but I can't see it full.
-		// Safest is to check presence of key elements.
-		if !strings.Contains(got, `VALUES ?allowed_lang {`) || !strings.Contains(got, `"de"`) || !strings.Contains(got, `"pl"`) {
+		// Verify Language Filter structure (Subquery with VALUES)
+		if !strings.Contains(got, `VALUES ?lang {`) || !strings.Contains(got, `"de"`) || !strings.Contains(got, `"pl"`) {
 			t.Errorf("Query missing correctly formatted VALUES clause, got: %s", got)
 		}
-		// Verify Center Language Label Service binding
+
+		// Verify GROUP_CONCAT for local titles
+		if !strings.Contains(got, `(GROUP_CONCAT(DISTINCT ?local_title_pair; separator="|") AS ?local_titles)`) {
+			t.Errorf("Query missing GROUP_CONCAT for local titles, got: %s", got)
+		}
+
+		// Verify Label Service
 		if !strings.Contains(got, `SERVICE wikibase:label { bd:serviceParam wikibase:language "de,en,en". }`) {
 			t.Errorf("Label service missing center language, got: %s", got)
 		}
-		// Verify Center Lang variable binding
-		if !strings.Contains(got, `?evt_local schema:about ?item ;`) || !strings.Contains(got, `schema:inLanguage "de" ;`) {
-			t.Errorf("Local language block mismatch, got: %s", got)
+
+		// Verify we are NOT looking for singular ?evt_local anymore
+		if strings.Contains(got, `?evt_local schema:about ?item`) {
+			t.Errorf("Query should not contain legacy singular ?evt_local block, got: %s", got)
 		}
 	})
 }

@@ -3,7 +3,6 @@ package wikidata
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -22,24 +21,8 @@ func (s *Service) enrichAndSave(ctx context.Context, articles []Article, localLa
 		}
 	}
 
-	// 5. RESCUE UNNAMED POIS
-	if err := s.rescueUnnamedPOIs(ctx, candidates, localLang, userLang); err != nil {
-		s.logger.Warn("Rescue failed", "error", err)
-	}
-
-	// 5b. FILTER UNRESOLVED: If rescue failed (still QID name), drop them.
-	// We strictly want Wikipedia titles.
-	var distinctCandidates []*model.POI
-	// We reuse 'identifyRescueCandidates' logic which uses regex.
-	// But simple DisplayName == QID check is enough if we trust DisplayName impl.
-	// Let's use the regex to be safe and consistent.
-	qidRegex := regexp.MustCompile(`^Q\d+$`)
-	for _, p := range candidates {
-		if !qidRegex.MatchString(p.DisplayName()) {
-			distinctCandidates = append(distinctCandidates, p)
-		}
-	}
-	candidates = distinctCandidates
+	// 5. RESCUE REMOVED - We rely on strict SPARQL filtering.
+	// If constructPOI returned a POI, it has at least one title.
 
 	// 5. MERGE DUPLICATES (Spatial Gobbling)
 	var finalPOIs []*model.POI = candidates
@@ -61,13 +44,15 @@ func (s *Service) fetchArticleLengths(ctx context.Context, articles []Article, l
 
 	for i := range articles {
 		a := &articles[i]
-		if a.Title != "" {
-			titlesByLang[localLang] = append(titlesByLang[localLang], a.Title)
+		// Aggregate ALL possible titles for length fetching
+		for lang, t := range a.LocalTitles {
+			titlesByLang[lang] = append(titlesByLang[lang], t)
 		}
 		if a.TitleEn != "" {
 			titlesByLang["en"] = append(titlesByLang["en"], a.TitleEn)
 		}
-		if a.TitleUser != "" && userLang != "en" && userLang != localLang {
+		if a.TitleUser != "" && userLang != "en" {
+			// Note: User lang might overlap with LocalTitles keys, duplicates in slice are fine (wiki client handles batch)
 			titlesByLang[userLang] = append(titlesByLang[userLang], a.TitleUser)
 		}
 	}
@@ -88,21 +73,13 @@ func (s *Service) fetchArticleLengths(ctx context.Context, articles []Article, l
 }
 
 func constructPOI(a *Article, lengths map[string]map[string]int, localLang, userLang string, iconGetter func(string) string) *model.POI {
-	bestURL, maxLength := determineBestArticle(a, lengths, localLang, userLang)
+	bestURL, bestNameLocal, maxLength := determineBestArticle(a, lengths, localLang, userLang)
 
-	nameLocal := a.Title
 	nameEn := a.TitleEn
 	nameUser := a.TitleUser
 
-	// If no titles found (Nameless Ghost), we leave names empty.
-	// This allows rescueUnnamedPOIs to detect it (via DisplayName == QID)
-	// and attempt to find a version in another language.
-	// If rescue fails, we will filter it out later.
-	if nameLocal == "" && nameEn == "" && nameUser == "" {
-		if bestURL == "" {
-			bestURL = "https://www.wikidata.org/wiki/" + a.QID
-		}
-	}
+	// Rescue Logic removed: We assume we have titles because of strict SPARQL filter (FILTER EXISTS).
+	// If determineBestArticle couldn't find ANY title, something is very wrong upstream.
 
 	poi := &model.POI{
 		WikidataID:          a.QID,
@@ -112,7 +89,7 @@ func constructPOI(a *Article, lengths map[string]map[string]int, localLang, user
 		Lon:                 a.Lon,
 		Sitelinks:           a.Sitelinks,
 		NameEn:              nameEn,
-		NameLocal:           nameLocal,
+		NameLocal:           bestNameLocal,
 		NameUser:            nameUser,
 		WPURL:               bestURL,
 		WPArticleLength:     maxLength,
@@ -125,18 +102,56 @@ func constructPOI(a *Article, lengths map[string]map[string]int, localLang, user
 	return poi
 }
 
-func determineBestArticle(a *Article, lengths map[string]map[string]int, localLang, userLang string) (url string, length int) {
-	lenLocal := lengths[localLang][a.Title]
+func determineBestArticle(a *Article, lengths map[string]map[string]int, localLang, userLang string) (url, nameLocal string, length int) {
+	// 1. Calculate Lengths per Language
 	lenEn := lengths["en"][a.TitleEn]
 	lenUser := 0
 	if userLang != "en" && userLang != localLang {
 		lenUser = lengths[userLang][a.TitleUser]
 	}
 
-	maxLength := lenLocal
+	// 2. Find Best Local Candidate
+	bestLocalLang := ""
+	bestLocalTitle := ""
+	maxLocalLen := 0
+
+	// Iterate over all available local titles (de, pl, etc.)
+	for lang, title := range a.LocalTitles {
+		l := lengths[lang][title]
+		if l > maxLocalLen {
+			maxLocalLen = l
+			bestLocalLang = lang
+			bestLocalTitle = title
+		}
+		// Tie-breaker? Maybe prefer 'localLang' (tile center) if lengths equal?
+		if l == maxLocalLen && maxLocalLen > 0 {
+			if lang == localLang {
+				bestLocalLang = lang
+				bestLocalTitle = title
+			}
+		}
+	}
+	// Fallback if no length info (or 0 length), pick tile center language if present
+	if bestLocalTitle == "" {
+		if t, ok := a.LocalTitles[localLang]; ok {
+			bestLocalLang = localLang
+			bestLocalTitle = t
+		} else {
+			// Pick random first?
+			for l, t := range a.LocalTitles {
+				bestLocalLang = l
+				bestLocalTitle = t
+				break
+			}
+		}
+	}
+
+	// 3. Determine Overall Best URL (for narration content)
+	maxLength := maxLocalLen
 	var bestURL string
-	if a.Title != "" {
-		bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", localLang, replaceSpace(a.Title))
+
+	if bestLocalTitle != "" {
+		bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", bestLocalLang, replaceSpace(bestLocalTitle))
 	}
 
 	if lenEn > maxLength {
@@ -148,17 +163,22 @@ func determineBestArticle(a *Article, lengths map[string]map[string]int, localLa
 		bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", userLang, replaceSpace(a.TitleUser))
 	}
 
+	// 4. Fallback URL construction if length metrics failed
 	if bestURL == "" {
 		switch {
 		case a.TitleUser != "":
 			bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", userLang, replaceSpace(a.TitleUser))
 		case a.TitleEn != "":
 			bestURL = fmt.Sprintf("https://en.wikipedia.org/wiki/%s", replaceSpace(a.TitleEn))
-		case a.Title != "":
-			bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", localLang, replaceSpace(a.Title))
+		case bestLocalTitle != "":
+			bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", bestLocalLang, replaceSpace(bestLocalTitle))
+		default:
+			// Absolute backup: Wikidata URL
+			bestURL = "https://www.wikidata.org/wiki/" + a.QID
 		}
 	}
-	return bestURL, maxLength
+
+	return bestURL, bestLocalTitle, maxLength
 }
 
 func replaceSpace(s string) string {
