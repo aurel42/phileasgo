@@ -65,12 +65,14 @@ func NewClient(cfg Config) *MockClient {
 		predictionWindow: 60 * time.Second,
 		state:            StageParked,
 		tel: sim.Telemetry{
-			Latitude:    cfg.StartLat,
-			Longitude:   cfg.StartLon,
-			AltitudeMSL: cfg.StartAlt,
-			AltitudeAGL: 0,
-			Heading:     cfg.StartHeading,
-			IsOnGround:  true,
+			Latitude:           cfg.StartLat,
+			Longitude:          cfg.StartLon,
+			AltitudeMSL:        cfg.StartAlt,
+			AltitudeAGL:        0,
+			Heading:            cfg.StartHeading,
+			IsOnGround:         true,
+			PredictedLatitude:  cfg.StartLat, // Initialize to start position
+			PredictedLongitude: cfg.StartLon, // Initialize to start position
 		},
 		groundAlt:    cfg.StartAlt,
 		stateStart:   time.Now(),
@@ -187,9 +189,11 @@ func (m *MockClient) update() {
 		radHeading := m.tel.Heading * (math.Pi / 180.0)
 		m.tel.Latitude += distDeg * math.Cos(radHeading)
 		m.tel.Longitude += distDeg * math.Sin(radHeading)
+	}
 
-		// Update Prediction
-		distMetersPred := m.tel.GroundSpeed * 0.514444 * m.predictionWindow.Seconds()
+	// Update Prediction for ALL stages
+	distMetersPred := m.tel.GroundSpeed * 0.514444 * m.predictionWindow.Seconds()
+	if distMetersPred > 0 {
 		pred := geo.DestinationPoint(
 			geo.Point{Lat: m.tel.Latitude, Lon: m.tel.Longitude},
 			distMetersPred,
@@ -197,6 +201,10 @@ func (m *MockClient) update() {
 		)
 		m.tel.PredictedLatitude = pred.Lat
 		m.tel.PredictedLongitude = pred.Lon
+	} else {
+		// Stationary: predicted position = current position
+		m.tel.PredictedLatitude = m.tel.Latitude
+		m.tel.PredictedLongitude = m.tel.Longitude
 	}
 
 	// Always update IsOnGround based on state and altitude

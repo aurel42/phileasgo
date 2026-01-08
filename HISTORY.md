@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.29 (2026-01-08)
+- **Fix**: **Azure TTS 400 Errors (Nested SSML Tags)**
+    - Resolved issue where LLM-generated `<speak>` and `<voice>` tags caused Azure to reject the request (HTTP 400).
+    - Added `repairSSML` stripping logic to remove nested wrapper tags before SSML construction.
+    - Added prompt constraint (rule 4) in `azure.tmpl` to prevent LLM from outputting these tags.
+- **Fix**: **Predicted Position for Stationary Aircraft**
+    - Corrected telemetry logic to return current position (instead of 0,0) when aircraft speed is 0.
+- **Prompt**: **Removed Hesitation Padding Rule** from Azure TTS template for cleaner output.
+
 ## v0.2.28 (2026-01-08)
 - **Configuration**: **Defaults Overhaul**
     - Updated default values across LLM profiles, logging, Wikidata parameters, and narrator settings for production-ready deployments.

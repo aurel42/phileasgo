@@ -436,11 +436,19 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 			// 1 Knot = 0.514444 m/s
 			// Distance = Speed * WindowDuration
 			distMeters := data.GroundSpeed * 0.514444 * c.predictionWindow.Seconds()
-			pred := geo.DestinationPoint(
-				geo.Point{Lat: data.Latitude, Lon: data.Longitude},
-				distMeters,
-				data.Heading,
-			)
+
+			var predLat, predLon float64
+			if distMeters > 0 {
+				pred := geo.DestinationPoint(
+					geo.Point{Lat: data.Latitude, Lon: data.Longitude},
+					distMeters,
+					data.Heading,
+				)
+				predLat, predLon = pred.Lat, pred.Lon
+			} else {
+				// Stationary: predicted position = current position
+				predLat, predLon = data.Latitude, data.Longitude
+			}
 
 			c.telemetry = sim.Telemetry{
 				Latitude:           data.Latitude,
@@ -449,8 +457,8 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 				AltitudeAGL:        data.AltitudeAGL,
 				Heading:            data.Heading,
 				GroundSpeed:        data.GroundSpeed,
-				PredictedLatitude:  pred.Lat,
-				PredictedLongitude: pred.Lon,
+				PredictedLatitude:  predLat,
+				PredictedLongitude: predLon,
 				IsOnGround:         data.OnGround != 0 || data.AltitudeAGL < 50,
 			}
 			c.telemetry.FlightStage = sim.DetermineFlightStage(&c.telemetry)

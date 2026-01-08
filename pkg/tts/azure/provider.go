@@ -196,6 +196,19 @@ func repairSSML(text string) string {
 	reID := regexp.MustCompile(`\s+xml:ID[^>]*`)
 	text = reID.ReplaceAllString(text, "")
 
+	// 2. Remove any <speak> or </speak> tags that the LLM may have generated.
+	// These will be added by buildSSML, so duplicates cause Azure 400 errors.
+	reSpeakOpen := regexp.MustCompile(`(?i)<speak[^>]*>`)
+	reSpeakClose := regexp.MustCompile(`(?i)</speak>`)
+	text = reSpeakOpen.ReplaceAllString(text, "")
+	text = reSpeakClose.ReplaceAllString(text, "")
+
+	// 3. Remove any <voice> or </voice> tags.
+	reVoiceOpen := regexp.MustCompile(`(?i)<voice[^>]*>`)
+	reVoiceClose := regexp.MustCompile(`(?i)</voice>`)
+	text = reVoiceOpen.ReplaceAllString(text, "")
+	text = reVoiceClose.ReplaceAllString(text, "")
+
 	return text
 }
 
