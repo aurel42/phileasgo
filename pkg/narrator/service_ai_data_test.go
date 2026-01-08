@@ -33,7 +33,7 @@ func TestBuildPromptData(t *testing.T) {
 	}
 
 	// Create service
-	svc := NewAIService(cfg, nil, nil, pm, nil, nil, nil, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil)
+	svc := NewAIService(cfg, nil, nil, pm, nil, nil, nil, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil)
 
 	mockPOI := &MockPOIProvider{
 		CountScoredAboveFunc: func(threshold float64, limit int) int {

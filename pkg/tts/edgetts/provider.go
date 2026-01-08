@@ -2,7 +2,10 @@ package edgetts
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -16,8 +19,9 @@ import (
 )
 
 const (
-	edgeBaseURL = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4"
-	edgeOrigin  = "chrome-extension://jdmojkciocjibebeunonbhnbn"
+	edgeBaseURL        = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1"
+	trustedClientToken = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
+	edgeOrigin         = "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold"
 )
 
 // Provider implements tts.Provider for Microsoft Edge TTS.
@@ -79,18 +83,56 @@ func (p *Provider) Synthesize(ctx context.Context, text, voice, outputPath strin
 func (p *Provider) dial(ctx context.Context) (*websocket.Conn, error) {
 	header := http.Header{}
 	header.Set("Origin", edgeOrigin)
-	header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+	header.Set("Pragma", "no-cache")
+	header.Set("Cache-Control", "no-cache")
+	header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0")
+	header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
+	header.Set("Accept-Language", "en-US,en;q=0.9")
+
+	// MUID Cookie
+	muid := strings.ReplaceAll(uuid.New().String(), "-", "")
+	header.Set("Cookie", fmt.Sprintf("muid=%s", muid))
+
+	// Sec-MS-GEC Generation
+	token := p.generateSecMSGec()
+	version := "1-130.0.2849.68"
+
+	url := fmt.Sprintf("%s?TrustedClientToken=%s&Sec-MS-GEC=%s&Sec-MS-GEC-Version=%s",
+		edgeBaseURL, trustedClientToken, token, version)
 
 	var conn *websocket.Conn
 	var dialErr error
 	for i := 0; i < 3; i++ {
-		conn, _, dialErr = websocket.DefaultDialer.DialContext(ctx, edgeBaseURL, header)
+		var resp *http.Response
+		conn, resp, dialErr = websocket.DefaultDialer.DialContext(ctx, url, header)
 		if dialErr == nil {
 			return conn, nil
+		}
+		if resp != nil {
+			slog.Warn("EdgeTTS: specific handshake failure", "status", resp.Status, "status_code", resp.StatusCode)
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
 	return nil, fmt.Errorf("websocket dial failed after retries: %w", dialErr)
+}
+
+func (p *Provider) generateSecMSGec() string {
+	// Logic from python's drm.py:
+	// ticks = unix_timestamp + 11644473600
+	// ticks -= ticks % 300
+	// ticks *= 1e7
+
+	nowSec := float64(time.Now().Unix())
+	// NOTE: Python uses dt.now(tz.utc).timestamp(). If local time is significantly off, we might fail.
+
+	ticks := nowSec + 11644473600
+	ticks -= float64(int64(ticks) % 300)
+	ticks *= 1e7
+
+	strToHash := fmt.Sprintf("%.0f%s", ticks, trustedClientToken)
+
+	hash := sha256.Sum256([]byte(strToHash))
+	return strings.ToUpper(hex.EncodeToString(hash[:]))
 }
 
 func (p *Provider) sendConfig(conn *websocket.Conn) error {

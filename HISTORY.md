@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.35 (2026-01-08)
+- **Fix**: **Edge TTS Connectivity (Sec-MS-GEC)**
+    - Resolved `websocket: bad handshake` (403 Forbidden) errors by implementing the required `Sec-MS-GEC` token generation and `MUID` cookie usage.
+    - Updated `pkg/tts/edgetts` to use correct URL parameters for authentication.
+- **Feature**: **Azure TTS Fallback**
+    - Introduced automatic fallback to Edge TTS when Azure Speech returns fatal errors (4xx/5xx).
+    - Session-scoped fallback ensures narration continues even during Azure outages or rate limits.
+    - Skips the current POI on fallback to prevent SSML/Prompt mismatch.
+
 ## v0.2.34 (2026-01-08)
 - **Fix**: **Dynamic Prediction Window**
     - Fixed regression where aircraft position prediction was stuck at 60s instead of adapting to observed LLM+TTS latency.

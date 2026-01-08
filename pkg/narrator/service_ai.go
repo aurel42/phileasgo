@@ -12,7 +12,9 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
+	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/tts"
+	"phileasgo/pkg/tts/edgetts"
 )
 
 // AIService is the real implementation of the narrator service using LLM and TTS.
@@ -51,6 +53,11 @@ type AIService struct {
 
 	essayH    *EssayHandler
 	interests []string
+
+	// TTS Fallback State (session-level)
+	fallbackTTS     tts.Provider
+	useFallbackTTS  bool
+	fallbackTracker *tracker.Tracker
 }
 
 // NewAIService creates a new AI-powered narrator service.
@@ -69,25 +76,27 @@ func NewAIService(
 	langRes LanguageResolver,
 	essayH *EssayHandler,
 	interests []string,
+	tr *tracker.Tracker,
 ) *AIService {
 	s := &AIService{
-		cfg:          cfg,
-		llm:          llm,
-		tts:          tts,
-		prompts:      prompts,
-		audio:        audioMgr,
-		poiMgr:       poiMgr,
-		beaconSvc:    beaconSvc,
-		geoSvc:       geoSvc,
-		sim:          simClient,
-		st:           st,
-		wikipedia:    wikipediaClient,
-		langRes:      langRes,
-		stats:        make(map[string]any),
-		latencies:    make([]time.Duration, 0, 10),
-		essayH:       essayH,
-		skipCooldown: false,
-		interests:    interests,
+		cfg:             cfg,
+		llm:             llm,
+		tts:             tts,
+		prompts:         prompts,
+		audio:           audioMgr,
+		poiMgr:          poiMgr,
+		beaconSvc:       beaconSvc,
+		geoSvc:          geoSvc,
+		sim:             simClient,
+		st:              st,
+		wikipedia:       wikipediaClient,
+		langRes:         langRes,
+		stats:           make(map[string]any),
+		latencies:       make([]time.Duration, 0, 10),
+		essayH:          essayH,
+		skipCooldown:    false,
+		interests:       interests,
+		fallbackTracker: tr,
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)
@@ -219,4 +228,37 @@ func (s *AIService) LLMProvider() llm.Provider {
 // AudioService returns the internal audio service.
 func (s *AIService) AudioService() audio.Service {
 	return s.audio
+}
+
+// activateFallback switches to edge-tts for the remainder of this session.
+// Called when Azure TTS returns a fatal error (429, 5xx, etc.)
+func (s *AIService) activateFallback() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.useFallbackTTS {
+		return // Already activated
+	}
+
+	slog.Warn("Narrator: Activating edge-tts fallback for this session")
+	s.fallbackTTS = edgetts.NewProvider(s.fallbackTracker) // With tracker for stats
+	s.useFallbackTTS = true
+}
+
+// getTTSProvider returns the active TTS provider (fallback if activated).
+func (s *AIService) getTTSProvider() tts.Provider {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.useFallbackTTS && s.fallbackTTS != nil {
+		return s.fallbackTTS
+	}
+	return s.tts
+}
+
+// isUsingFallbackTTS returns true if fallback TTS is active.
+func (s *AIService) isUsingFallbackTTS() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.useFallbackTTS
 }

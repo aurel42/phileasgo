@@ -93,7 +93,9 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 			p.tracker.TrackAPIFailure("azure-speech")
 		}
 
-		return "", fmt.Errorf("azure speech api error (status %d): %s", resp.StatusCode, bodyStr)
+		// Return FatalError for 4xx/5xx to trigger fallback
+		errMsg := fmt.Sprintf("azure speech api error (status %d): %s", resp.StatusCode, bodyStr)
+		return "", tts.NewFatalError(resp.StatusCode, errMsg)
 	}
 
 	// 4. Save Output

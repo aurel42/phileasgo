@@ -194,7 +194,7 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 		go beaconSvc.StartIndependentLoop(ctx)
 	}
 
-	narratorSvc := createAIService(cfg, llmProv, ttsProv, promptMgr, audio.New(), svcs.PoiMgr, beaconSvc, svcs.WikiSvc, simClient, st)
+	narratorSvc := createAIService(cfg, llmProv, ttsProv, promptMgr, audio.New(), svcs.PoiMgr, beaconSvc, svcs.WikiSvc, simClient, st, tr)
 
 	// Restore Volume
 	volStr, _ := st.GetState(ctx, "volume")
@@ -315,6 +315,7 @@ func createAIService(
 	wikiSvc *wikidata.Service,
 	simClient sim.Client,
 	st store.Store,
+	tr *tracker.Tracker,
 ) *narrator.AIService {
 	var beaconProvider narrator.BeaconProvider
 	if beaconSvc != nil {
@@ -347,12 +348,6 @@ func createAIService(
 		wikiSvc,
 		essayH,
 		interests,
+		tr,
 	)
-	// Inject resolver manually since NewAIService signature update failed in previous step logic?
-	// No, NewAIService signature WAS updated in service_ai.go.
-	// I need to match the signature:
-	// NewAIService(..., st store.Store, wikiClient WikiProvider, langRes LanguageResolver, essayH *EssayHandler, interests []string)
-	// My previous main.go edit removed `wikiSvc` (langRes).
-	// I need to PUT IT BACK in the right place.
-
 }

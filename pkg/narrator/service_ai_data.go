@@ -103,15 +103,21 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 
 func (s *AIService) fetchTTSInstructions(data any) string {
 	var tmplName string
-	// engines: sapi, windows-sapi, edge, edge-tts, fish-audio
-	switch strings.ToLower(s.cfg.TTS.Engine) {
-	case "fish-audio":
-		tmplName = "tts/fish-audio.tmpl"
-	case "azure", "azure-speech":
-		tmplName = "tts/azure.tmpl"
-	default:
-		// Default to edge-tts for clean output (no speaker labels) which is good for most
+
+	// If fallback TTS is active, always use edge-tts template
+	if s.isUsingFallbackTTS() {
 		tmplName = "tts/edge-tts.tmpl"
+	} else {
+		// engines: sapi, windows-sapi, edge, edge-tts, fish-audio
+		switch strings.ToLower(s.cfg.TTS.Engine) {
+		case "fish-audio":
+			tmplName = "tts/fish-audio.tmpl"
+		case "azure", "azure-speech":
+			tmplName = "tts/azure.tmpl"
+		default:
+			// Default to edge-tts for clean output (no speaker labels) which is good for most
+			tmplName = "tts/edge-tts.tmpl"
+		}
 	}
 
 	content, err := s.prompts.Render(tmplName, data)

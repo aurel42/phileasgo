@@ -764,8 +764,7 @@ func (s *Service) checkPOIStatus(a *Article, dc DimClassifier) (isPOI, rescued b
 		minLinks := s.getSitelinksMin(dc, a.Category)
 		if a.Sitelinks >= minLinks {
 			isPOI = true
-		} else {
-			// slog.Debug("Insufficient sitelinks for category", "qid", a.QID, "category", a.Category, "links", a.Sitelinks, "min", minLinks)
+
 		}
 	}
 
@@ -780,11 +779,7 @@ func (s *Service) checkPOIStatus(a *Article, dc DimClassifier) (isPOI, rescued b
 			} else {
 				s.logger.Debug("Article kept as Dimension Candidate", "qid", a.QID, "category", a.Category)
 			}
-		} else if a.Category == "" {
-			// Not rescued
-			// slog.Debug("Article dropped: Unclassified and failed rescue", "qid", a.QID, "sitelinks", a.Sitelinks)
 		}
-
 		// Apply Multiplier (regardless of rescue status)
 		a.DimensionMultiplier = dc.GetMultiplier(h, l, area)
 		if a.DimensionMultiplier > 1.0 {

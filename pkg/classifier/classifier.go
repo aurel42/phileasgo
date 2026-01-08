@@ -205,8 +205,6 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 		}
 	}
 
-	// slog.Debug("Traversing hierarchy", "qid", qid, "subclasses", len(subclasses))
-
 	// Immediate check for category match or ignored
 	// Immediate check for category match or ignored
 	// Prioritize MATCH over IGNORE for direct parents
@@ -310,7 +308,7 @@ func (c *Classifier) buildNextLayer(queue []string, parentsFromCache map[string]
 		for _, p := range parents {
 			// Check for ignored category
 			if _, ok := c.config.IgnoredCategories[p]; ok {
-				// slog.Debug("Ignored category found in hierarchy", "qid", p, "name", name)
+
 				foundIgnored = p
 				// Don't return yet, keep scanning for matches in this layer!
 				// Actually we already scanned for matches above.

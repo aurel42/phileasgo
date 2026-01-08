@@ -23,3 +23,25 @@ type Voice struct {
 	Language string
 	IsNeural bool
 }
+
+// FatalError represents a TTS error that should trigger fallback to another provider.
+// Examples: rate limits (429), server errors (5xx), auth failures (401/403).
+type FatalError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *FatalError) Error() string {
+	return e.Message
+}
+
+// NewFatalError creates a new FatalError with the given status code and message.
+func NewFatalError(statusCode int, message string) *FatalError {
+	return &FatalError{StatusCode: statusCode, Message: message}
+}
+
+// IsFatalError checks if an error is a TTS fatal error that should trigger fallback.
+func IsFatalError(err error) bool {
+	_, ok := err.(*FatalError)
+	return ok
+}

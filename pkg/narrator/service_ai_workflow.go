@@ -11,6 +11,7 @@ import (
 
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/tts"
 )
 
 // PlayPOI triggers narration for a specific POI.
@@ -293,11 +294,7 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telem
 		s.mu.Unlock()
 	}()
 
-	// 0a. Mark as played immediately to prevent re-selection during generation/skip
-	p.LastPlayed = time.Now()
-	if err := s.st.SavePOI(ctx, p); err != nil {
-		slog.Error("Narrator: Failed to save narrated POI state", "qid", p.WikidataID, "error", err)
-	}
+	// NOTE: LastPlayed is now set AFTER successful TTS (not here) to avoid "consuming" POI on failure
 
 	// 1. Gather Context & Build Prompt
 	promptData := s.buildPromptData(ctx, p, tel)
@@ -317,7 +314,7 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telem
 	}
 
 	// 3. Generate LLM Script
-	script, err := s.llm.GenerateText(ctx, "narration", prompt)
+	script, err := s.generateScript(ctx, prompt)
 	if err != nil {
 		slog.Error("Narrator: LLM script generation failed", "error", err)
 		if s.beaconSvc != nil {
@@ -327,24 +324,22 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telem
 	}
 
 	// 4. TTS Synthesis
-	// Use system temp directory instead of persistent cache
-	cacheDir := os.TempDir()
-
 	// Sanitize filename
 	safeID := strings.ReplaceAll(p.WikidataID, "/", "_")
-	// Use unique name to avoid conflicts and persistence
-	outputPath := filepath.Join(cacheDir, fmt.Sprintf("phileas_narration_%s_%d", safeID, time.Now().UnixNano()))
 
-	format, err := s.tts.Synthesize(ctx, script, "", outputPath)
+	audioPath, format, err := s.synthesizeAudio(ctx, script, safeID)
 	if err != nil {
-		slog.Error("Narrator: TTS synthesis failed", "error", err)
-		if s.beaconSvc != nil {
-			s.beaconSvc.Clear()
-		}
+		s.handleTTSError(err)
 		return
 	}
 
-	audioFile := outputPath + "." + format
+	// Mark as played NOW (after successful TTS) to prevent re-selection
+	p.LastPlayed = time.Now()
+	if err := s.st.SavePOI(ctx, p); err != nil {
+		slog.Error("Narrator: Failed to save narrated POI state", "qid", p.WikidataID, "error", err)
+	}
+
+	audioFile := audioPath + "." + format
 
 	// 5. Update Latency before Playback
 	latency := time.Since(startTime)
@@ -396,4 +391,38 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telem
 	s.mu.Lock()
 	s.narratedCount++
 	s.mu.Unlock()
+}
+
+func (s *AIService) generateScript(ctx context.Context, prompt string) (string, error) {
+	return s.llm.GenerateText(ctx, "narration", prompt)
+}
+
+func (s *AIService) synthesizeAudio(ctx context.Context, script, safeID string) (audioPath, format string, err error) {
+	// Use system temp directory instead of persistent cache
+	cacheDir := os.TempDir()
+
+	// Use unique name to avoid conflicts and persistence
+	outputPath := filepath.Join(cacheDir, fmt.Sprintf("phileas_narration_%s_%d", safeID, time.Now().UnixNano()))
+
+	ttsProvider := s.getTTSProvider()
+	format, err = ttsProvider.Synthesize(ctx, script, "", outputPath)
+	if err != nil {
+		return "", "", err
+	}
+	return outputPath, format, nil
+}
+
+func (s *AIService) handleTTSError(err error) {
+	slog.Error("Narrator: TTS synthesis failed", "error", err)
+
+	// Check if this is a fatal error that should trigger fallback
+	if tts.IsFatalError(err) && !s.isUsingFallbackTTS() {
+		s.activateFallback()
+		slog.Warn("Narrator: Skipping current POI (script incompatible with fallback TTS). Will retry with next POI.")
+	}
+
+	if s.beaconSvc != nil {
+		s.beaconSvc.Clear()
+	}
+	// Do NOT set LastPlayed - POI can be retried
 }
