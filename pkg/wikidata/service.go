@@ -24,6 +24,7 @@ import (
 // SimStateProvider defines what we need from the sim package.
 type SimStateProvider interface {
 	GetTelemetry(ctx context.Context) (sim.Telemetry, error)
+	GetState() sim.State
 }
 
 // Service orchestrates the Wikidata fetching.
@@ -142,9 +143,13 @@ func (s *Service) GetLanguageInfo(countryCode string) model.LanguageInfo {
 }
 
 func (s *Service) processTick(ctx context.Context) {
-	// 1. Get Sim State
-	telemetry, err := s.sim.GetTelemetry(ctx)
+	// 1. Check Sim State - only proceed if actively flying
+	if s.sim.GetState() != sim.StateActive {
+		return
+	}
 
+	// 2. Get Telemetry
+	telemetry, err := s.sim.GetTelemetry(ctx)
 	if err != nil {
 		// Reduce log noise if not connected
 		return
@@ -155,10 +160,10 @@ func (s *Service) processTick(ctx context.Context) {
 	hdg := telemetry.Heading
 	isAirborne := !telemetry.IsOnGround
 
-	// 2. Get Candidates
+	// 3. Get Candidates
 	candidates := s.scheduler.GetCandidates(lat, lon, hdg, isAirborne)
 
-	// 3. Find first uncached candidate
+	// 4. Find first uncached candidate
 	for _, c := range candidates {
 		key := c.Tile.Key()
 

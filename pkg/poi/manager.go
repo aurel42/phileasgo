@@ -309,6 +309,11 @@ func (m *Manager) StartScoring(ctx context.Context, simClient sim.Client, sc *sc
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// Skip scoring if sim is not active
+			if simClient.GetState() != sim.StateActive {
+				continue
+			}
+
 			// 1. Get Telemetry
 			telemetry, err := simClient.GetTelemetry(ctx)
 			if err != nil {

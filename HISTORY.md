@@ -1,5 +1,13 @@
 ﻿# Release History
 
+## v0.2.33 (2026-01-08)
+- **Regression Fix**: **Scheduler Runs with Invalid Telemetry**
+    - Fixed issue where Wikidata and POI Scoring services would run their ticker loops when the simulator was disconnected or inactive, causing requests to "Null Island" (0,0 coordinates).
+    - Added `GetState()` to `SimStateProvider` interface.
+    - Both `pkg/wikidata/service.go` and `pkg/poi/manager.go` now guard on `sim.StateActive` before processing.
+- **Feature**: **Thumbnail Map Image Filter**
+    - Extended `isVectorGraphic()` to also filter out map images (`_map.` or `_map_` in filename).
+
 ## v0.2.32 (2026-01-08)
 - **Fix**: **Thumbnail Appears Immediately When Panel Opens**
     - POIInfoPanel now receives `pois` array as prop, enabling real-time lookup of fresh POI data.

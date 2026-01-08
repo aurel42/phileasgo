@@ -308,7 +308,7 @@ func (c *Client) getImageURL(ctx context.Context, imageTitle, lang, endpoint str
 	return "", nil
 }
 
-// isVectorGraphic checks if a filename or URL represents a vector graphic or icon.
+// isVectorGraphic checks if a filename or URL represents a vector graphic, icon, or map.
 func isVectorGraphic(name string) bool {
 	lower := strings.ToLower(name)
 	// Common vector graphic patterns
@@ -317,6 +317,10 @@ func isVectorGraphic(name string) bool {
 		if strings.HasSuffix(lower, pattern) || strings.Contains(lower, pattern) {
 			return true
 		}
+	}
+	// Skip map images (e.g., "foo_map.png" or "foo_map_of_bar.png")
+	if strings.Contains(lower, "_map.") || strings.Contains(lower, "_map_") {
+		return true
 	}
 	return false
 }
