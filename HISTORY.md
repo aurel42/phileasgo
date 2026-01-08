@@ -1,5 +1,12 @@
 ﻿# Release History
 
+## v0.2.31 (2026-01-08)
+- **Fix**: **Thumbnail Immediate Display**
+    - POI Info Panel now watches for thumbnail updates in the POI cache, triggering re-render when data arrives.
+- **Feature**: **Improved Vector Graphic Filtering**
+    - Added `isVectorGraphic()` helper to detect `.svg`, `.svg.png`, and `.gif` patterns.
+    - If `pageimages` returns a vector graphic, falls back to first non-vector content image.
+
 ## v0.2.30 (2026-01-08)
 - **Feature**: **Thumbnail Fallback for Articles Without Page Image**
     - When Wikipedia `pageimages` API returns no thumbnail, now falls back to the first non-SVG/GIF content image.

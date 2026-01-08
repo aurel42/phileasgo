@@ -48,6 +48,11 @@ export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const queryClient = useQueryClient();
 
+    // Subscribe to POI list cache to detect updated thumbnail_url
+    const poisCache = queryClient.getQueryData(['pois']) as POI[] | undefined;
+    const freshPoi = poisCache?.find(p => p.wikidata_id === poi?.wikidata_id);
+    const cachedThumbnail = freshPoi?.thumbnail_url || poi?.thumbnail_url;
+
     useEffect(() => {
         if (!poi) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -55,22 +60,14 @@ export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
             return;
         }
 
+        // 1. Check if cached/fresh thumbnail is available
+        if (cachedThumbnail) {
+            setThumbnailUrl(cachedThumbnail);
+            return;
+        }
+
+        // 2. Fallback: Fetch thumbnail on-demand from API
         const fetchThumbnail = async () => {
-            // 1. Check if poi already has thumbnail_url
-            if (poi.thumbnail_url) {
-                setThumbnailUrl(poi.thumbnail_url);
-                return;
-            }
-
-            // 2. Check if fresh POI list has updated thumbnail (sync from poll)
-            const freshPois = queryClient.getQueryData(['pois']) as POI[] | undefined;
-            const freshPoi = freshPois?.find(p => p.wikidata_id === poi.wikidata_id);
-            if (freshPoi?.thumbnail_url) {
-                setThumbnailUrl(freshPoi.thumbnail_url);
-                return;
-            }
-
-            // 3. Fallback: Fetch thumbnail on-demand from API
             try {
                 const res = await fetch(`/api/pois/${poi.wikidata_id}/thumbnail`);
                 if (res.ok) {
@@ -85,7 +82,7 @@ export const POIInfoPanel = ({ poi, onClose }: POIInfoPanelProps) => {
         };
 
         fetchThumbnail();
-    }, [poi, queryClient]);
+    }, [poi, cachedThumbnail]);
 
     if (!poi) return null;
 

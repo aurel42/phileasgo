@@ -198,11 +198,14 @@ func (c *Client) GetThumbnail(ctx context.Context, title, lang string) (string, 
 
 	for _, page := range apiResp.Query.Pages {
 		if page.Thumbnail.Source != "" {
-			return page.Thumbnail.Source, nil
+			// Skip if page thumbnail is a vector graphic
+			if !isVectorGraphic(page.Thumbnail.Source) {
+				return page.Thumbnail.Source, nil
+			}
 		}
 	}
 
-	// Fallback: Get first content image that isn't an SVG
+	// Fallback: Get first content image that isn't a vector graphic
 	return c.getFirstContentImage(ctx, title, lang, endpoint)
 }
 
@@ -241,9 +244,8 @@ func (c *Client) getFirstContentImage(ctx context.Context, title, lang, endpoint
 	var imageTitle string
 	for _, page := range imgResp.Query.Pages {
 		for _, img := range page.Images {
-			lower := strings.ToLower(img.Title)
 			// Skip vector graphics and icons
-			if strings.HasSuffix(lower, ".svg") || strings.HasSuffix(lower, ".gif") {
+			if isVectorGraphic(img.Title) {
 				continue
 			}
 			imageTitle = img.Title
@@ -304,4 +306,17 @@ func (c *Client) getImageURL(ctx context.Context, imageTitle, lang, endpoint str
 	}
 
 	return "", nil
+}
+
+// isVectorGraphic checks if a filename or URL represents a vector graphic or icon.
+func isVectorGraphic(name string) bool {
+	lower := strings.ToLower(name)
+	// Common vector graphic patterns
+	vectorPatterns := []string{".svg", ".svg.png", ".gif"}
+	for _, pattern := range vectorPatterns {
+		if strings.HasSuffix(lower, pattern) || strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+	return false
 }
