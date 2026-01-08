@@ -17,6 +17,7 @@ import (
 // POIProvider matches the GetBestCandidate method used by jobs.
 type POIProvider interface {
 	GetBestCandidate() *model.POI
+	LastScoredPosition() (lat, lon float64)
 }
 
 // NarrationJob triggers AI narration for the best available POI.
@@ -52,6 +53,11 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		return false
 	}
 
+	// 0.5 Location Consistency Check
+	if !j.isLocationConsistent(t) {
+		return false
+	}
+
 	// 1. Narrator Activity Check (Playback Aware)
 	isPlaying := j.narrator.IsPlaying()
 
@@ -80,25 +86,8 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	}
 
 	// 2. Cooldown Check
-	if !j.lastTime.IsZero() {
-		// If skip requested, bypass timer
-		if j.narrator.ShouldSkipCooldown() {
-			j.narrator.ResetSkipCooldown()
-			slog.Info("NarrationJob: Skipping cooldown check by user request")
-		} else {
-			elapsed := time.Since(j.lastTime)
-
-			// Use the randomized duration
-			// If nextFireDuration is 0 (first run or not set), default to Min
-			required := j.nextFireDuration
-			if required == 0 {
-				required = time.Duration(j.cfg.Narrator.CooldownMin)
-			}
-
-			if elapsed < required {
-				return false
-			}
-		}
+	if !j.checkCooldown() {
+		return false
 	}
 
 	// 3. Selection
@@ -151,6 +140,45 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer))
 	j.narrator.PlayPOI(ctx, best.WikidataID, false, t, strategy)
 	j.calculateCooldown(1.0, strategy)
+}
+
+func (j *NarrationJob) isLocationConsistent(t *sim.Telemetry) bool {
+	// Ensure the scores are fresh relative to our CURRENT position.
+	// If the scorer hasn't run since we moved here (e.g. teleport), we wait.
+	// We use a generous threshold (e.g. 10km) to allow for some movement during scoring.
+	lastLat, lastLon := j.poiMgr.LastScoredPosition()
+
+	// If 0,0 (never scored), wait.
+	if lastLat == 0 && lastLon == 0 {
+		return false
+	}
+
+	dist := geo.Distance(geo.Point{Lat: t.Latitude, Lon: t.Longitude}, geo.Point{Lat: lastLat, Lon: lastLon})
+	return dist <= 10000 // 10km
+}
+
+func (j *NarrationJob) checkCooldown() bool {
+	if j.lastTime.IsZero() {
+		return true // No previous run, so ready
+	}
+
+	// If skip requested, bypass timer
+	if j.narrator.ShouldSkipCooldown() {
+		j.narrator.ResetSkipCooldown()
+		slog.Info("NarrationJob: Skipping cooldown check by user request")
+		return true
+	}
+
+	elapsed := time.Since(j.lastTime)
+
+	// Use the randomized duration
+	// If nextFireDuration is 0 (first run or not set), default to Min
+	required := j.nextFireDuration
+	if required == 0 {
+		required = time.Duration(j.cfg.Narrator.CooldownMin)
+	}
+
+	return elapsed >= required
 }
 
 func (j *NarrationJob) tryEssay(ctx context.Context, t *sim.Telemetry) {

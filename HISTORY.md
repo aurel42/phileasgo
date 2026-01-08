@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.38 (2026-01-08)
+- **Fix**: **Remote Narration After Teleport**
+    - Implemented a **Location Consistency Check** in the POI Scheduler.
+    - The Scheduler now verifies that the `POIManager`'s scores were calculated for the aircraft's *current* location (within 10km) before triggering narration.
+    - Resolves the issue where stale high scores from a previous location (or startup coordinates) caused distant POIs (e.g., 350km away) to be narrated immediately after spawning or teleporting.
+
 ## v0.2.37 (2026-01-08)
 - **Feature**: **Cooldown Skew Mechanism**
     - Implemented a unified skew strategy (Min/Max/Uniform) based on POI density (rival count).

@@ -29,6 +29,10 @@ func (m *TestPOIProvider) CountScoredAbove(threshold float64, limit int) int {
 	return m.CountVal
 }
 
+func (m *TestPOIProvider) LastScoredPosition() (float64, float64) {
+	return 0, 0
+}
+
 func TestSampleNarrationLength_RelativeDominance(t *testing.T) {
 	// Setup
 	cfg := &config.Config{

@@ -28,6 +28,10 @@ type Manager struct {
 
 	// Config for hydration
 	catConfig *config.CategoriesConfig
+
+	// Consistency State
+	lastScoredLat float64
+	lastScoredLon float64
 }
 
 // NewManager creates a new POI Manager.
@@ -347,6 +351,12 @@ func (m *Manager) StartScoring(ctx context.Context, simClient sim.Client, sc *sc
 			for _, p := range m.trackedPOIs {
 				sc.Calculate(p, &input)
 			}
+
+			// 4. Update Last Scored Location
+			// This allows consumers (Scheduler) to verify consistency
+			m.lastScoredLat = telemetry.Latitude
+			m.lastScoredLon = telemetry.Longitude
+
 			m.mu.Unlock()
 		}
 	}
@@ -359,10 +369,18 @@ func (m *Manager) ResetLastPlayed(ctx context.Context, lat, lon, radius float64)
 	// for everything currently loaded/visible.
 	m.mu.Lock()
 	for _, p := range m.trackedPOIs {
-		p.LastPlayed = time.Time{} // Zero time
+		p.LastPlayed = time.Time{} // Clear
 	}
 	m.mu.Unlock()
 
 	// 2. Reset in DB (remains spatial to preserve far history if relevant)
 	return m.store.ResetLastPlayed(ctx, lat, lon, radius)
+}
+
+// LastScoredPosition returns the location used for the most recent scoring pass.
+// Returns 0,0 if no scoring has occurred yet.
+func (m *Manager) LastScoredPosition() (lat, lon float64) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.lastScoredLat, m.lastScoredLon
 }

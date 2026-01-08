@@ -34,6 +34,8 @@ func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual 
 
 type mockPOIManager struct {
 	best *model.POI
+	lat  float64
+	lon  float64
 }
 
 func (m *mockPOIManager) GetBestCandidate() *model.POI {
@@ -42,6 +44,10 @@ func (m *mockPOIManager) GetBestCandidate() *model.POI {
 
 func (m *mockPOIManager) CountScoredAbove(threshold float64, limit int) int {
 	return 0 // simplified
+}
+
+func (m *mockPOIManager) LastScoredPosition() (float64, float64) {
+	return m.lat, m.lon
 }
 
 func TestNarrationJob_GroundSuppression(t *testing.T) {
@@ -107,12 +113,15 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockN := &mockNarratorService{isPaused: tt.isPaused}
-			pm := &mockPOIManager{best: tt.bestPOI}
+			// Initialize with valid "last scored" position to pass consistency check
+			pm := &mockPOIManager{best: tt.bestPOI, lat: 48.0, lon: -123.0}
 			job := NewNarrationJob(cfg, mockN, pm)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: tt.altitudeAGL,
 				IsOnGround:  tt.altitudeAGL < 50,
+				Latitude:    48.0,
+				Longitude:   -123.0,
 			}
 
 			// Force cooldown to expired for test

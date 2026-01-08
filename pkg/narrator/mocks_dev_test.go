@@ -94,6 +94,10 @@ func (m *MockPOIProvider) CountScoredAbove(threshold float64, limit int) int {
 	return 0 // default for tests
 }
 
+func (m *MockPOIProvider) LastScoredPosition() (float64, float64) {
+	return 0, 0
+}
+
 type MockGeo struct {
 	Country string
 	City    string
