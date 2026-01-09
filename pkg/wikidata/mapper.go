@@ -19,13 +19,13 @@ const (
 	refreshInterval = 30 * 24 * time.Hour // Refresh monthly
 )
 
-// LanguageMapper handles dynamic resolution of Country Code -> Primary Language.
+// LanguageMapper handles dynamic resolution of Country Code -> Official Languages.
 type LanguageMapper struct {
 	cache   cache.Cacher
 	client  *request.Client // Use Request Client directly for fetching map
 	logger  *slog.Logger
 	mu      sync.RWMutex
-	mapping map[string]model.LanguageInfo // CountryCode (ISO 2) -> LanguageInfo
+	mapping map[string][]model.LanguageInfo // CountryCode (ISO 2) -> List of official languages
 }
 
 // NewLanguageMapper creates a new mapper.
@@ -34,7 +34,7 @@ func NewLanguageMapper(c cache.Cacher, rc *request.Client, logger *slog.Logger) 
 		cache:   c,
 		client:  rc,
 		logger:  logger,
-		mapping: make(map[string]model.LanguageInfo),
+		mapping: make(map[string][]model.LanguageInfo),
 	}
 }
 
@@ -62,20 +62,20 @@ func (m *LanguageMapper) Start(ctx context.Context) error {
 	return nil
 }
 
-// GetLanguage returns the primary language info for a given country code.
-// Returns {Code: "en", Name: "English"} if not found or empty.
-func (m *LanguageMapper) GetLanguage(countryCode string) model.LanguageInfo {
-	fallback := model.LanguageInfo{Code: "en", Name: "English"}
+// GetLanguages returns all official languages for a given country code.
+// Returns []{Code: "en", Name: "English"} if not found or empty.
+func (m *LanguageMapper) GetLanguages(countryCode string) []model.LanguageInfo {
+	fallback := []model.LanguageInfo{{Code: "en", Name: "English"}}
 	if countryCode == "" {
 		return fallback
 	}
 
 	m.mu.RLock()
-	info, ok := m.mapping[countryCode]
+	langs, ok := m.mapping[countryCode]
 	m.mu.RUnlock()
 
-	if ok && info.Code != "" {
-		return info
+	if ok && len(langs) > 0 {
+		return langs
 	}
 	return fallback
 }
@@ -86,7 +86,7 @@ func (m *LanguageMapper) load(ctx context.Context) error {
 		return nil // Not found is fine
 	}
 
-	var loaded map[string]model.LanguageInfo
+	var loaded map[string][]model.LanguageInfo
 	if err := json.Unmarshal(data, &loaded); err != nil {
 		return err
 	}
@@ -141,20 +141,17 @@ func (m *LanguageMapper) refresh(ctx context.Context) error {
 		return err
 	}
 
-	newMap := make(map[string]model.LanguageInfo)
+	newMap := make(map[string][]model.LanguageInfo)
 	for _, b := range result.Results.Bindings {
 		cc := val(b, "countryCode")
 		lc := val(b, "langCode")
 		ln := val(b, "officialLangLabel") // Label Service provides this
 
 		if cc != "" && lc != "" {
-			// Basic conflict resolution: just take the first one encountered (SPARQL order arbitrary)
-			if _, exists := newMap[cc]; !exists {
-				if ln == "" {
-					ln = "Unknown" // Should be filled by label service, but just in case
-				}
-				newMap[cc] = model.LanguageInfo{Code: lc, Name: ln}
+			if ln == "" {
+				ln = "Unknown"
 			}
+			newMap[cc] = append(newMap[cc], model.LanguageInfo{Code: lc, Name: ln})
 		}
 	}
 

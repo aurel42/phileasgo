@@ -51,8 +51,10 @@ func (s *Service) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat
 
 	langSet := make(map[string]struct{})
 	for country := range countrySet {
-		langInfo := s.mapper.GetLanguage(country)
-		langSet[langInfo.Code] = struct{}{}
+		langs := s.mapper.GetLanguages(country)
+		for _, l := range langs {
+			langSet[l.Code] = struct{}{}
+		}
 	}
 
 	var localLangs []string

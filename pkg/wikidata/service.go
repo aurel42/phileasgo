@@ -142,9 +142,13 @@ func (s *Service) GeoService() *geo.Service {
 	return s.geo
 }
 
-// GetLanguageInfo returns language details for a country code (implements LanguageResolver).
+// GetLanguageInfo returns primary language details for a country code (implements LanguageResolver).
 func (s *Service) GetLanguageInfo(countryCode string) model.LanguageInfo {
-	return s.mapper.GetLanguage(countryCode)
+	langs := s.mapper.GetLanguages(countryCode)
+	if len(langs) > 0 {
+		return langs[0]
+	}
+	return model.LanguageInfo{Code: "en", Name: "English"}
 }
 
 func (s *Service) processTick(ctx context.Context) {
