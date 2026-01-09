@@ -214,6 +214,13 @@ func (m *MockClient) update() {
 		radHeading := m.tel.Heading * (math.Pi / 180.0)
 		m.tel.Latitude += distDeg * math.Cos(radHeading)
 		m.tel.Longitude += distDeg * math.Sin(radHeading)
+
+		// TERRAIN FOLLOWING: Ensure we don't crash into mountains.
+		// Enforce min 500ft AGL if airborne.
+		minAlt := m.groundAlt + 500.0
+		if m.tel.AltitudeMSL < minAlt {
+			m.tel.AltitudeMSL = minAlt
+		}
 	}
 
 	// Update Prediction for ALL stages

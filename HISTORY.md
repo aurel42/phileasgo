@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.44 (2026-01-09)
+- **Feature**: **Mock Sim Terrain Following**
+    - The Mock Simulator now automatically maintains a minimum altitude of **500ft AGL** above the terrain (using ETOPO1 data if available), effectively "following" the ground to prevent collisions during unattended simulations.
+- **Refactor**: **Relaxed LOS Tolerance**
+    - Increased the Line-of-Sight blockage tolerance to **50 meters**. This prevents false "blocked by terrain" results when the Line-of-Sight ray grazes the ground or water surfaces due to minor ETOPO1 resolution inaccuracies.
+
 ## v0.2.43 (2026-01-09)
 - **Refactor**: **Optimized Auto-Narration Frequency**
     - Decoupled the `NarrationJob` from the high-frequency telemetry loop (100ms).
@@ -13,6 +19,9 @@
     - The application now exits fatally (code 1) if the LLM client is not configured when a narration request is made, preventing "zombie" states where requests silently fail.
 - **Testing**: **Improved Mock Simulator**
     - The Mock Sim now dynamically adjusts its flight profile altitudes based on the starting airfield elevation, ensuring relevant visibility testing regardless of starting terrain height.
+- **Config**: **Beacon Settings**
+    - Removed hardcoded constants for Beacon formation and triggering distances.
+    - These values are now fully configurable via `phileas.yaml` (under `beacon` section) to allow fine-tuning of visual behavior.
 
 ## v0.2.42 (2026-01-09)
 - **Testing**: Increased `pkg/store` test coverage from 42.9% to **82.0%** with table-driven tests for all store interfaces.
