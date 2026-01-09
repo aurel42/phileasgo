@@ -35,7 +35,13 @@ sequenceDiagram
             API-->>S: Return JSON
             S->>C: SetGeodataCache(TileID, data, radius)
         end
-        S->>S: ProcessTileData(JSON)
+        Note over S: ProcessTileData:
+        S->>S: Filter Existing & Seen
+        S->>S: Batch Classify
+        S->>S: Deduplicate (Articles)
+        S->>S: Hydrate (WP Titles)
+        S->>S: Deduplicate (Final POIs)
+        S->>S: Save to DB
     end
 ```
 
@@ -96,7 +102,27 @@ How we determine the POI's Name and Wikipedia link.
 
 ---
 
-## 4. LanguageMapper & Country Detection
+## 4. Spatial Deduplication (The Merger)
+How the system prevents clustering and "POI soup" by merging nearby items.
+
+### Two-Stage Merging
+PhileasGo performs deduplication at two different points in the ingest flow for efficiency:
+
+1. **Stage 1: Pre-Hydration (`MergeArticles`)**:
+    - **Where**: `processAndHydrate` (before fetching Wikipedia titles/lengths).
+    - **Purpose**: Optimization. By merging items early using **Wikidata Sitelinks** as a proxy for quality, the system avoids thousands of redundant API calls to Wikipedia for POIs that would ultimately be merged anyway.
+2. **Stage 2: Post-Hydration (`MergePOIs`)**:
+    - **Where**: `enrichAndSave` (after fetching full metadata).
+    - **Purpose**: Final Polish. Uses actual **Article Lengths** to ensure the highest-quality POI remains as the "survivor" and "gobbles" the scores of merged neighbors.
+
+### Merge Rules
+- **Distance**: The required distance between POIs depends on their **Category** (e.g., small distance for statues, large distance for cities).
+- **Quality**: The POI with the higher **Article Length** (or Sitelink count in Stage 1) survives and inherits the proximity of its neighbors.
+- **Category Sizes**: Defined in `categories.yaml` (S, M, L, XL).
+
+---
+
+## 5. LanguageMapper & Country Detection
 The component responsible for resolving geographic coordinates to human languages.
 
 ### Operation
@@ -158,6 +184,16 @@ Every **30 minutes** or **50nm** of travel, the system triggers a background tas
 Files to audit against this document:
 - [ ] **H3 Resolution**: `pkg/wikidata/grid.go` (`h3Resolution`).
 - [ ] **Classification Path**: `pkg/classifier/classifier.go` (`Classify`).
+- [ ] **Spatial Merging**: `pkg/wikidata/merger.go`.
 - [ ] **Language Mapping**: `pkg/wikidata/mapper.go` (SPARQL query in `refresh`).
 - [ ] **Article Winner**: `pkg/wikidata/service_enrich.go` (`determineBestArticle`).
 - [ ] **Selection Loop**: `pkg/core/scheduler.go` (`getVisibleCandidate`).
+
+---
+
+## Technical Documentation Backlog (TODO)
+The following areas are slated for detailed documentation in future updates:
+
+1. **Marker Beacons**: Detailed breakdown of the balloon/beacon spawning logic, line-of-sight visual indicators, and altitude-locking behavior for low-level flight.
+2. **Narration Flow**: Step-by-step trace from POI selection in the `NarrationJob` to the final TTS output, including queuing and concurrency handling.
+3. **Prompt Engine**: Technical specification of the `model.NarrationPromptData`, template inheritance (`azure.tmpl`, etc.), and the linguistic "Skew Strategy" for narration length.
