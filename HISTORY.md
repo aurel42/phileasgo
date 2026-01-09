@@ -1,5 +1,21 @@
 ﻿# Release History
 
+## v0.2.41 (2026-01-09)
+- **Refactor**: **Store Interface Segregation**
+    - Split the monolithic `store.Store` interface (19 methods) into 8 focused sub-interfaces:
+        - `POIStore` (5 methods) — POI CRUD operations
+        - `CacheStore` (4 methods) — Generic key-value caching
+        - `GeodataStore` (2 methods) — Geodata cache with radius metadata
+        - `HierarchyStore` (4 methods) — Wikidata classification hierarchy
+        - `ArticleStore` (2 methods) — Wikipedia article persistence
+        - `SeenEntityStore` (2 methods) — Negative cache for seen entities
+        - `MSFSPOIStore` (3 methods) — MSFS POI data
+        - `StateStore` (2 methods) — Persistent application state
+    - `Store` now composes from all sub-interfaces (fully backward compatible).
+    - Updated `classifier.Classifier` to depend on `store.HierarchyStore` instead of full `Store`.
+    - Updated `poi.Manager` to depend on `poi.ManagerStore` (combines `POIStore` + `MSFSPOIStore`).
+    - **Benefits**: Improved testability (mocks need fewer methods), clearer documentation, compile-time safety.
+
 ## v0.2.40 (2026-01-09)
 - **Feature**: **Line-of-Sight (LOS) for POI Selection**
     - Implemented terrain-aware POI filtering during auto-narration.
@@ -7,7 +23,7 @@
     - Uses **ETOPO1** elevation data (1 arc-minute resolution) with 0.5km ray-marching steps.
     - LOS is enabled by default (`terrain.line_of_sight: true`).
 - **Config**: **New `terrain` Configuration Section**
-    - Moved `line_of_sight` from the `wikidata` section to a new dedicated `terrain` section.
+    - Added `line_of_sight` setting to enable/disable LOS checks.
     - Added `elevation_file` setting to configure the path to the ETOPO1 binary data file.
     - Default path: `data/etopo1/etopo1_ice_g_i2.bin`.
 - **Instrumentation**: Added comprehensive debug logging for:

@@ -22,7 +22,7 @@ type WikidataClient interface {
 
 // Classifier handles "Smart" classification of Wikidata items
 type Classifier struct {
-	store         store.Store
+	store         store.HierarchyStore
 	client        WikidataClient // Interface for testability
 	config        *config.CategoriesConfig
 	lookup        config.CategoryLookup
@@ -33,7 +33,7 @@ type Classifier struct {
 }
 
 // NewClassifier creates a new classifier
-func NewClassifier(s store.Store, c WikidataClient, cfg *config.CategoriesConfig, tr *tracker.Tracker) *Classifier {
+func NewClassifier(s store.HierarchyStore, c WikidataClient, cfg *config.CategoriesConfig, tr *tracker.Tracker) *Classifier {
 	return &Classifier{
 		store:      s,
 		client:     c,

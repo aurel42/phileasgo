@@ -16,51 +16,19 @@ import (
 )
 
 // Store defines the repository interface.
+// It composes all sub-interfaces for full store access.
+// Consumers should depend on specific sub-interfaces when possible.
 type Store interface {
-	// POI
-	GetPOI(ctx context.Context, wikidataID string) (*model.POI, error)
-	GetPOIsBatch(ctx context.Context, wikidataIDs []string) (map[string]*model.POI, error)
-	SavePOI(ctx context.Context, poi *model.POI) error
-	GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error)
-	ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error
+	POIStore
+	CacheStore
+	GeodataStore
+	HierarchyStore
+	ArticleStore
+	SeenEntityStore
+	MSFSPOIStore
+	StateStore
 
-	// Cache
-	GetCache(ctx context.Context, key string) ([]byte, bool)
-	HasCache(ctx context.Context, key string) (bool, error)
-	SetCache(ctx context.Context, key string, val []byte) error
-	ListCacheKeys(ctx context.Context, prefix string) ([]string, error)
-
-	// Geodata Cache
-	GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool)
-	SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error
-
-	// State
-	GetState(ctx context.Context, key string) (string, bool)
-	SetState(ctx context.Context, key, val string) error
-
-	// MSFS
-	GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error)
-	SaveMSFSPOI(ctx context.Context, poi *model.MSFSPOI) error
-	// CheckMSFSPOI checks if a location overlaps with any MSFS POI within a radius.
-	CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) (bool, error)
-
-	// Hierarchy
-
-	// Hierarchy
-	GetHierarchy(ctx context.Context, qid string) (*model.WikidataHierarchy, error)
-	SaveHierarchy(ctx context.Context, h *model.WikidataHierarchy) error
-	GetClassification(ctx context.Context, qid string) (category string, found bool, err error)
-	SaveClassification(ctx context.Context, qid, category string, parents []string, label string) error
-
-	// Articles
-	GetArticle(ctx context.Context, uuid string) (*model.Article, error)
-	SaveArticle(ctx context.Context, article *model.Article) error
-
-	// Seen Entities (Negative Cache)
-	GetSeenEntitiesBatch(ctx context.Context, qids []string) (map[string][]string, error)
-	MarkEntitiesSeen(ctx context.Context, entities map[string][]string) error
-
-	// Close
+	// Close closes the store connection.
 	Close() error
 }
 

@@ -18,9 +18,16 @@ import (
 	"phileasgo/pkg/store"
 )
 
+// ManagerStore defines the store interface required by the POI Manager.
+// It combines POIStore and MSFSPOIStore for the Manager's needs.
+type ManagerStore interface {
+	store.POIStore
+	store.MSFSPOIStore
+}
+
 type Manager struct {
 	config *config.Config
-	store  store.Store
+	store  ManagerStore
 	logger *slog.Logger
 
 	// Active Tracking
@@ -36,7 +43,7 @@ type Manager struct {
 }
 
 // NewManager creates a new POI Manager.
-func NewManager(cfg *config.Config, s store.Store, catCfg *config.CategoriesConfig) *Manager {
+func NewManager(cfg *config.Config, s ManagerStore, catCfg *config.CategoriesConfig) *Manager {
 	return &Manager{
 		config:      cfg,
 		store:       s,
