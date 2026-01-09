@@ -12,11 +12,13 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/terrain"
 )
 
 // POIProvider matches the GetBestCandidate method used by jobs.
 type POIProvider interface {
 	GetBestCandidate() *model.POI
+	GetCandidates(limit int) []*model.POI
 	LastScoredPosition() (lat, lon float64)
 }
 
@@ -26,18 +28,20 @@ type NarrationJob struct {
 	cfg              *config.Config
 	narrator         narrator.Service
 	poiMgr           POIProvider
+	losChecker       *terrain.LOSChecker
 	lastTime         time.Time
 	nextFireDuration time.Duration
 	wasBusy          bool
 }
 
-func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider) *NarrationJob {
+func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, los *terrain.LOSChecker) *NarrationJob {
 	j := &NarrationJob{
-		BaseJob:  NewBaseJob("Narration"),
-		cfg:      cfg,
-		narrator: n,
-		poiMgr:   pm,
-		lastTime: time.Now(),
+		BaseJob:    NewBaseJob("Narration"),
+		cfg:        cfg,
+		narrator:   n,
+		poiMgr:     pm,
+		losChecker: los,
+		lastTime:   time.Now(),
 	}
 	j.calculateCooldown(1.0, narrator.StrategyUniform)
 	return j
@@ -50,11 +54,13 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 
 	// 0. Global Switch
 	if !j.cfg.Narrator.AutoNarrate {
+		slog.Debug("NarrationJob: AutoNarrate disabled")
 		return false
 	}
 
 	// 0.5 Location Consistency Check
 	if !j.isLocationConsistent(t) {
+		slog.Debug("NarrationJob: Location inconsistent")
 		return false
 	}
 
@@ -82,6 +88,7 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 
 	// If narrator is busy generating (IsActive but maybe not IsPlaying yet?), skip.
 	if j.narrator.IsActive() {
+		slog.Debug("NarrationJob: Narrator still active")
 		return false
 	}
 
@@ -93,6 +100,7 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	// 3. Selection
 	best := j.poiMgr.GetBestCandidate()
 	if best == nil {
+		slog.Debug("NarrationJob: No POI candidates, checking essay eligibility", "agl", t.AltitudeAGL)
 		// No POI? Check if we can do an essay.
 		// ESSAYS: only above 2000ft AGL.
 		if t.AltitudeAGL < 2000 {
@@ -107,9 +115,11 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	// If score is low, we normally fail. But now we might want to run an essay.
 	// ESSAYS: only above 2000ft AGL.
 	if best.Score < j.cfg.Narrator.MinScoreThreshold && t.AltitudeAGL < 2000 {
+		slog.Debug("NarrationJob: Best POI below threshold", "poi", best.DisplayName(), "score", best.Score, "threshold", j.cfg.Narrator.MinScoreThreshold)
 		return false
 	}
 
+	slog.Debug("NarrationJob: Ready to fire", "best_poi", best.DisplayName(), "score", fmt.Sprintf("%.2f", best.Score))
 	// So we return TRUE, and let Run() decide between POI and Essay.
 	// We assume essays are enabled if config is present.
 	return true
@@ -121,7 +131,7 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	}
 	defer j.Unlock()
 
-	best := j.poiMgr.GetBestCandidate()
+	best := j.getVisibleCandidate(t)
 	// If best is nil, try essay directly
 	if best == nil {
 		j.tryEssay(ctx, t)
@@ -140,6 +150,48 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer))
 	j.narrator.PlayPOI(ctx, best.WikidataID, false, t, strategy)
 	j.calculateCooldown(1.0, strategy)
+}
+
+// getVisibleCandidate returns the highest-scoring POI that has line-of-sight.
+// If LOS is disabled or no checker is available, falls back to GetBestCandidate.
+func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
+	// If LOS is disabled or checker unavailable, use simple best candidate
+	if !j.cfg.Terrain.LineOfSight || j.losChecker == nil {
+		slog.Debug("NarrationJob: LOS disabled or no checker", "los_enabled", j.cfg.Terrain.LineOfSight, "checker_nil", j.losChecker == nil)
+		return j.poiMgr.GetBestCandidate()
+	}
+
+	// Get ALL candidates sorted by score (no arbitrary limit)
+	candidates := j.poiMgr.GetCandidates(1000)
+	slog.Debug("NarrationJob: LOS checking candidates", "count", len(candidates), "aircraft_alt_ft", t.AltitudeMSL)
+
+	aircraftPos := geo.Point{Lat: t.Latitude, Lon: t.Longitude}
+	aircraftAltFt := t.AltitudeMSL
+
+	for i, poi := range candidates {
+		// Get POI ground elevation (meters -> feet)
+		poiElevM, err := j.losChecker.GetElevation(poi.Lat, poi.Lon)
+		if err != nil {
+			slog.Debug("NarrationJob: LOS elevation error", "poi", poi.DisplayName(), "error", err)
+			continue // Skip if we can't get elevation
+		}
+		poiAltFt := poiElevM * 3.28084 // meters to feet
+
+		poiPos := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
+
+		// Check LOS with 0.5km step size
+		isVisible := j.losChecker.IsVisible(aircraftPos, poiPos, aircraftAltFt, poiAltFt, 0.5)
+		if i < 5 { // Log first 5 candidates only to avoid spam
+			slog.Debug("NarrationJob: LOS check", "poi", poi.DisplayName(), "score", fmt.Sprintf("%.2f", poi.Score), "visible", isVisible, "poi_elev_ft", poiAltFt)
+		}
+		if isVisible {
+			slog.Debug("NarrationJob: Selected visible POI", "poi", poi.DisplayName(), "score", fmt.Sprintf("%.2f", poi.Score))
+			return poi // First visible POI wins
+		}
+	}
+
+	slog.Warn("NarrationJob: All POIs blocked by LOS", "count", len(candidates))
+	return nil // All blocked
 }
 
 func (j *NarrationJob) isLocationConsistent(t *sim.Telemetry) bool {

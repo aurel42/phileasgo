@@ -46,8 +46,15 @@ func (m *mockPOIManager) CountScoredAbove(threshold float64, limit int) int {
 	return 0 // simplified
 }
 
-func (m *mockPOIManager) LastScoredPosition() (float64, float64) {
+func (m *mockPOIManager) LastScoredPosition() (lat, lon float64) {
 	return m.lat, m.lon
+}
+
+func (m *mockPOIManager) GetCandidates(limit int) []*model.POI {
+	if m.best == nil {
+		return []*model.POI{}
+	}
+	return []*model.POI{m.best}
 }
 
 func TestNarrationJob_GroundSuppression(t *testing.T) {
@@ -115,7 +122,7 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 			mockN := &mockNarratorService{isPaused: tt.isPaused}
 			// Initialize with valid "last scored" position to pass consistency check
 			pm := &mockPOIManager{best: tt.bestPOI, lat: 48.0, lon: -123.0}
-			job := NewNarrationJob(cfg, mockN, pm)
+			job := NewNarrationJob(cfg, mockN, pm, nil)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: tt.altitudeAGL,
@@ -152,7 +159,7 @@ func TestNarrationJob_EssayCooldownMultiplier(t *testing.T) {
 
 	mockN := &mockNarratorService{}
 	pm := &mockPOIManager{best: nil} // Force essay
-	job := NewNarrationJob(cfg, mockN, pm)
+	job := NewNarrationJob(cfg, mockN, pm, nil)
 
 	tel := &sim.Telemetry{AltitudeAGL: 3000}
 	job.Run(context.Background(), tel)

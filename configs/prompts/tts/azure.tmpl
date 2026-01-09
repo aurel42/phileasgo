@@ -18,14 +18,7 @@ Examples:
 - German (Compound Fix): <lang xml:lang="de-DE">See-pyramide</lang>
 - Spanish: <lang xml:lang="es-ES">Sagrada Familia</lang>
 
-2. Numbers, Dates, and Units
-Use the say-as tag to strictly define how numbers are read.
-- Dates: <say-as interpret-as="date" format="y">1995</say-as>
-- Ordinals: <say-as interpret-as="ordinal">1st</say-as> or <say-as interpret-as="ordinal">3.</say-as>
-- Cardinals: <say-as interpret-as="cardinal">12</say-as>
-- Ranges: For ranges like "1870/71", split the tags: <say-as interpret-as="date" format="y">1870</say-as> to <say-as interpret-as="date" format="y">71</say-as>.
-
-3. Codes and Abbreviations
+2. Codes and Abbreviations
 Use the sub tag or say-as tag to ensure technical terms are spoken correctly while keeping the written text accurate.
 - Alphanumeric Codes: Use the sub tag to define the spoken alias.
   Input: "The AN-2 aircraft..."
@@ -35,7 +28,7 @@ Use the sub tag or say-as tag to ensure technical terms are spoken correctly whi
 - Pronunciation Corrections: Use sub to fix common mispronunciations.
   Example: <sub alias="Pan Am">Pan Am</sub>
 
-4. Pacing and Lists
+3. Pacing and Lists
 Control the speed of lists using the break tag rather than removing punctuation.
 - Standard List: "Apples, pears, and bananas."
 - Fast List (Enumeration): To reduce the pause between items without removing the comma, use a zero-strength break.

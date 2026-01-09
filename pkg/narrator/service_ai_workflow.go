@@ -26,6 +26,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 	s.mu.Lock()
 	if s.active {
 		s.mu.Unlock()
+		slog.Warn("Narrator: PlayPOI rejected - already active", "poi_id", poiID, "manual", manual)
 		return
 	}
 	s.active = true
@@ -43,7 +44,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 		return
 	}
 	if p == nil {
-		slog.Warn("Narrator: POI not found", "poi_id", poiID)
+		slog.Warn("Narrator: POI not found in manager", "poi_id", poiID)
 		s.mu.Lock()
 		s.active = false
 		s.generating = false
@@ -51,10 +52,12 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 		return
 	}
 
+	slog.Info("Narrator: Starting narration", "poi_id", poiID, "name", p.DisplayName())
 	go s.narratePOI(context.Background(), p, tel, time.Now(), strategy)
 }
 
 // PlayEssay triggers a regional essay narration.
+
 func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 	if s.essayH == nil {
 		return false

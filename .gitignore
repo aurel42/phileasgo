@@ -18,6 +18,7 @@ configs/phileas.yaml
 data/phileas.db*
 data/cities1000.txt
 data/Master.csv
+data/etopo1/
 vendor/
 pkg/sim/simconnect/lib/
 cmd/experiments/

@@ -10,6 +10,7 @@ import (
 type POIProvider interface {
 	GetPOI(ctx context.Context, qid string) (*model.POI, error)
 	GetBestCandidate() *model.POI
+	GetCandidates(limit int) []*model.POI
 	CountScoredAbove(threshold float64, limit int) int
 	LastScoredPosition() (lat, lon float64)
 }

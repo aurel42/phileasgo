@@ -136,6 +136,9 @@ I expect to be the only user for the foreseeable future, so at this point I don'
 This project uses the **[Uber H3](https://github.com/uber/h3)** geospatial indexing system.
 H3 is licensed under the [Apache License 2.0](https://github.com/uber/h3/blob/master/LICENSE).
 
+Elevation data provided by **[ETOPO1 Global Relief Model](https://www.ncei.noaa.gov/products/etopo-global-relief-model)** from NOAA National Centers for Environmental Information.
+Citation: Amante, C. and B.W. Eakins, 2009. ETOPO1 1 Arc-Minute Global Relief Model: Procedures, Data Sources and Analysis. NOAA Technical Memorandum NESDIS NGDC-24. National Geophysical Data Center, NOAA. doi:10.7289/V5C8276M
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.

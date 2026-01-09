@@ -34,6 +34,42 @@ if (-not (Test-Path $geonamesTxt)) {
     Write-Host "GeoNames data already exists - skipping." -ForegroundColor Gray
 }
 
+# Download ETOPO1 Elevation Data (for Line-of-Sight)
+$etopoUrl = "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/ice_surface/grid_registered/binary/etopo1_ice_g_i2.zip"
+$etopoZip = "data/etopo1.zip"
+$etopoDir = "data"     # content is inside a folder or we flat extract? The zip usually contains the file.
+# ETOPO zip usually contains the .bin file directly or in a folder. We'll check.
+# Actually, let's extract to data/etopo1 to be clean.
+$etopoDest = "data/etopo1"
+$etopoFile = "data/etopo1/etopo1_ice_g_i2.bin"
+
+if (-not (Test-Path $etopoFile)) {
+    Write-Host "Downloading ETOPO1 Elevation Data (~360MB Compressed)..." -ForegroundColor Yellow
+    try {
+        Invoke-WebRequest -Uri $etopoUrl -OutFile $etopoZip
+        Write-Host "Extracting ETOPO1..." -ForegroundColor Yellow
+        
+        if (-not (Test-Path $etopoDest)) {
+            New-Item -ItemType Directory -Path $etopoDest | Out-Null
+        }
+        
+        Expand-Archive -Path $etopoZip -DestinationPath $etopoDest -Force
+        Remove-Item $etopoZip
+        
+        # Verify file exists (sometimes names vary, we assume standard NOAA naming)
+        if (Test-Path $etopoFile) {
+             Write-Host "ETOPO1 data installed!" -ForegroundColor Green
+        } else {
+             Write-Host "ETOPO1 extracted but file name might differ. Check $etopoDest" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "Failed to download ETOPO1: $_" -ForegroundColor Red
+        Write-Host "Manually download from: $etopoUrl" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "ETOPO1 data already exists - skipping." -ForegroundColor Gray
+}
+
 # LittleNavMap POIs instructions (only if not present)
 $masterCsv = "data/Master.csv"
 if (-not (Test-Path $masterCsv)) {

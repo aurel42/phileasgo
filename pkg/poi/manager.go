@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -292,6 +293,26 @@ func (m *Manager) GetBestCandidate() *model.POI {
 		}
 	}
 	return best
+}
+
+// GetCandidates returns the top N POIs sorted by score (highest first).
+func (m *Manager) GetCandidates(limit int) []*model.POI {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	candidates := make([]*model.POI, 0, len(m.trackedPOIs))
+	for _, p := range m.trackedPOIs {
+		candidates = append(candidates, p)
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].Score > candidates[j].Score
+	})
+
+	if len(candidates) > limit {
+		return candidates[:limit]
+	}
+	return candidates
 }
 
 // ActiveCount returns the number of currently tracked POIs.

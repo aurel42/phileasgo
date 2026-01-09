@@ -19,6 +19,7 @@ type Config struct {
 	Ticker   TickerConfig   `yaml:"ticker"`
 	Triggers TriggersConfig `yaml:"triggers"`
 	Wikidata WikidataConfig `yaml:"wikidata"`
+	Terrain  TerrainConfig  `yaml:"terrain"`
 	Scorer   ScorerConfig   `yaml:"scorer"`
 	LLM      LLMConfig      `yaml:"llm"`
 	Narrator NarratorConfig `yaml:"narrator"`
@@ -133,6 +134,12 @@ type WikidataConfig struct {
 	Area AreaConfig `yaml:"area"`
 }
 
+// TerrainConfig holds terrain and line-of-sight settings.
+type TerrainConfig struct {
+	LineOfSight   bool   `yaml:"line_of_sight"`
+	ElevationFile string `yaml:"elevation_file"`
+}
+
 // AreaConfig holds settings for area-based Wikidata queries.
 type AreaConfig struct {
 	MaxArticles int     `yaml:"max_articles"`
@@ -203,6 +210,10 @@ func DefaultConfig() *Config {
 				MaxArticles: 500,
 				MaxDist:     80.0,
 			},
+		},
+		Terrain: TerrainConfig{
+			LineOfSight:   true,
+			ElevationFile: "data/etopo1/etopo1_ice_g_i2.bin",
 		},
 		Scorer: ScorerConfig{
 			VarietyPenaltyFirst: 0.1,

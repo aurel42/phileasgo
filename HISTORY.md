@@ -1,6 +1,22 @@
 ﻿# Release History
 
+## v0.2.40 (2026-01-09)
+- **Feature**: **Line-of-Sight (LOS) for POI Selection**
+    - Implemented terrain-aware POI filtering during auto-narration.
+    - The narrator now checks if a POI is visible from the aircraft or blocked by terrain (mountains) before selecting it.
+    - Uses **ETOPO1** elevation data (1 arc-minute resolution) with 0.5km ray-marching steps.
+    - LOS is enabled by default (`terrain.line_of_sight: true`).
+- **Config**: **New `terrain` Configuration Section**
+    - Moved `line_of_sight` from the `wikidata` section to a new dedicated `terrain` section.
+    - Added `elevation_file` setting to configure the path to the ETOPO1 binary data file.
+    - Default path: `data/etopo1/etopo1_ice_g_i2.bin`.
+- **Instrumentation**: Added comprehensive debug logging for:
+    - POI selection path (`ShouldFire`, `getVisibleCandidate`).
+    - Manual play API (`HandlePlay`, `PlayPOI`).
+    - LOS terrain blocking decisions.
+
 ## v0.2.39 (2026-01-08)
+
 - **Improvement**: **Eviction Job Optimization**
     - Reduced eviction frequency from 30s to **300s** (5 minutes) to prevent aggressive cache clearing.
     - Added **Ground Safety Check**: Eviction is now skipped when the aircraft is on the ground (parked or taxiing), ensuring loaded POIs remain available during turnaround.

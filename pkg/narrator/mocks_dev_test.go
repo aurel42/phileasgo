@@ -94,8 +94,12 @@ func (m *MockPOIProvider) CountScoredAbove(threshold float64, limit int) int {
 	return 0 // default for tests
 }
 
-func (m *MockPOIProvider) LastScoredPosition() (float64, float64) {
+func (m *MockPOIProvider) LastScoredPosition() (lat, lon float64) {
 	return 0, 0
+}
+
+func (m *MockPOIProvider) GetCandidates(limit int) []*model.POI {
+	return []*model.POI{}
 }
 
 type MockGeo struct {

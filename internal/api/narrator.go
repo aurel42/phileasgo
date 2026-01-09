@@ -67,12 +67,16 @@ type NarratorStatusResponse struct {
 
 // HandlePlay handles POST /api/narrator/play
 func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
+	slog.Info("API: HandlePlay called")
 
 	var req PlayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("API: HandlePlay decode error", "error", err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
+
+	slog.Info("API: HandlePlay received POI request", "poi_id", req.POIID)
 
 	// Reset pause state if user paused
 	if h.audio.IsUserPaused() {

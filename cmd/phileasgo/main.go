@@ -29,6 +29,7 @@ import (
 	"phileasgo/pkg/scorer"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
+	"phileasgo/pkg/terrain"
 	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/tts"
 	"phileasgo/pkg/version"
@@ -121,8 +122,14 @@ func run(ctx context.Context, configPath string) error {
 	// Telemetry Handler (must be created before scheduler to receive updates)
 	telH := api.NewTelemetryHandler()
 
+	// LOS
+	elProv, losChecker := initLOS(appCfg)
+	if elProv != nil {
+		defer elProv.Close()
+	}
+
 	// Scheduler
-	sched := setupScheduler(appCfg, simClient, st, narratorSvc, promptMgr, wdValidator, svcs, telH)
+	sched := setupScheduler(appCfg, simClient, st, narratorSvc, promptMgr, wdValidator, svcs, telH, losChecker)
 	go sched.Start(ctx)
 
 	// Visibility
@@ -231,6 +238,21 @@ func initVisibility() *visibility.Calculator {
 	return visibility.NewCalculator(visManager)
 }
 
+func initLOS(cfg *config.Config) (*terrain.ElevationProvider, *terrain.LOSChecker) {
+	path := cfg.Terrain.ElevationFile
+	if path == "" {
+		path = "data/etopo1/etopo1_ice_g_i2.bin"
+	}
+	provider, err := terrain.NewElevationProvider(path)
+	if err != nil {
+		// Log but don't fail, LOS just won't work
+		slog.Info("LOS: ETOPO1 data not found or invalid", "path", path, "error", err)
+		return nil, nil
+	}
+	slog.Info("LOS: ETOPO1 Loaded", "path", path)
+	return provider, terrain.NewLOSChecker(provider)
+}
+
 func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *narrator.AIService, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
@@ -255,12 +277,12 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 	return runServerLifecycle(ctx, srv, quit)
 }
 
-func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, ns *narrator.AIService, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, sink core.TelemetrySink) *core.Scheduler {
+func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, ns *narrator.AIService, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, sink core.TelemetrySink, los *terrain.LOSChecker) *core.Scheduler {
 	sched := core.NewScheduler(cfg, simClient, sink)
 	sched.AddJob(core.NewDistanceJob("DistanceSync", 5000, func(c context.Context, t sim.Telemetry) {
 		_ = st.MarkEntitiesSeen(c, map[string][]string{})
 	}))
-	sched.AddJob(core.NewNarrationJob(cfg, ns, ns.POIManager()))
+	sched.AddJob(core.NewNarrationJob(cfg, ns, ns.POIManager(), los))
 	sched.AddJob(core.NewDynamicConfigJob(cfg, ns.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc))
 	sched.AddJob(core.NewEvictionJob(cfg, svcs.PoiMgr, svcs.WikiSvc))
 	return sched

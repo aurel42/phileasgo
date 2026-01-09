@@ -33,6 +33,10 @@ func (m *TestPOIProvider) LastScoredPosition() (float64, float64) {
 	return 0, 0
 }
 
+func (m *TestPOIProvider) GetCandidates(limit int) []*model.POI {
+	return []*model.POI{}
+}
+
 func TestSampleNarrationLength_RelativeDominance(t *testing.T) {
 	// Setup
 	cfg := &config.Config{
