@@ -42,18 +42,39 @@ sequenceDiagram
 ---
 
 ## 2. Classification & Rescue
-How we determine if a Wikidata item is a POI.
+How the system determines if a Wikidata item is worthy of being a POI.
 
-### Flow Breakdown
-1. **Config Match**: Checks if the QID is a direct match in `categories.yaml`.
-2. **P31 Lookup**: Fetches the "Instance Of" (P31) claims.
-3. **Hierarchy Walk (BFS)**: 
-    - Traverses up the "Subclass Of" (P279) chain (max depth 4).
-    - Checks for matches against configured categories.
-    - Results are cached in `wikidata_hierarchy` table.
-4. **Rescue Logic** (`classifier.go`):
-    - If no category is found, the item is checked for **Landmark** status.
-    - It must exceed the **Median Dimensions** (Height, Length, or Area) of objects observed in the window (Current and last 10 tiles).
+### Phase 1: Direct Matching (The Fast Path)
+Before any network calls, the system checks the `categories.yaml` configuration for direct hits:
+1. **Static Lookup**: If the QID matches a known specific landmark or a "Root Category" QID (e.g., Q62447 for Aerodrome).
+2. **Dynamic Interests**: If a Qid is temporarily flagged (e.g., via user interaction or simulator state).
+
+### Phase 2: Taxonomy Traversal (The BFS Engine)
+If no direct match exists, the system starts a **layered Breadth-First Search (BFS)** starting from the item's **P31 (Instance Of)** claims.
+
+1. **Depth Limit**: The traversal stops at **4 layers** deep to prevent performance degradation.
+2. **Structural Caching**: Every node (class) encountered is saved in the `wikidata_hierarchy` table.
+    - **Full Node**: Contains Category, Parents (P279), and Name.
+    - **Structural Node**: Saved with an empty Category (`""`) to indicate it's a pass-through node that has been visited but doesn't map directly to a category.
+    - **Ignored Node**: Marked specifically to block sub-trees of the taxonomy.
+3. **Traversal Rules**:
+    - **Batching**: Missing nodes in a layer are fetched as a single batch from the Wikidata API.
+    - **Priority**: Within each layer, a `Match` for a category is prioritized over an `Ignore` signal.
+    - **Persistence**: Results are committed to the SQLite DB to ensure that second visits to the same category (e.g., different types of "Castle") are instant.
+
+### Phase 3: Landmark Rescue (Dimension Tracking)
+Items that fail to classify into a known category are eligible for **Rescue** if they are geometrically significant.
+
+1. **Eligibility**: An article is **never** rescued if any of its direct P31 instances are explicitly in the `IgnoredCategories` config.
+2. **The Dimensions**: The system tracks `Height`, `Length`, and `Area` (calculated or fetched from SPARQL).
+3. **Median Window**: The `DimensionTracker` maintains a sliding window of the **Max Dimensions** from the last **10 tiles**.
+4. **Rescue Thresholds**:
+    - **Local Hero**: If an item's dimension is the **Maximum** in the current tile, it is rescued as a "Landmark".
+    - **Global Giant**: If an item exceeds the **Median of the Maxima** from the 10-tile window, it is rescued.
+5. **Scoring Impact**:
+    - **Record/Giant Boost**: Rescued landmarks (or extremely large classified POIs) receive a `DimensionMultiplier`:
+        - `x2.0`: If it's a Tile Record **OR** exceeds the Global Median.
+        - `x4.0`: If it is **BOTH** a Tile Record and a Global Giant.
 
 ---
 
