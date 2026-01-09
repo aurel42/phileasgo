@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	langMapCacheKey = "sys_lang_map_v3"
+	langMapCacheKey = "sys_lang_map_v4"
 	refreshInterval = 30 * 24 * time.Hour // Refresh monthly
 )
 

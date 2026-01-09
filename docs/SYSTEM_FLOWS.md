@@ -96,7 +96,25 @@ How we determine the POI's Name and Wikipedia link.
 
 ---
 
-## 4. Narration Selection & LOS
+## 4. LanguageMapper & Country Detection
+The component responsible for resolving geographic coordinates to human languages.
+
+### Operation
+- **Cold Start**: On service start, it attempts to load the mapping from the persistence store (`sys_lang_map_v4`).
+- **Wikidata Sync**: if the cache is empty, it executes a broad SPARQL query across all countries to fetch:
+    - **ISO Country Code** (P297).
+    - **Official Languages** (P37) and their **Wikimedia Codes** (P424).
+- **Mapping**: It maintains a `map[string][]LanguageInfo`, supporting countries with multiple official languages (e.g., Switzerland, Canada).
+- **Refresh**: The map is intended to be refreshed monthly (`refreshInterval = 30 days`).
+
+### Runtime Resolution
+1. **Reverse Geocode**: `geo.Service` finds the nearest city (from `cities1000.txt`) to get the country code.
+2. **Mapper Lookup**: `LanguageMapper.GetLanguages(cc)` returns all official language codes.
+3. **Fallback**: If a country is not in the map, it defaults to **English** (`en`).
+
+---
+
+## 5. Narration Selection & LOS
 The automated loop that triggers "Ava" to speak.
 
 ### Logic: `NarrationJob` (`scheduler.go`)
@@ -112,17 +130,7 @@ The automated loop that triggers "Ava" to speak.
 
 ---
 
-## Final Verification Checklist
-Files to audit against this document:
-- [ ] **H3 Resolution**: `pkg/wikidata/grid.go` (`h3Resolution`).
-- [ ] **Classification Path**: `pkg/classifier/classifier.go` (`Classify`).
-- [ ] **Language Mapping**: `pkg/wikidata/mapper.go` (SPARQL query in `refresh`).
-- [ ] **Article Winner**: `pkg/wikidata/service_enrich.go` (`determineBestArticle`).
-- [ ] **Selection Loop**: `pkg/core/scheduler.go` (`getVisibleCandidate`).
-
----
-
-## 5. Dynamic Categories & AI Extensions
+## 6. Dynamic Categories & AI Extensions
 How PhileasGo adapts its taxonomy to the current region.
 
 ### The Problem
@@ -143,3 +151,13 @@ Every **30 minutes** or **50nm** of travel, the system triggers a background tas
 - **Scoring**: Since Dynamic Categories aren't in `categories.yaml`, they inherit **Default Weights** (1.0) and **Medium Size** ("M").
 - **Narration**: Ava uses the `specific_category` name in her descriptions, providing a much higher level of localized "Tour Guide" expertise.
 - **Persistence**: These interests are **In-Memory only**. They expire when the flight moves to a new region or the server restarts, ensuring the "Interest Window" remains relevant to the current geography.
+
+---
+
+## Final Verification Checklist
+Files to audit against this document:
+- [ ] **H3 Resolution**: `pkg/wikidata/grid.go` (`h3Resolution`).
+- [ ] **Classification Path**: `pkg/classifier/classifier.go` (`Classify`).
+- [ ] **Language Mapping**: `pkg/wikidata/mapper.go` (SPARQL query in `refresh`).
+- [ ] **Article Winner**: `pkg/wikidata/service_enrich.go` (`determineBestArticle`).
+- [ ] **Selection Loop**: `pkg/core/scheduler.go` (`getVisibleCandidate`).
