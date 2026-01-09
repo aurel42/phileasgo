@@ -47,7 +47,7 @@ How the system determines if a Wikidata item is worthy of being a POI.
 ### Phase 1: Direct Matching (The Fast Path)
 Before any network calls, the system checks the `categories.yaml` configuration for direct hits:
 1. **Static Lookup**: If the QID matches a known specific landmark or a "Root Category" QID (e.g., Q62447 for Aerodrome).
-2. **Dynamic Interests**: If a Qid is temporarily flagged (e.g., via user interaction or simulator state).
+2. **Dynamic Interests (AI Extensions)**: Regional subclasses (P279) suggested by Gemini based on location, mapping specialized QIDs to either existing or new "Dynamic" categories.
 
 ### Phase 2: Taxonomy Traversal (The BFS Engine)
 If no direct match exists, the system starts a **layered Breadth-First Search (BFS)** starting from the item's **P31 (Instance Of)** claims.
@@ -118,3 +118,27 @@ Files to audit against this document:
 - [ ] **Language Mapping**: `pkg/wikidata/mapper.go` (SPARQL query in `refresh`).
 - [ ] **Article Winner**: `pkg/wikidata/service_enrich.go` (`determineBestArticle`).
 - [ ] **Selection Loop**: `pkg/core/scheduler.go` (`getVisibleCandidate`).
+
+---
+
+## 5. Dynamic Categories & AI Extensions
+How PhileasGo adapts its taxonomy to the current region.
+
+### The Problem
+A static list of categories (Castles, Airports, etc.) cannot capture the cultural or geological richness of every region on Earth (e.g., "Moai" in Easter Island or "Shinto Shrines" in Japan).
+
+### The Solution: `DynamicConfigJob`
+Every **30 minutes** or **50nm** of travel, the system triggers a background task:
+1. **Context Batching**: The system sends the current Country, Region, and a list of all **Static Categories** to Gemini.
+2. **AI Suggestion**: Gemini suggests 3-5 Wikidata **subclasses** (Classes, not Instances) that are iconic to that specific region.
+3. **Taxonomy Mapping**:
+    - Gemini attempts to map each suggestion to a **Static Category** (e.g., a "Moorish Castle" -> "Castle").
+    - If no static category fits, Gemini provides a **Specific Category** name (e.g., "Buddhist Temple"). This becomes a **Dynamic Category**.
+4. **Validation**: The suggested QIDs are validated via a SPARQL metadata check to ensure they are valid classes.
+5. **Injection**: Validated QIDs are injected into the `Classifier` as **Dynamic Interests**.
+
+### Impact on Flows
+- **Classification**: Phase 1 (Direct Matching) now hits the `Dynamic Interests` map first.
+- **Scoring**: Since Dynamic Categories aren't in `categories.yaml`, they inherit **Default Weights** (1.0) and **Medium Size** ("M").
+- **Narration**: Ava uses the `specific_category` name in her descriptions, providing a much higher level of localized "Tour Guide" expertise.
+- **Persistence**: These interests are **In-Memory only**. They expire when the flight moves to a new region or the server restarts, ensuring the "Interest Window" remains relevant to the current geography.
