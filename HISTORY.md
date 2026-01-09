@@ -1,8 +1,5 @@
 ﻿# Release History
 
-## v0.2.42 (2026-01-09)
-- **Testing**: Increased `pkg/store` test coverage from 42.9% to **82.0%** with table-driven tests for all store interfaces.
-
 ## v0.2.43 (2026-01-09)
 - **Refactor**: **Optimized Auto-Narration Frequency**
     - Decoupled the `NarrationJob` from the high-frequency telemetry loop (100ms).
@@ -16,6 +13,9 @@
     - The application now exits fatally (code 1) if the LLM client is not configured when a narration request is made, preventing "zombie" states where requests silently fail.
 - **Testing**: **Improved Mock Simulator**
     - The Mock Sim now dynamically adjusts its flight profile altitudes based on the starting airfield elevation, ensuring relevant visibility testing regardless of starting terrain height.
+
+## v0.2.42 (2026-01-09)
+- **Testing**: Increased `pkg/store` test coverage from 42.9% to **82.0%** with table-driven tests for all store interfaces.
 
 ## v0.2.41 (2026-01-09)
 - **Refactor**: **Store Interface Segregation**

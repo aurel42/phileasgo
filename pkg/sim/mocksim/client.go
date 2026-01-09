@@ -9,6 +9,7 @@ import (
 
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/terrain"
 )
 
 const (
@@ -55,6 +56,7 @@ type MockClient struct {
 	stepStart        time.Time
 	lastTurnTime     time.Time
 	groundAlt        float64
+	elevation        *terrain.ElevationProvider
 }
 
 // NewClient creates a new mock simulator client.
@@ -82,6 +84,29 @@ func NewClient(cfg Config) *MockClient {
 	m.wg.Add(1)
 	go m.physicsLoop()
 	return m
+}
+
+// SetElevationProvider injects an elevation provider for accurate AGL calculations.
+func (m *MockClient) SetElevationProvider(e *terrain.ElevationProvider) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.elevation = e
+
+	// If provider is set, update initial ground altitude immediately
+	if e != nil {
+		elevM, err := e.GetElevation(m.tel.Latitude, m.tel.Longitude)
+		if err == nil {
+			m.groundAlt = float64(elevM) * 3.28084 // meters to feet
+
+			// If we are on ground, snap to new ground alt
+			if m.state != StageAirborne {
+				m.tel.AltitudeMSL = m.groundAlt
+			}
+
+			// Re-init scenario with new ground alt
+			m.initScenario()
+		}
+	}
 }
 
 // GetTelemetry returns the current state of the simulated aircraft.
@@ -205,6 +230,14 @@ func (m *MockClient) update() {
 		// Stationary: predicted position = current position
 		m.tel.PredictedLatitude = m.tel.Latitude
 		m.tel.PredictedLongitude = m.tel.Longitude
+	}
+
+	// Update Ground Altitude from ETOPO1 if available
+	if m.elevation != nil {
+		elev, err := m.elevation.GetElevation(m.tel.Latitude, m.tel.Longitude)
+		if err == nil {
+			m.groundAlt = float64(elev) * 3.28084 // feet
+		}
 	}
 
 	// Always update IsOnGround based on state and altitude

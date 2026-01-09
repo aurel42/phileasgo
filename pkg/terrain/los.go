@@ -66,7 +66,10 @@ func (l *LOSChecker) IsVisible(p1, p2 geo.Point, alt1Ft, alt2Ft, stepSizeKM floa
 		drop := (x * (distKM - x)) / (2 * earthRadiusKM) * 1000.0
 		rayAlt := lerpAlt - drop
 
-		if float64(groundElevM) > rayAlt {
+		// RELAXED LOS: Add a 50m tolerance to the check.
+		// The ground must be strictly HIGHER than the ray + 50m to block it.
+		// This accounts for ETOPO1 resolution inaccuracies and "grazing" shots.
+		if float64(groundElevM) > rayAlt+50.0 {
 			slog.Debug("LOS blocked by terrain",
 				"step", i, "of", steps,
 				"sample_lat", fmt.Sprintf("%.4f", lat),

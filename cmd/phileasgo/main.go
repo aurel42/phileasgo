@@ -28,6 +28,7 @@ import (
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/scorer"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/sim/mocksim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/terrain"
 	"phileasgo/pkg/tracker"
@@ -126,6 +127,12 @@ func run(ctx context.Context, configPath string) error {
 	elProv, losChecker := initLOS(appCfg)
 	if elProv != nil {
 		defer elProv.Close()
+
+		// If using Mock Sim, inject coordinates
+		if mc, ok := simClient.(*mocksim.MockClient); ok {
+			slog.Info("Injecting ETOPO1 elevation provider into Mock Sim")
+			mc.SetElevationProvider(elProv)
+		}
 	}
 
 	// Scheduler

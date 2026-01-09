@@ -202,7 +202,7 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	if err != nil {
 		if strings.Contains(err.Error(), "gemini client not configured") {
 			slog.Error("FATAL: Gemini client not configured. Application cannot proceed.", "error", err)
-			os.Exit(1)
+			os.Exit(1) //nolint:gocritic
 		}
 		slog.Error("Narrator: LLM essay script generation failed", "error", err)
 		return
@@ -325,7 +325,7 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telem
 	if err != nil {
 		if strings.Contains(err.Error(), "gemini client not configured") {
 			slog.Error("FATAL: Gemini client not configured. Application cannot proceed.", "error", err)
-			os.Exit(1)
+			os.Exit(1) //nolint:gocritic
 		}
 		slog.Error("Narrator: LLM script generation failed", "error", err)
 		if s.beaconSvc != nil {
