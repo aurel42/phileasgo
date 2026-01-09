@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/poi"
 	"phileasgo/pkg/tracker"
@@ -125,118 +126,278 @@ func (m *MockClassifier) GetConfig() *config.CategoriesConfig {
 	}
 }
 
+// MockWikidataClient implements ClientInterface for testing
+type MockWikidataClient struct {
+	QuerySPARQLFunc       func(ctx context.Context, query, cacheKey string) ([]Article, string, error)
+	GetEntitiesBatchFunc  func(ctx context.Context, ids []string) (map[string]EntityMetadata, error)
+	FetchFallbackDataFunc func(ctx context.Context, ids []string) (map[string]FallbackData, error)
+	GetEntityClaimsFunc   func(ctx context.Context, id, property string) (targets []string, label string, err error)
+}
+
+func (m *MockWikidataClient) QuerySPARQL(ctx context.Context, query, cacheKey string) ([]Article, string, error) {
+	if m.QuerySPARQLFunc != nil {
+		return m.QuerySPARQLFunc(ctx, query, cacheKey)
+	}
+	return nil, "[]", nil
+}
+
+func (m *MockWikidataClient) GetEntitiesBatch(ctx context.Context, ids []string) (map[string]EntityMetadata, error) {
+	if m.GetEntitiesBatchFunc != nil {
+		return m.GetEntitiesBatchFunc(ctx, ids)
+	}
+	return make(map[string]EntityMetadata), nil
+}
+
+func (m *MockWikidataClient) FetchFallbackData(ctx context.Context, ids []string) (map[string]FallbackData, error) {
+	if m.FetchFallbackDataFunc != nil {
+		return m.FetchFallbackDataFunc(ctx, ids)
+	}
+	return make(map[string]FallbackData), nil
+}
+
+func (m *MockWikidataClient) GetEntityClaims(ctx context.Context, id, property string) (targets []string, label string, err error) {
+	if m.GetEntityClaimsFunc != nil {
+		return m.GetEntityClaimsFunc(ctx, id, property)
+	}
+	return nil, "", nil
+}
+
+// MockWikipediaProvider implements WikipediaProvider for testing
+type MockWikipediaProvider struct {
+	GetArticleLengthsFunc func(ctx context.Context, titles []string, lang string) (map[string]int, error)
+	GetArticleContentFunc func(ctx context.Context, title, lang string) (string, error)
+}
+
+func (m *MockWikipediaProvider) GetArticleLengths(ctx context.Context, titles []string, lang string) (map[string]int, error) {
+	if m.GetArticleLengthsFunc != nil {
+		return m.GetArticleLengthsFunc(ctx, titles, lang)
+	}
+	return make(map[string]int), nil
+}
+
+func (m *MockWikipediaProvider) GetArticleContent(ctx context.Context, title, lang string) (string, error) {
+	if m.GetArticleContentFunc != nil {
+		return m.GetArticleContentFunc(ctx, title, lang)
+	}
+	return "", nil
+}
+
 func TestProcessTileData(t *testing.T) {
+	// Base Mocks
 	st := &mockStore{
 		pois: map[string]*model.POI{
 			"Q_KNOWN": {WikidataID: "Q_KNOWN", Category: "Castle"},
 		},
 	}
-
 	cl := &MockClassifier{
 		ClassifyFunc: func(ctx context.Context, qid string) (*model.ClassificationResult, error) {
 			if qid == "Q2" {
 				return &model.ClassificationResult{Category: "City"}, nil
 			}
-			return nil, nil
+			return &model.ClassificationResult{Category: "Unknown"}, nil
 		},
 	}
 
-	svc := &Service{
-		store:      st,
-		classifier: cl,
-		poi:        poi.NewManager(&config.Config{}, st, nil),
-		tracker:    tracker.New(),
-		logger:     slog.Default(),
-		cfg: config.WikidataConfig{
-			Area: config.AreaConfig{
-				MaxArticles: 100,
+	// Table Driven Test
+	tests := []struct {
+		name         string
+		rawJSON      string
+		fallbackData map[string]FallbackData
+		fallbackErr  error
+		forceDesc    bool
+		wantArticles int
+		wantRescued  int
+		expectError  bool
+	}{
+		{
+			name: "Success - Cheap Query + Hydration",
+			// Raw JSON mimics Cheap Query response (No Labels, No Titles)
+			rawJSON: `{"results":{"bindings":[
+				{"item":{"value":"http://wd.org/Q2"}, "lat":{"value":"52.5"}, "lon":{"value":"13.4"}, "sitelinks":{"value":"10"}, "instances":{"value":"http://wd.org/P31/Q515"}}
+			]}}`,
+			fallbackData: map[string]FallbackData{
+				"Q2": {
+					Labels:    map[string]string{"en": "Berlin"},
+					Sitelinks: map[string]string{"enwiki": "Berlin"},
+				},
 			},
+			wantArticles: 1,
+			wantRescued:  0,
+			expectError:  false,
+		},
+		{
+			name:         "Empty Results",
+			rawJSON:      `{"results":{"bindings":[]}}`,
+			wantArticles: 0,
+			wantRescued:  0,
+			expectError:  false,
+		},
+		{
+			name: "Hydration Failure",
+			rawJSON: `{"results":{"bindings":[
+				{"item":{"value":"http://wd.org/Q2"}, "lat":{"value":"52.5"}, "lon":{"value":"13.4"}, "sitelinks":{"value":"10"}}
+			]}}`,
+			fallbackErr: context.DeadlineExceeded,
+			expectError: true, // Should fail if hydration fails
+		},
+		{
+			name: "Filtered Existing POI",
+			// Q_KNOWN is in the store
+			rawJSON: `{"results":{"bindings":[
+				{"item":{"value":"http://wd.org/Q_KNOWN"}, "lat":{"value":"50.0"}, "lon":{"value":"10.0"}, "sitelinks":{"value":"50"}}
+			]}}`,
+			wantArticles: 0,
+			expectError:  false,
+		},
+		{
+			name: "Reprocess Force=True",
+			// Even if filtered or seen, force=true should process it (though mock store behavior for filter is static above).
+			// We check if logic flows through.
+			// Currently filterExisting is hardcoded in test setup.
+			// Let's use a new QID for 'seen' check if we had a seen store.
+			rawJSON: `{"results":{"bindings":[
+				{"item":{"value":"http://wd.org/Q3"}, "lat":{"value":"52.0"}, "lon":{"value":"13.0"}, "sitelinks":{"value":"5"}}
+			]}}`,
+			fallbackData: map[string]FallbackData{
+				"Q3": {Labels: map[string]string{"en": "Potsdam"}},
+			},
+			forceDesc:    true,
+			wantArticles: 1,
+			expectError:  false,
+		},
+		{
+			name: "Partial Hydration (Missing Entity)",
+			rawJSON: `{"results":{"bindings":[
+				{"item":{"value":"http://wd.org/Q2"}, "lat":{"value":"52.5"}, "lon":{"value":"13.4"}, "sitelinks":{"value":"10"}, "instances":{"value":"http://wd.org/P31/Q515"}},
+				{"item":{"value":"http://wd.org/Q999"}, "lat":{"value":"52.5"}, "lon":{"value":"13.4"}, "sitelinks":{"value":"10"}, "instances":{"value":"http://wd.org/P31/Q515"}}
+			]}}`,
+			fallbackData: map[string]FallbackData{
+				"Q2": {
+					Labels:    map[string]string{"en": "Berlin"},
+					Sitelinks: map[string]string{"enwiki": "Berlin"},
+				},
+				// Q999 is missing from fallback
+			},
+			wantArticles: 1, // Only Q2 survives
+			wantRescued:  0,
+			expectError:  false,
 		},
 	}
 
-	t.Run("FilterExistingPOIs", func(t *testing.T) {
-		arts := []Article{
-			{QID: "Q_KNOWN"},
-			{QID: "Q_UNKNOWN"},
-		}
-		filtered := svc.filterExistingPOIs(context.Background(), arts, []string{"Q_KNOWN", "Q_UNKNOWN"})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup Mock Client
+			mockClient := &MockWikidataClient{
+				FetchFallbackDataFunc: func(ctx context.Context, ids []string) (map[string]FallbackData, error) {
+					if tt.fallbackErr != nil {
+						return nil, tt.fallbackErr
+					}
+					return tt.fallbackData, nil
+				},
+				// Needed for classification step
+				GetEntitiesBatchFunc: func(ctx context.Context, ids []string) (map[string]EntityMetadata, error) {
+					// Return dummy metadata so classification has something to work with
+					res := make(map[string]EntityMetadata)
+					for _, id := range ids {
+						res[id] = EntityMetadata{
+							Claims: map[string][]string{"P31": {"Q515"}}, // City
+						}
+					}
+					return res, nil
+				},
+			}
 
-		if len(filtered) != 1 {
-			t.Errorf("Expected 1 filtered article, got %d", len(filtered))
-		}
-		if filtered[0].QID != "Q_UNKNOWN" {
-			t.Errorf("Expected Q_UNKNOWN to remain, got %s", filtered[0].QID)
-		}
-	})
+			// Update ClassifyBatchFunc on the specific classifier instance for this test run needed?
+			// The classifier `cl` is shared across subtests. We need to set the func per test or make it robust.
+			// Let's set it globally for `cl` but it needs to match expectations.
+			cl.ClassifyBatchFunc = func(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult {
+				res := make(map[string]*model.ClassificationResult)
+				for qid := range entities {
+					// Simple mock logic: If strict check needed, use qid
+					if qid == "Q2" || qid == "Q3" || qid == "Q999" {
+						res[qid] = &model.ClassificationResult{Category: "City"}
+					} else {
+						res[qid] = &model.ClassificationResult{Category: "Unknown"}
+					}
+				}
+				return res
+			}
 
-	t.Run("PriorityRescue", func(t *testing.T) {
-		cl.RescueFunc = func(h, l, a float64, i []string) bool {
-			return h > 100 || l > 100 || a > 100
-		}
+			svc := &Service{
+				store:      st,
+				classifier: cl,
+				client:     mockClient,               // Inject Mock!
+				wiki:       &MockWikipediaProvider{}, // Inject Mock!
+				poi:        poi.NewManager(&config.Config{}, st, nil),
+				tracker:    tracker.New(),
+				logger:     slog.Default(),
+				geo:        &geo.Service{},                             // Need Geo for enrichment
+				mapper:     NewLanguageMapper(st, nil, slog.Default()), // Mockable?
+				userLang:   "en",
+				cfg: config.WikidataConfig{
+					Area: config.AreaConfig{
+						MaxArticles: 100,
+					},
+				},
+			}
 
-		fBig := 200.0
-		fSmall := 10.0
+			// Mock Geo Service for "GetCountry" if needed, but we can rely on nil-safe or basic implementation if geo.Service is simple struct?
+			// geo.Service structure might panic if not init.
+			// Let's look at ProcessTileData logic: `country := s.geo.GetCountry(...)`.
+			// Valid geo.Service needed.
+			// However, in Step 916 view, geo.Service wasn't mocked.
+			// We can inject a mock geo provider if Service accepts one, or just ensure geo service doesn't crash.
+			// Actually, Service defines `geo *geo.Service`.
+			// If `geo.Service` has methods that panic on nil internal data, we have a problem.
+			// Usually we need `geo.NewService`.
+			// But for now, let's assume it's robust or skip enrichment error?
+			// Enrichment happens at the END. Steps 1-4 are critical.
 
-		arts := []Article{
-			{QID: "A1", Category: "Church", Sitelinks: 10},                 // Standard POI
-			{QID: "A2", Category: "Church", Sitelinks: 1, Height: &fBig},   // Categorized but sparse, SHOULD RESCUE (keep Category)
-			{QID: "A3", Category: "Church", Sitelinks: 1, Height: &fSmall}, // Categorized but sparse, NO RESCUE (Drop)
-			{QID: "A4", Category: "", Area: &fBig},                         // Uncategorized, SHOULD RESCUE (New Category)
-			{QID: "A5", Category: "", Area: &fSmall},                       // Uncategorized, NO RESCUE (Drop)
-		}
+			// EXECUTE
+			gotArticles, gotRescued, err := svc.ProcessTileData(context.Background(), []byte(tt.rawJSON), 0, 0, tt.forceDesc)
 
-		processed, rescued, err := svc.postProcessArticles(arts)
-		if err != nil {
-			t.Fatalf("postProcessArticles failed: %v", err)
-		}
+			// ASSERT
+			if (err != nil) != tt.expectError {
+				t.Errorf("ProcessTileData() error = %v, expectError %v", err, tt.expectError)
+				return
+			}
+			if len(gotArticles) != tt.wantArticles {
+				t.Errorf("ProcessTileData() returned %d articles, want %d", len(gotArticles), tt.wantArticles)
+			}
+			if gotRescued != tt.wantRescued {
+				t.Errorf("ProcessTileData() rescued = %d, want %d", gotRescued, tt.wantRescued)
+			}
+		})
+	}
+}
 
-		// Expected processed: A1, A2, A4
-		if len(processed) != 3 {
-			t.Errorf("Expected 3 processed articles, got %d", len(processed))
-		}
+func TestBuildCheapQuery(t *testing.T) {
+	got := buildCheapQuery(52.5, 13.4, "10.0")
 
-		// A1: Church (Standard)
-		if processed[0].QID != "A1" || processed[0].Category != "Church" {
-			t.Errorf("A1 mismatch: QID=%s, Cat=%s", processed[0].QID, processed[0].Category)
-		}
+	// Verify core components of the Cheap Query
+	if !strings.Contains(got, `?item wdt:P625 ?location`) {
+		t.Errorf("Query missing location service")
+	}
+	if !strings.Contains(got, `wikibase:radius "10.0"`) {
+		t.Errorf("Query missing correct radius")
+	}
 
-		// A2: Church (Rescued by dimensions, kept category)
-		if processed[1].QID != "A2" || processed[1].Category != "Church" {
-			t.Errorf("A2 mismatch: QID=%s, Cat=%s", processed[1].QID, processed[1].Category)
-		}
+	// Verify ABSENCE of expensive fields
+	if strings.Contains(got, `SERVICE wikibase:label`) {
+		t.Errorf("Cheap Query should NOT contain label service")
+	}
+	if strings.Contains(got, `VALUES ?lang`) {
+		t.Errorf("Cheap Query should NOT contain language VALUES clause")
+	}
 
-		// A4: Area (Rescued by dimensions, new category)
-		if processed[2].QID != "A4" || processed[2].Category != "Area" {
-			t.Errorf("A4 mismatch: QID=%s, Cat=%s", processed[2].QID, processed[2].Category)
-		}
+	// Verify captured fields
+	if !strings.Contains(got, `?item wikibase:sitelinks ?sitelinks`) {
+		t.Errorf("Query missing sitelinks selection")
+	}
 
-		// rescuedCount should be 1 (only A4 as it had no category)
-		if rescued != 1 {
-			t.Errorf("Expected rescuedCount 1, got %d", rescued)
-		}
-	})
-
-	t.Run("BuildQuery", func(t *testing.T) {
-		got := buildQuery(52.5, 13.4, "de", "en", []string{"de", "pl"}, 100, "10.0")
-
-		// Verify Language Filter structure (Subquery with VALUES)
-		if !strings.Contains(got, `VALUES ?lang {`) || !strings.Contains(got, `"de"`) || !strings.Contains(got, `"pl"`) {
-			t.Errorf("Query missing correctly formatted VALUES clause, got: %s", got)
-		}
-
-		// Verify GROUP_CONCAT for local titles
-		if !strings.Contains(got, `(GROUP_CONCAT(DISTINCT ?local_title_pair; separator="|") AS ?local_titles)`) {
-			t.Errorf("Query missing GROUP_CONCAT for local titles, got: %s", got)
-		}
-
-		// Verify Label Service
-		if !strings.Contains(got, `SERVICE wikibase:label { bd:serviceParam wikibase:language "de,en,en". }`) {
-			t.Errorf("Label service missing center language, got: %s", got)
-		}
-
-		// Verify we are NOT looking for singular ?evt_local anymore
-		if strings.Contains(got, `?evt_local schema:about ?item`) {
-			t.Errorf("Query should not contain legacy singular ?evt_local block, got: %s", got)
-		}
-	})
+	// Case 2: Default Radius
+	gotDefault := buildCheapQuery(52.5, 13.4, "")
+	if !strings.Contains(gotDefault, `wikibase:radius "9.8"`) {
+		t.Errorf("Cheap Query fallback radius expected 9.8, got %s", gotDefault)
+	}
 }

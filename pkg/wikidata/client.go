@@ -20,6 +20,14 @@ const (
 	apiEndpoint    = "https://www.wikidata.org/w/api.php"
 )
 
+// ClientInterface defines the interface for Wikidata interactions.
+type ClientInterface interface {
+	QuerySPARQL(ctx context.Context, query, cacheKey string) ([]Article, string, error)
+	GetEntitiesBatch(ctx context.Context, ids []string) (map[string]EntityMetadata, error)
+	FetchFallbackData(ctx context.Context, ids []string) (map[string]FallbackData, error)
+	GetEntityClaims(ctx context.Context, id, property string) (targets []string, label string, err error)
+}
+
 // Client handles SPARQL queries.
 type Client struct {
 	request        *request.Client
@@ -41,29 +49,29 @@ func NewClient(r *request.Client, logger *slog.Logger) *Client {
 // QuerySPARQL executes a SPARQL query and parses the result into Articles.
 // It returns the list of articles found and the raw JSON response.
 func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string) ([]Article, string, error) {
-	u, err := url.Parse(c.SPARQLEndpoint)
-	if err != nil {
-		return nil, "", err
-	}
 
-	q := u.Query()
-	q.Add("query", query)
-	q.Add("format", "json")
-	u.RawQuery = q.Encode()
+	// Use POST to avoid URL length limits
+	data := url.Values{}
+	data.Set("query", query)
+	data.Set("format", "json")
+	encodedData := data.Encode()
 
 	headers := map[string]string{
-		"Accept": "application/sparql-results+json",
+		"Content-Type": "application/x-www-form-urlencoded",
+		"Accept":       "application/sparql-results+json",
 	}
 
-	body, err := c.request.GetWithHeaders(ctx, u.String(), headers, cacheKey)
+	// Clean URL (remove query params if any were mistakenly added, though NewClient sets base)
+	// SPARQL endpoint is usually "https://query.wikidata.org/sparql"
+	body, err := c.request.PostWithCache(ctx, c.SPARQLEndpoint, []byte(encodedData), headers, cacheKey)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("%w: %v", ErrNetwork, err)
 	}
 
 	// Parse Response
 	var result sparqlResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, "", fmt.Errorf("failed to decode json: %w", err)
+		return nil, "", fmt.Errorf("%w: failed to decode json: %v", ErrParse, err)
 	}
 
 	return parseBindings(result), string(body), nil
@@ -149,12 +157,12 @@ func (c *Client) GetEntityClaimsBatch(ctx context.Context, ids []string, propert
 
 		body, errReq := c.request.Get(ctx, u.String(), "")
 		if errReq != nil {
-			return nil, nil, errReq
+			return nil, nil, fmt.Errorf("%w: %v", ErrNetwork, errReq)
 		}
 
 		var result wrapperEntityResponse
 		if err := json.Unmarshal(body, &result); err != nil {
-			return nil, nil, fmt.Errorf("failed to decode json: %w", err)
+			return nil, nil, fmt.Errorf("%w: failed to decode json: %v", ErrParse, err)
 		}
 
 		for id, ent := range result.Entities {

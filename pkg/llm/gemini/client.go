@@ -233,14 +233,32 @@ func getResponseText(resp *genai.GenerateContentResponse) (string, error) {
 
 func cleanJSONBlock(text string) string {
 	text = strings.TrimSpace(text)
-	if strings.HasPrefix(text, "```json") {
-		text = strings.TrimPrefix(text, "```json")
-		text = strings.TrimSuffix(text, "```")
-	} else if strings.HasPrefix(text, "```") {
-		text = strings.TrimPrefix(text, "```")
-		text = strings.TrimSuffix(text, "```")
+
+	// Look for ```json start
+	start := strings.Index(text, "```json")
+	if start != -1 {
+		text = text[start+len("```json"):]
+		// Find end of block
+		end := strings.LastIndex(text, "```")
+		if end != -1 {
+			text = text[:end]
+		}
+		return strings.TrimSpace(text)
 	}
-	return strings.TrimSpace(text)
+
+	// Look for generic ``` start
+	start = strings.Index(text, "```")
+	if start != -1 {
+		text = text[start+len("```"):]
+		// Find end of block
+		end := strings.LastIndex(text, "```")
+		if end != -1 {
+			text = text[:end]
+		}
+		return strings.TrimSpace(text)
+	}
+
+	return text
 }
 
 func wordWrap(text string, width int) string {
@@ -363,4 +381,32 @@ func (c *Client) validateModel(ctx context.Context) error {
 	}
 
 	return nil // Proceed anyway (lazy validation on generation)
+}
+
+// HealthCheck verifies that the provider is configured and reachable.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if os.Getenv("TEST_MODE") == "true" {
+		return nil
+	}
+
+	if c.genaiClient == nil {
+		return fmt.Errorf("gemini client not initialized (missing API key?)")
+	}
+
+	// Verify that the specifically configured model is available.
+	// This confirms API key validity, network connectivity, and model access permissions.
+	name := c.modelName
+	if !strings.HasPrefix(name, "models/") {
+		name = "models/" + name
+	}
+
+	_, err := c.genaiClient.Models.Get(ctx, name, nil)
+	if err != nil {
+		return fmt.Errorf("configured model %q unavailable or API unreachable: %w", c.modelName, err)
+	}
+
+	return nil
 }

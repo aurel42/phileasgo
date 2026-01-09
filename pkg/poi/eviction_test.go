@@ -1,8 +1,8 @@
 package poi
 
 import (
-	"log/slog"
-	"os"
+	"context"
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"testing"
 
@@ -10,51 +10,79 @@ import (
 )
 
 func TestManager_PruneByDistance(t *testing.T) {
-	// Setup
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	m := &Manager{
-		logger:      logger,
-		trackedPOIs: make(map[string]*model.POI),
-	}
-
-	// 1. Close POI (Front)
-	m.trackedPOIs["close-front"] = &model.POI{
-		WikidataID: "close-front", Lat: 10.001, Lon: 10.0,
-	}
-	// 2. Far POI (Front)
-	m.trackedPOIs["far-front"] = &model.POI{
-		WikidataID: "far-front", Lat: 11.0, Lon: 10.0, // ~111km away North
-	}
-	// 3. Far POI (Behind)
-	m.trackedPOIs["far-behind"] = &model.POI{
-		WikidataID: "far-behind", Lat: 9.0, Lon: 10.0, // ~111km away South
-	}
-	// 4. Close POI (Behind)
-	m.trackedPOIs["close-behind"] = &model.POI{
-		WikidataID: "close-behind", Lat: 9.999, Lon: 10.0,
-	}
-
-	// Aircraft at 10.0, 10.0, Heading 0 (North)
-	aircraftLat := 10.0
-	aircraftLon := 10.0
+	// Table-driven test for PruneByDistance
+	// Setup: Aircraft at (0,0) heading North (0 deg)
+	acLat, acLon := 0.0, 0.0
 	heading := 0.0
-	thresholdKm := 50.0
+	thresholdKm := 10.0
 
-	// Act
-	count := m.PruneByDistance(aircraftLat, aircraftLon, heading, thresholdKm)
+	// 1 degree lat is approx 111km. 0.1 deg is 11.1km.
 
-	// Assert
-	assert.Equal(t, 1, count, "Should prune exactly 1 POI")
+	tests := []struct {
+		name        string
+		poiLat      float64
+		poiLon      float64
+		shouldPrune bool
+		description string
+	}{
+		{
+			name:   "Close Ahead",
+			poiLat: 0.05, poiLon: 0.0, // ~5.5km North (Ahead)
+			shouldPrune: false,
+			description: "Within threshold, ahead",
+		},
+		{
+			name:   "Far Ahead",
+			poiLat: 0.2, poiLon: 0.0, // ~22km North (Ahead)
+			shouldPrune: false, // DistancePruning only prunes BEHIND
+			description: "Outside threshold calculation logic generally keeps ahead POIs, but let's verify intent.",
+		},
+		{
+			name:   "Close Behind",
+			poiLat: -0.05, poiLon: 0.0, // ~5.5km South (Behind)
+			shouldPrune: false,
+			description: "Behind but within threshold (keep)",
+		},
+		{
+			name:   "Far Behind",
+			poiLat: -0.2, poiLon: 0.0, // ~22km South (Behind)
+			shouldPrune: true,
+			description: "Behind and outside threshold (prune)",
+		},
+		{
+			name:   "Far Side (Behind)",
+			poiLat: -0.1, poiLon: 0.2, // South-West-ish, far
+			shouldPrune: true,
+			description: "Behind/Side and far (prune)",
+		},
+	}
 
-	_, exists := m.trackedPOIs["far-behind"]
-	assert.False(t, exists, "far-behind should be evicted")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Mock basic dependencies
+			// We can use the mock store from manager_test.go if exported,
+			// OR just stub it here since we don't need persistence for this test.
+			// Ideally we reuse NewMockStore but it's in manager_test.go package poi.
+			// Since we are in package poi, we can access NewMockStore if it is in the same package test files.
 
-	_, exists = m.trackedPOIs["far-front"]
-	assert.True(t, exists, "far-front should stay (it's ahead)")
+			// Note: manager_test.go defines MockStore and NewMockStore.
+			// 'go test' compiles all _test.go files in the package together, so it should be visible.
 
-	_, exists = m.trackedPOIs["close-front"]
-	assert.True(t, exists, "close-front should stay")
+			mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+			p := &model.POI{WikidataID: tt.name, Lat: tt.poiLat, Lon: tt.poiLon}
+			_ = mgr.TrackPOI(context.Background(), p)
 
-	_, exists = m.trackedPOIs["close-behind"]
-	assert.True(t, exists, "close-behind should stay (too close)")
+			count := mgr.PruneByDistance(acLat, acLon, heading, thresholdKm)
+
+			if tt.shouldPrune {
+				assert.Equal(t, 1, count, "Expected 1 prune for "+tt.description)
+				_, exists := mgr.trackedPOIs[tt.name]
+				assert.False(t, exists, "POI should be evicted")
+			} else {
+				assert.Equal(t, 0, count, "Expected 0 prune for "+tt.description)
+				_, exists := mgr.trackedPOIs[tt.name]
+				assert.True(t, exists, "POI should remain")
+			}
+		})
+	}
 }

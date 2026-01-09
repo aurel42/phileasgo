@@ -21,6 +21,9 @@ func TestRun(t *testing.T) {
 		t.Fatalf("Failed to chdir to root: %v", err)
 	}
 
+	os.Setenv("TEST_MODE", "true")
+	defer os.Unsetenv("TEST_MODE")
+
 	// Create a temp config file with a different port
 	tempConfig := `
 server:

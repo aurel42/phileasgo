@@ -25,6 +25,7 @@ import (
 	"phileasgo/pkg/logging"
 	"phileasgo/pkg/narrator"
 	"phileasgo/pkg/poi"
+	"phileasgo/pkg/probe"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/scorer"
 	"phileasgo/pkg/sim"
@@ -145,6 +146,29 @@ func run(ctx context.Context, configPath string) error {
 	// Scorer
 	poiScorer := scorer.NewScorer(&appCfg.Scorer, catCfg, visCalc)
 	go svcs.PoiMgr.StartScoring(ctx, simClient, poiScorer)
+
+	// Startup Probes
+	probes := []probe.Probe{
+		{
+			Name:     "LLM Provider (Gemini)",
+			Check:    narratorSvc.LLMProvider().HealthCheck,
+			Critical: true,
+		},
+	}
+	// Optional: Add LOS probe if we want to surface it clearly
+	// (LOS is already initialized at this point)
+	if losChecker == nil {
+		probes = append(probes, probe.Probe{
+			Name:     "Terrain Data (ETOPO1)",
+			Check:    func(context.Context) error { return fmt.Errorf("file not found or invalid") },
+			Critical: false, // It's optional, app runs without it
+		})
+	}
+
+	results := probe.Run(ctx, probes)
+	if err := probe.AnalyzeResults(results); err != nil {
+		return fmt.Errorf("startup checks failed: %w", err)
+	}
 
 	// Server
 	return runServer(ctx, appCfg, svcs, narratorSvc, simClient, visCalc, tr, st, telH)

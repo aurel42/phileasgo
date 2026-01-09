@@ -16,4 +16,7 @@ type Provider interface {
 
 	// Configure updates the provider with new settings (e.g. API key).
 	Configure(cfg config.LLMConfig) error
+
+	// HealthCheck verifies that the provider is configured and reachable.
+	HealthCheck(ctx context.Context) error
 }

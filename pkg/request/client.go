@@ -212,6 +212,44 @@ func (c *Client) worker(provider string, q <-chan job) {
 	}
 }
 
+// PostWithCache performs a POST request with queuing and caching.
+func (c *Client) PostWithCache(ctx context.Context, u string, body []byte, headers map[string]string, cacheKey string) ([]byte, error) {
+	parsedURL, err := url.Parse(u)
+	if err != nil {
+		return nil, fmt.Errorf("invalid url: %w", err)
+	}
+	host := parsedURL.Host
+	provider := normalizeProvider(host)
+
+	// 1. Check Cache
+	if cacheKey != "" {
+		if val, hit := c.cache.GetCache(ctx, cacheKey); hit {
+			c.tracker.TrackCacheHit(provider)
+			slog.Debug("Cache Hit", "provider", provider, "key", cacheKey)
+			return val, nil
+		}
+		c.tracker.TrackCacheMiss(provider)
+		slog.Debug("Cache Miss", "provider", provider, "key", cacheKey)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	respChan := make(chan jobResult, 1)
+	j := job{req: req, headers: headers, cacheKey: cacheKey, respChan: respChan}
+
+	c.dispatch(provider, j)
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-respChan:
+		return res.body, res.err
+	}
+}
+
 // executeWithBackoff attempts the request with exponential backoff on retryable errors.
 func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 	maxAttempts := 3

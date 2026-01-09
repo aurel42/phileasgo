@@ -2,7 +2,6 @@ package wikidata
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -31,8 +30,8 @@ type SimStateProvider interface {
 type Service struct {
 	store      store.Store
 	sim        SimStateProvider
-	client     *Client
-	wiki       *wikipedia.Client // Wikipedia Client
+	client     ClientInterface
+	wiki       WikipediaProvider // Wikipedia Client
 	geo        *geo.Service      // Geo Service
 	poi        *poi.Manager      // POI Manager
 	scheduler  *Scheduler
@@ -61,6 +60,12 @@ type Service struct {
 type Classifier interface {
 	Classify(ctx context.Context, qid string) (*model.ClassificationResult, error)
 	ClassifyBatch(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult
+}
+
+// WikipediaProvider abstracts Wikipedia client for testing
+type WikipediaProvider interface {
+	GetArticleLengths(ctx context.Context, titles []string, lang string) (map[string]int, error)
+	GetArticleContent(ctx context.Context, title, lang string) (string, error)
 }
 
 // DimClassifier extends Classifier with dimension capabilities
@@ -128,7 +133,7 @@ func (s *Service) Start(ctx context.Context) {
 }
 
 // WikipediaClient returns the internal Wikipedia client.
-func (s *Service) WikipediaClient() *wikipedia.Client {
+func (s *Service) WikipediaClient() WikipediaProvider {
 	return s.wiki
 }
 
@@ -207,30 +212,6 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 	// 2. Construct Query
 	centerLat, centerLon := s.gridCenter(c.Tile)
 
-	// Dynamic Language Sampling (Multi-Point)
-	// Sample center + 6 corners to detect all relevant languages in the tile (e.g. at borders)
-	langSet := make(map[string]bool)
-	points := append([]geo.Point{{Lat: centerLat, Lon: centerLon}}, s.scheduler.grid.TileCorners(c.Tile)...)
-
-	// Always include primary languages
-	langSet["en"] = true
-	langSet[s.userLang] = true
-	centerLang := "en" // Default
-
-	for i, p := range points {
-		country := s.geo.GetCountry(p.Lat, p.Lon)
-		info := s.mapper.GetLanguage(country)
-		langSet[info.Code] = true
-		if i == 0 {
-			centerLang = info.Code
-		}
-	}
-
-	allowedLangs := make([]string, 0, len(langSet))
-	for l := range langSet {
-		allowedLangs = append(allowedLangs, l)
-	}
-
 	// Calculate precise radius in meters for this specific tile geometry
 	// Add 50m buffer for safety against floating point math
 	radiusMeters := int(math.Ceil((s.scheduler.grid.TileRadius(c.Tile) * 1000) + 50))
@@ -242,7 +223,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 		radiusMeters = 9800
 	}
 
-	query := buildQuery(centerLat, centerLon, centerLang, s.userLang, allowedLangs, s.cfg.Area.MaxArticles, radiusStr)
+	query := buildCheapQuery(centerLat, centerLon, radiusStr)
 
 	// 2. Execute (Requester handles caching and core tracking)
 	articles, rawJSON, err := s.client.QuerySPARQL(ctx, query, c.Tile.Key())
@@ -270,576 +251,6 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 func (s *Service) gridCenter(t HexTile) (lat, lon float64) {
 	// Expose grid center via scheduler -> grid
 	return s.scheduler.grid.TileCenter(t)
-}
-
-func buildQuery(lat, lon float64, localLang, userLang string, allowedLangs []string, maxArticles int, radius string) string {
-	// Radius passed dynamically
-	if radius == "" {
-		radius = "9.8" // Fallback
-	}
-	if localLang == "" {
-		localLang = "en"
-	}
-	if userLang == "" {
-		userLang = "en"
-	}
-	if maxArticles <= 0 {
-		maxArticles = 100 // Default fallback
-	}
-
-	// Build allowed languages string for VALUES clause
-	var langListBuilder strings.Builder
-	for _, l := range allowedLangs {
-		langListBuilder.WriteString(fmt.Sprintf("%q ", l))
-	}
-	langListStr := langListBuilder.String()
-	if langListStr == "" {
-		langListStr = "\"en\""
-	}
-
-	query := fmt.Sprintf(`SELECT DISTINCT ?item ?lat ?lon ?sitelinks 
-            (GROUP_CONCAT(DISTINCT ?instance_of_uri; separator=",") AS ?instances) 
-            (GROUP_CONCAT(DISTINCT ?local_title_pair; separator="|") AS ?local_titles)
-            ?title_en_val ?title_user_val ?itemLabel
-            ?area ?height ?length ?width
-        WHERE { 
-            SERVICE wikibase:around { 
-                ?item wdt:P625 ?location . 
-                bd:serviceParam wikibase:center "Point(%f %f)"^^geo:wktLiteral . 
-                bd:serviceParam wikibase:radius "%s" . 
-            } 
-            ?item p:P625/psv:P625 [ wikibase:geoLatitude ?lat ; wikibase:geoLongitude ?lon ] . 
-            
-            # Label Service
-            SERVICE wikibase:label { bd:serviceParam wikibase:language "%s,%s,en". }
-
-            OPTIONAL { ?item wdt:P31 ?instance_of_uri . } 
-            OPTIONAL { ?item wikibase:sitelinks ?sitelinks . } 
-            OPTIONAL { ?item wdt:P2046 ?area . }
-            OPTIONAL { ?item wdt:P2048 ?height . }
-            OPTIONAL { ?item wdt:P2043 ?length . }
-            OPTIONAL { ?item wdt:P2049 ?width . }
-            
-            # Language Filter: Item must exist in at least one of the relevant languages
-            # And we capture the title for EACH allowed language
-            {
-                SELECT ?item (CONCAT(?lang, ":", ?title) AS ?local_title_pair) WHERE {
-                    VALUES ?lang { %s }
-                    ?article schema:about ?item ;
-                             schema:inLanguage ?lang ;
-                             schema:isPartOf [ wikibase:wikiGroup "wikipedia" ] ;
-                             schema:name ?title .
-                }
-            }
-
-            OPTIONAL { 
-                ?evt_en schema:about ?item ; 
-                schema:inLanguage "en" ; 
-                schema:isPartOf <https://en.wikipedia.org/> ; 
-                schema:name ?title_en_val . 
-            } 
-            OPTIONAL { 
-                ?evt_user schema:about ?item ; 
-                schema:inLanguage "%s" ; 
-                schema:isPartOf <https://%s.wikipedia.org/> ; 
-                schema:name ?title_user_val . 
-            } 
-        } 
-        GROUP BY ?item ?lat ?lon ?sitelinks ?title_en_val ?title_user_val ?itemLabel ?area ?height ?length ?width
-        ORDER BY DESC(?sitelinks) 
-        LIMIT %d`, lon, lat, radius, localLang, userLang, langListStr, userLang, userLang, maxArticles)
-
-	return query
-}
-
-// GetArticlesForTile retrieves raw JSON from cache, re-parses and re-classifies it.
-func (s *Service) GetArticlesForTile(ctx context.Context, tileKey string) ([]Article, error) {
-	raw, ok := s.store.GetCache(ctx, tileKey)
-	if !ok {
-		return nil, fmt.Errorf("tile not found in cache: %s", tileKey)
-	}
-	// Actually GetArticlesForTile is likely used for debugging.
-	articles, _, err := s.ProcessTileData(ctx, raw, 0, 0, false)
-	return articles, err
-}
-
-// ReprocessNearTiles forces a re-ingestion of cached tiles near the given location.
-// This is used when dynamic interests update (e.g. "Steel Mill" becomes interesting),
-// effectively attempting to "rescue" entities that were previously classified as boring.
-func (s *Service) ReprocessNearTiles(ctx context.Context, lat, lon, radiusKm float64) error {
-	s.logger.Info("ReprocessNearTiles triggered", "lat", lat, "lon", lon, "radius", radiusKm)
-
-	// Potential Optimization: If cache is huge, this list is slow.
-	// Better to have a spatial index of cached tiles, but for now this works.
-	keys, err := s.store.ListCacheKeys(ctx, "wd_h3_")
-	if err != nil {
-		return fmt.Errorf("failed to list cache keys: %w", err)
-	}
-
-	// 1. Force Process
-	tilesChecked := 0
-	rescuedCount := 0
-	totalArticles := 0
-	for _, k := range keys {
-		// Key format: wd_h3_{index}
-		if len(k) <= 6 {
-			continue
-		}
-		index := k[6:]
-
-		tile := HexTile{Index: index}
-		cLat, cLon := s.gridCenter(tile)
-
-		dist := DistKm(lat, lon, cLat, cLon)
-		if dist <= radiusKm {
-			tilesChecked++
-			// Reprocess this tile!
-			raw, ok := s.store.GetCache(ctx, k)
-			if !ok {
-				continue
-			}
-
-			// Force reprocessing (bypass seen filter)
-			reprocessed, rescued, err := s.ProcessTileData(ctx, raw, cLat, cLon, true)
-			if err != nil {
-				s.logger.Warn("Failed to reprocess tile", "key", k, "error", err)
-			} else {
-				totalArticles += len(reprocessed)
-				if rescued > 0 {
-					rescuedCount += rescued
-					s.logger.Debug("Reprocessed tile and rescued entities", "key", k, "rescued", rescued)
-				}
-			}
-		}
-	}
-	s.logger.Info("ReprocessNearTiles complete", "component", "wikidata", "tiles_checked", tilesChecked, "dynamic_pois_added", rescuedCount, "total_articles", totalArticles)
-	return nil
-}
-
-// EvictFarTiles removes tiles from the recent cache if they are beyond the threshold distance.
-// This allows them to be re-fetched if the user returns to them.
-func (s *Service) EvictFarTiles(lat, lon, thresholdKm float64) int {
-	// 1. Snapshot keys to avoid deep locking issues if logic is complex
-	// But simple distance check is fast.
-	s.recentMu.Lock()
-	defer s.recentMu.Unlock()
-
-	// Need grid helper to parse key.
-	// We access s.scheduler.grid directly? It's public enough?
-	// s.scheduler is private field. But we are in same package 'wikidata'.
-	// No, scheduler is struct in same package.
-	// But Grid methods might need export. NewGrid returns *Grid.
-	// Let's assume we can parse key manually if needed,
-	// but the correct way is s.scheduler.grid.ParseKey(key) if it existed.
-	// Instead, let's just parse "q,r" manually as we know the format.
-
-	count := 0
-	for key, t := range s.recentTiles {
-		if !strings.HasPrefix(key, "wd_h3_") {
-			continue
-		}
-		index := strings.TrimPrefix(key, "wd_h3_")
-
-		// Use scheduler grid to get center
-		cLat, cLon := s.scheduler.grid.TileCenter(HexTile{Index: index})
-
-		// Check Distance (geo.Distance returns meters)
-		distKm := geo.Distance(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: cLat, Lon: cLon}) / 1000.0
-
-		if distKm > thresholdKm {
-			delete(s.recentTiles, key)
-			count++
-			// Also log? Debug level.
-		}
-		// Also clean up old entries by time?
-		// For now just distance as requested.
-		_ = t // unused
-	}
-
-	if count > 0 {
-		s.logger.Debug("Evicted far tiles from memory", "count", count, "threshold_km", thresholdKm)
-	}
-	return count
-}
-
-// ProcessTileData takes raw SPARQL JSON, parses it, runs classification, ENRICHES, and SAVES to DB.
-func (s *Service) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat, centerLon float64, force bool) (articles []Article, rescuedCount int, err error) {
-	var result sparqlResponse
-	if err := json.Unmarshal(rawJSON, &result); err != nil {
-		return nil, 0, fmt.Errorf("failed to unmarshal raw json: %w", err)
-	}
-
-	rawArticles := parseBindings(result)
-	qids := make([]string, len(rawArticles))
-	for i := range rawArticles {
-		qids[i] = rawArticles[i].QID
-	}
-
-	// 1. Filter out already existing POIs (Drop them immediately)
-	rawArticles = s.filterExistingPOIs(ctx, rawArticles, qids)
-
-	// 2. Filter seen articles (drop them immediately), UNLESS forced
-	if !force {
-		rawArticles = s.filterSeenArticles(ctx, rawArticles)
-	}
-
-	// 3. Batch Classification for new articles (also filters out ignored)
-	rawArticles = s.classifyAndFilterArticles(ctx, rawArticles)
-
-	// 4. Post-processing (Rescue & Filters)
-	processed, rescued, err := s.postProcessArticles(rawArticles)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// 5. Enrichment & Saving
-	country := s.geo.GetCountry(centerLat, centerLon)
-	localLangInfo := s.mapper.GetLanguage(country)
-
-	if len(processed) > 0 {
-		err = s.enrichAndSave(ctx, processed, localLangInfo.Code, "en")
-	}
-
-	// 6. Mark remaining unprocessed articles as seen (those that failed filters like sitelinks)
-	processedQIDs := make(map[string]bool)
-	for i := range processed {
-		processedQIDs[processed[i].QID] = true
-	}
-
-	toMark := make(map[string][]string)
-	for i := range rawArticles {
-		qid := rawArticles[i].QID
-		if !processedQIDs[qid] {
-			toMark[qid] = rawArticles[i].Instances
-		}
-	}
-	if len(toMark) > 0 {
-		if errMark := s.store.MarkEntitiesSeen(ctx, toMark); errMark != nil {
-			s.logger.Warn("Failed to mark entities as seen", "error", errMark)
-		}
-	}
-
-	return processed, rescued, err
-}
-
-func (s *Service) filterExistingPOIs(ctx context.Context, rawArticles []Article, qids []string) []Article {
-	if len(rawArticles) == 0 {
-		return rawArticles
-	}
-	poisBatch, err := s.store.GetPOIsBatch(ctx, qids)
-	if err != nil {
-		s.logger.Warn("POI batch lookup failed", "error", err)
-		return rawArticles
-	}
-
-	filtered := make([]Article, 0, len(rawArticles))
-	for i := range rawArticles {
-		if p, ok := poisBatch[rawArticles[i].QID]; !ok {
-			filtered = append(filtered, rawArticles[i])
-		} else {
-			// CRITICAL: Even if we filter it out of the current ingestion pipeline (to avoid redundant enrichment),
-			// we MUST ensure it is added to the active tracking map in poi.Manager.
-			// This is especially important after a server restart when the in-memory map is empty.
-			if err := s.poi.TrackPOI(ctx, p); err != nil {
-				s.logger.Warn("Failed to track existing POI", "qid", p.WikidataID, "error", err)
-			}
-		}
-	}
-	return filtered
-}
-
-func (s *Service) filterSeenArticles(ctx context.Context, rawArticles []Article) []Article {
-	if len(rawArticles) == 0 {
-		return rawArticles
-	}
-
-	qids := make([]string, len(rawArticles))
-	for i := range rawArticles {
-		qids[i] = rawArticles[i].QID
-	}
-
-	seen, err := s.store.GetSeenEntitiesBatch(ctx, qids)
-	if err != nil {
-		s.logger.Warn("Failed to fetch seen entities", "error", err)
-		return rawArticles
-	}
-
-	filtered := make([]Article, 0, len(rawArticles))
-	for i := range rawArticles {
-		if _, exists := seen[rawArticles[i].QID]; !exists {
-			filtered = append(filtered, rawArticles[i])
-		}
-	}
-
-	if len(rawArticles) != len(filtered) {
-		s.logger.Debug("Filtered seen articles", "count", len(rawArticles)-len(filtered))
-	}
-
-	return filtered
-}
-
-func (s *Service) classifyAndFilterArticles(ctx context.Context, rawArticles []Article) []Article {
-	candidates := s.collectUnclassifiedQIDs(rawArticles)
-	if len(candidates) == 0 {
-		return rawArticles
-	}
-
-	ignoredQIDs := s.classifyInChunks(ctx, rawArticles, candidates)
-	if len(ignoredQIDs) > 0 {
-		s.logger.Debug("Classification ignored articles", "count", len(ignoredQIDs))
-	}
-
-	// MarkEntitiesSeen is now handled inside classifyInChunks
-
-	return s.filterByQIDs(rawArticles, ignoredQIDs)
-}
-
-func (s *Service) collectUnclassifiedQIDs(articles []Article) []string {
-	result := make([]string, 0)
-	for i := range articles {
-		if articles[i].Category == "" {
-			result = append(result, articles[i].QID)
-		}
-	}
-	return result
-}
-
-func (s *Service) classifyInChunks(ctx context.Context, rawArticles []Article, candidates []string) []string {
-	// 1. Check for locally known "seen" instances (Optimization for reprocessing)
-	seenMap, err := s.store.GetSeenEntitiesBatch(ctx, candidates)
-	if err != nil {
-		s.logger.Warn("Failed to GetSeenEntitiesBatch", "error", err)
-		seenMap = make(map[string][]string)
-	}
-
-	// 2. Identify Metadata Source
-	metaCache := make(map[string]EntityMetadata)
-	toFetch := make([]string, 0) // Truly unknown
-
-	for _, qid := range candidates {
-		if insts, ok := seenMap[qid]; ok && len(insts) > 0 {
-			metaCache[qid] = EntityMetadata{Claims: map[string][]string{"P31": insts}}
-		} else {
-			toFetch = append(toFetch, qid)
-		}
-	}
-
-	// 3. Fetch missing metadata
-	if err := s.fetchMissingMetadata(ctx, toFetch, metaCache); err != nil {
-		s.logger.Warn("Failed to fetch missing metadata", "error", err)
-	}
-
-	// 4. Batch Classification
-	return s.runBatchClassification(ctx, rawArticles, metaCache)
-}
-
-func (s *Service) fetchMissingMetadata(ctx context.Context, toFetch []string, metaCache map[string]EntityMetadata) error {
-	if len(toFetch) == 0 {
-		return nil
-	}
-	chunkSize := 50
-	for i := 0; i < len(toFetch); i += chunkSize {
-		end := i + chunkSize
-		if end > len(toFetch) {
-			end = len(toFetch)
-		}
-		chunk := toFetch[i:end]
-
-		meta, err := s.client.GetEntitiesBatch(ctx, chunk)
-		if err != nil {
-			s.logger.Warn("Wikidata batch fetch failed", "error", err, "chunk_size", len(chunk))
-			continue
-		}
-		for id, m := range meta {
-			metaCache[id] = m
-		}
-	}
-	return nil
-}
-
-func (s *Service) runBatchClassification(ctx context.Context, rawArticles []Article, metaCache map[string]EntityMetadata) []string {
-	ignoredQIDs := make([]string, 0)
-	toMark := make(map[string][]string)
-
-	batchRes := s.classifier.ClassifyBatch(ctx, metaCache)
-
-	for qid, res := range batchRes {
-		if res == nil {
-			continue
-		}
-		if res.Ignored {
-			s.setIgnoredByQID(rawArticles, qid)
-			ignoredQIDs = append(ignoredQIDs, qid)
-			// Prepare for saving instances
-			if m, ok := metaCache[qid]; ok {
-				if insts, ok := m.Claims["P31"]; ok {
-					toMark[qid] = insts
-				}
-			}
-		} else {
-			s.setCategoryByQID(rawArticles, qid, res.Category)
-		}
-	}
-
-	// 5. Persist ignored entities with their instances
-	if len(toMark) > 0 {
-		if err := s.store.MarkEntitiesSeen(ctx, toMark); err != nil {
-			s.logger.Warn("Failed to mark ignored entities as seen", "error", err)
-		}
-	}
-
-	return ignoredQIDs
-}
-
-func (s *Service) setCategoryByQID(articles []Article, qid, category string) {
-	for j := range articles {
-		if articles[j].QID == qid {
-			articles[j].Category = category
-			return
-		}
-	}
-}
-
-func (s *Service) setIgnoredByQID(articles []Article, qid string) {
-	for j := range articles {
-		if articles[j].QID == qid {
-			articles[j].Ignored = true
-			return
-		}
-	}
-}
-
-func (s *Service) filterByQIDs(articles []Article, excludeQIDs []string) []Article {
-	excludeSet := make(map[string]bool)
-	for _, qid := range excludeQIDs {
-		excludeSet[qid] = true
-	}
-
-	filtered := make([]Article, 0, len(articles))
-	for i := range articles {
-		if !excludeSet[articles[i].QID] {
-			filtered = append(filtered, articles[i])
-		}
-	}
-	return filtered
-}
-
-func (s *Service) postProcessArticles(rawArticles []Article) (processed []Article, rescuedCount int, err error) {
-	dc, isDim := s.classifier.(DimClassifier)
-	if isDim {
-		dc.ResetDimensions()
-		for i := range rawArticles {
-			h, l, area := getArticleDimensions(&rawArticles[i])
-			dc.ObserveDimensions(h, l, area)
-		}
-	}
-
-	processed = make([]Article, 0, len(rawArticles))
-	for i := range rawArticles {
-		a := &rawArticles[i]
-		isPOI, rescued := s.checkPOIStatus(a, dc)
-
-		if rescued {
-			rescuedCount++
-		}
-		if isPOI {
-			processed = append(processed, *a)
-		}
-	}
-
-	if isDim {
-		dc.FinalizeDimensions()
-	}
-	return processed, rescuedCount, nil
-}
-
-func (s *Service) checkPOIStatus(a *Article, dc DimClassifier) (isPOI, rescued bool) {
-	// 0. Explicitly ignored check (from classifier)
-	if a.Ignored {
-		return false, false
-	}
-
-	// 1. Initial categorization check
-	if a.Category != "" {
-		minLinks := s.getSitelinksMin(dc, a.Category)
-		if a.Sitelinks >= minLinks {
-			isPOI = true
-
-		}
-	}
-
-	// 2. Dimension check (highest, longest, largest)
-	if dc != nil {
-		h, l, area := getArticleDimensions(a)
-		if dc.ShouldRescue(h, l, area, a.Instances) {
-			isPOI = true
-			if a.Category == "" {
-				s.assignRescueCategory(a, h, l, area)
-				rescued = true
-			} else {
-				s.logger.Debug("Article kept as Dimension Candidate", "qid", a.QID, "category", a.Category)
-			}
-		}
-		// Apply Multiplier (regardless of rescue status)
-		a.DimensionMultiplier = dc.GetMultiplier(h, l, area)
-		if a.DimensionMultiplier > 1.0 {
-			s.logger.Debug("Dimension Multiplier applied", "qid", a.QID, "mult", a.DimensionMultiplier)
-		}
-	}
-
-	return isPOI, rescued
-}
-
-func (s *Service) assignRescueCategory(a *Article, h, l, area float64) {
-	switch {
-	case area > 0:
-		a.Category = "Area"
-		s.logger.Debug("Rescued article by Area", "title", a.LocalTitles, "qid", a.QID)
-	case h > 0:
-		a.Category = "Height"
-		s.logger.Debug("Rescued article by Height", "title", a.LocalTitles, "qid", a.QID)
-	case l > 0:
-		a.Category = "Length"
-		s.logger.Debug("Rescued article by Length", "title", a.LocalTitles, "qid", a.QID)
-	default:
-		a.Category = "Landmark"
-	}
-}
-
-func (s *Service) getSitelinksMin(dc DimClassifier, category string) int {
-	if dc == nil {
-		return 0
-	}
-	if cfg, ok := dc.GetConfig().Categories[category]; ok {
-		return cfg.SitelinksMin
-	}
-	return 0
-}
-
-func (s *Service) getIcon(category string) string {
-	// Attempt to get config from classifier
-	type configProvider interface {
-		GetConfig() *config.CategoriesConfig
-	}
-	if cp, ok := s.classifier.(configProvider); ok {
-		if cfg, ok := cp.GetConfig().Categories[strings.ToLower(category)]; ok {
-			return cfg.Icon
-		}
-	}
-	return ""
-}
-
-func getArticleDimensions(a *Article) (h, l, area float64) {
-	if a.Height != nil {
-		h = *a.Height
-	}
-	if a.Length != nil {
-		l = *a.Length
-	}
-	if a.Area != nil {
-		area = *a.Area
-	}
-	return h, l, area
 }
 
 // CachedTile represents a visualization circle on the map.
@@ -885,4 +296,89 @@ func (s *Service) GetCachedTiles(ctx context.Context, lat, lon, radiusKm float64
 	}
 
 	return results, nil
+}
+
+// ReprocessNearTiles forces a re-ingestion of cached tiles near the given location.
+func (s *Service) ReprocessNearTiles(ctx context.Context, lat, lon, radiusKm float64) error {
+	keys, err := s.store.ListCacheKeys(ctx, "wd_h3_")
+	if err != nil {
+		s.logger.Error("Failed to list cache keys for reprocessing", "error", err)
+		return err
+	}
+
+	s.logger.Info("ReprocessNearTiles triggered", "lat", lat, "lon", lon, "radius", radiusKm)
+
+	// Iterate all keys to find matches
+	tilesChecked := 0
+	rescuedCount := 0
+	totalArticles := 0
+
+	for _, k := range keys {
+		// Key format: wd_h3_{index}
+		if len(k) <= 6 {
+			continue
+		}
+		index := k[6:]
+		t := HexTile{Index: index}
+		cLat, cLon := s.gridCenter(t)
+
+		if DistKm(lat, lon, cLat, cLon) <= radiusKm {
+			tilesChecked++
+			// Get Raw Data from Cache
+			raw, _, ok := s.store.GetGeodataCache(ctx, k)
+			if !ok {
+				continue
+			}
+
+			// Reprocess this tile!
+			// Force reprocessing (bypass seen filter)
+			reprocessed, rescued, err := s.ProcessTileData(ctx, raw, cLat, cLon, true)
+			if err != nil {
+				s.logger.Warn("Failed to reprocess tile", "key", k, "error", err)
+			} else {
+				totalArticles += len(reprocessed)
+				rescuedCount += rescued
+				if rescued > 0 {
+					s.logger.Debug("Reprocessed tile and rescued entities", "key", k, "rescued", rescued)
+				}
+			}
+		}
+	}
+	s.logger.Info("ReprocessNearTiles complete", "component", "wikidata", "tiles_checked", tilesChecked, "dynamic_pois_added", rescuedCount, "total_articles", totalArticles)
+	return nil
+}
+
+// EvictFarTiles removes tiles from the recent cache if they are beyond the max distance.
+func (s *Service) EvictFarTiles(lat, lon, thresholdKm float64) int {
+	// 1. Snapshot keys to avoid deep locking issues if logic is complex
+	// But simple distance check is fast.
+	s.recentMu.Lock()
+	defer s.recentMu.Unlock()
+
+	count := 0
+	for key, t := range s.recentTiles {
+		if !strings.HasPrefix(key, "wd_h3_") {
+			continue
+		}
+		index := strings.TrimPrefix(key, "wd_h3_")
+
+		// Use scheduler grid to get center
+		cLat, cLon := s.scheduler.grid.TileCenter(HexTile{Index: index})
+
+		// Check Distance (geo.Distance returns meters)
+		distKm := geo.Distance(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: cLat, Lon: cLon}) / 1000.0
+
+		if distKm > thresholdKm {
+			delete(s.recentTiles, key)
+			count++
+		}
+		// Also clean up old entries by time?
+		// For now just distance as requested.
+		_ = t // unused
+	}
+
+	if count > 0 {
+		s.logger.Debug("Evicted far tiles from memory", "count", count, "threshold_km", thresholdKm)
+	}
+	return count
 }

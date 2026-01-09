@@ -7,14 +7,14 @@ import (
 )
 
 func TestNewProvider(t *testing.T) {
-	p := NewProvider()
+	p := NewProvider(nil)
 	if p == nil {
 		t.Fatal("Expected NewProvider to return a provider")
 	}
 }
 
 func TestGetVariantInt(t *testing.T) {
-	p := NewProvider()
+	p := NewProvider(nil)
 
 	tests := []struct {
 		name     string
@@ -38,7 +38,7 @@ func TestGetVariantInt(t *testing.T) {
 }
 
 func TestGetVariantIntValues(t *testing.T) {
-	p := NewProvider()
+	p := NewProvider(nil)
 
 	// Directly test the switch logic by passing variants with specific values
 	v32 := ole.NewVariant(ole.VT_I4, 32)

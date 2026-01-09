@@ -28,7 +28,7 @@ func NewLLMProvider(cfg config.LLMConfig, logPath string, rc *request.Client, t 
 func NewTTSProvider(cfg *config.TTSConfig, targetLang string, t *tracker.Tracker) (tts.Provider, error) {
 	switch cfg.Engine {
 	case "sapi", "windows-sapi":
-		return sapi.NewProvider(), nil
+		return sapi.NewProvider(t), nil
 	case "edge", "edge-tts":
 		return edgetts.NewProvider(t), nil
 	case "fish-audio", "fishaudio":

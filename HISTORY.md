@@ -1,5 +1,24 @@
 ﻿# Release History
 
+## v0.2.45 (2026-01-09)
+- **Feature**: **Startup Health Checks**
+    - Implemented a robust startup probe system (`pkg/probe`).
+    - The application now validates critical dependencies (e.g., LLM Provider API Key and Model availability) before starting the server.
+    - Added `HealthCheck` method to `llm.Provider` interface.
+- **Refactor**: **Modernized Error Handling**
+    - Standardized error handling in `pkg/wikidata` and `pkg/poi` using sentinel errors (`ErrNetwork`, `ErrPOINotFound`) and `fmt.Errorf("%w")` wrapping for better error inspection.
+    - `poi.GetPOI` now explicitly returns `ErrPOINotFound` instead of `nil, nil` when a POI is missing.
+- **Fix**: **Wikidata SPARQL Robustness**
+    - Switched Wikidata SPARQL queries from `GET` to `POST` (form-urlencoded) to eliminate HTTP 414 (URI Too Long) errors for complex geospatial queries.
+    - Updated `pkg/request` client to support caching for POST requests (`PostWithCache`).
+- **Refactor**: **Wikidata Pipeline Optimization**
+    - Split `pkg/wikidata` service into `pipeline`, `query`, and `hydration` components for better separation of concerns.
+    - Implemented a "Cheap Query" strategy to fetch only essential data first, eliminating 503 errors caused by complex SPARQL joins.
+    - Added a hydration step to fetch Labels and Titles via API only for valid candidates, significantly reducing timeout risk.
+- **Testing**: **Coverage & Mocking**
+    - Achieved **>80% Test Coverage** for `pkg/wikidata`, specifically covering the new pipeline and hydration logic.
+    - Introduced `WikidataClient` and `WikipediaProvider` interfaces to enable robust, network-free table-driven tests.
+
 ## v0.2.44 (2026-01-09)
 - **Feature**: **Mock Sim Terrain Following**
     - The Mock Simulator now automatically maintains a minimum altitude of **500ft AGL** above the terrain (using ETOPO1 data if available), effectively "following" the ground to prevent collisions during unattended simulations.
@@ -24,7 +43,7 @@
     - These values are now fully configurable via `phileas.yaml` (under `beacon` section) to allow fine-tuning of visual behavior.
 
 ## v0.2.42 (2026-01-09)
-- **Testing**: Increased `pkg/store` test coverage from 42.9% to **82.0%** with table-driven tests for all store interfaces.
+- **Testing**: Increased `pkg/store` test coverage.
 
 ## v0.2.41 (2026-01-09)
 - **Refactor**: **Store Interface Segregation**

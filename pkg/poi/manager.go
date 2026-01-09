@@ -103,7 +103,7 @@ func (m *Manager) upsertInternal(ctx context.Context, p *model.POI, shouldSave b
 	// 3. Save to DB (optional)
 	if shouldSave {
 		if err := m.store.SavePOI(ctx, p); err != nil {
-			return fmt.Errorf("failed to save POI %s: %w", p.WikidataID, err)
+			return fmt.Errorf("%w: failed to save POI %s: %v", ErrStoreFailure, p.WikidataID, err)
 		}
 		m.logger.Debug("Upserted POI", "qid", p.WikidataID, "name", p.DisplayName())
 	} else {
@@ -175,7 +175,14 @@ func (m *Manager) GetPOI(ctx context.Context, qid string) (*model.POI, error) {
 	if ok {
 		return p, nil
 	}
-	return m.store.GetPOI(ctx, qid)
+	p, err := m.store.GetPOI(ctx, qid)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrStoreFailure, err)
+	}
+	if p == nil {
+		return nil, ErrPOINotFound
+	}
+	return p, nil
 }
 
 // GetTrackedPOIs returns a thread-safe copy of currently tracked POIs.

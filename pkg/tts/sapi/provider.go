@@ -9,17 +9,21 @@ import (
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 
+	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/tts"
 )
 
 // Provider implements tts.Provider using Windows SAPI5 via OLE.
 type Provider struct {
-	mu sync.Mutex
+	mu      sync.Mutex
+	tracker *tracker.Tracker
 }
 
 // NewProvider creates a new SAPI5 provider.
-func NewProvider() *Provider {
-	return &Provider{}
+func NewProvider(t *tracker.Tracker) *Provider {
+	return &Provider{
+		tracker: t,
+	}
 }
 
 // Synthesize generates a .wav file using SAPI5.
@@ -81,10 +85,16 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 	_, err = oleutil.CallMethod(voice, "Speak", cleanText, 0)
 	if err != nil {
 		tts.Log("SAPI", cleanText, 0, err)
+		if p.tracker != nil {
+			p.tracker.TrackAPIFailure("sapi")
+		}
 		return "", fmt.Errorf("Speak failed: %w", err)
 	}
 
 	tts.Log("SAPI", cleanText, 200, nil)
+	if p.tracker != nil {
+		p.tracker.TrackAPISuccess("sapi")
+	}
 
 	return "wav", nil
 }

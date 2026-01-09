@@ -19,7 +19,7 @@ func TestLocal_SAPI(t *testing.T) {
 		t.Skip("Set TEST_TTS=1 to run SAPI integration test")
 	}
 
-	p := sapi.NewProvider()
+	p := sapi.NewProvider(nil)
 	outputPath := "test_sapi.wav"
 	defer os.Remove(outputPath)
 
@@ -68,7 +68,7 @@ func TestVoices_SAPI(t *testing.T) {
 		t.Skip("Set TEST_TTS=1 to run SAPI integration test")
 	}
 
-	p := sapi.NewProvider()
+	p := sapi.NewProvider(nil)
 	voices, err := p.Voices(context.Background())
 	if err != nil {
 		t.Fatalf("Voices failed: %v", err)

@@ -29,6 +29,7 @@ func (m *MockLLM) GenerateText(ctx context.Context, name, prompt string) (string
 func (m *MockLLM) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
 	return nil
 }
+func (m *MockLLM) HealthCheck(ctx context.Context) error { return nil }
 
 type MockTTS struct {
 	Format string

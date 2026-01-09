@@ -172,3 +172,67 @@ func TestManager_UpdateExistingPOI_LastPlayed_Safety(t *testing.T) {
 		t.Errorf("LastPlayed mismatch! Got %v, expected %v", finalP.LastPlayed, t1)
 	}
 }
+
+func TestManager_CandidateLogic(t *testing.T) {
+	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	ctx := context.Background()
+
+	pois := []*model.POI{
+		{WikidataID: "P1", Score: 10.0}, // Best
+		{WikidataID: "P2", Score: 5.0},
+		{WikidataID: "P3", Score: 8.0},
+		{WikidataID: "P4", Score: 2.0}, // Worst
+	}
+
+	for _, p := range pois {
+		_ = mgr.TrackPOI(ctx, p)
+	}
+
+	if mgr.ActiveCount() != 4 {
+		t.Errorf("Expected 4 active POIs, got %d", mgr.ActiveCount())
+	}
+
+	// 1. GetBestCandidate
+	best := mgr.GetBestCandidate()
+	if best == nil || best.WikidataID != "P1" {
+		t.Errorf("GetBestCandidate failed. Want P1, got %v", best)
+	}
+
+	// 2. CountScoredAbove
+	c8 := mgr.CountScoredAbove(8.0, 100)
+	if c8 != 1 { // Only P1(10) > 8. P3(8) is not > 8
+		t.Errorf("CountScoredAbove(8.0) expected 1, got %d", c8)
+	}
+	c4 := mgr.CountScoredAbove(4.0, 100)
+	if c4 != 3 { // P1, P3, P2
+		t.Errorf("CountScoredAbove(4.0) expected 3, got %d", c4)
+	}
+
+	// 3. GetCandidates (Sort)
+	sorted := mgr.GetCandidates(3)
+	if len(sorted) != 3 {
+		t.Fatalf("GetCandidates(3) expected 3, got %d", len(sorted))
+	}
+	if sorted[0].WikidataID != "P1" || sorted[1].WikidataID != "P3" || sorted[2].WikidataID != "P2" {
+		t.Errorf("Candidates not sorted correctly. Got %v %v %v", sorted[0].WikidataID, sorted[1].WikidataID, sorted[2].WikidataID)
+	}
+}
+
+func TestManager_ResetLastPlayed(t *testing.T) {
+	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	ctx := context.Background()
+
+	p := &model.POI{
+		WikidataID: "Q1",
+		LastPlayed: time.Now(),
+	}
+	_ = mgr.TrackPOI(ctx, p)
+
+	mgr.ResetLastPlayed(ctx, 0, 0, 1000)
+
+	// Check Memory State using GetPOI
+	got, _ := mgr.GetPOI(ctx, "Q1")
+	if !got.LastPlayed.IsZero() {
+		t.Error("ResetLastPlayed failed to clear memory cache")
+	}
+}
