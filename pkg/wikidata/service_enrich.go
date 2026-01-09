@@ -9,14 +9,14 @@ import (
 	"phileasgo/pkg/model"
 )
 
-func (s *Service) enrichAndSave(ctx context.Context, articles []Article, localLang, userLang string) error {
+func (s *Service) enrichAndSave(ctx context.Context, articles []Article, localLangs []string, userLang string) error {
 	// 4a. Fetch Lengths
-	lengths := s.fetchArticleLengths(ctx, articles, localLang, userLang)
+	lengths := s.fetchArticleLengths(ctx, articles, localLangs, userLang)
 
 	// 4c. Construct POIs
 	var candidates []*model.POI
 	for i := range articles {
-		if p := constructPOI(&articles[i], lengths, localLang, userLang, s.getIcon); p != nil {
+		if p := constructPOI(&articles[i], lengths, localLangs, userLang, s.getIcon); p != nil {
 			candidates = append(candidates, p)
 		}
 	}
@@ -39,7 +39,7 @@ func (s *Service) enrichAndSave(ctx context.Context, articles []Article, localLa
 	return nil
 }
 
-func (s *Service) fetchArticleLengths(ctx context.Context, articles []Article, localLang, userLang string) map[string]map[string]int {
+func (s *Service) fetchArticleLengths(ctx context.Context, articles []Article, localLangs []string, userLang string) map[string]map[string]int {
 	titlesByLang := make(map[string][]string)
 
 	for i := range articles {
@@ -72,8 +72,8 @@ func (s *Service) fetchArticleLengths(ctx context.Context, articles []Article, l
 	return lengths
 }
 
-func constructPOI(a *Article, lengths map[string]map[string]int, localLang, userLang string, iconGetter func(string) string) *model.POI {
-	bestURL, bestNameLocal, maxLength := determineBestArticle(a, lengths, localLang, userLang)
+func constructPOI(a *Article, lengths map[string]map[string]int, localLangs []string, userLang string, iconGetter func(string) string) *model.POI {
+	bestURL, bestNameLocal, maxLength := determineBestArticle(a, lengths, localLangs, userLang)
 
 	nameEn := a.TitleEn
 	nameUser := a.TitleUser
@@ -102,16 +102,22 @@ func constructPOI(a *Article, lengths map[string]map[string]int, localLang, user
 	return poi
 }
 
-func determineBestArticle(a *Article, lengths map[string]map[string]int, localLang, userLang string) (url, nameLocal string, length int) {
+func determineBestArticle(a *Article, lengths map[string]map[string]int, localLangs []string, userLang string) (url, nameLocal string, length int) {
 	// 1. Calculate Lengths per Language
 	lenEn := lengths["en"][a.TitleEn]
 	lenUser := 0
-	if userLang != "en" && userLang != localLang {
+	// Default to first local lang if available
+	primaryLocal := ""
+	if len(localLangs) > 0 {
+		primaryLocal = localLangs[0]
+	}
+
+	if userLang != "en" && (primaryLocal == "" || userLang != primaryLocal) {
 		lenUser = lengths[userLang][a.TitleUser]
 	}
 
 	// 2. Find Best Local Candidate
-	bestLocalLang, bestLocalTitle, maxLocalLen := findBestLocalCandidate(a, lengths, localLang)
+	bestLocalLang, bestLocalTitle, maxLocalLen := findBestLocalCandidate(a, lengths, localLangs)
 
 	// 3. Determine Overall Best URL (for narration content)
 	maxLength := maxLocalLen
@@ -148,7 +154,13 @@ func determineBestArticle(a *Article, lengths map[string]map[string]int, localLa
 	return bestURL, bestLocalTitle, maxLength
 }
 
-func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, localLang string) (bestLang, bestTitle string, maxLen int) {
+func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, localLangs []string) (bestLang, bestTitle string, maxLen int) {
+	// Prioritize based on the provided local languages
+	prefMap := make(map[string]int)
+	for i, l := range localLangs {
+		prefMap[l] = len(localLangs) - i
+	}
+
 	// Iterate over all available local titles (de, pl, etc.)
 	for lang, title := range a.LocalTitles {
 		l := lengths[lang][title]
@@ -157,26 +169,28 @@ func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, local
 			bestLang = lang
 			bestTitle = title
 		}
-		// Tie-breaker? Maybe prefer 'localLang' (tile center) if lengths equal?
+		// Tie-breaker? Prefer higher priority in localLangs list if lengths equal
 		if l == maxLen && maxLen > 0 {
-			if lang == localLang {
+			if prefMap[lang] > prefMap[bestLang] {
 				bestLang = lang
 				bestTitle = title
 			}
 		}
 	}
-	// Fallback if no length info (or 0 length), pick tile center language if present
+	// Fallback if no length info (or 0 length), pick first local language present in article
 	if bestTitle == "" {
-		if t, ok := a.LocalTitles[localLang]; ok {
-			bestLang = localLang
-			bestTitle = t
-		} else {
-			// Pick random first?
-			for l, t := range a.LocalTitles {
-				bestLang = l
+		for _, lLang := range localLangs {
+			if t, ok := a.LocalTitles[lLang]; ok {
+				bestLang = lLang
 				bestTitle = t
-				break
+				return
 			}
+		}
+		// Pick random first?
+		for l, t := range a.LocalTitles {
+			bestLang = l
+			bestTitle = t
+			break
 		}
 	}
 	return

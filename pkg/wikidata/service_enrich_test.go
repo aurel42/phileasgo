@@ -9,7 +9,7 @@ func TestDetermineBestArticle(t *testing.T) {
 		name          string
 		article       Article
 		lengths       map[string]map[string]int
-		localLang     string
+		localLangs    []string
 		userLang      string
 		wantURL       string
 		wantLocalName string
@@ -25,7 +25,7 @@ func TestDetermineBestArticle(t *testing.T) {
 				"fr": {"LocalTitle": 1000},
 				"en": {"EnTitle": 500},
 			},
-			localLang:     "fr",
+			localLangs:    []string{"fr"},
 			userLang:      "en",
 			wantURL:       "https://fr.wikipedia.org/wiki/LocalTitle",
 			wantLocalName: "LocalTitle",
@@ -41,7 +41,7 @@ func TestDetermineBestArticle(t *testing.T) {
 				"fr": {"LocalTitle": 500},
 				"en": {"EnTitle": 1000},
 			},
-			localLang:     "fr",
+			localLangs:    []string{"fr"},
 			userLang:      "en",
 			wantURL:       "https://en.wikipedia.org/wiki/EnTitle",
 			wantLocalName: "LocalTitle",
@@ -59,7 +59,7 @@ func TestDetermineBestArticle(t *testing.T) {
 				"en": {"EnTitle": 600},
 				"de": {"UserTitle": 1200},
 			},
-			localLang:     "fr",
+			localLangs:    []string{"fr"},
 			userLang:      "de",
 			wantURL:       "https://de.wikipedia.org/wiki/UserTitle",
 			wantLocalName: "LocalTitle",
@@ -76,7 +76,7 @@ func TestDetermineBestArticle(t *testing.T) {
 				"pl": {"Las": 5000},
 				"en": {"Forest": 500},
 			},
-			localLang:     "de", // even if center is DE
+			localLangs:    []string{"de"}, // even if center is DE
 			userLang:      "en",
 			wantURL:       "https://pl.wikipedia.org/wiki/Las", // PL wins on length
 			wantLocalName: "Las",
@@ -89,7 +89,7 @@ func TestDetermineBestArticle(t *testing.T) {
 				TitleEn:     "EnTitle",
 			},
 			lengths:       map[string]map[string]int{},
-			localLang:     "fr",
+			localLangs:    []string{"fr"},
 			userLang:      "en",
 			wantURL:       "https://en.wikipedia.org/wiki/EnTitle",
 			wantLocalName: "",
@@ -99,7 +99,7 @@ func TestDetermineBestArticle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url, nameLocal, length := determineBestArticle(&tt.article, tt.lengths, tt.localLang, tt.userLang)
+			url, nameLocal, length := determineBestArticle(&tt.article, tt.lengths, tt.localLangs, tt.userLang)
 			if url != tt.wantURL {
 				t.Errorf("got url %q, want %q", url, tt.wantURL)
 			}
@@ -150,7 +150,7 @@ func TestConstructPOI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := constructPOI(&tt.article, tt.lengths, "fr", "en", mockIcon)
+			p := constructPOI(&tt.article, tt.lengths, []string{"fr"}, "en", mockIcon)
 			if (p != nil) != tt.wantPOI {
 				t.Fatalf("got POI %v, wantPOI %v", p, tt.wantPOI)
 			}

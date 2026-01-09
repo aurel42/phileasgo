@@ -332,6 +332,7 @@ func TestProcessTileData(t *testing.T) {
 				client:     mockClient,               // Inject Mock!
 				wiki:       &MockWikipediaProvider{}, // Inject Mock!
 				poi:        poi.NewManager(&config.Config{}, st, nil),
+				scheduler:  &Scheduler{grid: NewGrid()},
 				tracker:    tracker.New(),
 				logger:     slog.Default(),
 				geo:        &geo.Service{},                             // Need Geo for enrichment

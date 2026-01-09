@@ -40,11 +40,28 @@ func (s *Service) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat
 	}
 
 	// 5. Enrichment & Saving
-	country := s.geo.GetCountry(centerLat, centerLon)
-	localLangInfo := s.mapper.GetLanguage(country)
+	countrySet := make(map[string]struct{})
+	// Sample Center
+	countrySet[s.geo.GetCountry(centerLat, centerLon)] = struct{}{}
+	// Sample Corners
+	tile := s.scheduler.grid.TileAt(centerLat, centerLon)
+	for _, corner := range s.scheduler.grid.TileCorners(tile) {
+		countrySet[s.geo.GetCountry(corner.Lat, corner.Lon)] = struct{}{}
+	}
+
+	langSet := make(map[string]struct{})
+	for country := range countrySet {
+		langInfo := s.mapper.GetLanguage(country)
+		langSet[langInfo.Code] = struct{}{}
+	}
+
+	var localLangs []string
+	for l := range langSet {
+		localLangs = append(localLangs, l)
+	}
 
 	if len(processed) > 0 {
-		err = s.enrichAndSave(ctx, processed, localLangInfo.Code, "en")
+		err = s.enrichAndSave(ctx, processed, localLangs, "en")
 	}
 
 	return processed, rescued, err

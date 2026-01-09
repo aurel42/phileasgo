@@ -82,15 +82,16 @@ Items that fail to classify into a known category are eligible for **Rescue** if
 How we determine the POI's Name and Wikipedia link.
 
 ### Logic (v0.2.47)
-1. **Local Language Priority**: The system checks the **Country** at the **Tile Center** (single-point lookup) to establish the "Priority Language" for the entire batch.
-2. **Mapper Lookup**: It resolves this country to its **Primary Language** (ISO code).
+1. **Multi-Point Language Detection**: The system samples the **Country** at the **Tile Center** AND all **6 Corner Vertices** of the H3 hex.
+2. **Mapper Lookup**: It resolves this set of countries to their **Primary Languages** (ISO codes) and builds a deduplicated, prioritized list of regional languages.
 3. **Length Fetching**: Article character counts are fetched from Wikipedia for:
-    - **Local Language** article (e.g., `de`).
+    - **All Regional Languages** detected in the tile (e.g., `de`, `fr` if on a border).
     - **English** article (`en`).
     - **User Language** article (from config).
 4. **Selection Logic** (`determineBestArticle`):
-    - The system compares the character counts of the three candidates (Local, English, User).
-    - **Winner**: The longest article among these three becomes the primary source.
+    - The system compares the character counts of all candidates.
+    - **Tie-Breaker**: If lengths are similar, the system prefers languages in the order they were detected (Center > Vertices).
+    - **Winner**: The longest article among the candidates becomes the primary source.
     - **Fallback**: If no lengths match, weights are: User > English > Local > Wikidata.
 
 ---
