@@ -1,5 +1,8 @@
 ﻿# Release History
 
+## v0.2.42 (2026-01-09)
+- **Testing**: Increased `pkg/store` test coverage from 42.9% to **82.0%** with table-driven tests for all store interfaces.
+
 ## v0.2.41 (2026-01-09)
 - **Refactor**: **Store Interface Segregation**
     - Split the monolithic `store.Store` interface (19 methods) into 8 focused sub-interfaces:
