@@ -30,7 +30,6 @@ func buildCheapQuery(lat, lon float64, radius string) string {
             OPTIONAL { ?item wdt:P2046 ?area . }
             OPTIONAL { ?item wdt:P2048 ?height . }
             OPTIONAL { ?item wdt:P2043 ?length . }
-            OPTIONAL { ?item wdt:P2043 ?length . }
             OPTIONAL { ?item wdt:P2049 ?width . }
             
             FILTER(?sitelinks > 0)

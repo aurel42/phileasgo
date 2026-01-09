@@ -66,7 +66,7 @@ If no direct match exists, the system starts a **layered Breadth-First Search (B
 Items that fail to classify into a known category are eligible for **Rescue** if they are geometrically significant.
 
 1. **Eligibility**: An article is **never** rescued if any of its direct P31 instances are explicitly in the `IgnoredCategories` config.
-2. **The Dimensions**: The system tracks `Height`, `Length`, and `Area` (calculated or fetched from SPARQL).
+2. **The Dimensions**: The system tracks `Height` (P2048), `Length` (P2043), and `Area` (P2046). These are **straight-fetched** from SPARQL as raw floats; no secondary calculation (like Length * Width) or unit conversion is performed by the server.
 3. **Median Window**: The `DimensionTracker` maintains a sliding window of the **Max Dimensions** from the last **10 tiles**.
 4. **Rescue Thresholds**:
     - **Local Hero**: If an item's dimension is the **Maximum** in the current tile, it is rescued as a "Landmark".
