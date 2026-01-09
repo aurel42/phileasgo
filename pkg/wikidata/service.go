@@ -224,10 +224,6 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 
 	// Create formatted string for SPARQL (e.g. "9.810") - query expects KM
 	radiusStr := fmt.Sprintf("%.3f", float64(radiusMeters)/1000.0)
-	if radiusMeters < 1000 { // Fallback sanity check
-		radiusStr = "9.8" // Keep legacy fallback just in case, or cap at 10.0
-		radiusMeters = 9800
-	}
 
 	query := buildCheapQuery(centerLat, centerLon, radiusStr)
 

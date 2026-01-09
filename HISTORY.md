@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.47 (2026-01-09)
+- **Refactor**: **Cleanup & Safety**
+    - Removed legacy radius fallback (9.8km jump) in Wikidata fetching logic.
+    - Simplified geospatial sampling to rely strictly on calculated tile radius.
+
 ## v0.2.46 (2026-01-09)
 - **Fix**: **Geodata Cache Routing**
     - Resolved critical architectural flaw where `wd_h3_*` geodata entries were being stored in the generic `cache` table instead of the dedicated `cache_geodata` table.
