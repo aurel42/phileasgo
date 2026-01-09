@@ -82,8 +82,8 @@ Items that fail to classify into a known category are eligible for **Rescue** if
 How we determine the POI's Name and Wikipedia link.
 
 ### Logic (v0.2.47)
-1. **Local Language Detection**: Sampler checks the **Country** at the tile center.
-2. **Mapper Lookup**: returns the **Primary Language** for that country (ISO code).
+1. **Local Language Priority**: The system checks the **Country** at the **Tile Center** (single-point lookup) to establish the "Priority Language" for the entire batch.
+2. **Mapper Lookup**: It resolves this country to its **Primary Language** (ISO code).
 3. **Length Fetching**: Article character counts are fetched from Wikipedia for:
     - **Local Language** article (e.g., `de`).
     - **English** article (`en`).
