@@ -4,9 +4,11 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"math"
 	"testing"
 	"time"
 
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/sim/simconnect"
 )
@@ -73,7 +75,16 @@ func TestSetTarget_SpawnsBeacons(t *testing.T) {
 			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 1000, AltitudeAGL: 1000, Heading: 90,
 		},
 	}
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	cfg := &config.BeaconConfig{
+		Enabled:             true,
+		FormationEnabled:    true,
+		FormationDistanceKm: 2.0,
+		FormationCount:      3,
+		MinSpawnAltitudeFt:  1000.0,
+		AltitudeFloorFt:     2000.0,
+	}
+
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
 	// Set Target
 	err := svc.SetTarget(context.Background(), 45.0, -72.0) // Target East
@@ -109,7 +120,15 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 1000, AltitudeAGL: 1000, Heading: 90,
 		},
 	}
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	cfg := &config.BeaconConfig{
+		Enabled:             true,
+		FormationEnabled:    true,
+		FormationDistanceKm: 2.0,
+		FormationCount:      3,
+		MinSpawnAltitudeFt:  1000.0,
+		AltitudeFloorFt:     2000.0,
+	}
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
 	if err := svc.SetTarget(context.Background(), 45.0, -72.0); err != nil {
 		t.Fatalf("SetTarget failed: %v", err)
@@ -134,8 +153,12 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 	}
 
 	// Test Despawn Trigger
+	// Trigger is config.FormationDistanceKm * 1.5 = 3.0km
 	// Move user very close (within 3km)
-	mockTel.Longitude = -72.0 - (0.01) // Just west of target
+	// At lat 45, 1 deg lon is approx 78km.
+	// Target at -72.0.
+	// User at -72.03 -> approx 2.3km away (< 3.0km)
+	mockTel.Longitude = -72.03
 
 	svc.updateStep(mockTel)
 
@@ -152,7 +175,15 @@ func TestSetTarget_LowAGL(t *testing.T) {
 			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 1000, AltitudeAGL: 500, Heading: 90,
 		},
 	}
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	cfg := &config.BeaconConfig{
+		Enabled:             true,
+		FormationEnabled:    true,
+		FormationDistanceKm: 2.0,
+		FormationCount:      3,
+		MinSpawnAltitudeFt:  1000.0,
+		AltitudeFloorFt:     2000.0,
+	}
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
 	// Set Target
 	err := svc.SetTarget(context.Background(), 45.0, -72.0)
@@ -166,7 +197,7 @@ func TestSetTarget_LowAGL(t *testing.T) {
 	}
 
 	// Validate Target Altitude
-	// MSL=1000, AGL=500 (<1000) -> Target should be MSL+1000 = 2000
+	// MSL=1000, AGL=500 (<MinSpawnAltitudeFt=1000) -> Target should be MSL+1000 = 2000
 	target := mock.Spawns[0]
 	if target.Alt != 2000.0 {
 		t.Errorf("Expected target at 2000.0 (MSL+1000), got %.1f", target.Alt)
@@ -179,7 +210,15 @@ func TestSetTarget_HighAGL(t *testing.T) {
 			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 5000, AltitudeAGL: 2000, Heading: 90,
 		},
 	}
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	cfg := &config.BeaconConfig{
+		Enabled:             true,
+		FormationEnabled:    true,
+		FormationDistanceKm: 2.0,
+		FormationCount:      3,
+		MinSpawnAltitudeFt:  1000.0,
+		AltitudeFloorFt:     2000.0,
+	}
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
 	// Set Target
 	err := svc.SetTarget(context.Background(), 45.0, -72.0)
@@ -193,7 +232,7 @@ func TestSetTarget_HighAGL(t *testing.T) {
 	}
 
 	// Validate Target Altitude
-	// MSL=5000, AGL=2000 (>1000) -> Target should be MSL = 5000
+	// MSL=5000, AGL=2000 (>MinSpawnAltitudeFt=1000) -> Target should be MSL = 5000
 	for _, s := range mock.Spawns {
 		if s.ReqID == 100 { // Target
 			if s.Alt != 5000.0 {
@@ -209,14 +248,22 @@ func TestUpdateLoop_AltitudeLock(t *testing.T) {
 			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 3000, AltitudeAGL: 3000, Heading: 90,
 		},
 	}
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	cfg := &config.BeaconConfig{
+		Enabled:             true,
+		FormationEnabled:    true,
+		FormationDistanceKm: 2.0,
+		FormationCount:      3,
+		MinSpawnAltitudeFt:  1000.0,
+		AltitudeFloorFt:     2000.0,
+	}
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
 	// 1. Spawn High (3000ft AGL) -> Logic follows MSL
 	if err := svc.SetTarget(context.Background(), 45.0, -72.0); err != nil {
 		t.Fatalf("SetTarget failed: %v", err)
 	}
 
-	// 2. Descend to 2500 MSL / 2500 AGL (Still > 2000)
+	// 2. Descend to 2500 MSL / 2500 AGL (Still > AltitudeFloorFt=2000)
 	// Should follow
 	mockTel := &simconnect.TelemetryData{
 		Latitude:    45.0,
@@ -280,5 +327,30 @@ func TestUpdateLoop_AltitudeLock(t *testing.T) {
 	}
 	if !found {
 		t.Error("No move for ID 1 found")
+	}
+}
+
+func TestComputeFormationOffsets(t *testing.T) {
+	tests := []struct {
+		count    int
+		expected []float64
+	}{
+		{1, []float64{0.0}},
+		{3, []float64{-200.0, 0.0, 200.0}},
+		{5, []float64{-400.0, -200.0, 0.0, 200.0, 400.0}},
+		{0, []float64{0.0}},                      // Clamped to 1
+		{10, []float64{-400, -200, 0, 200, 400}}, // Clamped to 5
+	}
+
+	for _, tt := range tests {
+		got := computeFormationOffsets(tt.count)
+		if len(got) != len(tt.expected) {
+			t.Errorf("Count %d: expected length %d, got %d", tt.count, len(tt.expected), len(got))
+		}
+		for i, v := range got {
+			if math.Abs(v-tt.expected[i]) > 0.1 {
+				t.Errorf("Count %d: index %d, expected %.1f, got %.1f", tt.count, i, tt.expected[i], v)
+			}
+		}
 	}
 }

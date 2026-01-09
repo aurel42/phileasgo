@@ -200,6 +200,10 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	// Generate Script
 	script, err := s.llm.GenerateText(ctx, "essay", prompt)
 	if err != nil {
+		if strings.Contains(err.Error(), "gemini client not configured") {
+			slog.Error("FATAL: Gemini client not configured. Application cannot proceed.", "error", err)
+			os.Exit(1)
+		}
 		slog.Error("Narrator: LLM essay script generation failed", "error", err)
 		return
 	}
@@ -319,6 +323,10 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telem
 	// 3. Generate LLM Script
 	script, err := s.generateScript(ctx, prompt)
 	if err != nil {
+		if strings.Contains(err.Error(), "gemini client not configured") {
+			slog.Error("FATAL: Gemini client not configured. Application cannot proceed.", "error", err)
+			os.Exit(1)
+		}
 		slog.Error("Narrator: LLM script generation failed", "error", err)
 		if s.beaconSvc != nil {
 			s.beaconSvc.Clear()

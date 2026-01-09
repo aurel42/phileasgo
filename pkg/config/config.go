@@ -24,6 +24,7 @@ type Config struct {
 	LLM      LLMConfig      `yaml:"llm"`
 	Narrator NarratorConfig `yaml:"narrator"`
 	Sim      SimConfig      `yaml:"sim"`
+	Beacon   BeaconConfig   `yaml:"beacon"`
 }
 
 // SimConfig holds settings for the simulation connection.
@@ -41,6 +42,16 @@ type MockSimConfig struct {
 	DurationParked Duration `yaml:"duration_parked"`
 	DurationTaxi   Duration `yaml:"duration_taxi"`
 	DurationHold   Duration `yaml:"duration_hold"`
+}
+
+// BeaconConfig holds settings for the beacon guidance system.
+type BeaconConfig struct {
+	Enabled             bool    `yaml:"enabled"`
+	FormationEnabled    bool    `yaml:"formation_enabled"`
+	FormationDistanceKm float64 `yaml:"formation_distance_km"`
+	FormationCount      int     `yaml:"formation_count"`
+	MinSpawnAltitudeFt  float64 `yaml:"min_spawn_altitude_ft"`
+	AltitudeFloorFt     float64 `yaml:"altitude_floor_ft"`
 }
 
 // LLMConfig holds settings for the Large Language Model provider.
@@ -80,6 +91,7 @@ type TTSConfig struct {
 
 // EssayConfig holds settings for essay narration.
 type EssayConfig struct {
+	Enabled        bool     `yaml:"enabled"`
 	Cooldown       Duration `yaml:"cooldown"`
 	ScoreThreshold float64  `yaml:"score_threshold"`
 }
@@ -243,6 +255,7 @@ func DefaultConfig() *Config {
 			TemperatureBase:    1.0,
 			TemperatureJitter:  0.3,
 			Essay: EssayConfig{
+				Enabled:        true,
 				Cooldown:       Duration(10 * time.Minute),
 				ScoreThreshold: 2.0,
 			},
@@ -259,12 +272,20 @@ func DefaultConfig() *Config {
 				DurationHold:   Duration(30 * time.Second),
 			},
 		},
+		Beacon: BeaconConfig{
+			Enabled:             true,
+			FormationEnabled:    true,
+			FormationDistanceKm: 2.0,
+			FormationCount:      3,
+			MinSpawnAltitudeFt:  1000.0,
+			AltitudeFloorFt:     2000.0,
+		},
 	}
 }
 
 // Load loads the configuration from the given path.
 // If the file does not exist, it creates it with default values.
-// If the file exists, it merges defaults with existing values and saves the result (to ensure new keys are added).
+// If the file exists, it merges defaults with existing values but does NOT save back to disk (to preserve user formatting and comments).
 func Load(path string) (*Config, error) {
 	cfg := DefaultConfig()
 

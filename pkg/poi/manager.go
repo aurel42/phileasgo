@@ -40,6 +40,9 @@ type Manager struct {
 	// Consistency State
 	lastScoredLat float64
 	lastScoredLon float64
+
+	// Callbacks
+	onScoringComplete func(ctx context.Context, t *sim.Telemetry)
 }
 
 // NewManager creates a new POI Manager.
@@ -51,6 +54,11 @@ func NewManager(cfg *config.Config, s ManagerStore, catCfg *config.CategoriesCon
 		trackedPOIs: make(map[string]*model.POI),
 		catConfig:   catCfg,
 	}
+}
+
+// SetScoringCallback sets the function to be called after each scoring pass.
+func (m *Manager) SetScoringCallback(fn func(ctx context.Context, t *sim.Telemetry)) {
+	m.onScoringComplete = fn
 }
 
 // UpsertPOI saves a POI to the database and adds it to the active tracking list.
@@ -385,7 +393,16 @@ func (m *Manager) StartScoring(ctx context.Context, simClient sim.Client, sc *sc
 			m.lastScoredLat = telemetry.Latitude
 			m.lastScoredLon = telemetry.Longitude
 
+			// 5. Trigger Callback (if set) - BEFORE unlocking to ensure consistency?
+			// Actually, better AFTER unlocking to avoid blocking the manager lock for the callback duration.
+			callback := m.onScoringComplete
+
 			m.mu.Unlock()
+
+			if callback != nil {
+				// Execute callback outside the lock
+				callback(ctx, &telemetry)
+			}
 		}
 	}
 }

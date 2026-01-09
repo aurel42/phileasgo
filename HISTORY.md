@@ -3,6 +3,20 @@
 ## v0.2.42 (2026-01-09)
 - **Testing**: Increased `pkg/store` test coverage from 42.9% to **82.0%** with table-driven tests for all store interfaces.
 
+## v0.2.43 (2026-01-09)
+- **Refactor**: **Optimized Auto-Narration Frequency**
+    - Decoupled the `NarrationJob` from the high-frequency telemetry loop (100ms).
+    - It is now event-driven, triggered via callback immediately after the POI Scorer completes (every 5 seconds).
+    - **Optimization**: The Line-of-Sight (LOS) check now aborts early if it encounters a POI below the score threshold, significantly reducing CPU usage (since candidates are pre-sorted).
+    - **Logging**: Added deduplication to the "All POIs blocked by LOS" log message; it now only appears when the count of visible candidates changes, eliminating console spam.
+- **Config**: **Configurable Essays**
+    - Added `settings.narrator.essay.enabled` (default: `true`) to `phileas.yaml`.
+    - Allows disabling regional essays entirely via configuration.
+- **Feature**: **Fatal LLM Configuration Error**
+    - The application now exits fatally (code 1) if the LLM client is not configured when a narration request is made, preventing "zombie" states where requests silently fail.
+- **Testing**: **Improved Mock Simulator**
+    - The Mock Sim now dynamically adjusts its flight profile altitudes based on the starting airfield elevation, ensuring relevant visibility testing regardless of starting terrain height.
+
 ## v0.2.41 (2026-01-09)
 - **Refactor**: **Store Interface Segregation**
     - Split the monolithic `store.Store` interface (19 methods) into 8 focused sub-interfaces:

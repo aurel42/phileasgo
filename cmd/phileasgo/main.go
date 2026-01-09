@@ -195,10 +195,13 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 	}
 
 	var beaconSvc *beacon.Service
-	if bc, ok := simClient.(beacon.ObjectClient); ok {
-		beaconSvc = beacon.NewService(bc, slog.With("component", "beacon"))
-		beaconSvc.SetDLLPath("SimConnect.dll")
-		go beaconSvc.StartIndependentLoop(ctx)
+	// Initialize Beacon Service if enabled in config
+	if cfg.Beacon.Enabled {
+		if bc, ok := simClient.(beacon.ObjectClient); ok {
+			beaconSvc = beacon.NewService(bc, slog.With("component", "beacon"), &cfg.Beacon)
+			beaconSvc.SetDLLPath("SimConnect.dll")
+			go beaconSvc.StartIndependentLoop(ctx)
+		}
 	}
 
 	narratorSvc := createAIService(cfg, llmProv, ttsProv, promptMgr, audio.New(), svcs.PoiMgr, beaconSvc, svcs.WikiSvc, simClient, st, tr)
@@ -282,7 +285,17 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, ns
 	sched.AddJob(core.NewDistanceJob("DistanceSync", 5000, func(c context.Context, t sim.Telemetry) {
 		_ = st.MarkEntitiesSeen(c, map[string][]string{})
 	}))
-	sched.AddJob(core.NewNarrationJob(cfg, ns, ns.POIManager(), los))
+	// REMOVED: NarrationJob from Scheduler (too frequent polling)
+	// sched.AddJob(core.NewNarrationJob(cfg, ns, ns.POIManager(), los))
+
+	// Hook NarrationJob into POI Manager's scoring loop (every 5s)
+	narrationJob := core.NewNarrationJob(cfg, ns, ns.POIManager(), los)
+	svcs.PoiMgr.SetScoringCallback(func(c context.Context, t *sim.Telemetry) {
+		if narrationJob.ShouldFire(t) {
+			go narrationJob.Run(c, t)
+		}
+	})
+
 	sched.AddJob(core.NewDynamicConfigJob(cfg, ns.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc))
 	sched.AddJob(core.NewEvictionJob(cfg, svcs.PoiMgr, svcs.WikiSvc))
 	return sched

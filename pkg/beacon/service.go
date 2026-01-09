@@ -9,6 +9,7 @@ import (
 	"time"
 	"unsafe"
 
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/sim/simconnect"
 )
@@ -16,23 +17,17 @@ import (
 const (
 	// Request IDs for internal tracking
 	reqIDSpawnTarget = 100
-	reqIDSpawnForm1  = 101
-	reqIDSpawnForm2  = 102
-	reqIDSpawnForm3  = 103
-	reqIDRemove      = 100 // ID for remove requests (can be shared)
+	// reqIDSpawnForm1..3 replaced by dynamic generation
+
+	reqIDRemove = 100 // ID for remove requests (can be shared)
 
 	// SimConnect IDs for independent handle
 	reqIDHighFreq  = 1
 	DefIDTelemetry = 0
 	DefIDObjectPos = 1
 
-	// Configuration
-	FormationDistKm = 2.0
-	TriggerDistKm   = 3.0
-	FormationAltTop = 200.0
-	FormationAltMid = 0.0
-	FormationAltBot = -200.0
-	UpdateInterval  = 50 * time.Millisecond // ~20Hz
+	// Configuration (Defaults / Fallbacks)
+	UpdateInterval = 50 * time.Millisecond // ~20Hz
 )
 
 var (
@@ -55,6 +50,7 @@ type ObjectClient interface {
 type Service struct {
 	client ObjectClient
 	logger *slog.Logger
+	config *config.BeaconConfig
 
 	dllPath string
 	handle  uintptr // Independent SimConnect handle
@@ -77,11 +73,29 @@ type SpawnedBeacon struct {
 }
 
 // NewService creates a new Beacon Service.
-func NewService(client ObjectClient, logger *slog.Logger) *Service {
+func NewService(client ObjectClient, logger *slog.Logger, cfg *config.BeaconConfig) *Service {
 	return &Service{
 		client: client,
 		logger: logger,
+		config: cfg,
 	}
+}
+
+func computeFormationOffsets(count int) []float64 {
+	if count < 1 {
+		count = 1
+	}
+	if count > 5 {
+		count = 5
+	}
+
+	const step = 200.0
+	offsets := make([]float64, count)
+	mid := float64(count-1) / 2.0
+	for i := 0; i < count; i++ {
+		offsets[i] = step * (float64(i) - mid)
+	}
+	return offsets
 }
 
 // SetTarget initializes the guidance system towards a target coordinate.
@@ -111,24 +125,24 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64) error {
 	title := titlesToTry[0] // TODO: Try loop if fails? (Spawn blocks now so we could)
 
 	// 3. Spawning Logic based on AGL
-	// If below 1000ft AGL:
-	// - Spawn target at MSL + 1000 ft
+	// If below MinSpawnAltitudeFt AGL (Config):
+	// - Spawn target at MSL + MinSpawnAltitudeFt
 	// - Do NOT spawn formation
-	// If above 1000ft AGL:
+	// If above MinSpawnAltitudeFt AGL:
 	// - Spawn target at MSL
-	// - Spawn formation
+	// - Spawn formation (if enabled)
 
 	var spawnFormation bool
 	s.isHoldingAlt = false // Reset holding state
 
-	if tel.AltitudeAGL < 1000.0 {
-		s.targetAlt = tel.AltitudeMSL + 1000.0
+	if tel.AltitudeAGL < s.config.MinSpawnAltitudeFt {
+		s.targetAlt = tel.AltitudeMSL + s.config.MinSpawnAltitudeFt
 		spawnFormation = false
 		s.isHoldingAlt = true // Lock immediately if spawned low
-		s.logger.Info("Low AGL, spawning target at +1000ft", "agl", tel.AltitudeAGL, "target_alt", s.targetAlt, "formation", false)
+		s.logger.Info("Low AGL, spawning target", "agl", tel.AltitudeAGL, "target_alt", s.targetAlt, "formation", false)
 	} else {
 		s.targetAlt = tel.AltitudeMSL
-		spawnFormation = true
+		spawnFormation = s.config.FormationEnabled
 		s.logger.Info("Spawning Target Beacon", "lat", lat, "lon", lon, "alt", s.targetAlt)
 	}
 
@@ -144,25 +158,22 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64) error {
 		latRad := tel.Latitude * (math.Pi / 180.0)
 
 		// Calc initial formation pos
-		formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, hdgRad, latRad, FormationDistKm)
+		formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, hdgRad, latRad, s.config.FormationDistanceKm)
 
-		formReqs := []struct {
-			reqID     uint32
-			altOffset float64
-		}{
-			{reqIDSpawnForm1, FormationAltTop},
-			{reqIDSpawnForm2, FormationAltMid},
-			{reqIDSpawnForm3, FormationAltBot},
-		}
+		offsets := computeFormationOffsets(s.config.FormationCount)
+		// We need unique Request IDs for each balloon.
+		// Start from 101.
+		baseReqID := uint32(101)
 
-		for _, req := range formReqs {
-			absAlt := s.targetAlt + req.altOffset
-			id, err := s.client.SpawnAirTraffic(req.reqID, title, "FORM", formLat, formLon, absAlt, tel.Heading)
+		for i, offset := range offsets {
+			absAlt := s.targetAlt + offset
+			reqID := baseReqID + uint32(i)
+			id, err := s.client.SpawnAirTraffic(reqID, title, "FORM", formLat, formLon, absAlt, tel.Heading)
 			if err != nil {
 				s.logger.Error("Error spawning formation beacon", "error", err)
 				continue
 			}
-			s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{ID: id, IsTarget: false, AltOffset: req.altOffset})
+			s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{ID: id, IsTarget: false, AltOffset: offset})
 		}
 		s.formationActive = true
 	} else {
@@ -363,9 +374,12 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 		bearingDeg += 360.0
 	}
 
-	// 2. Check Trigger Distance
-	if s.formationActive && distKm < TriggerDistKm {
-		s.logger.Info("Target Distance < Trigger Distance. Despawning formation.", "dist_km", distKm, "trigger_km", TriggerDistKm)
+	// 2. Check Trigger Distance (User logic: If < Trigger -> Despawn formation)
+	// We derive trigger distance as 1.5x formation distance to provide a buffer
+	triggerDistKm := s.config.FormationDistanceKm * 1.5
+
+	if s.formationActive && distKm < triggerDistKm {
+		s.logger.Info("Target Distance < Trigger Distance. Despawning formation.", "dist_km", distKm, "trigger_km", triggerDistKm)
 
 		var kept []SpawnedBeacon
 		for _, b := range s.spawnedBeacons {
@@ -382,12 +396,11 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 
 	// 3. Update Positions
 	// Logic:
-	// - If AGL >= 2000ft: Balloons follow aircraft MSL (targetAlt = aircraft MSL)
-	// - If AGL < 2000ft: Balloons lock at last good MSL (targetAlt = held value)
-	const SafetyFloorAGL = 2000.0
+	// - If AGL >= AltitudeFloorFt: Balloons follow aircraft MSL (targetAlt = aircraft MSL)
+	// - If AGL < AltitudeFloorFt: Balloons lock at last good MSL (targetAlt = held value)
 
 	// Note: We use s.targetAlt as the "Base MSL" for the formation
-	if tel.AltitudeAGL >= SafetyFloorAGL {
+	if tel.AltitudeAGL >= s.config.AltitudeFloorFt {
 		s.targetAlt = tel.AltitudeMSL
 		s.isHoldingAlt = false
 	} else if !s.isHoldingAlt {
@@ -395,13 +408,13 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 		// If we weren't holding already, we lock now.
 		// If we spawned low, isHoldingAlt might be false initially, but SetTarget sets initial s.targetAlt
 		// based on spawn rules, so we just set holding=true and KEEP the existing s.targetAlt.
-		s.logger.Debug("Below 2000ft AGL, holding beacon altitude", "agl", tel.AltitudeAGL, "hold_msl", s.targetAlt)
+		s.logger.Debug("Below altitude floor, holding beacon altitude", "agl", tel.AltitudeAGL, "hold_msl", s.targetAlt)
 		s.isHoldingAlt = true
 	}
 	// targetAlt remains unchanged in the else case (whether we just locked or were already locked)
 
 	// Calculate Formation Target Pos
-	formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, FormationDistKm)
+	formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, s.config.FormationDistanceKm)
 
 	for _, b := range s.spawnedBeacons {
 		// Calculate final absolute altitude for this specific beacon

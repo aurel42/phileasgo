@@ -32,6 +32,7 @@ type NarrationJob struct {
 	lastTime         time.Time
 	nextFireDuration time.Duration
 	wasBusy          bool
+	lastCheckedCount int
 }
 
 func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, los *terrain.LOSChecker) *NarrationJob {
@@ -102,6 +103,9 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	if best == nil {
 		slog.Debug("NarrationJob: No POI candidates, checking essay eligibility", "agl", t.AltitudeAGL)
 		// No POI? Check if we can do an essay.
+		if !j.cfg.Narrator.Essay.Enabled {
+			return false
+		}
 		// ESSAYS: only above 2000ft AGL.
 		if t.AltitudeAGL < 2000 {
 			return false
@@ -168,7 +172,16 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 	aircraftPos := geo.Point{Lat: t.Latitude, Lon: t.Longitude}
 	aircraftAltFt := t.AltitudeMSL
 
+	checkedCount := 0
 	for i, poi := range candidates {
+		// Optimization: Skip POIs that don't meet the minimum score threshold.
+		// Since the list is sorted by Score (descending), if we hit one below threshold,
+		// all subsequent ones are also below threshold.
+		if poi.Score < j.cfg.Narrator.MinScoreThreshold {
+			break
+		}
+		checkedCount++
+
 		// Get POI ground elevation (meters -> feet)
 		poiElevM, err := j.losChecker.GetElevation(poi.Lat, poi.Lon)
 		if err != nil {
@@ -190,7 +203,10 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 		}
 	}
 
-	slog.Warn("NarrationJob: All POIs blocked by LOS", "count", len(candidates))
+	if checkedCount != j.lastCheckedCount {
+		slog.Warn("NarrationJob: All POIs blocked by LOS", "checked", checkedCount, "total_candidates", len(candidates))
+		j.lastCheckedCount = checkedCount
+	}
 	return nil // All blocked
 }
 
@@ -234,6 +250,11 @@ func (j *NarrationJob) checkCooldown() bool {
 }
 
 func (j *NarrationJob) tryEssay(ctx context.Context, t *sim.Telemetry) {
+	// Check if essays are enabled
+	if !j.cfg.Narrator.Essay.Enabled {
+		return
+	}
+
 	// Safety check: only above 2000ft AGL
 	if t != nil && t.AltitudeAGL < 2000 {
 		return

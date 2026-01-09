@@ -219,24 +219,27 @@ func (m *MockClient) update() {
 }
 
 func (m *MockClient) initScenario() {
+	// Calculate bottom based on airfield elevation (round down to nearest 1000)
+	bottom := math.Floor(m.groundAlt/1000.0) * 1000.0
+
 	m.scenario = []scenarioStep{
-		{Type: "CLIMB", Target: 1500.0, Rate: 500.0},
+		{Type: "CLIMB", Target: 1500.0 + bottom, Rate: 500.0},
 		{Type: "WAIT", Duration: 120.0},
 	}
-	// Step climbs to 5500
+	// Step climbs to 5500 + bottom
 	alt := 1500.0
 	for alt < 5500.0 {
 		alt += 1000.0
 		m.scenario = append(m.scenario,
-			scenarioStep{Type: "CLIMB", Target: alt, Rate: 500.0},
+			scenarioStep{Type: "CLIMB", Target: alt + bottom, Rate: 500.0},
 			scenarioStep{Type: "WAIT", Duration: 120.0},
 		)
 	}
 	m.scenario = append(m.scenario,
-		scenarioStep{Type: "CLIMB", Target: 12000.0, Rate: 2000.0},
+		scenarioStep{Type: "CLIMB", Target: 12000.0 + bottom, Rate: 2000.0},
 		scenarioStep{Type: "WAIT", Duration: 120.0},
-		scenarioStep{Type: "CLIMB", Target: 8000.0, Rate: -1000.0}, // Descent
-		scenarioStep{Type: "CLIMB", Target: 1500.0, Rate: -500.0},  // Descent
+		scenarioStep{Type: "CLIMB", Target: 8000.0 + bottom, Rate: -1000.0}, // Descent
+		scenarioStep{Type: "CLIMB", Target: 1500.0 + bottom, Rate: -500.0},  // Descent
 	)
 	m.scenarioIdx = 0
 	m.stepStart = time.Time{}
