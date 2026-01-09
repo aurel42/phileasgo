@@ -50,7 +50,7 @@ func TestValidator_ValidateBatch(t *testing.T) {
 
 	// Setup Validator
 	trk := tracker.New()
-	reqClient := request.New(&mockCacher{}, trk) // Reuse mockCacher from mapper_test (if exported) or redefine?
+	reqClient := request.New(&mockCacher{}, trk, request.ClientConfig{}) // Reuse mockCacher from mapper_test (if exported) or redefine?
 	// mockCacher in mapper_test.go is not exported. I need to redefine it here or make it common.
 	// Redefining for speed.
 
@@ -95,3 +95,9 @@ type mockCacherV struct{}
 
 func (m *mockCacherV) GetCache(ctx context.Context, key string) ([]byte, bool)    { return nil, false }
 func (m *mockCacherV) SetCache(ctx context.Context, key string, val []byte) error { return nil }
+func (m *mockCacherV) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
+	return nil, 0, false
+}
+func (m *mockCacherV) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error {
+	return nil
+}

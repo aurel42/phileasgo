@@ -47,6 +47,9 @@ func (m *mockStore) GetGeodataCache(ctx context.Context, key string) ([]byte, in
 func (m *mockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error {
 	return nil
 }
+func (m *mockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error) {
+	return nil, nil
+}
 func (m *mockStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
 func (m *mockStore) SetState(ctx context.Context, key, val string) error     { return nil }
 func (m *mockStore) SaveMSFSPOI(ctx context.Context, p *model.MSFSPOI) error { return nil }
@@ -128,15 +131,15 @@ func (m *MockClassifier) GetConfig() *config.CategoriesConfig {
 
 // MockWikidataClient implements ClientInterface for testing
 type MockWikidataClient struct {
-	QuerySPARQLFunc       func(ctx context.Context, query, cacheKey string) ([]Article, string, error)
+	QuerySPARQLFunc       func(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error)
 	GetEntitiesBatchFunc  func(ctx context.Context, ids []string) (map[string]EntityMetadata, error)
 	FetchFallbackDataFunc func(ctx context.Context, ids []string) (map[string]FallbackData, error)
 	GetEntityClaimsFunc   func(ctx context.Context, id, property string) (targets []string, label string, err error)
 }
 
-func (m *MockWikidataClient) QuerySPARQL(ctx context.Context, query, cacheKey string) ([]Article, string, error) {
+func (m *MockWikidataClient) QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error) {
 	if m.QuerySPARQLFunc != nil {
-		return m.QuerySPARQLFunc(ctx, query, cacheKey)
+		return m.QuerySPARQLFunc(ctx, query, cacheKey, radiusM)
 	}
 	return nil, "[]", nil
 }

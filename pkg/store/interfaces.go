@@ -28,6 +28,7 @@ type CacheStore interface {
 type GeodataStore interface {
 	GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool)
 	SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error
+	ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error)
 }
 
 // HierarchyStore handles Wikidata classification hierarchy.

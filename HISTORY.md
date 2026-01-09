@@ -1,5 +1,29 @@
 ﻿# Release History
 
+## v0.2.46 (2026-01-09)
+- **Fix**: **Geodata Cache Routing**
+    - Resolved critical architectural flaw where `wd_h3_*` geodata entries were being stored in the generic `cache` table instead of the dedicated `cache_geodata` table.
+    - Extended `Cacher` interface with `GetGeodataCache` and `SetGeodataCache` methods to ensure geodata and radius metadata are handled explicitly.
+    - Added `PostWithGeodataCache` to the request client to route geodata requests correctly.
+    - Updated `wikidata.client` to pass the calculated radius down to the cache layer, ensuring circles in UI are drawn with correct diameter.
+    - Added `ListGeodataCacheKeys` to `store.Store` interface to correctly retrieve keys from the `cache_geodata` table.
+- **Feature**: **Switch to H3 Resolution 6**
+    - Increased grid resolution from 5 to **6** (~3.8km edge length) for finer geospatial granularity.
+    - Adjusted tile spacing to 5.6km and updated grid radius calculations.
+    - Updated all geospatial tests and assertions to match Res 6 geometry.
+- **Feature**: **Provider-Based Backoff Strategy**
+    - Implemented a more sophisticated exponential backoff with jitter, tracked independently per provider (domain).
+    - Added gradual recovery: successful requests now slowly reduce the backoff delay instead of resetting it instantly, preventing "thundering herd" scenarios.
+    - Backoff state now persists across the client lifecycle rather than being request-bound.
+- **Config**: **Enhanced Request Settings**
+    - Added `request.retries` (default: 5) and `request.timeout` to `phileas.yaml`.
+    - Added `request.backoff` (base_delay, max_delay) for fine-grained control over retry timing.
+- **Performance**: **Range Loop Optimization**
+    - Updated `pkg/wikidata/merger.go` to use indexing in range loops over large `Article` structs (208 bytes), eliminating unnecessary memory copies and increasing merge throughput.
+- **Logging**: **Reduced Console Noise**
+    - Downgraded "SPARQL Query Completed" log from INFO to DEBUG.
+    - Fixed several `gocritic` linting issues (unnamed results, pointer copies).
+
 ## v0.2.45 (2026-01-09)
 - **Feature**: **Startup Health Checks**
     - Implemented a robust startup probe system (`pkg/probe`).

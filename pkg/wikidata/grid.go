@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	// H3 Resolution 5
-	h3Resolution = 5
+	// H3 Resolution 6
+	h3Resolution = 6
 )
 
 // Grid handles H3 grid calculations.

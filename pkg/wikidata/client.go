@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"phileasgo/pkg/request"
 )
@@ -22,7 +23,7 @@ const (
 
 // ClientInterface defines the interface for Wikidata interactions.
 type ClientInterface interface {
-	QuerySPARQL(ctx context.Context, query, cacheKey string) ([]Article, string, error)
+	QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error)
 	GetEntitiesBatch(ctx context.Context, ids []string) (map[string]EntityMetadata, error)
 	FetchFallbackData(ctx context.Context, ids []string) (map[string]FallbackData, error)
 	GetEntityClaims(ctx context.Context, id, property string) (targets []string, label string, err error)
@@ -48,7 +49,8 @@ func NewClient(r *request.Client, logger *slog.Logger) *Client {
 
 // QuerySPARQL executes a SPARQL query and parses the result into Articles.
 // It returns the list of articles found and the raw JSON response.
-func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string) ([]Article, string, error) {
+// radiusM is the query radius in meters for geodata caching.
+func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error) {
 
 	// Use POST to avoid URL length limits
 	data := url.Values{}
@@ -61,9 +63,15 @@ func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string) ([]Art
 		"Accept":       "application/sparql-results+json",
 	}
 
-	// Clean URL (remove query params if any were mistakenly added, though NewClient sets base)
-	// SPARQL endpoint is usually "https://query.wikidata.org/sparql"
-	body, err := c.request.PostWithCache(ctx, c.SPARQLEndpoint, []byte(encodedData), headers, cacheKey)
+	c.Logger.Debug("Executing SPARQL Query", "query", query)
+	start := time.Now()
+
+	// Use geodata cache (routes to cache_geodata table with radius metadata)
+	body, err := c.request.PostWithGeodataCache(ctx, c.SPARQLEndpoint, []byte(encodedData), headers, cacheKey, radiusM)
+
+	duration := time.Since(start)
+	c.Logger.Debug("SPARQL Query Completed", "duration", duration, "cached", err == nil && len(body) > 0)
+
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %v", ErrNetwork, err)
 	}

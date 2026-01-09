@@ -626,6 +626,25 @@ func (s *SQLiteStore) ListCacheKeys(ctx context.Context, prefix string) ([]strin
 	return keys, rows.Err()
 }
 
+// ListGeodataCacheKeys lists all keys with the given prefix from cache_geodata table.
+func (s *SQLiteStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT key FROM cache_geodata WHERE key LIKE ?", prefix+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var keys []string
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	return keys, rows.Err()
+}
+
 // --- State ---
 
 func (s *SQLiteStore) GetState(ctx context.Context, key string) (string, bool) {

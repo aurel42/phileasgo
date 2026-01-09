@@ -9,6 +9,10 @@ import (
 type Cacher interface {
 	GetCache(ctx context.Context, key string) ([]byte, bool)
 	SetCache(ctx context.Context, key string, val []byte) error
+
+	// Geodata-specific: routes to cache_geodata table with radius metadata
+	GetGeodataCache(ctx context.Context, key string) (data []byte, radiusM int, found bool)
+	SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error
 }
 
 // SQLiteCache implements Cacher using pkg/db.
@@ -22,11 +26,21 @@ func NewSQLiteCache(d *db.DB) *SQLiteCache {
 }
 
 func (c *SQLiteCache) GetCache(ctx context.Context, key string) ([]byte, bool) {
-	// Stub: Always miss
+	// Stub: Always miss (real caching done via store.Store)
 	return nil, false
 }
 
 func (c *SQLiteCache) SetCache(ctx context.Context, key string, val []byte) error {
-	// Stub: Do nothing
+	// Stub: Do nothing (real caching done via store.Store)
+	return nil
+}
+
+func (c *SQLiteCache) GetGeodataCache(ctx context.Context, key string) (data []byte, radiusM int, found bool) {
+	// Stub: Always miss (real caching done via store.Store)
+	return nil, 0, false
+}
+
+func (c *SQLiteCache) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error {
+	// Stub: Do nothing (real caching done via store.Store)
 	return nil
 }

@@ -187,7 +187,12 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize geo service: %w", err)
 	}
-	reqClient := request.New(st, tr)
+	reqClient := request.New(st, tr, request.ClientConfig{
+		Retries:   cfg.Request.Retries,
+		Timeout:   time.Duration(cfg.Request.Timeout),
+		BaseDelay: time.Duration(cfg.Request.Backoff.BaseDelay),
+		MaxDelay:  time.Duration(cfg.Request.Backoff.MaxDelay),
+	})
 	poiMgr := poi.NewManager(cfg, st, catCfg)
 	wikiClient := wikidata.NewClient(reqClient, slog.With("component", "wikidata_client"))
 	smartClassifier := classifier.NewClassifier(st, wikiClient, catCfg, tr)

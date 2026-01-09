@@ -29,6 +29,12 @@ func (m *mockCacher) SetCache(ctx context.Context, key string, val []byte) error
 	m.data[key] = val
 	return nil
 }
+func (m *mockCacher) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
+	return nil, 0, false
+}
+func (m *mockCacher) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error {
+	return nil
+}
 
 func TestLanguageMapper_LoadSave(t *testing.T) {
 	// Mock Cache

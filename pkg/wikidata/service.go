@@ -213,29 +213,31 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 	centerLat, centerLon := s.gridCenter(c.Tile)
 
 	// Calculate precise radius in meters for this specific tile geometry
-	// Add 50m buffer for safety against floating point math
-	radiusMeters := int(math.Ceil((s.scheduler.grid.TileRadius(c.Tile) * 1000) + 50))
+	// Round up to the next 10m (User Request), remove fixed 50m buffer
+	rawRadius := s.scheduler.grid.TileRadius(c.Tile) * 1000
+	radiusMeters := int(math.Ceil(rawRadius/10.0) * 10)
+
+	// STRICT CAP: 10km (Wikidata API Limit)
+	if radiusMeters > 10000 {
+		radiusMeters = 10000
+	}
 
 	// Create formatted string for SPARQL (e.g. "9.810") - query expects KM
 	radiusStr := fmt.Sprintf("%.3f", float64(radiusMeters)/1000.0)
-	if radiusMeters < 1000 { // Fallback sanity check, though TileRadius should be ~8-12km
-		radiusStr = "9.8"
+	if radiusMeters < 1000 { // Fallback sanity check
+		radiusStr = "9.8" // Keep legacy fallback just in case, or cap at 10.0
 		radiusMeters = 9800
 	}
 
 	query := buildCheapQuery(centerLat, centerLon, radiusStr)
 
-	// 2. Execute (Requester handles caching and core tracking)
-	articles, rawJSON, err := s.client.QuerySPARQL(ctx, query, c.Tile.Key())
+	// 2. Execute (Caching now handled internally by QuerySPARQL via PostWithGeodataCache)
+	articles, rawJSON, err := s.client.QuerySPARQL(ctx, query, c.Tile.Key(), radiusMeters)
 	if err != nil {
 		s.logger.Error("SPARQL Failed", "error", err)
 		return
 	}
-
-	// Cache Geodata (Raw JSON + Radius Metadata in Meters)
-	if err := s.store.SetGeodataCache(ctx, c.Tile.Key(), []byte(rawJSON), radiusMeters); err != nil {
-		s.logger.Warn("Failed to save geodata cache", "key", c.Tile.Key(), "error", err)
-	}
+	_ = rawJSON // rawJSON no longer needed here; caching is internal
 
 	// 4. Process, Enrich, and Save
 	processed, rescued, err := s.ProcessTileData(ctx, []byte(rawJSON), centerLat, centerLon, false)
@@ -262,7 +264,7 @@ type CachedTile struct {
 
 // GetCachedTiles returns a list of cached tiles with their centers and queried radii.
 func (s *Service) GetCachedTiles(ctx context.Context, lat, lon, radiusKm float64) ([]CachedTile, error) {
-	keys, err := s.store.ListCacheKeys(ctx, "wd_h3_")
+	keys, err := s.store.ListGeodataCacheKeys(ctx, "wd_h3_")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list cache keys: %w", err)
 	}

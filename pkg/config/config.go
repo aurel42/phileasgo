@@ -12,6 +12,7 @@ import (
 
 // Config holds the application configuration.
 type Config struct {
+	Request  RequestConfig  `yaml:"request"`
 	TTS      TTSConfig      `yaml:"tts"`
 	Log      LogConfig      `yaml:"log"`
 	DB       DBConfig       `yaml:"db"`
@@ -25,6 +26,19 @@ type Config struct {
 	Narrator NarratorConfig `yaml:"narrator"`
 	Sim      SimConfig      `yaml:"sim"`
 	Beacon   BeaconConfig   `yaml:"beacon"`
+}
+
+// RequestConfig holds HTTP request settings.
+type RequestConfig struct {
+	Retries int           `yaml:"retries"`
+	Timeout Duration      `yaml:"timeout"`
+	Backoff BackoffConfig `yaml:"backoff"`
+}
+
+// BackoffConfig holds exponential backoff settings.
+type BackoffConfig struct {
+	BaseDelay Duration `yaml:"base_delay"`
+	MaxDelay  Duration `yaml:"max_delay"`
 }
 
 // SimConfig holds settings for the simulation connection.
@@ -174,6 +188,14 @@ type LogSettings struct {
 // DefaultConfig returns the default configuration.
 func DefaultConfig() *Config {
 	return &Config{
+		Request: RequestConfig{
+			Retries: 5,
+			Timeout: Duration(300 * time.Second),
+			Backoff: BackoffConfig{
+				BaseDelay: Duration(1 * time.Second),
+				MaxDelay:  Duration(60 * time.Second),
+			},
+		},
 		TTS: TTSConfig{
 			Engine: "windows-sapi",
 			EdgeTTS: EdgeTTSConfig{

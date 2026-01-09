@@ -42,7 +42,7 @@ func TestGrid_TileAt(t *testing.T) {
 			dist := DistKm(tt.lat, tt.lon, cLat, cLon)
 			// H3 Res 5 edge length is ~8.5km, so center shouldn't be too far.
 			// Max distance from center to vertex is "radius", usually < 12km.
-			if dist > 15.0 {
+			if dist > 6.0 {
 				t.Errorf("TileAt/TileCenter roundtrip distance too large: %.2f km", dist)
 			}
 		})
@@ -88,7 +88,7 @@ func TestGrid_Neighbors(t *testing.T) {
 				olat, olon := g.TileCenter(origin)
 				nlat, nlon := g.TileCenter(n)
 				dist := DistKm(olat, olon, nlat, nlon)
-				if dist > 30.0 || dist < 1.0 { // Sanity check
+				if dist > 12.0 || dist < 0.5 { // Sanity check for Res 6 (~5.6km spacing)
 					t.Errorf("Neighbor distance suspicious: %.2f km", dist)
 				}
 			}
@@ -106,8 +106,8 @@ func TestGrid_TileRadius(t *testing.T) {
 		minRadius float64
 		maxRadius float64
 	}{
-		{"Equator", 0.0, 0.0, 8.0, 12.0},    // Res 5 avg radius check
-		{"High Lat", 60.0, 10.0, 4.0, 12.0}, // Distortion changes things check
+		{"Equator", 0.0, 0.0, 3.0, 5.0},    // Res 6 avg radius check
+		{"High Lat", 60.0, 10.0, 2.0, 5.0}, // Distortion changes things check
 	}
 
 	for _, tt := range tests {
@@ -147,7 +147,7 @@ func TestGrid_TileCorners(t *testing.T) {
 			cLat, cLon := g.TileCenter(tile)
 			for i, c := range corners {
 				dist := DistKm(cLat, cLon, c.Lat, c.Lon)
-				if dist > 15.0 || dist < 1.0 { // Sanity check for Res 5
+				if dist > 6.0 || dist < 0.5 { // Sanity check for Res 6
 					t.Errorf("Corner %d distance suspicious: %.2f km", i, dist)
 				}
 			}

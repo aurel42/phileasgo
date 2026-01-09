@@ -43,7 +43,7 @@ func TestGet_Sequential(t *testing.T) {
 	defer d.Close()
 	c := cache.NewSQLiteCache(d)
 	tr := tracker.New()
-	client := New(c, tr)
+	client := New(c, tr, ClientConfig{})
 
 	// Fire 3 requests
 	for i := 0; i < 3; i++ {
@@ -80,7 +80,7 @@ func TestGet_Retry(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	client := New(cache.NewSQLiteCache(d), tracker.New())
+	client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{})
 
 	body, err := client.Get(context.Background(), svr.URL, "")
 	if err != nil {
@@ -140,7 +140,7 @@ func TestPostWithCache(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer d.Close()
-			client := New(cache.NewSQLiteCache(d), tracker.New())
+			client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{})
 
 			got, err := client.PostWithCache(context.Background(), svr.URL, []byte("data"), nil, "cache_key")
 
@@ -219,7 +219,7 @@ func TestClient_Integration(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer d.Close()
-			client := New(cache.NewSQLiteCache(d), tracker.New())
+			client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{})
 
 			var got []byte
 			var reqErr error
@@ -248,7 +248,7 @@ func TestInvalidURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	client := New(cache.NewSQLiteCache(d), tracker.New())
+	client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{})
 
 	_, err = client.Get(context.Background(), "::invalid-url", "")
 	if err == nil {

@@ -79,3 +79,80 @@ func MergePOIs(candidates []*model.POI, cfg *config.CategoriesConfig, logger *sl
 
 	return accepted
 }
+
+// MergeArticles groups spatially close Articles and selects the best candidate based on Sitelinks.
+// This runs BEFORE hydration/enrichment to reduce API calls.
+func MergeArticles(candidates []Article, cfg *config.CategoriesConfig, logger *slog.Logger) []Article {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// 1. Sort Candidates by "Importance" Proxy (Sitelinks Descending)
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Sitelinks != candidates[j].Sitelinks {
+			return candidates[i].Sitelinks > candidates[j].Sitelinks
+		}
+		return candidates[i].QID < candidates[j].QID
+	})
+
+	var accepted []Article
+
+	// 2. Greedy Selection
+	for i := range candidates {
+		cand := &candidates[i]
+		// Determine Merge Distance
+		candSize := cfg.GetSize(cand.Category)
+		candRadius := cfg.GetMergeDistance(candSize)
+		candGroup := cfg.GetGroup(cand.Category)
+
+		isDuplicate := false
+
+		for j := range accepted {
+			acc := &accepted[j]
+			// Determine Merge Distance for Accepted Item
+			accSize := cfg.GetSize(acc.Category)
+			accRadius := cfg.GetMergeDistance(accSize)
+
+			// 2a. Group Isolation Check
+			// If groups differ, and one of them is a "Strong Island" (Settlements, Attractions),
+			// we DO NOT merge them. They coexist.
+			// E.g. City (Settlements) vs Monument (Attractions) -> Coexist.
+			// E.g. Park (Natural) vs Lake (Natural) -> Merge (Same Group).
+			accGroup := cfg.GetGroup(acc.Category)
+			if candGroup != accGroup {
+				if isIslandGroup(candGroup) || isIslandGroup(accGroup) {
+					continue // distinct items, skip merge check against this 'acc'
+				}
+			}
+
+			// 2b. Spatial Check
+			mergeDist := math.Max(candRadius, accRadius)
+			distMeters := geo.Distance(
+				geo.Point{Lat: cand.Lat, Lon: cand.Lon},
+				geo.Point{Lat: acc.Lat, Lon: acc.Lon},
+			)
+
+			if distMeters < mergeDist {
+				// It's a duplicate!
+				isDuplicate = true
+				break
+			}
+		}
+
+		if !isDuplicate {
+			accepted = append(accepted, *cand)
+		}
+	}
+
+	return accepted
+}
+
+func isIslandGroup(group string) bool {
+	// These groups are distinct "layers" of the map and should not gobble each other.
+	switch group {
+	case "Settlements", "Attractions", "Aerodromes":
+		return true
+	default:
+		return false
+	}
+}

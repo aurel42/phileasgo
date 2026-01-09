@@ -99,3 +99,91 @@ func TestMergePOIs(t *testing.T) {
 		})
 	}
 }
+
+func TestMergeArticles(t *testing.T) {
+	// Setup Config with Groups and Sizes
+	cfg := &config.CategoriesConfig{
+		Categories: map[string]config.Category{
+			"city":     {Size: "XL"},
+			"monument": {Size: "M"},
+			"lake":     {Size: "L"},
+			"park":     {Size: "M"},
+		},
+		CategoryGroups: map[string][]string{
+			"Settlements": {"city"},
+			"Attractions": {"monument"},
+			"Natural":     {"lake", "park"},
+		},
+		MergeDistance: map[string]float64{
+			"M":  500,
+			"L":  2000,
+			"XL": 5000,
+		},
+	}
+	// Rebuild lookup usually happens on load, but we can manually set it or just mock GetGroup behavior via manually populated map if Config allows.
+	// Config.GetGroup relies on GroupLookup. We must populate it.
+	cfg.GroupLookup = make(map[string]string)
+	for grp, cats := range cfg.CategoryGroups {
+		for _, c := range cats {
+			cfg.GroupLookup[c] = grp
+		}
+	}
+
+	logger := slog.Default()
+
+	tests := []struct {
+		name       string
+		candidates []Article
+		expected   []string // Expected QIDs
+	}{
+		{
+			name: "Same Group - Merge (Lake gobbles Park)",
+			// Lake (Natural) vs Park (Natural).
+			// Lake (500 links, L=2km) vs Park (100 links, M=500m).
+			// Dist 1km.
+			// Lake wins by Sitelinks. Lake Radius covers Park.
+			candidates: []Article{
+				{QID: "Park", Category: "park", Lat: 0.01, Lon: 0, Sitelinks: 100}, // ~1.1km
+				{QID: "Lake", Category: "lake", Lat: 0, Lon: 0, Sitelinks: 500},
+			},
+			expected: []string{"Lake"},
+		},
+		{
+			name: "Different Groups - ISOLATION (City vs Monument)",
+			// City (Settlements) vs Monument (Attractions).
+			// City (1000 links, XL=5km) vs Monument (500 links, M=500m).
+			// Same Location.
+			// Normal merge: City wins.
+			// Isolation: SHOULD KEEP BOTH.
+			candidates: []Article{
+				{QID: "City", Category: "city", Lat: 0, Lon: 0, Sitelinks: 1000},
+				{QID: "Monu", Category: "monument", Lat: 0, Lon: 0, Sitelinks: 500},
+			},
+			expected: []string{"City", "Monu"},
+		},
+		{
+			name: "Same Group - Too Far (Keep Both)",
+			candidates: []Article{
+				{QID: "Lake1", Category: "lake", Lat: 0, Lon: 0, Sitelinks: 500},
+				{QID: "Lake2", Category: "lake", Lat: 0.1, Lon: 0, Sitelinks: 400}, // ~11km
+			},
+			expected: []string{"Lake1", "Lake2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := MergeArticles(tt.candidates, cfg, logger)
+			var gotQIDs []string
+			for _, a := range result {
+				gotQIDs = append(gotQIDs, a.QID)
+			}
+			sort.Strings(tt.expected)
+			sort.Strings(gotQIDs)
+
+			if !reflect.DeepEqual(tt.expected, gotQIDs) {
+				t.Errorf("Expected %v, got %v", tt.expected, gotQIDs)
+			}
+		})
+	}
+}

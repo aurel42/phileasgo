@@ -16,6 +16,12 @@ type mockCache struct{}
 
 func (m *mockCache) GetCache(ctx context.Context, key string) ([]byte, bool)    { return nil, false }
 func (m *mockCache) SetCache(ctx context.Context, key string, val []byte) error { return nil }
+func (m *mockCache) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
+	return nil, 0, false
+}
+func (m *mockCache) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error {
+	return nil
+}
 
 func TestFetchFallbackData(t *testing.T) {
 	tests := []struct {
@@ -90,7 +96,7 @@ func TestFetchFallbackData(t *testing.T) {
 
 			trk := tracker.New()
 			mc := &mockCache{}
-			reqClient := request.New(mc, trk)
+			reqClient := request.New(mc, trk, request.ClientConfig{})
 			client := NewClient(reqClient, slog.Default())
 			client.APIEndpoint = server.URL + "/w/api.php"
 
@@ -137,7 +143,7 @@ func TestGetEntityClaims(t *testing.T) {
 
 	trk := tracker.New()
 	mc := &mockCache{}
-	reqClient := request.New(mc, trk)
+	reqClient := request.New(mc, trk, request.ClientConfig{})
 	client := NewClient(reqClient, slog.Default())
 	client.APIEndpoint = server.URL + "/w/api.php"
 
@@ -212,11 +218,11 @@ func TestQuerySPARQL(t *testing.T) {
 
 			trk := tracker.New()
 			mc := &mockCache{}
-			reqClient := request.New(mc, trk)
+			reqClient := request.New(mc, trk, request.ClientConfig{})
 			client := NewClient(reqClient, slog.Default())
 			client.SPARQLEndpoint = server.URL + "/sparql"
 
-			articles, _, err := client.QuerySPARQL(context.Background(), "SELECT * WHERE {}", "")
+			articles, _, err := client.QuerySPARQL(context.Background(), "SELECT * WHERE {}", "", 0)
 
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("QuerySPARQL() error = %v, wantErr %v", err, tt.wantErr)
@@ -303,7 +309,7 @@ func TestSearch(t *testing.T) {
 
 			trk := tracker.New()
 			mc := &mockCache{}
-			reqClient := request.New(mc, trk)
+			reqClient := request.New(mc, trk, request.ClientConfig{})
 			client := NewClient(reqClient, slog.Default())
 			client.APIEndpoint = server.URL + "/w/api.php"
 

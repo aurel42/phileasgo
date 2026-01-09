@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-const spacingKm = 15.0 // Approx center-to-center distance for H3 Res 5
+const spacingKm = 5.6 // Approx center-to-center distance for H3 Res 6
 
 // Scheduler determines the next tile to fetch.
 type Scheduler struct {

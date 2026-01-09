@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"net/http"
 	"net/url"
 	"sync"
@@ -27,6 +26,10 @@ type Client struct {
 	httpClient *http.Client
 	cache      cache.Cacher
 	tracker    *tracker.Tracker
+	backoff    *ProviderBackoff
+
+	// Config
+	retries int
 
 	// Queues per provider (domain)
 	queues map[string]chan job
@@ -46,12 +49,36 @@ type jobResult struct {
 	err  error
 }
 
+// ClientConfig holds configuration for the request Client.
+type ClientConfig struct {
+	Retries   int
+	Timeout   time.Duration
+	BaseDelay time.Duration
+	MaxDelay  time.Duration
+}
+
 // New creates a new Client.
-func New(c cache.Cacher, t *tracker.Tracker) *Client {
+func New(c cache.Cacher, t *tracker.Tracker, cfg ClientConfig) *Client {
+	// Use defaults if not provided
+	if cfg.Retries == 0 {
+		cfg.Retries = 5
+	}
+	if cfg.Timeout == 0 {
+		cfg.Timeout = 300 * time.Second
+	}
+	if cfg.BaseDelay == 0 {
+		cfg.BaseDelay = 1 * time.Second
+	}
+	if cfg.MaxDelay == 0 {
+		cfg.MaxDelay = 60 * time.Second
+	}
+
 	return &Client{
-		httpClient: &http.Client{Timeout: 300 * time.Second},
+		httpClient: &http.Client{Timeout: cfg.Timeout},
 		cache:      c,
 		tracker:    t,
+		backoff:    NewProviderBackoff(cfg.BaseDelay, cfg.MaxDelay),
+		retries:    cfg.Retries,
 		queues:     make(map[string]chan job),
 	}
 }
@@ -250,18 +277,72 @@ func (c *Client) PostWithCache(ctx context.Context, u string, body []byte, heade
 	}
 }
 
+// PostWithGeodataCache performs a POST request with caching to the geodata table (with radius metadata).
+func (c *Client) PostWithGeodataCache(ctx context.Context, u string, body []byte, headers map[string]string, cacheKey string, radiusM int) ([]byte, error) {
+	parsedURL, err := url.Parse(u)
+	if err != nil {
+		return nil, fmt.Errorf("invalid url: %w", err)
+	}
+	host := parsedURL.Host
+	provider := normalizeProvider(host)
+
+	// 1. Check Geodata Cache
+	if cacheKey != "" {
+		if val, _, hit := c.cache.GetGeodataCache(ctx, cacheKey); hit {
+			c.tracker.TrackCacheHit(provider)
+			slog.Debug("Geodata Cache Hit", "provider", provider, "key", cacheKey)
+			return val, nil
+		}
+		c.tracker.TrackCacheMiss(provider)
+		slog.Debug("Geodata Cache Miss", "provider", provider, "key", cacheKey)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Apply headers
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", defaultUserAgent)
+	}
+
+	// Execute with backoff (synchronously, not queued - geodata is important)
+	respBody, err := c.executeWithBackoff(req)
+	if err != nil {
+		c.tracker.TrackAPIFailure(provider)
+		return nil, err
+	}
+
+	c.tracker.TrackAPISuccess(provider)
+
+	// Cache result to geodata table with radius
+	if cacheKey != "" {
+		if err := c.cache.SetGeodataCache(ctx, cacheKey, respBody, radiusM); err != nil {
+			slog.Error("Failed to cache geodata response", "key", cacheKey, "error", err)
+		}
+	}
+
+	return respBody, nil
+}
+
 // executeWithBackoff attempts the request with exponential backoff on retryable errors.
 func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
-	maxAttempts := 3
-	baseDelay := 500 * time.Millisecond
+	provider := normalizeProvider(req.URL.Host)
 
-	for attempt := 0; attempt < maxAttempts; attempt++ {
+	for attempt := 0; attempt < c.retries; attempt++ {
+		// Wait for any provider-level backoff
+		c.backoff.Wait(provider)
+
 		// Verify context is still alive before dialing
 		if req.Context().Err() != nil {
 			return nil, req.Context().Err()
 		}
 
-		slog.Debug("Network Request", "host", req.URL.Host, "path", req.URL.Path, "attempt", attempt+1)
+		slog.Debug("Network Request", "host", req.URL.Host, "path", req.URL.Path, "attempt", attempt+1, "max", c.retries)
 		resp, err := c.httpClient.Do(req)
 
 		if err != nil {
@@ -270,31 +351,18 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 				return nil, req.Context().Err()
 			}
 
-			// Otherwise, it's a network error or server timeout
-			slog.Warn("Request failed, retrying", "url", req.URL, "attempt", attempt+1, "error", err)
-
-			// Simple exponential backoff
-			sleepDur := time.Duration(math.Pow(2, float64(attempt))) * baseDelay
-			select {
-			case <-time.After(sleepDur):
-				continue
-			case <-req.Context().Done():
-				return nil, req.Context().Err()
-			}
+			// Network error - record failure and retry
+			slog.Warn("Request failed, retrying", "provider", provider, "attempt", attempt+1, "error", err)
+			c.backoff.RecordFailure(provider)
+			continue
 		}
 
 		// Handle Status Codes
 		if resp.StatusCode == 429 || (resp.StatusCode >= 500 && resp.StatusCode < 600) {
 			resp.Body.Close()
-			slog.Warn("API Backoff", "status", resp.StatusCode, "url", req.URL, "attempt", attempt+1)
-
-			sleepDur := time.Duration(math.Pow(2, float64(attempt))) * baseDelay
-			select {
-			case <-time.After(sleepDur):
-				continue
-			case <-req.Context().Done():
-				return nil, req.Context().Err()
-			}
+			slog.Warn("API Backoff", "status", resp.StatusCode, "provider", provider, "attempt", attempt+1)
+			c.backoff.RecordFailure(provider)
+			continue
 		}
 
 		if resp.StatusCode >= 400 {
@@ -302,7 +370,9 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 			return nil, fmt.Errorf("api error: status %d", resp.StatusCode)
 		}
 
-		// Success
+		// Success - record it for gradual recovery
+		c.backoff.RecordSuccess(provider)
+
 		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
@@ -311,5 +381,5 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 		return body, nil
 	}
 
-	return nil, fmt.Errorf("max retries exceeded")
+	return nil, fmt.Errorf("max retries (%d) exceeded for %s", c.retries, provider)
 }

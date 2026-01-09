@@ -61,6 +61,13 @@ func (s *Service) processAndHydrate(ctx context.Context, rawArticles []Article, 
 		return nil, 0, nil
 	}
 
+	// 1b. Optimization: Merge *BEFORE* Hydration (Save API calls)
+	// We use "Sitelinks" as the proxy for importance here, instead of Article Length.
+	// This reduces the number of items we need to fetch Titles/Lengths for.
+	if dc, ok := s.classifier.(DimClassifier); ok {
+		candidates = MergeArticles(candidates, dc.GetConfig(), s.logger)
+	}
+
 	// 2. Hydration (Fetch Titles/Labels for survivors)
 	hydrated, err := s.hydrateCandidates(ctx, candidates)
 	if err != nil {

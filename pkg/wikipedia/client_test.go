@@ -16,6 +16,12 @@ type mockCacher struct{}
 
 func (m *mockCacher) GetCache(ctx context.Context, key string) ([]byte, bool)    { return nil, false }
 func (m *mockCacher) SetCache(ctx context.Context, key string, val []byte) error { return nil }
+func (m *mockCacher) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
+	return nil, 0, false
+}
+func (m *mockCacher) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error {
+	return nil
+}
 
 func TestGetArticleLengths(t *testing.T) {
 	// 1. Mock Server
@@ -81,7 +87,7 @@ func TestGetArticleLengths(t *testing.T) {
 	// 2. Setup Client
 	tr := tracker.New()
 	// Need a request client
-	reqClient := request.New(&mockCacher{}, tr)
+	reqClient := request.New(&mockCacher{}, tr, request.ClientConfig{})
 
 	client := NewClient(reqClient)
 	client.APIEndpoint = ts.URL

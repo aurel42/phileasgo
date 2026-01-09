@@ -18,6 +18,12 @@ type noOpCache struct{}
 
 func (c *noOpCache) GetCache(ctx context.Context, key string) ([]byte, bool)    { return nil, false }
 func (c *noOpCache) SetCache(ctx context.Context, key string, val []byte) error { return nil }
+func (c *noOpCache) GetGeodataCache(ctx context.Context, key string) (data []byte, radiusM int, found bool) {
+	return nil, 0, false
+}
+func (c *noOpCache) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error {
+	return nil
+}
 
 func main() {
 	// Load categories.yaml
@@ -56,7 +62,7 @@ func main() {
 
 	tr := tracker.New()
 	c := &noOpCache{}
-	reqClient := request.New(c, tr)
+	reqClient := request.New(c, tr, request.ClientConfig{})
 	wdClient := wikidata.NewClient(reqClient, logger)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

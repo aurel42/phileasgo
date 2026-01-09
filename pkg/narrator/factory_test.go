@@ -12,7 +12,7 @@ import (
 func TestNewLLMProvider(t *testing.T) {
 	// Create a dummy tracker instance
 	tracker := tracker.New()
-	rc := request.New(nil, tracker)
+	rc := request.New(nil, tracker, request.ClientConfig{})
 	tmpLog := os.TempDir()
 
 	tests := []struct {
