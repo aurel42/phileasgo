@@ -115,7 +115,14 @@ func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, 
 	logs = []string{visDetails}
 	score = visScore
 
-	// 3. Apply Dimension Multiplier
+	// 3. Apply Size Penalty (reduces advantage of distant large POIs)
+	sizePenalty := map[string]float64{"S": 1.0, "M": 1.0, "L": 0.85, "XL": 0.7}
+	if penalty, ok := sizePenalty[poiSize]; ok && penalty < 1.0 {
+		score *= penalty
+		logs = append(logs, fmt.Sprintf("Size Penalty (%s): x%.2f", poiSize, penalty))
+	}
+
+	// 4. Apply Dimension Multiplier
 	if poi.DimensionMultiplier > 1.0 {
 		score *= poi.DimensionMultiplier
 		logs = append(logs, fmt.Sprintf("Dimensions: x%.1f", poi.DimensionMultiplier))

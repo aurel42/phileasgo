@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.56 (2026-01-10)
+- **Fix**: **POI Size Bias Tuning**
+    - Added **Size Penalty** in `pkg/scorer/scorer.go`: L POIs now receive a 0.85x multiplier, XL POIs receive 0.70x.
+    - Reduced category weights: Nature (1.3 → 0.9), Water (1.0 → 0.6) to prevent distant rivers/forests from drowning out nearby monuments.
+    - These changes ensure smaller but culturally significant POIs (castles, monuments) can compete against distant geographic features.
+- **Documentation**: **POI Scoring & Visibility System**
+    - Added comprehensive Section 6.6 to `docs/SYSTEM_FLOWS.md` documenting the complete scoring formula.
+    - Includes visibility table, distance decay formula, bearing multipliers, blind spot detection, and a worked example.
+
 ## v0.2.55 (2026-01-10)
 - **Feature**: **Teleport Detection & Session Reset**
     - `Scheduler` now detects large position jumps (> `sim.teleport_distance`, default 80km) between ticks.

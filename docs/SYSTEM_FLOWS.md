@@ -162,6 +162,101 @@ Components are registered in `main.go` via `scheduler.AddResettable(component)` 
 
 ---
 
+## 6.6 POI Scoring & Visibility
+How the system ranks POIs for narration selection based on distance, size, and content quality.
+
+### The Visibility Table (`configs/visibility.yaml`)
+Defines **maximum visible distances** (in nautical miles) for each size category at different altitudes. The table is interpolated at runtime.
+
+| Altitude (ft) | S (Small) | M (Medium) | L (Large) | XL (Extra Large) |
+|---------------|-----------|------------|-----------|------------------|
+| 0             | 0.5       | 1.0        | 3.0       | 4.0              |
+| 1000          | 2.0       | 5.0        | 5.0       | 10.0             |
+| 3500          | 1.5       | 7.5        | 14.5      | 22.0             |
+| 7000          | 0.8       | 10.0       | 23.0      | 35.0             |
+| 10000         | 0.0       | 2.0        | 26.0      | 44.0             |
+
+**Design Rationale**: Small POIs (monuments, lighthouses) become invisible at high altitudes, while large geographic features (mountains, cities) remain visible from cruise altitude.
+
+### Scoring Formula (`pkg/scorer/scorer.go`, `pkg/visibility/calculator.go`)
+The final score is computed as a product of multipliers:
+
+```
+FinalScore = VisibilityScore × SizePenalty × DimensionMultiplier × ContentScore × VarietyMultiplier
+```
+
+#### 1. Visibility Score (Distance Decay)
+```go
+visScore = 1 - (distanceNM / maxDistanceNM)
+```
+- **Linear Decay**: Score decreases linearly from 1.0 (at POI location) to 0.0 (at max distance).
+- **Size-Dependent**: The `maxDistanceNM` is looked up from the visibility table based on POI size and aircraft altitude.
+- **Invisible Cutoff**: If `distance > maxDistance`, the POI is marked invisible (`Score = 0`).
+
+#### 2. Size Penalty (Bias Correction)
+Applied after visibility score to reduce the advantage of distant large POIs:
+
+| Size | Penalty |
+|------|---------|
+| S    | 1.0 (none) |
+| M    | 1.0 (none) |
+| L    | 0.85 |
+| XL   | 0.70 |
+
+**Purpose**: Without this penalty, XL POIs at 10nm would outscore nearby S/M POIs due to their slower distance decay rate.
+
+#### 3. Dimension Multiplier (Landmark Bonus)
+Applied to geometrically significant POIs identified by the Rescue system:
+- **Tile Record OR Global Giant**: `x2.0`
+- **Both**: `x4.0`
+
+#### 4. Content Score
+Product of several quality factors:
+
+| Factor | Formula | Notes |
+|--------|---------|-------|
+| **Article Length** | `sqrt(chars / 500)` | Capped at minimum 1.0 |
+| **Sitelinks** | `1 + sqrt(max(0, sitelinks - 1))` | Cities/Towns capped at 4 sitelinks |
+| **Category Weight** | From `categories.yaml` | e.g., Monument=1.3, Railway=0.4 |
+| **MSFS POI** | `x4.0` | Photogrammetry landmarks |
+
+#### 5. Variety Multiplier
+Discourages repetitive category selection:
+- **Novelty Boost**: `x1.3` if category not in recent history.
+- **Variety Penalty**: `x0.1` to `x0.5` if same category was recently narrated (sliding scale).
+- **Group Penalty**: Additional penalty if category belongs to same group (e.g., "Settlements") as the last narration.
+
+### Bearing Multipliers (Airborne Only)
+POIs in the pilot's field of view receive scoring bonuses:
+
+| Sector | Multiplier | Notes |
+|--------|------------|-------|
+| Left Front (300°-330°) | x2.0 | Best visibility from cockpit |
+| Left Side (270°-300°) | x1.5 | Good side window view |
+| Forward Left (330°-360°) | x1.5 | Forward visibility |
+| Right Front (0°-90°) | x1.0 | Baseline |
+| Rear (90°-225°) | x0.0 | Invisible behind aircraft |
+| Left Rear (225°-270°) | x0.5 | Limited visibility |
+
+### Blind Spot Detection
+POIs directly beneath the aircraft (under the nose) are penalized:
+- **Blind Radius**: Scales with altitude (0.1nm at low altitude, up to 1.0nm at 5000ft+).
+- **Penalty**: `x0.1` if within blind radius and within ±90° of heading.
+
+### Example Score Calculation
+*Castle (M, weight=1.2) at 2nm, aircraft at 3500ft, heading 090°, POI bearing 300° (left front)*
+
+1. **Max Distance** (M @ 3500ft): 7.5nm
+2. **Visibility Score**: `1 - 2/7.5 = 0.73`
+3. **Size Penalty** (M): `1.0`
+4. **Bearing Multiplier** (left front): `x2.0`
+5. **Category Weight**: `x1.2`
+6. **Novelty Boost**: `x1.3`
+
+**Final Score**: `0.73 × 1.0 × 2.0 × 1.2 × 1.3 = 2.28`
+
+---
+
 ## 7. Dynamic Categories & AI Extensions
 How PhileasGo adapts its taxonomy to the current region.
 
