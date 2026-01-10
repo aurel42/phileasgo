@@ -1,6 +1,10 @@
 ﻿# Release History
 
-## v0.2.58 (2026-01-10)
+## v0.2.59 (2026-01-10)
+- **Fix**: **Ground Narration Filter**
+    - Updated `NarrationJob` to strictly filter for `Category == "Aerodrome"` when on the ground.
+    - Prevents nearby non-aviation POIs (Castles, Villages) from triggering unrelated narrations during taxi/takeoff.
+
 - **Fix**: **Strict Language Filtering**
     - `wbgetentities` now uses `sitefilter` to fetch only relevant languages (English + User + Local), preventing fallback to random languages (e.g., Russian).
 - **Fix**: **Deterministic Hydration**

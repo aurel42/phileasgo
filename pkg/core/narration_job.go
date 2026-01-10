@@ -110,6 +110,12 @@ func (j *NarrationJob) checkGroundProximity(t *sim.Telemetry) bool {
 	if best == nil {
 		return false
 	}
+
+	// Strict filter: On ground, ONLY narrate Aerodromes
+	if best.Category != "Aerodrome" {
+		return false
+	}
+
 	dist := geo.Distance(geo.Point{Lat: t.Latitude, Lon: t.Longitude}, geo.Point{Lat: best.Lat, Lon: best.Lon})
 	return dist <= 5000.0 // 5km
 }

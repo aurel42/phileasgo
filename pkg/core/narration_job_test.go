@@ -100,10 +100,16 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 			expectShouldFire: false,
 		},
 		{
-			name:             "Ground: High Score POI -> Narrate",
+			name:             "Ground: High Score POI (Aerodrome) -> Narrate",
 			altitudeAGL:      0,
-			bestPOI:          &model.POI{Score: 15.0, Lat: 48.0, Lon: -123.0}, // Explicit location match
+			bestPOI:          &model.POI{Score: 15.0, Lat: 48.0, Lon: -123.0, Category: "Aerodrome"}, // Explicit Category
 			expectShouldFire: true,
+		},
+		{
+			name:             "Ground: High Score POI (Castle) -> No Narrate (Filter)",
+			altitudeAGL:      0,
+			bestPOI:          &model.POI{Score: 15.0, Lat: 48.0, Lon: -123.0, Category: "Castle"},
+			expectShouldFire: false,
 		},
 		{
 			name:             "Airborne (Low): No POI -> No Essay",
