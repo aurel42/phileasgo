@@ -42,6 +42,9 @@ type POI struct {
 	// MSFS
 	IsMSFSPOI bool `json:"is_msfs_poi"`
 
+	// Session persistence (in-memory only)
+	Script string `json:"-"`
+
 	// Deprecated/Removed fields: ID (int), ArticleIDs
 }
 

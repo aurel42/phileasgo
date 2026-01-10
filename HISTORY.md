@@ -1,5 +1,21 @@
 ﻿# Release History
 
+## v0.2.49 (2026-01-10)
+- **Feature**: **Short-Term Memory (Context History)**
+    - The narrator now maintains a session-wide memory of generated scripts. Every new prompt includes the last $N$ narrations, enabling the AI to cross-reference previous stops and build a cohesive "narrative arc."
+- **Feature**: **Spatial Memory Pruning**
+    - Integrated context history with the POI lifecycle. Scripts are only included in the prompt context if their corresponding POI is still spatially "tracked" (not evicted due to distance).
+- **Refinement**: **Continuity Instructions**
+    - Added specific guidance for Gemini to avoid repetition of facts and phrasing while emphasizing thematic expansion.
+- **Refinement**: **Narrative Flow**
+    - Instructed the AI to use phrases like "as we saw earlier" to bridge separate narrations into a continuous tour experience.
+- **Config**: **Local Config**
+    - Added `context_history_size` (default: 3) to `phileas.yaml` for fine-grained memory control.
+- **Documentation**: **Architecture Guide (SYSTEM_FLOWS.md)**
+    - Extensively refined the technical documentation. Professionalized the tone, removed persona-specific "Ava" branding in favor of functional terms like "The Narrator" and "Context Orchestration," and documented the new short-term memory architecture.
+- **Cleanup**: **Verification Checklist**
+    - Updated the internal verification list to reflect recent logic improvements.
+
 ## v0.2.48 (2026-01-10)
 - **Feature**: **Manual Narration Length Control**
     - Implemented a segmented length selector (**S**, **M**, **L**) in the `POIInfoPanel` for manual narration triggers.

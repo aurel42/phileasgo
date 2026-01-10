@@ -123,7 +123,7 @@ The component responsible for resolving geographic coordinates to human language
 ---
 
 ## 6. Narration Selection & LOS
-The automated loop that triggers "Ava" to speak.
+The automated loop that triggers narration.
 
 ### Logic: `NarrationJob` (`scheduler.go`)
 1. **Cooldown**: A randomized timer (`CooldownMin` to `CooldownMax`). Starts counting only **after** the previous narration has finished playing.
@@ -157,7 +157,7 @@ Every **30 minutes** or **50nm** of travel, the system triggers a background tas
 ### Impact on Flows
 - **Classification**: Phase 1 (Direct Matching) now hits the `Dynamic Interests` map first.
 - **Scoring**: Since Dynamic Categories aren't in `categories.yaml`, they inherit **Default Weights** (1.0) and **Medium Size** ("M").
-- **Narration**: Ava uses the `specific_category` name in her descriptions, providing a much higher level of localized "Tour Guide" expertise.
+- **Narration**: The narrator uses the `specific_category` name in her descriptions, providing a much higher level of localized "Tour Guide" expertise.
 - **Persistence**: These interests are **In-Memory only**. They expire when the flight moves to a new region or the server restarts, ensuring the "Interest Window" remains relevant to the current geography.
 
 ---
@@ -207,8 +207,11 @@ Narration length is not purely random; it is governed by **Competition Density**
 - **Dynamic Window**: The "Rival" check is performed every time a script is generated, ensuring the pacing adapts to the landscape.
 
 #### 3. Spatial & Chronological Context
-- **Temporal Memory**: The prompt engine fetches all POIs narrated in the last **60 minutes** within a **50km** radius (`fetchRecentContext`). This allows the LLM to reference previous stops or avoid repetitive phrasing.
-- **Flight Stage Persona**: The `FlightStage` variable (Taxi, Takeoff, Cruise, Descent, Landing) is injected into the prompt, allowing Ava's tone to shift (e.g., more concise during high-workload takeoff).
+- **Short-Term Memory (v0.2.49)**: The system maintains a rolling buffer of the last $N$ generated scripts in session memory.
+    - **Session Persistence**: Scripts are stored in the `model.POI` struct in-memory only.
+    - **Spatial Eviction Sync**: The prompt engine cross-references the `POIManager`; if a POI is evicted (too far behind/away), its script is automatically dropped from the AI's context.
+    - **Narrative Continuity**: Instructions in the prompt template guide the LLM to use this history to build a "narrative arc," avoiding factual repetition and ensuring smooth transitions between stops.
+- **Flight Stage Persona**: The `FlightStage` variable (Taxi, Takeoff, Cruise, Descent, Landing) is injected into the prompt, allowing the narration tone to shift (e.g., more concise during high-workload takeoff).
 - **Wikipedia Persistence**: Article extracts are cached in the local SQLite `articles` table, keyed by Wikidata QID, to bypass Wikipedia API rate limits during repeated flights over the same area.
 
 #### 4. Visual Feedback & Safety
@@ -238,7 +241,7 @@ The system used to visually highlight POIs in the 3D world.
 
 ---
 
-## 10. The Prompt Engine (Ava's Brain)
+## 10. The Prompt Engine (Context Orchestration)
 How technical context is translated into the Tour Guide persona.
 
 ### Data Aggregation (`buildPromptData`)
@@ -255,14 +258,46 @@ The prompt sent to the LLM is a complex JSON object containing:
 
 ---
 
-## 11. Final Verification Checklist
+## 11. The Prompt Template System (Orchestration)
+
+The system uses a robust Go `text/template` based engine (`pkg/llm/prompts`) to construct the complex instructions sent to Gemini. This system ensures narrations remain fresh and variable through randomized logic and modular macros.
+
+### Custom Logic Functions
+The Prompt Manager registers several custom functions accessible within any `.tmpl` file:
+
+- **`{{maybe <percent> <text>}}`**: Randomly includes text based on a percentage (0-100). Used to vary persona traits and speech patterns between narrations.
+- **`{{pick "A|||B|||C"}}`**: Randomly selects one option from a pipe-separated string. Ensures concluding phrases remain diverse.
+- **`{{interests <list>}}`**: Shuffles and thins the user's interest list (dropping ~2 topics) to force the AI to rotate its focus.
+- **`{{category <name> <data>}}`**: Dynamically executes a sub-template from `configs/prompts/category/`. Allows for expert knowledge injection for specific POI types (e.g., "Aerodromes", "Cities").
+
+### Core Macros (`common/macros.tmpl`)
+Macros standardize the agent's persona and context regardless of the specific narration type.
+
+| Macro | Purpose | Content |
+| :--- | :--- | :--- |
+| `{{template "persona" .}}` | Branding | Establishes a competent, fascinated tour guide persona. |
+| `{{template "style" .}}` | Tone Control | Enforces natural speech patterns (contractions, fillers) and conversational pace. |
+| `{{template "flight_data" .}}` | Telemetry | Injects current MSL, AGL, Groundspeed, Heading, and Predicted Position. |
+
+### Template Hierarchy
+Templates are organized in `configs/prompts/` by their functional role:
+- **`narrator/script.tmpl`**: Primary POI narration instructions.
+- **`narrator/essay.tmpl`**: Broad regional essay instructions.
+- **`units/`**: Localization of measurement terms.
+- **`tts/`**: Provider-specific SSML and formatting tweaks.
+
+---
+
+## 12. Final Verification Checklist
 Files to audit against this document:
 - [ ] **H3 Resolution**: `pkg/wikidata/grid.go` (`h3Resolution`).
 - [ ] **Classification Path**: `pkg/classifier/classifier.go` (`Classify`).
 - [ ] **Spatial Merging**: `pkg/wikidata/merger.go`.
 - [ ] **Language Mapping**: `pkg/wikidata/mapper.go` (SPARQL query in `refresh`).
 - [ ] **Article Winner**: `pkg/wikidata/service_enrich.go` (`determineBestArticle`).
+- [ ] **LanguageMapper Persistence**: Document the storage and refresh mechanism for country-to-language mappings.
 - [ ] **Selection Loop**: `pkg/core/scheduler.go` (`getVisibleCandidate`).
-- [ ] **Narration Workflow**: `pkg/narrator/service_ai_workflow.go` (`narratePOI`).
-- [ ] **Beacon Logic**: `pkg/beacon/service.go` (`updateStep`).
-- [ ] **Prompt data**: `pkg/narrator/service_ai_data.go` (`buildPromptData`).
+- [x] **Narration Workflow**: `pkg/narrator/service_ai_workflow.go` (`narratePOI`).
+- [x] **Beacon Logic**: `pkg/beacon/service.go` (`updateStep`).
+- [x] **Prompt Logic**: `pkg/narrator/service_ai_data.go` (`buildPromptData`).
+- [x] **Prompt Templates**: `configs/prompts/` (logic and macro consistency).

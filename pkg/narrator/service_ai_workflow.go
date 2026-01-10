@@ -188,6 +188,7 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		Lat:              tel.Latitude,
 		Lon:              tel.Longitude,
 		UnitsInstruction: s.fetchUnitsInstruction(),
+		ScriptHistory:    s.getScriptHistory(),
 	}
 	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
 
@@ -207,6 +208,9 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		slog.Error("Narrator: LLM essay script generation failed", "error", err)
 		return
 	}
+
+	// Save to history
+	s.addScriptToHistory("", topic.Name, script)
 
 	// Parse Title if present (Format: "TITLE: ...")
 	lines := strings.Split(script, "\n")
@@ -333,6 +337,10 @@ func (s *AIService) narratePOI(ctx context.Context, p *model.POI, tel *sim.Telem
 		}
 		return
 	}
+
+	// Save to history
+	p.Script = script
+	s.addScriptToHistory(p.WikidataID, p.DisplayName(), script)
 
 	// 4. TTS Synthesis
 	// Sanitize filename
