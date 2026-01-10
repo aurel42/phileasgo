@@ -1,13 +1,16 @@
 ﻿# Release History
 
-## v0.2.52 (2026-01-10)
-- **Place-Centric Rolling Summaries**: Refined summary prompt to eliminate directional cues and formulaic lists, focusing on narrative continuity.
-- **Improved Summary Evolution**: Implemented logic to prune regional "filler" facts (like distance to national capitals) to prioritize unique session history.
-- **Narrative Bridge Logic**: Instructed LLM to weave stories naturally (e.g., "Continuing along the coast...") instead of using repetitive introductory phrases.
-- **Enhanced Test Coverage**: Increased statement coverage for `pkg/narrator` to 80.4% with new table-driven tests for mission memory consolidation.
-- **Verification Experiment**: Created a dedicated experiment script to validate summary quality against historical flight logs.
-- **Bug Fixes**: Restored missing `essay` profile in `phileas.yaml` and resolved linting issues in `service_ai.go`.
-
+## v0.2.54 (2026-01-10)
+- **Feature**: **Strict Essay Triggering**
+    - Implemented a rigorous "Gap Filler" logic for Regional Essays in `pkg/core/scheduler.go`.
+    - **Priority Rule**: Essays only fire if NO viable POIs (Score > Threshold) are available.
+    - **Silence Rule**: Essays require at least `2 * CooldownMax` (e.g., 60s) of prior silence to prevent overcrowding.
+    - **Cooldown Rule**: Essays now respect the `narrator.essay.cooldown` config (default: 10m), enforced by a new `lastEssayTime` state tracker.
+- **Testing**: **Table-Driven Scheduler Validation**
+    - Added `TestNarrationJob_EssayRules` to verify priority, silence, and cooldown logic behaves exactly as specified.
+    - Updated legacy tests to align with the new cooldown calculations.
+- **Documentation**: **Flow Specifications**
+    - Updated `SYSTEM_FLOWS.md` with the new "Intelligent Trigger (Strict Gating)" rules to ensure documentation matches the implemented logic.
 
 ## v0.2.53 (2026-01-10)
 - **Refactor**: **Narrator Workflow Segmentation**
@@ -20,6 +23,15 @@
     - Corrected the "Wikidata Tile Pipeline" flow in `SYSTEM_FLOWS.md` to accurately reflect the Cache -> Radius sequence.
 - **Testing**: **Workflow Coverage**
     - Achieved **82.6%** statement coverage for `pkg/narrator` with new table-driven tests verifying state transitions and essay flows.
+
+## v0.2.52 (2026-01-10)
+- **Place-Centric Rolling Summaries**: Refined summary prompt to eliminate directional cues and formulaic lists, focusing on narrative continuity.
+- **Improved Summary Evolution**: Implemented logic to prune regional "filler" facts (like distance to national capitals) to prioritize unique session history.
+- **Narrative Bridge Logic**: Instructed LLM to weave stories naturally (e.g., "Continuing along the coast...") instead of using repetitive introductory phrases.
+- **Enhanced Test Coverage**: Increased statement coverage for `pkg/narrator` to 80.4% with new table-driven tests for mission memory consolidation.
+- **Verification Experiment**: Created a dedicated experiment script to validate summary quality against historical flight logs.
+- **Bug Fixes**: Restored missing `essay` profile in `phileas.yaml` and resolved linting issues in `service_ai.go`.
+
 
 ## v0.2.51 (2026-01-10)
 - **Feature**: **Configurable Summary Limits**

@@ -291,7 +291,11 @@ Templates are organized in `configs/prompts/` by their functional role:
 Broad narrative tours triggered to provide context when specific POIs are sparse, such as during high-altitude cruise.
 
 ### Flow Logic (`AIService.PlayEssay`)
-1. **Intelligent Trigger**: The `NarrationJob` triggers a regional essay only if no high-scoring POIs have Line-of-Sight, or if the aircraft is sustained above 2000ft AGL where wide-area context is more valuable than individual landmarks.
+1. **Intelligent Trigger (Strict Gating)**: The `NarrationJob` enforces a strict hierarchy to ensure essays acts as "gap fillers":
+    - **Priority**: Essays are only considered if **NO** viable POI candidates (Score > Threshold) are available.
+    - **Silence Prerequisite**: The narrator must have been silent for at least **2x Max Cooldown** (e.g., 60s) to prevent overcrowding the timeline.
+    - **Dedicated Cooldown**: Once an essay plays, a separate `Essay.Cooldown` (e.g., 10m) prevents another essay from triggering, ensuring variety between specific POI facts and broad regional context.
+    - **Altitude Check**: The aircraft must be consistently above **2000ft AGL**.
 2. **Topic Selection**: The `EssayHandler` uses a weighted selection algorithm to pick a relevant topic (Geography, Aviation History, or Regional Culture). It checks cooldowns and historical usage to ensure the tour doesn't become repetitive.
 3. **Narrative Orchestration (`narrateEssay`)**:
    - **Visual Discipline**: Unlike POI flows, essays clear existing beacons. This signals to the user that the narrator is shifting from a "Point-and-Describe" mode to a broader "Historical Lecture" mode.

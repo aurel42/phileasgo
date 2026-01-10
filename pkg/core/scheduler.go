@@ -32,6 +32,7 @@ type NarrationJob struct {
 	lastTime         time.Time
 	nextFireDuration time.Duration
 	wasBusy          bool
+	lastEssayTime    time.Time
 	lastCheckedCount int
 }
 
@@ -100,32 +101,55 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 
 	// 3. Selection
 	best := j.poiMgr.GetBestCandidate()
-	if best == nil {
-		slog.Debug("NarrationJob: No POI candidates, checking essay eligibility", "agl", t.AltitudeAGL)
-		// No POI? Check if we can do an essay.
-		if !j.cfg.Narrator.Essay.Enabled {
-			return false
+	var bestIsViable bool
+	if best != nil {
+		if best.Score >= j.cfg.Narrator.MinScoreThreshold {
+			bestIsViable = true
+		} else {
+			slog.Debug("NarrationJob: Best POI below threshold", "poi", best.DisplayName(), "score", best.Score, "threshold", j.cfg.Narrator.MinScoreThreshold)
 		}
-		// ESSAYS: only above 2000ft AGL.
-		if t.AltitudeAGL < 2000 {
-			return false
-		}
+	}
 
-		// We return TRUE to let Run() verify and decide.
+	// PRIORITY RULE:
+	// If we have a viable POI, we fire (to narrate the POI).
+	// If NO viable POI, we consider an Essay, but ONLY if silence rules are met.
+
+	if bestIsViable {
+		slog.Debug("NarrationJob: Viable POI found", "poi", best.DisplayName())
 		return true
 	}
 
-	// 4. Threshold Check
-	// If score is low, we normally fail. But now we might want to run an essay.
-	// ESSAYS: only above 2000ft AGL.
-	if best.Score < j.cfg.Narrator.MinScoreThreshold && t.AltitudeAGL < 2000 {
-		slog.Debug("NarrationJob: Best POI below threshold", "poi", best.DisplayName(), "score", best.Score, "threshold", j.cfg.Narrator.MinScoreThreshold)
+	// --- Essay Logic ---
+	// If no viable POI, check if we can fill the gap with an Essay.
+
+	if !j.cfg.Narrator.Essay.Enabled {
 		return false
 	}
 
-	slog.Debug("NarrationJob: Ready to fire", "best_poi", best.DisplayName(), "score", fmt.Sprintf("%.2f", best.Score))
-	// So we return TRUE, and let Run() decide between POI and Essay.
-	// We assume essays are enabled if config is present.
+	// Check ESSAY-SPECIFIC Cooldown (distinct from general cooldown)
+	if !j.lastEssayTime.IsZero() {
+		elapsedEssay := time.Since(j.lastEssayTime)
+		if elapsedEssay < time.Duration(j.cfg.Narrator.Essay.Cooldown) {
+			// slog.Debug("NarrationJob: Essay cooldown active", "remaining", time.Duration(j.cfg.Narrator.Essay.Cooldown)-elapsedEssay)
+			return false
+		}
+	}
+
+	// SILENCE RULE:
+	// Only trigger essay if there has been silence for at least 2 * CooldownMax
+	// This ensures essays act as "gap fillers" and don't crowd the timeline.
+	minSilence := time.Duration(j.cfg.Narrator.CooldownMax) * 2
+	if time.Since(j.lastTime) < minSilence {
+		// slog.Debug("NarrationJob: Essay suppressed (not enough silence)", "silence", time.Since(j.lastTime), "required", minSilence)
+		return false
+	}
+
+	// ESSAYS: only above 2000ft AGL.
+	if t.AltitudeAGL < 2000 {
+		return false
+	}
+
+	slog.Debug("NarrationJob: Essay eligible (Silence & Cooldown met)")
 	return true
 }
 
@@ -261,7 +285,14 @@ func (j *NarrationJob) tryEssay(ctx context.Context, t *sim.Telemetry) {
 	}
 
 	if j.narrator.PlayEssay(ctx, t) {
-		j.calculateCooldown(2.0, narrator.StrategyUniform)
+		// On success, update timers
+		now := time.Now()
+		j.lastEssayTime = now
+		j.lastTime = now
+
+		// We revert to standard cooldown/strategy for the *scheduler* to wake up.
+		// The essay cooldown is handled explicitly in ShouldFire via lastEssayTime.
+		j.calculateCooldown(1.0, narrator.StrategyUniform)
 	}
 }
 

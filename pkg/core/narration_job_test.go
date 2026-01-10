@@ -164,8 +164,130 @@ func TestNarrationJob_EssayCooldownMultiplier(t *testing.T) {
 	tel := &sim.Telemetry{AltitudeAGL: 3000}
 	job.Run(context.Background(), tel)
 
-	expected := 60 * time.Second // 2 * 30
+	// Updated Logic: Essay logic now sets standard cooldown (1.0 multiplier)
+	// because the specific Essay Cooldown is handled by `job.lastEssayTime`.
+	expected := 30 * time.Second // 1 * 30
 	if job.nextFireDuration != expected {
 		t.Errorf("Expected essay cooldown of %v, got %v", expected, job.nextFireDuration)
+	}
+}
+
+func TestNarrationJob_EssayRules(t *testing.T) {
+	// Setup Config
+	cfg := config.DefaultConfig()
+	cfg.Narrator.AutoNarrate = true
+	cfg.Narrator.MinScoreThreshold = 0.5
+	cfg.Narrator.CooldownMin = config.Duration(10 * time.Second)
+	cfg.Narrator.CooldownMax = config.Duration(30 * time.Second)
+	cfg.Narrator.Essay.Enabled = true
+	cfg.Narrator.Essay.Cooldown = config.Duration(10 * time.Minute)
+
+	tests := []struct {
+		name              string
+		bestPOI           *model.POI
+		lastNarrationAgo  time.Duration
+		lastEssayAgo      time.Duration
+		expectShouldFire  bool
+		expectEssayCalled bool
+		expectPOICalled   bool
+	}{
+		{
+			name:              "Priority: High Score POI -> POI Wins",
+			bestPOI:           &model.POI{Score: 1.0, WikidataID: "Q1"},
+			lastNarrationAgo:  5 * time.Minute, // Plenty of time
+			lastEssayAgo:      20 * time.Minute,
+			expectShouldFire:  true,
+			expectPOICalled:   true,
+			expectEssayCalled: false,
+		},
+		{
+			name:             "Silence Rule: No POI, but Silence < 2*Max -> No Essay",
+			bestPOI:          nil,
+			lastNarrationAgo: 45 * time.Second, // < 60s (2*30s)
+			lastEssayAgo:     20 * time.Minute,
+			expectShouldFire: false,
+		},
+		{
+			name:              "Silence Rule: No POI, Silence > 2*Max -> Fire Essay",
+			bestPOI:           nil,
+			lastNarrationAgo:  70 * time.Second, // > 60s
+			lastEssayAgo:      20 * time.Minute,
+			expectShouldFire:  true,
+			expectEssayCalled: true,
+		},
+		{
+			name:             "Cooldown Rule: No POI, Silence OK, Recent Essay -> No Essay",
+			bestPOI:          nil,
+			lastNarrationAgo: 5 * time.Minute,
+			lastEssayAgo:     5 * time.Minute, // < 10m
+			expectShouldFire: false,
+		},
+		{
+			name:              "Cooldown Rule: No POI, Silence OK, Old Essay -> Fire Essay",
+			bestPOI:           nil,
+			lastNarrationAgo:  5 * time.Minute,
+			lastEssayAgo:      15 * time.Minute, // > 10m
+			expectShouldFire:  true,
+			expectEssayCalled: true,
+		},
+		{
+			name:              "Low Score POI (<Threshold): Treat as Nil -> Essay Rules Apply",
+			bestPOI:           &model.POI{Score: 0.2, WikidataID: "Q2"},
+			lastNarrationAgo:  5 * time.Minute,
+			lastEssayAgo:      20 * time.Minute, // Essay Ready
+			expectShouldFire:  true,
+			expectEssayCalled: true,
+			expectPOICalled:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockN := &mockNarratorService{}
+			pm := &mockPOIManager{best: tt.bestPOI, lat: 48.0, lon: -123.0}
+			job := NewNarrationJob(cfg, mockN, pm, nil)
+
+			// Set State
+			job.lastTime = time.Now().Add(-tt.lastNarrationAgo)
+			if tt.lastEssayAgo > 0 {
+				job.lastEssayTime = time.Now().Add(-tt.lastEssayAgo)
+			}
+
+			// Telemetry (Airborne to allow essay)
+			tel := &sim.Telemetry{
+				AltitudeAGL: 3000,
+				IsOnGround:  false,
+				Latitude:    48.0,
+				Longitude:   -123.0,
+			}
+
+			// 1. ShouldFire Check
+			fired := job.ShouldFire(tel)
+			if fired != tt.expectShouldFire {
+				t.Errorf("ShouldFire() = %v, want %v", fired, tt.expectShouldFire)
+			}
+
+			// 2. Run Check (only if expected to fire)
+			if tt.expectShouldFire {
+				job.Run(context.Background(), tel)
+
+				if tt.expectEssayCalled != mockN.playEssayCalled {
+					t.Errorf("PlayEssay called? %v, want %v", mockN.playEssayCalled, tt.expectEssayCalled)
+				}
+				if tt.expectPOICalled != mockN.playPOICalled {
+					t.Errorf("PlayPOI called? %v, want %v", mockN.playPOICalled, tt.expectPOICalled)
+				}
+
+				// Verify State Updates
+				if mockN.playEssayCalled {
+					if time.Since(job.lastEssayTime) > 1*time.Second {
+						t.Error("lastEssayTime was not updated after playing essay")
+					}
+					if time.Since(job.lastTime) > 1*time.Second {
+						t.Error("lastTime (silence) was not updated after playing essay")
+					}
+				}
+			}
+		})
 	}
 }
