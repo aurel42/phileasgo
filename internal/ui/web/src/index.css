@@ -707,4 +707,40 @@ body {
   color: #666;
 }
 
+
+/* Narration Length Selector */
+.length-selector {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-left: 8px;
+}
+
+.length-btn {
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  min-width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.length-btn:hover {
+  color: #aaa;
+}
+
+.length-btn.active {
+  background: var(--accent);
+  color: #000;
+}
+
 /* Remove old rigid structures where possible or just don't use them in the new JSX */

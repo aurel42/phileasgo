@@ -11,39 +11,21 @@ Converts flight telemetry into Points of Interest.
 - **Frequency**: Every 1 second (`service.go`).
 - **Telemetry**: Fetched from SimConnect: `Latitude`, `Longitude`, `Heading`, `AltitudeAGL`, `IsOnGround`.
 
-### Flow Breakdown
-```mermaid
-sequenceDiagram
-    participant S as Service
-    participant SCH as Scheduler
-    participant G as Grid (H3)
-    participant C as Cache (SQLite)
-    participant API as Wikidata (SPARQL)
-
-    S->>SCH: Should fetch tiles for (Lat, Lon, Heading)?
-    SCH->>G: Get H3 cell for center
-    SCH->>G: Get neighboring cells in FOV
-    SCH-->>S: List of candidate Tiles (H3 Indexes)
-    
-    loop for each Tile
-        S->>G: Calculate Tile Radius (center to vertex)
-        S->>C: GetGeodataCache(TileID)
-        alt Cache Hit
-            C-->>S: Return JSON data
-        else Cache Miss
-            S->>API: POST SPARQL (center, radius)
-            API-->>S: Return JSON
-            S->>C: SetGeodataCache(TileID, data, radius)
-        end
-        Note over S: ProcessTileData:
-        S->>S: Filter Existing & Seen
-        S->>S: Batch Classify
-        S->>S: Deduplicate (Articles)
-        S->>S: Hydrate (WP Titles)
-        S->>S: Deduplicate (Final POIs)
-        S->>S: Save to DB
-    end
-```
+### Flow Breakdown (Step-by-Step)
+1. **Request Verification**: `Service` asks `Scheduler` if it's time to fetch tiles for the current (Lat, Lon, Heading).
+2. **Grid Resolution**: `Scheduler` queries `Grid (H3)` to get the center cell and all neighboring cells within the Field of View (FOV).
+3. **Tile Selection**: `Scheduler` returns a list of candidate H3 Tile Indexes to the `Service`.
+4. **Tile Processing Loop** (for each Tile):
+   - **Radius Check**: `Service` calculates the tile radius (center to vertex).
+   - **Cache Lookup**: `Service` checks the `SQLite Cache` for the TileID.
+   - **Network Fallback**: If a cache miss occurs, `Service` sends a POST SPARQL query to the `Wikidata API`, receives JSON data, and saves it to the cache.
+   - **ProcessTileData**:
+     - Filter out POIs that already exist or have been "Seen".
+     - Batch Classify items through the inheritance hierarchy.
+     - Deduplicate items based on Wikipedia articles.
+     - Hydrate remaining items with Wikipedia Titles and Article Lengths.
+     - Final Deduplication based on refined metadata.
+     - Save unique POIs to the Database.
 
 ---
 
@@ -140,7 +122,7 @@ The component responsible for resolving geographic coordinates to human language
 
 ---
 
-## 5. Narration Selection & LOS
+## 6. Narration Selection & LOS
 The automated loop that triggers "Ava" to speak.
 
 ### Logic: `NarrationJob` (`scheduler.go`)
@@ -156,7 +138,7 @@ The automated loop that triggers "Ava" to speak.
 
 ---
 
-## 6. Dynamic Categories & AI Extensions
+## 7. Dynamic Categories & AI Extensions
 How PhileasGo adapts its taxonomy to the current region.
 
 ### The Problem
@@ -180,7 +162,100 @@ Every **30 minutes** or **50nm** of travel, the system triggers a background tas
 
 ---
 
-## Final Verification Checklist
+---
+
+## 8. POI Narration Workflow (The AI Path)
+Step-by-step trace from selection to TTS output.
+
+### The Entry Points
+1. **Manual Selection**: `NarratorHandler.HandlePlay` -> `AIService.PlayPOI(manual=true)`.
+2. **Automated Selection**: `NarrationJob.Run` -> `AIService.PlayPOI(manual=false)`.
+
+### Orchestration Flow (`AIService.narratePOI`)
+*Triggered in a dedicated goroutine to avoid blocking the scheduler tick.*
+
+1. **Selection**: `Scheduler` or `API` calls `PlayPOI(poiID)`.
+2. **State Locking**: `AIService` immediately sets `Active=true` and `Generating=true`.
+3. **Parallel Preparation**:
+   - **Visuals**: `BeaconService` spawns a marker balloon at the POI coordinates immediately.
+   - **Context**: `AIService` assembles `PromptData` (Telemetry, POI Metadata, Category).
+4. **Script Generation**: `LLM Provider` generates the narration script (Text or SSML) from the prompt.
+5. **Latency Feedback**: `AIService` measures the time taken and updates the rolling average to adjust future prediction windows.
+6. **Audio Synthesis**: `TTS Provider` converts the script to audio.
+   - **Fallback**: If a fatal error occurs (e.g., Azure 429), the system activates the session-level fallback to `Edge-TTS` and retries synthesis.
+7. **Synthesis Completion**: `AIService` sets `Generating=false`.
+8. **Audio Playback**: `Audio Service` begins playing the file and maintains the `Active` lock.
+9. **Finalization**: When playback completes, `AIService` resets `Active=false` and clears the current POI.
+
+### Key Mechanisms
+
+#### 1. Predictive Navigation Logic (`calculateNavInstruction`)
+To ensure directional cues (e.g., "At your 3 o'clock") remain accurate when the pilot actually *hears* them, the system performs a self-correcting transformation:
+- **Dynamic Window**: The system measures the actual **Selection-to-Audio** latency for every narration. It maintains a rolling average of these durations and uses it to set the `sim.SetPredictionWindow`.
+- **Latency-Aware Source**: Instead of using current coordinates, the prompt engine uses **Predicted Telemetry** calculated by projecting the aircraft's current vector ahead by the **observed average latency**. This ensures directional cues are synchronized with the moment of playback.
+- **The 4.5km Boundary**:
+    - **Proximity Mode (< 4.5km)**: The system suppresses distance metrics and cardinal directions. It uses pure relative sectors ("On your left", "Straight ahead") to keep the narration immersive.
+    - **Distant Mode (>= 4.5km)**: The system includes precise distances ("about 10 miles away").
+- **Ground vs. Air**:
+    - **Airborne**: Uses the **Clock Face** (e.g., "at your 2 o'clock") for distant targets.
+    - **On Ground**: Uses **Cardinal Directions** (e.g., "to the North-East") unless in extreme proximity, where it remains silent to avoid logical errors while taxiing.
+
+#### 2. Relative Dominance & Skew Strategy (`DetermineSkewStrategy`)
+Narration length is not purely random; it is governed by **Competition Density**:
+- **Lone Wolf**: If a POI has no "Rivals" (other POIs with >50% of its score) nearby, it uses **StrategyMaxSkew**. The system generates a pool of 3 random word counts and picks the **highest**, allowing for a deep, leisurely narration.
+- **High Competition**: If Rivals exist, it uses **StrategyMinSkew** to pick the **lowest** of 3 random counts. This forces brevity, preventing the narrator from talking through the next discovery.
+- **Dynamic Window**: The "Rival" check is performed every time a script is generated, ensuring the pacing adapts to the landscape.
+
+#### 3. Spatial & Chronological Context
+- **Temporal Memory**: The prompt engine fetches all POIs narrated in the last **60 minutes** within a **50km** radius (`fetchRecentContext`). This allows the LLM to reference previous stops or avoid repetitive phrasing.
+- **Flight Stage Persona**: The `FlightStage` variable (Taxi, Takeoff, Cruise, Descent, Landing) is injected into the prompt, allowing Ava's tone to shift (e.g., more concise during high-workload takeoff).
+- **Wikipedia Persistence**: Article extracts are cached in the local SQLite `articles` table, keyed by Wikidata QID, to bypass Wikipedia API rate limits during repeated flights over the same area.
+
+#### 4. Visual Feedback & Safety
+- **Marker Spawning**: The marker balloon (Beacon) is spawned *before* LLM generation to provide instant interaction feedback.
+- **Deduplication**: `LastPlayed` is persisted to the DB only *after* successful TTS synthesis, ensuring a POI isn't "consumed" if the API calls fail.
+- **TTS Fallback**: If Azure TTS fails with a 429/5xx, the system switches to `edge-tts` for the remainder of the session.
+
+---
+
+---
+
+## 9. Marker Beacons (Visual Guidance)
+The system used to visually highlight POIs in the 3D world.
+
+### Lifecycle
+1. **Spawn**: Triggered by `AIService.PlayPOI`. Beacons spawn *immediately* (before LLM/TTS) to provide tactical feedback.
+2. **Smooth Updates**: The `Beacon.Service` runs an independent SimConnect connection at `PERIOD_VISUAL_FRAME` (~20Hz to 60Hz), bypassing the main telemetry heartbeat for jerky-free movement.
+3. **Formation**:
+    - **Target**: A "Hot Air Balloon" is spawned at the POI ground coordinates.
+    - **Guide**: If enabled, additional balloons spawn in a formation between the aircraft and the target at a configured distance (`FormationDistanceKm`).
+    - **Dissolve**: As the aircraft approaches the target, the guiding formation balloons despawn (at 1.5x formation distance) to clear the pilot's view for the final orbit.
+
+### 3D Safety Logic (The "Altitude Floor")
+- **Eye-Level Sync**: Beacons dynamically match the aircraft's **MSL Altitude** while in flight to ensure they remain at the pilot's eye level.
+- **The Floor**: When the aircraft descends below the `AltitudeFloorFt` threshold (e.g., 2000ft AGL), the beacons **lock their altitude**.
+- **Impact Prevention**: This "Lock" prevents the balloons from following the plane all the way to the ground, maintaining a realistic "aerial marker" appearance and preventing clipping into terrain or buildings.
+
+---
+
+## 10. The Prompt Engine (Ava's Brain)
+How technical context is translated into the Tour Guide persona.
+
+### Data Aggregation (`buildPromptData`)
+The prompt sent to the LLM is a complex JSON object containing:
+- **Telemetry**: Current and Predicted (1-min) Lat/Lon, Heading, Altitude, and Ground Speed.
+- **Regional Profile**: Detected Country, nearest City, and official languages.
+- **Flight Stage**: Custom tags for `Taxi`, `Takeoff`, `Cruise`, `Descent`, or `Landing`.
+- **Wikipedia Extract**: Full article text from the persistent SQLite cache.
+
+### Linguistic Control
+- **Units Instruction**: The system explicitly tells the LLM whether to use Metric (km/m) or Imperial (miles/ft) based on user configuration.
+- **TTS SSML Templates**: Different LLM templates are used depending on the TTS provider (Azure vs. Edge-TTS) to ensure correct SSML tag usage for pauses and emphasis.
+- **Cross-Reference Memory**: The prompt includes the names of POIs narrated in the last 60 minutes (`fetchRecentContext`), allowing the LLM to generate more cohesive, "memory-aware" tour scripts.
+
+---
+
+## 11. Final Verification Checklist
 Files to audit against this document:
 - [ ] **H3 Resolution**: `pkg/wikidata/grid.go` (`h3Resolution`).
 - [ ] **Classification Path**: `pkg/classifier/classifier.go` (`Classify`).
@@ -188,12 +263,6 @@ Files to audit against this document:
 - [ ] **Language Mapping**: `pkg/wikidata/mapper.go` (SPARQL query in `refresh`).
 - [ ] **Article Winner**: `pkg/wikidata/service_enrich.go` (`determineBestArticle`).
 - [ ] **Selection Loop**: `pkg/core/scheduler.go` (`getVisibleCandidate`).
-
----
-
-## Technical Documentation Backlog (TODO)
-The following areas are slated for detailed documentation in future updates:
-
-1. **Marker Beacons**: Detailed breakdown of the balloon/beacon spawning logic, line-of-sight visual indicators, and altitude-locking behavior for low-level flight.
-2. **Narration Flow**: Step-by-step trace from POI selection in the `NarrationJob` to the final TTS output, including queuing and concurrency handling.
-3. **Prompt Engine**: Technical specification of the `model.NarrationPromptData`, template inheritance (`azure.tmpl`, etc.), and the linguistic "Skew Strategy" for narration length.
+- [ ] **Narration Workflow**: `pkg/narrator/service_ai_workflow.go` (`narratePOI`).
+- [ ] **Beacon Logic**: `pkg/beacon/service.go` (`updateStep`).
+- [ ] **Prompt data**: `pkg/narrator/service_ai_data.go` (`buildPromptData`).

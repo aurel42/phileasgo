@@ -47,6 +47,7 @@ const formatTimeAgo = (dateStr: string) => {
 
 export const POIInfoPanel = ({ poi, pois, onClose }: POIInfoPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+    const [strategy, setStrategy] = useState<'min_skew' | 'uniform' | 'max_skew'>('uniform');
     const queryClient = useQueryClient();
 
     // Get fresh POI data from the polled pois array
@@ -107,7 +108,10 @@ export const POIInfoPanel = ({ poi, pois, onClose }: POIInfoPanelProps) => {
             await fetch('/api/narrator/play', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ poi_id: poi.wikidata_id })
+                body: JSON.stringify({
+                    poi_id: poi.wikidata_id,
+                    strategy: strategy
+                })
             });
             // Force immediate refetch to get real state if it happened fast
             queryClient.invalidateQueries({ queryKey: ['audioStatus'] });
@@ -145,34 +149,53 @@ export const POIInfoPanel = ({ poi, pois, onClose }: POIInfoPanelProps) => {
                 {/* Left column: Text content (40%) */}
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                     {/* Header */}
-                    <div className="value" style={{ fontSize: '16px', marginBottom: '4px', textTransform: 'none', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingRight: '24px' }}>
+                    <div className="value" style={{ fontSize: '16px', marginBottom: '4px', textTransform: 'none', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', paddingRight: '24px' }}>
                         {primaryName}
-                        <button
-                            onClick={(e) => {
-                                console.log("Play button clicked for", poi.wikidata_id);
-                                e.stopPropagation();
-                                handlePlay();
-                            }}
-                            title="Play Narration"
-                            style={{
-                                background: 'transparent',
-                                border: '1px solid var(--accent)',
-                                borderRadius: '50%',
-                                width: '24px',
-                                height: '24px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--accent)',
-                                cursor: 'pointer',
-                                fontSize: '12px',
-                                flexShrink: 0,
-                                zIndex: 20, /* Ensure it's clickable */
-                                position: 'relative' /* Context for z-index */
-                            }}
-                        >
-                            ▶
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <button
+                                onClick={(e) => {
+                                    console.log("Play button clicked for", poi.wikidata_id);
+                                    e.stopPropagation();
+                                    handlePlay();
+                                }}
+                                title="Play Narration"
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid var(--accent)',
+                                    borderRadius: '50%',
+                                    width: '24px',
+                                    height: '24px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: 'var(--accent)',
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                    flexShrink: 0,
+                                    zIndex: 20, /* Ensure it's clickable */
+                                    position: 'relative' /* Context for z-index */
+                                }}
+                            >
+                                ▶
+                            </button>
+                            <div className="length-selector">
+                                <button
+                                    className={`length-btn ${strategy === 'min_skew' ? 'active' : ''}`}
+                                    onClick={(e) => { e.stopPropagation(); setStrategy('min_skew'); }}
+                                    title="Short Narration"
+                                >S</button>
+                                <button
+                                    className={`length-btn ${strategy === 'uniform' ? 'active' : ''}`}
+                                    onClick={(e) => { e.stopPropagation(); setStrategy('uniform'); }}
+                                    title="Standard Narration"
+                                >M</button>
+                                <button
+                                    className={`length-btn ${strategy === 'max_skew' ? 'active' : ''}`}
+                                    onClick={(e) => { e.stopPropagation(); setStrategy('max_skew'); }}
+                                    title="Long Narration"
+                                >L</button>
+                            </div>
+                        </div>
                     </div>
                     {localName && (
                         <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>

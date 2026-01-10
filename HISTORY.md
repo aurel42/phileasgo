@@ -1,5 +1,20 @@
 ﻿# Release History
 
+## v0.2.48 (2026-01-10)
+- **Feature**: **Manual Narration Length Control**
+    - Implemented a segmented length selector (**S**, **M**, **L**) in the `POIInfoPanel` for manual narration triggers.
+    - Updated the `/api/narrator/play` endpoint to accept a `strategy` parameter (min_skew, uniform, max_skew).
+    - Enables users to force concise, standard, or detailed descriptions for specific POIs.
+- **Documentation**: **Granular Narration Engine Details**
+    - Extensively documented the **POI Narration Workflow** in `docs/SYSTEM_FLOWS.md`.
+    - Detailed **Marker Beacon** lifecycle, high-frequency updates (~20Hz), and depth-clipping safety logic (Altitude Floor at 2000ft).
+    - Documented the **Prompt Engine** data aggregation (telemetry, regional profiles, Wikipedia extracts).
+    - Explained the **Dynamic Latency-Aware Prediction** which projects the plane's position based on a rolling average of observed selection-to-playback time.
+    - Documented the **Skew Strategy** ("Lone Wolf" vs. "High Competition") used for automated narration.
+- **Cleanup**: **UI Refinement**
+    - Removed redundant volume slider from `InfoPanel.tsx` and associated legacy state logic.
+    - Cleaned up `SYSTEM_FLOWS.md` by replacing Mermaid diagrams with human-readable textual flows for better preview compatibility.
+
 ## v0.2.47 (2026-01-09)
 - **Refactor**: **Cleanup & Safety**
     - Removed legacy radius fallback (9.8km jump) in Wikidata fetching logic.

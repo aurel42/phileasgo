@@ -30,7 +30,6 @@ export const InfoPanel = ({
     const [configOpen, setConfigOpen] = useState(false);
     const [simSource, setSimSource] = useState<string>('mock');
     const [ttsEngine, setTtsEngine] = useState<string>('edge-tts');
-    const [volume, setVolume] = useState<number>(1.0);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [stats, setStats] = useState<any>(null);
 
@@ -71,9 +70,6 @@ export const InfoPanel = ({
                 if (data.tts_engine) {
                     setTtsEngine(data.tts_engine);
                 }
-                if (data.volume !== undefined) {
-                    setVolume(data.volume);
-                }
             })
             .catch(e => console.error("Failed to fetch config", e));
     }, []);
@@ -87,14 +83,6 @@ export const InfoPanel = ({
         }).catch(e => console.error("Failed to update config", e));
     };
 
-    const handleVolumeChange = (vol: number) => {
-        setVolume(vol);
-        fetch('/api/audio/volume', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ volume: vol })
-        }).catch(e => console.error("Failed to set volume", e));
-    };
 
     const frontendVersion = `v${packageJson.version}`;
     const versionMatch = backendVersion === frontendVersion;
@@ -379,20 +367,6 @@ export const InfoPanel = ({
                         </div>
                         <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
                             Show POIs with score higher than this value
-                        </div>
-
-                        <div className="config-label" style={{ marginTop: '16px' }}>AUDIO VOLUME</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                            <input
-                                type="range"
-                                min="0"
-                                max="1"
-                                step="0.05"
-                                value={volume}
-                                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                                style={{ flex: 1 }}
-                            />
-                            <span style={{ fontSize: '12px', minWidth: '24px', textAlign: 'right' }}>{(volume * 100).toFixed(0)}%</span>
                         </div>
 
                         <div className="config-label" style={{ marginTop: '16px', color: '#ff4444' }}>DANGER ZONE</div>

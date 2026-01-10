@@ -52,7 +52,8 @@ func NewNarratorHandler(audioMgr AudioController, narratorSvc NarratorController
 
 // PlayRequest represents a manual narration play request.
 type PlayRequest struct {
-	POIID string `json:"poi_id"`
+	POIID    string `json:"poi_id"`
+	Strategy string `json:"strategy"` // Optional: uniform, min_skew, max_skew
 }
 
 // NarratorStatusResponse represents the narrator status.
@@ -76,7 +77,7 @@ func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("API: HandlePlay received POI request", "poi_id", req.POIID)
+	slog.Info("API: HandlePlay received POI request", "poi_id", req.POIID, "strategy", req.Strategy)
 
 	// Reset pause state if user paused
 	if h.audio.IsUserPaused() {
@@ -85,7 +86,7 @@ func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Trigger narration (Manual play -> uniform strategy, or pass explicitly if needed)
-	h.narrator.PlayPOI(r.Context(), req.POIID, true, nil, "uniform")
+	h.narrator.PlayPOI(r.Context(), req.POIID, true, nil, req.Strategy)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]string{
