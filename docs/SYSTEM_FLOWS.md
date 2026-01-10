@@ -207,10 +207,10 @@ Narration length is not purely random; it is governed by **Competition Density**
 - **Dynamic Window**: The "Rival" check is performed every time a script is generated, ensuring the pacing adapts to the landscape.
 
 #### 3. Spatial & Chronological Context
-- **Short-Term Memory (v0.2.49)**: The system maintains a rolling buffer of the last $N$ generated scripts in session memory.
-    - **Session Persistence**: Scripts are stored in the `model.POI` struct in-memory only.
-    - **Spatial Eviction Sync**: The prompt engine cross-references the `POIManager`; if a POI is evicted (too far behind/away), its script is automatically dropped from the AI's context.
-    - **Narrative Continuity**: Instructions in the prompt template guide the LLM to use this history to build a "narrative arc," avoiding factual repetition and ensuring smooth transitions between stops.
+- **Short-Term Memory (v0.2.50)**: The system maintains a rolling **Trip Summary** in session memory.
+    - **Session Evolution**: After each narration, a background task uses the `summary` model profile to merge the previous summary with the latest script.
+    - **Chronological Density**: The summary is strictly chronological, consolidation ensures it remains rich with detail (specific names, dates, facts) but concise (max 300 words).
+    - **Narrative Continuity**: The prompt engine injects this summary into every new script/essay prompt, instructing the LLM to use "what we saw earlier" to bridge stories and avoid repetition.
 - **Flight Stage Persona**: The `FlightStage` variable (Taxi, Takeoff, Cruise, Descent, Landing) is injected into the prompt, allowing the narration tone to shift (e.g., more concise during high-workload takeoff).
 - **Wikipedia Persistence**: Article extracts are cached in the local SQLite `articles` table, keyed by Wikidata QID, to bypass Wikipedia API rate limits during repeated flights over the same area.
 

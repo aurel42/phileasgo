@@ -188,7 +188,7 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		Lat:              tel.Latitude,
 		Lon:              tel.Longitude,
 		UnitsInstruction: s.fetchUnitsInstruction(),
-		ScriptHistory:    s.getScriptHistory(),
+		TripSummary:      s.getTripSummary(),
 	}
 	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
 

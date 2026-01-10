@@ -227,51 +227,18 @@ func TestSampleNarrationLength_Logic(t *testing.T) {
 	}
 }
 
-func TestScriptHistory(t *testing.T) {
+func TestTripSummary(t *testing.T) {
 	cfg := &config.Config{
-		Narrator: config.NarratorConfig{
-			ContextHistorySize: 3,
-		},
+		Narrator: config.NarratorConfig{},
 	}
-	// Mock Manager
-	mockPOI := &MockPOIProvider{
-		GetPOIFunc: func(ctx context.Context, qid string) (*model.POI, error) {
-			if qid == "Q2" || qid == "Q3" {
-				return &model.POI{WikidataID: qid}, nil
-			}
-			return nil, errors.New("evicted")
-		},
+	svc := &AIService{cfg: cfg}
+	svc.tripSummary = "Initial trip summary."
+
+	// Check prompt data
+	pd := NarrationPromptData{
+		TripSummary: svc.getTripSummary(),
 	}
-
-	svc := &AIService{cfg: cfg, poiMgr: mockPOI}
-	svc.scriptHistory = make([]ScriptEntry, 0, 10)
-
-	// Add 3 scripts
-	svc.addScriptToHistory("Q1", "POI 1", "Script 1")
-	svc.addScriptToHistory("Q2", "POI 2", "Script 2")
-	svc.addScriptToHistory("", "Regional Essay", "Script 3") // Essay has no QID
-
-	// Get history
-	history := svc.getScriptHistory()
-
-	// Q1 is evicted (not in mock GetPOIFunc), Q2 is kept, Essay (empty QID) is kept.
-	if len(history) != 2 {
-		t.Fatalf("Expected 2 entries (Q2 and Essay), got %d", len(history))
-	}
-
-	if history[0].QID != "Q2" {
-		t.Errorf("Expected first remaining script to be Q2, got %s", history[0].QID)
-	}
-	if history[1].QID != "" {
-		t.Errorf("Expected second script to be Essay (empty QID), got %s", history[1].QID)
-	}
-
-	// Add another script to trigger limit check
-	svc.addScriptToHistory("Q3", "POI 3", "Script 4")
-	history = svc.getScriptHistory()
-
-	// Limit is 3. We have Q2, Essay, Q3. All are valid.
-	if len(history) != 3 {
-		t.Errorf("Expected 3 entries, got %d", len(history))
+	if pd.TripSummary != "Initial trip summary." {
+		t.Errorf("Expected summary 'Initial trip summary.', got %s", pd.TripSummary)
 	}
 }

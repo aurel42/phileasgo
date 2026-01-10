@@ -46,11 +46,9 @@ Do not refer to a specific location visible on the ground, because it might not 
 **LANGUAGE**:
 - Use ISO 639-1 code "{{.TargetLanguage}}".
 
-{{if .ScriptHistory}}
-**RECENT NARRATION HISTORY** (for continuity and cross-referencing):
-{{range .ScriptHistory}}- Topic: {{.Title}}
-  Script: "{{.Script}}"
-{{end}}
+{{if .TripSummary}}
+**TRIP SUMMARY SO FAR** (for continuity and cross-referencing):
+{{.TripSummary}}
 {{end}}
 
 **FORMATTING**:

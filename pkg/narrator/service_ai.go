@@ -3,6 +3,7 @@ package narrator
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,18 +28,19 @@ type ScriptEntry struct {
 
 // AIService is the real implementation of the narrator service using LLM and TTS.
 type AIService struct {
-	cfg       *config.Config
-	llm       llm.Provider
-	tts       tts.Provider
-	prompts   *prompts.Manager
-	audio     audio.Service
-	poiMgr    POIProvider
-	beaconSvc BeaconProvider
-	geoSvc    GeoProvider
-	sim       sim.Client
-	st        store.Store
-	wikipedia WikipediaProvider
-	langRes   LanguageResolver
+	cfg         *config.Config
+	llm         llm.Provider
+	tts         tts.Provider
+	prompts     *prompts.Manager
+	audio       audio.Service
+	poiMgr      POIProvider
+	beaconSvc   BeaconProvider
+	geoSvc      GeoProvider
+	sim         sim.Client
+	st          store.Store
+	wikipedia   WikipediaProvider
+	langRes     LanguageResolver
+	tripSummary string // Added tripSummary field
 
 	mu            sync.RWMutex
 	running       bool
@@ -62,7 +64,7 @@ type AIService struct {
 	essayH    *EssayHandler
 	interests []string
 
-	scriptHistory []ScriptEntry
+	// scriptHistory []ScriptEntry // Removed scriptHistory
 
 	// TTS Fallback State (session-level)
 	fallbackTTS     tts.Provider
@@ -107,10 +109,11 @@ func NewAIService(
 		skipCooldown:    false,
 		interests:       interests,
 		fallbackTracker: tr,
+		tripSummary:     "", // Initialize tripSummary
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)
-	s.scriptHistory = make([]ScriptEntry, 0, cfg.Narrator.ContextHistorySize)
+	// s.scriptHistory = make([]ScriptEntry, 0, cfg.Narrator.ContextHistorySize) // Removed scriptHistory initialization
 	return s
 }
 
@@ -274,46 +277,50 @@ func (s *AIService) isUsingFallbackTTS() bool {
 	return s.useFallbackTTS
 }
 
-func (s *AIService) addScriptToHistory(qid, title, script string) {
+func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	currentSummary := s.tripSummary
+	s.mu.Unlock()
 
-	s.scriptHistory = append(s.scriptHistory, ScriptEntry{
-		QID:    qid,
-		Title:  title,
-		Script: script,
-	})
+	// Build update prompt data
+	data := struct {
+		CurrentSummary string
+		LastTitle      string
+		LastScript     string
+	}{
+		CurrentSummary: currentSummary,
+		LastTitle:      lastTitle,
+		LastScript:     lastScript,
+	}
 
-	// We no longer discard strictly here, as the user wants to keep a "log"
-	// and we filter/evict at read-time based on manager state.
-	// But we still respect the limit for the PROMPT context window.
+	prompt, err := s.prompts.Render("narrator/summary_update.tmpl", data)
+	if err != nil {
+		slog.Error("Narrator: Failed to render summary update template", "error", err)
+		return
+	}
+
+	newSummary, err := s.llm.GenerateText(ctx, "summary", prompt)
+	if err != nil {
+		slog.Error("Narrator: Failed to update trip summary", "error", err)
+		return
+	}
+
+	s.mu.Lock()
+	s.tripSummary = strings.TrimSpace(newSummary)
+	s.mu.Unlock()
+
+	slog.Info("Narrator: Trip summary updated", "length", len(s.tripSummary))
 }
 
-func (s *AIService) getScriptHistory() []ScriptEntry {
+func (s *AIService) getTripSummary() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.tripSummary
+}
 
-	limit := s.cfg.Narrator.ContextHistorySize
-	if limit <= 0 {
-		return nil
-	}
-
-	// Filter based on tracked POIs (Spatial Eviction Sync)
-	var filtered []ScriptEntry
-	for i := len(s.scriptHistory) - 1; i >= 0 && len(filtered) < limit; i-- {
-		entry := s.scriptHistory[i]
-
-		// Essay has no QID, keep it if it's recent
-		if entry.QID == "" {
-			filtered = append([]ScriptEntry{entry}, filtered...)
-			continue
-		}
-
-		// Check if POI is still tracked
-		if _, err := s.poiMgr.GetPOI(context.Background(), entry.QID); err == nil {
-			filtered = append([]ScriptEntry{entry}, filtered...)
-		}
-	}
-
-	return filtered
+func (s *AIService) addScriptToHistory(qid, title, script string) {
+	// Legacy method call for POI script storage (from Phase 1)
+	// We no longer need the s.scriptHistory slice, but we still trigger
+	// the summary update which is the new focus.
+	go s.updateTripSummary(context.Background(), title, script)
 }

@@ -31,17 +31,15 @@ NO HALLUCINATIONS, no invented facts.
 - Keep it very short if data is sparse or missing.
 
 **Recent POIs** we have discussed (avoid repetition of topics): {{.RecentContext}}
-{{if .ScriptHistory}}
-**RECENT NARRATION HISTORY** (for continuity and cross-referencing):
-{{range .ScriptHistory}}- Topic: {{.Title}}
-  Script: "{{.Script}}"
-{{end}}
+{{if .TripSummary}}
+**TRIP SUMMARY SO FAR** (for continuity and cross-referencing):
+{{.TripSummary}}
 
 **CONTINUITY AND FLOW**:
-- Use the history above to create a "narrative arc" for the tour.
-- **Avoid Repetition**: Do not repeat the same historical facts, specific adjectives, or sentence structures used in recent scripts.
-- **Thematic Expansion**: If the current POI shares a theme (e.g., an architect, a war, or a style) with a recent stop, acknowledge the connection and provide *new* details rather than restating old ones.
-- **Smooth Transitions**: Occasionally reference "what we saw earlier" or "continuing our theme" to make the tour feel like a continuous journey rather than a series of isolated facts.
+- Use the **Trip Summary** above to maintain a "narrative arc" for the tour.
+- **Avoid Repetition**: Do not repeat specific facts, dates, or stories already mentioned in the summary.
+- **Thematic Expansion**: If the current POI relates to a topic in the summary, expand on it with *new* information or connect it to what we've previously discussed.
+- **Narrative Bridge**: Occasionally bridge the current stop to the previous ones mentioned in the summary (e.g., "As we saw earlier with...").
 {{end}}
 
 **NO REFERENCE TO THE FLIGHT**:

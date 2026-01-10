@@ -1,5 +1,17 @@
 ﻿# Release History
 
+## v0.2.50 (2026-01-10)
+- **Feature**: **Rolling Trip Summaries (Phase 2)**
+    - Replaced individual script history with a single, evolving Trip Summary. After each narration, the system consolidates the session memory in the background, maintaining a chronological account of everything discussed.
+- **Feature**: **Context Continuity**
+    - Gemini now receives a structured summary of the trip so far, enabling it to bridge stories between stops naturally and with higher factual density.
+- **Optimization**: **Token Efficiency**
+    - History is now consolidated into a summary (max 300 words), preventing the context window from growing indefinitely.
+- **Prompt**: **Summary Update Template**
+    - Created `summary_update.tmpl` with strict instructions for chronological ordering and thematic consolidation.
+- **Architecture**: **Async Memory Updates**
+    - The trip summary is updated in a non-blocking background task after each narration.
+
 ## v0.2.49 (2026-01-10)
 - **Feature**: **Short-Term Memory (Context History)**
     - The narrator now maintains a session-wide memory of generated scripts. Every new prompt includes the last $N$ narrations, enabling the AI to cross-reference previous stops and build a cohesive "narrative arc."
