@@ -81,6 +81,11 @@ func constructPOI(a *Article, lengths map[string]map[string]int, localLangs []st
 	// Rescue Logic removed: We assume we have titles because of strict SPARQL filter (FILTER EXISTS).
 	// If determineBestArticle couldn't find ANY title, something is very wrong upstream.
 
+	// Verify we have at least one valid name
+	if nameEn == "" && bestNameLocal == "" && nameUser == "" {
+		return nil
+	}
+
 	poi := &model.POI{
 		WikidataID:          a.QID,
 		Source:              "wikidata",

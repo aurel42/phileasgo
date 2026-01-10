@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.60 (2026-01-10)
+- **Fix**: **Nameless POI Filtering**
+    - `service_enrich.go` now strictly drops POIs if they have no valid names (User, English, or Local).
+    - Eliminates "Unknown" entities caused by source-filtering removing all sitelinks for unsupported languages (e.g., Russian-only nature reserves).
+
+
 ## v0.2.59 (2026-01-10)
 - **Fix**: **Ground Narration Filter**
     - Updated `NarrationJob` to strictly filter for `Category == "Aerodrome"` when on the ground.

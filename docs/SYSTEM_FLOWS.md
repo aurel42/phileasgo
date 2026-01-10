@@ -82,6 +82,7 @@ How we determine the POI's Name and Wikipedia link.
     - The system compares the character counts of all candidates.
     - **Tie-Breaker**: If lengths are similar, the system prefers languages in the order they were detected (Center > Vertices).
     - **Winner**: The longest article among the candidates becomes the primary source.
+    - **Nameless Filter**: If the candidate ends up with **no valid names** (User, English, or Local) after hydration/filtering, it is strictly **dropped**. This prevents "Unknown" entities (often caused by source-filtering removing all sitelinks) from entering the system.
     - **Deterministic Fallback**: If no length data is available, the system selects the first available title based on priority: User > English > Local (sorted). Random iteration is strictly forbidden.
 
 ---
