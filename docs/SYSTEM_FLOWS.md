@@ -69,18 +69,20 @@ Items that fail to classify into a known category are eligible for **Rescue** if
 ## 3. Hydration & Language Selection
 How we determine the POI's Name and Wikipedia link.
 
-### Logic (v0.2.47)
-1. **Multi-Point Language Detection**: The system samples the **Country** at the **Tile Center** AND all **6 Corner Vertices** of the H3 hex.
-2. **Mapper Lookup**: It resolves this set of countries to **ALL their Official Languages** (ISO codes) via a cached Wikidata mapping. This builds a deduplicated, prioritized list of regional languages.
-3. **Length Fetching**: Article character counts are fetched from Wikipedia for:
-    - **All Regional Languages** detected in the tile (e.g., `de`, `fr` if on a border).
-    - **English** article (`en`).
-    - **User Language** article (from config).
+### Logic (v0.2.58)
+1. **Upfront Language Resolution**: Before fetching any text, the system computes the authorized language set for the tile:
+    - **English** (`en`)
+    - **User Language** (from config)
+    - **Regional Languages**: Derived from the Country at the **Tile Center** AND all **6 Corner Vertices** of the H3 hex (deduplicated via `LanguageMapper`).
+2. **Strict Source Filtering**: The authorized set is converted to a Wikidata `sitefilter` (e.g., `enwiki|dewiki|frwiki`) and passed to the `wbgetentities` API.
+    - **Efficiency**: The API returns sitelinks *only* for the requested languages, preventing "wiki pollution" (e.g., Russian articles for German POIs).
+    - **Zero Waste**: Unwanted languages are never fetched or stored.
+3. **Length Fetching**: Article character counts are fetched from Wikipedia only for the survivors of the filter (the intersection of Available Sitelinks and Authorized Languages).
 4. **Selection Logic** (`determineBestArticle`):
     - The system compares the character counts of all candidates.
     - **Tie-Breaker**: If lengths are similar, the system prefers languages in the order they were detected (Center > Vertices).
     - **Winner**: The longest article among the candidates becomes the primary source.
-    - **Fallback**: If no lengths match, weights are: User > English > Local > Wikidata.
+    - **Deterministic Fallback**: If no length data is available, the system selects the first available title based on priority: User > English > Local (sorted). Random iteration is strictly forbidden.
 
 ---
 

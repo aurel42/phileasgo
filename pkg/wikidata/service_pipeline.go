@@ -33,13 +33,8 @@ func (s *Service) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat
 	// 3. Batch Classification for new articles (also filters out ignored)
 	rawArticles = s.classifyAndFilterArticles(ctx, rawArticles)
 
-	// 4. Process, Filter, and Hydrate
-	processed, rescued, err := s.processAndHydrate(ctx, rawArticles, centerLat, centerLon)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// 5. Enrichment & Saving
+	// 4. Compute Allowed Languages for Filter
+	// We need this BEFORE hydration to avoid fetching 300+ languages per item
 	countrySet := make(map[string]struct{})
 	// Sample Center
 	countrySet[s.geo.GetCountry(centerLat, centerLon)] = struct{}{}
@@ -56,10 +51,22 @@ func (s *Service) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat
 			langSet[l.Code] = struct{}{}
 		}
 	}
+	// Always allow English
+	langSet["en"] = struct{}{}
+	// Allow User Language
+	if s.userLang != "" {
+		langSet[s.userLang] = struct{}{}
+	}
 
 	var localLangs []string
 	for l := range langSet {
 		localLangs = append(localLangs, l)
+	}
+
+	// 5. Process, Filter, and Hydrate
+	processed, rescued, err := s.processAndHydrate(ctx, rawArticles, centerLat, centerLon, localLangs)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	if len(processed) > 0 {
@@ -69,7 +76,7 @@ func (s *Service) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat
 	return processed, rescued, err
 }
 
-func (s *Service) processAndHydrate(ctx context.Context, rawArticles []Article, centerLat, centerLon float64) (processed []Article, rescuedCount int, err error) {
+func (s *Service) processAndHydrate(ctx context.Context, rawArticles []Article, centerLat, centerLon float64, allowedLangs []string) (processed []Article, rescuedCount int, err error) {
 	// 1. Post-processing (Rescue & Filters) - Operates on Skeleton Data (P31, Dimensions, Sitelinks)
 	candidates, rescued, err := s.postProcessArticles(rawArticles)
 	if err != nil {
@@ -88,7 +95,7 @@ func (s *Service) processAndHydrate(ctx context.Context, rawArticles []Article, 
 	}
 
 	// 2. Hydration (Fetch Titles/Labels for survivors)
-	hydrated, err := s.hydrateCandidates(ctx, candidates)
+	hydrated, err := s.hydrateCandidates(ctx, candidates, allowedLangs)
 	if err != nil {
 		// If hydration fails, we might still want to proceed partial?
 		// No, without titles we can't get lengths or build URLs. Fail.

@@ -149,7 +149,7 @@ func (m *MockClassifier) GetConfig() *config.CategoriesConfig {
 type MockWikidataClient struct {
 	QuerySPARQLFunc       func(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error)
 	GetEntitiesBatchFunc  func(ctx context.Context, ids []string) (map[string]EntityMetadata, error)
-	FetchFallbackDataFunc func(ctx context.Context, ids []string) (map[string]FallbackData, error)
+	FetchFallbackDataFunc func(ctx context.Context, ids []string, allowedSites []string) (map[string]FallbackData, error)
 	GetEntityClaimsFunc   func(ctx context.Context, id, property string) (targets []string, label string, err error)
 }
 
@@ -167,9 +167,9 @@ func (m *MockWikidataClient) GetEntitiesBatch(ctx context.Context, ids []string)
 	return make(map[string]EntityMetadata), nil
 }
 
-func (m *MockWikidataClient) FetchFallbackData(ctx context.Context, ids []string) (map[string]FallbackData, error) {
+func (m *MockWikidataClient) FetchFallbackData(ctx context.Context, ids []string, allowedSites []string) (map[string]FallbackData, error) {
 	if m.FetchFallbackDataFunc != nil {
-		return m.FetchFallbackDataFunc(ctx, ids)
+		return m.FetchFallbackDataFunc(ctx, ids, allowedSites)
 	}
 	return make(map[string]FallbackData), nil
 }
@@ -229,7 +229,7 @@ func TestFetchTile_CacheOptimization(t *testing.T) {
 		GetEntitiesBatchFunc: func(ctx context.Context, ids []string) (map[string]EntityMetadata, error) {
 			return make(map[string]EntityMetadata), nil
 		},
-		FetchFallbackDataFunc: func(ctx context.Context, ids []string) (map[string]FallbackData, error) {
+		FetchFallbackDataFunc: func(ctx context.Context, ids []string, allowedSites []string) (map[string]FallbackData, error) {
 			// Provide fallback data logic here if ProcessTileData needs it for Q_CACHED
 			// We can return simple data so processing succeeds
 			return map[string]FallbackData{
@@ -371,7 +371,7 @@ func TestProcessTileData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup Mock Client
 			mockClient := &MockWikidataClient{
-				FetchFallbackDataFunc: func(ctx context.Context, ids []string) (map[string]FallbackData, error) {
+				FetchFallbackDataFunc: func(ctx context.Context, ids []string, allowedSites []string) (map[string]FallbackData, error) {
 					if tt.fallbackErr != nil {
 						return nil, tt.fallbackErr
 					}

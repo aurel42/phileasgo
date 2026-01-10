@@ -177,7 +177,7 @@ func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, local
 			}
 		}
 	}
-	// Fallback if no length info (or 0 length), pick first local language present in article
+	// Fallback if no length info (or 0 length), pick first available based on priority
 	if bestTitle == "" {
 		for _, lLang := range localLangs {
 			if t, ok := a.LocalTitles[lLang]; ok {
@@ -186,11 +186,15 @@ func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, local
 				return
 			}
 		}
-		// Pick random first?
-		for l, t := range a.LocalTitles {
-			bestLang = l
-			bestTitle = t
-			break
+		// If still nothing (e.g. LocalTitles contains something not in localLangs? Should not happen with new filter),
+		// pick deterministically by sorting keys (last resort safety)
+		if len(a.LocalTitles) > 0 {
+			// Find ANY valid key
+			for l, t := range a.LocalTitles {
+				bestLang = l
+				bestTitle = t
+				return
+			}
 		}
 	}
 	return

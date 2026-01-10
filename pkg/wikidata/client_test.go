@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"phileasgo/pkg/request"
@@ -25,13 +26,15 @@ func (m *mockCache) SetGeodataCache(ctx context.Context, key string, val []byte,
 
 func TestFetchFallbackData(t *testing.T) {
 	tests := []struct {
-		name       string
-		qids       []string
-		mockResp   string
-		mockStatus int
-		wantErr    bool
-		wantCount  int
-		wantLabel  string
+		name         string
+		qids         []string
+		allowedSites []string
+		mockResp     string
+		mockStatus   int
+		wantErr      bool
+		wantCount    int
+		wantLabel    string
+		wantSite     string // verify strict filtering
 	}{
 		{
 			name: "Success with labels and sitelinks",
@@ -44,6 +47,28 @@ func TestFetchFallbackData(t *testing.T) {
 						},
 						"sitelinks": {
 							"enwiki": {"site": "enwiki", "title": "Tower"}
+						}
+					}
+				}
+			}`,
+			mockStatus: http.StatusOK,
+			wantErr:    false,
+			wantCount:  1,
+			wantLabel:  "Tower",
+		},
+		{
+			name:         "Success with Site Filter",
+			qids:         []string{"Q1"},
+			allowedSites: []string{"enwiki", "dewiki"},
+			mockResp: `{
+				"entities": {
+					"Q1": {
+						"labels": {
+							"en": {"value": "Tower"}
+						},
+						"sitelinks": {
+							"enwiki": {"site": "enwiki", "title": "Tower"},
+							"dewiki": {"site": "dewiki", "title": "Turm"}
 						}
 					}
 				}
@@ -89,6 +114,23 @@ func TestFetchFallbackData(t *testing.T) {
 				if action != "wbgetentities" {
 					t.Errorf("Expected action wbgetentities, got %s", action)
 				}
+
+				// Verify sitefilter param
+				sitefilter := r.URL.Query().Get("sitefilter")
+				if len(tt.allowedSites) > 0 {
+					// Join expected logic
+					expected := strings.Join(tt.allowedSites, "|")
+					// Use Contains because URL encoding might vary, or exact match
+					if sitefilter != expected {
+						// It might be URL encoded, but .Get() decodes it.
+						t.Errorf("Expected sitefilter %s, got %s", expected, sitefilter)
+					}
+				} else {
+					if sitefilter != "" {
+						t.Errorf("Expected empty sitefilter, got %s", sitefilter)
+					}
+				}
+
 				w.WriteHeader(tt.mockStatus)
 				fmt.Fprint(w, tt.mockResp)
 			}))
@@ -100,7 +142,7 @@ func TestFetchFallbackData(t *testing.T) {
 			client := NewClient(reqClient, slog.Default())
 			client.APIEndpoint = server.URL + "/w/api.php"
 
-			got, err := client.FetchFallbackData(context.Background(), tt.qids)
+			got, err := client.FetchFallbackData(context.Background(), tt.qids, tt.allowedSites)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FetchFallbackData() error = %v, wantErr %v", err, tt.wantErr)
 				return

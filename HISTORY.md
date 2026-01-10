@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.58 (2026-01-10)
+- **Fix**: **Strict Language Filtering**
+    - `wbgetentities` now uses `sitefilter` to fetch only relevant languages (English + User + Local), preventing fallback to random languages (e.g., Russian).
+- **Fix**: **Deterministic Hydration**
+    - Removed random map iteration in `service_enrich.go`. Fallback sequence is now strictly priority-based.
+- **Doc**: **System Flows Updated**
+    - Updated `SYSTEM_FLOWS.md` to reflect the new hydration pipeline and efficiency gains.
+
+
 ## v0.2.57 (2026-01-10)
 - **Refactor**: **Scheduler Split** (`pkg/core`)
     - Split `scheduler.go` (580 lines) into 3 focused files: `scheduler.go` (120), `jobs.go` (123), `narration_job.go` (341).

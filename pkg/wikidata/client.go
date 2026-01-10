@@ -25,7 +25,7 @@ const (
 type ClientInterface interface {
 	QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error)
 	GetEntitiesBatch(ctx context.Context, ids []string) (map[string]EntityMetadata, error)
-	FetchFallbackData(ctx context.Context, ids []string) (map[string]FallbackData, error)
+	FetchFallbackData(ctx context.Context, ids, allowedSites []string) (map[string]FallbackData, error)
 	GetEntityClaims(ctx context.Context, id, property string) (targets []string, label string, err error)
 }
 
@@ -283,8 +283,8 @@ type FallbackData struct {
 	Sitelinks map[string]string // Site -> Title (e.g. "enwiki" -> "Title")
 }
 
-// FetchFallbackData gets all labels and sitelinks for a batch of IDs (no language filter).
-func (c *Client) FetchFallbackData(ctx context.Context, ids []string) (map[string]FallbackData, error) {
+// FetchFallbackData gets labels and sitelinks for a batch of IDs, optionally filtered by site.
+func (c *Client) FetchFallbackData(ctx context.Context, ids, allowedSites []string) (map[string]FallbackData, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -306,7 +306,13 @@ func (c *Client) FetchFallbackData(ctx context.Context, ids []string) (map[strin
 		q.Add("format", "json")
 		q.Add("ids", idStr)
 		q.Add("props", "labels|sitelinks")
-		// No languages param = fetch all
+
+		// Apply site filter if provided
+		if len(allowedSites) > 0 {
+			q.Add("sitefilter", strings.Join(allowedSites, "|"))
+		}
+
+		// No languages param = fetch all labels (unless we want to limit labels too? Labels are cheap)
 		u.RawQuery = q.Encode()
 
 		// Do not cache fallback data as it's a rescue operation for "bad" cached data
