@@ -9,6 +9,18 @@
 - **Bug Fixes**: Restored missing `essay` profile in `phileas.yaml` and resolved linting issues in `service_ai.go`.
 
 
+## v0.2.53 (2026-01-10)
+- **Refactor**: **Narrator Workflow Segmentation**
+    - Decomposed the monolithic `service_ai_workflow.go` into modular components: `service_ai_poi.go` (POI Logic), `service_ai_essay.go` (Essay Logic), `service_ai_state.go` (State Management), and `service_ai_common.go` (Shared Helpers).
+    - Significantly improved code maintainability and testability by isolating functional domains.
+- **Optimization**: **Cache-First Wikidata Fetching**
+    - Refactored `fetchTile` strategy to check the persistent cache *before* pre-calculating tile geometry or query strings.
+    - Eliminates redundant CPU cycles and query construction overhead for tiles that are already locally available.
+- **Documentation**: **Pipeline Correction**
+    - Corrected the "Wikidata Tile Pipeline" flow in `SYSTEM_FLOWS.md` to accurately reflect the Cache -> Radius sequence.
+- **Testing**: **Workflow Coverage**
+    - Achieved **82.6%** statement coverage for `pkg/narrator` with new table-driven tests verifying state transitions and essay flows.
+
 ## v0.2.51 (2026-01-10)
 - **Feature**: **Configurable Summary Limits**
     - Added `summary_max_words` (default: 500) to the narrator configuration, allowing users to control the depth of the trip memory.

@@ -213,9 +213,25 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 		s.inflightMu.Unlock()
 	}()
 
-	// 2. Construct Query
 	centerLat, centerLon := s.gridCenter(c.Tile)
 
+	// 2. Cache Check (Optimization)
+	cachedBody, _, ok := s.store.GetGeodataCache(ctx, key)
+	if ok && len(cachedBody) > 0 {
+		s.logger.Debug("Cache Hit (Optimized)", "key", key)
+		processed, rescued, err := s.ProcessTileData(ctx, cachedBody, centerLat, centerLon, false)
+		if err == nil {
+			s.logger.Debug("Processed cached tile",
+				"key", key,
+				"saved", len(processed),
+				"rescued", rescued)
+		} else {
+			s.logger.Warn("Failed to process cached tile", "key", key, "error", err)
+		}
+		return
+	}
+
+	// 3. Construct Query (Network Path)
 	// Calculate precise radius in meters for this specific tile geometry
 	// Round up to the next 10m (User Request), remove fixed 50m buffer
 	rawRadius := s.scheduler.grid.TileRadius(c.Tile) * 1000
@@ -231,7 +247,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 
 	query := buildCheapQuery(centerLat, centerLon, radiusStr)
 
-	// 2. Execute (Caching now handled internally by QuerySPARQL via PostWithGeodataCache)
+	// 4. Execute
 	articles, rawJSON, err := s.client.QuerySPARQL(ctx, query, c.Tile.Key(), radiusMeters)
 	if err != nil {
 		s.logger.Error("SPARQL Failed", "error", err)
@@ -239,7 +255,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 	}
 	_ = rawJSON // rawJSON no longer needed here; caching is internal
 
-	// 4. Process, Enrich, and Save
+	// 5. Process, Enrich, and Save
 	processed, rescued, err := s.ProcessTileData(ctx, []byte(rawJSON), centerLat, centerLon, false)
 	if err == nil {
 		s.logger.Debug("Fetched and Saved new tile",

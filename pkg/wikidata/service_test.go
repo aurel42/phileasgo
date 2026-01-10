@@ -11,11 +11,16 @@ import (
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/poi"
+	"phileasgo/pkg/request"
+	"phileasgo/pkg/sim"
 	"phileasgo/pkg/tracker"
 )
 
+// Add GeodataCacheMap to mockStore to support caching tests
 type mockStore struct {
-	pois map[string]*model.POI
+	pois          map[string]*model.POI
+	geodataCache  map[string][]byte // New
+	geodataCacheR map[string]int    // New
 }
 
 func (m *mockStore) GetPOI(ctx context.Context, id string) (*model.POI, error) {
@@ -41,10 +46,21 @@ func (m *mockStore) SetCache(ctx context.Context, key string, val []byte) error 
 func (m *mockStore) ListCacheKeys(ctx context.Context, prefix string) ([]string, error) {
 	return nil, nil
 }
+
+// Updated GetGeodataCache implementation
 func (m *mockStore) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
+	if val, ok := m.geodataCache[key]; ok {
+		return val, m.geodataCacheR[key], true
+	}
 	return nil, 0, false
 }
 func (m *mockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error {
+	if m.geodataCache == nil {
+		m.geodataCache = make(map[string][]byte)
+		m.geodataCacheR = make(map[string]int)
+	}
+	m.geodataCache[key] = val
+	m.geodataCacheR[key] = radius
 	return nil
 }
 func (m *mockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error) {
@@ -183,6 +199,70 @@ func (m *MockWikipediaProvider) GetArticleContent(ctx context.Context, title, la
 		return m.GetArticleContentFunc(ctx, title, lang)
 	}
 	return "", nil
+}
+
+// Minimal stub for sim
+type mockSim struct{}
+
+func (m *mockSim) GetTelemetry(ctx context.Context) (sim.Telemetry, error) {
+	return sim.Telemetry{}, nil
+}
+func (m *mockSim) GetState() sim.State { return sim.StateActive } // Important for service.Start/Tick
+
+func TestFetchTile_CacheOptimization(t *testing.T) {
+	// Setup Store with Cached Data
+	cachedJSON := `{"results":{"bindings":[
+		{"item":{"value":"http://wd.org/Q_CACHED"}, "lat":{"value":"52.0"}, "lon":{"value":"13.0"}, "sitelinks":{"value":"100"}}
+	]}}`
+	st := &mockStore{
+		pois:          make(map[string]*model.POI),
+		geodataCache:  map[string][]byte{"wd_h3_891f1a48c6bffff": []byte(cachedJSON)},
+		geodataCacheR: map[string]int{"wd_h3_891f1a48c6bffff": 5000},
+	}
+
+	// Mock Client - Should fail if called!
+	mockClient := &MockWikidataClient{
+		QuerySPARQLFunc: func(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error) {
+			t.Fatal("QuerySPARQL should NOT be called when cache is present")
+			return nil, "", nil
+		},
+		GetEntitiesBatchFunc: func(ctx context.Context, ids []string) (map[string]EntityMetadata, error) {
+			return make(map[string]EntityMetadata), nil
+		},
+		FetchFallbackDataFunc: func(ctx context.Context, ids []string) (map[string]FallbackData, error) {
+			// Provide fallback data logic here if ProcessTileData needs it for Q_CACHED
+			// We can return simple data so processing succeeds
+			return map[string]FallbackData{
+				"Q_CACHED": {Labels: map[string]string{"en": "Cached POI"}},
+			}, nil
+		},
+	}
+
+	svc := NewService(st, &mockSim{}, tracker.New(), &MockClassifier{}, request.New(st, tracker.New(), request.ClientConfig{}), &geo.Service{}, poi.NewManager(&config.Config{}, st, nil), config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}, "en")
+	svc.client = mockClient
+	svc.classifier = &MockClassifier{
+		ClassifyBatchFunc: func(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult {
+			return map[string]*model.ClassificationResult{"Q_CACHED": {Category: "City"}}
+		},
+	}
+	// We need to inject the mock wiki client explicitly since NewService creates a real one
+	svc.wiki = &MockWikipediaProvider{}
+
+	// Create Candidate that matches the cache key (index 891f1a48c6bffff)
+	// We need a valid HexTile.
+	// Since NewService initializes scheduler/grid internally, we can use the scheduler to help or just construct manually.
+	// But `fetchTile` is private. We can't call it directly from this test package unless we export it or put test in same package.
+	// We are in `package wikidata`, so we can call private methods!
+
+	candidate := Candidate{
+		Tile: HexTile{Index: "891f1a48c6bffff"},
+		Dist: 5.0,
+	}
+
+	// Execute FetchTile (Private Method)
+	svc.fetchTile(context.Background(), candidate)
+
+	// Since we didn't crash and didn't call QuerySPARQL (fatal mock), test passes.
 }
 
 func TestProcessTileData(t *testing.T) {

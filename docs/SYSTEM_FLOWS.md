@@ -16,8 +16,8 @@ Converts flight telemetry into Points of Interest.
 2. **Grid Resolution**: `Scheduler` queries `Grid (H3)` to get the center cell and all neighboring cells within the Field of View (FOV).
 3. **Tile Selection**: `Scheduler` returns a list of candidate H3 Tile Indexes to the `Service`.
 4. **Tile Processing Loop** (for each Tile):
-   - **Radius Check**: `Service` calculates the tile radius (center to vertex).
    - **Cache Lookup**: `Service` checks the `SQLite Cache` for the TileID.
+   - **Radius Check**: `Service` calculates the tile radius (center to vertex).
    - **Network Fallback**: If a cache miss occurs, `Service` sends a POST SPARQL query to the `Wikidata API`, receives JSON data, and saves it to the cache.
    - **ProcessTileData**:
      - Filter out POIs that already exist or have been "Seen".
@@ -165,27 +165,26 @@ Every **30 minutes** or **50nm** of travel, the system triggers a background tas
 ---
 
 ## 8. POI Narration Workflow (The AI Path)
-Step-by-step trace from selection to TTS output.
+Technical orchestration from discovery to playback.
 
 ### The Entry Points
-1. **Manual Selection**: `NarratorHandler.HandlePlay` -> `AIService.PlayPOI(manual=true)`.
-2. **Automated Selection**: `NarrationJob.Run` -> `AIService.PlayPOI(manual=false)`.
+1. **Manual Selection**:
+   - **Step 1**: User clicks a POI marker on the Map or a POI in the Sidebar list. This opens the `POIInfoPanel` and displays metadata/thumbnails.
+   - **Step 2**: User clicks the **Play (▶)** button in the `POIInfoPanel`. This sends a `POST /api/narrator/play` request to `NarratorHandler.HandlePlay`, which triggers `AIService.PlayPOI(manual=true)`.
+2. **Automated Selection**: The `NarrationJob` background loop periodically identifies high-scoring visible candidates and triggers `AIService.PlayPOI(manual=false)`.
 
 ### Orchestration Flow (`AIService.narratePOI`)
-*Triggered in a dedicated goroutine to avoid blocking the scheduler tick.*
+*This workflow executes in a dedicated goroutine to ensure the main simulation and telemetry loops remain responsive.*
 
-1. **Selection**: `Scheduler` or `API` calls `PlayPOI(poiID)`.
-2. **State Locking**: `AIService` immediately sets `Active=true` and `Generating=true`.
-3. **Parallel Preparation**:
-   - **Visuals**: `BeaconService` spawns a marker balloon at the POI coordinates immediately.
-   - **Context**: `AIService` assembles `PromptData` (Telemetry, POI Metadata, Category).
-4. **Script Generation**: `LLM Provider` generates the narration script (Text or SSML) from the prompt.
-5. **Latency Feedback**: `AIService` measures the time taken and updates the rolling average to adjust future prediction windows.
-6. **Audio Synthesis**: `TTS Provider` converts the script to audio.
-   - **Fallback**: If a fatal error occurs (e.g., Azure 429), the system activates the session-level fallback to `Edge-TTS` and retries synthesis.
-7. **Synthesis Completion**: `AIService` sets `Generating=false`.
-8. **Audio Playback**: `Audio Service` begins playing the file and maintains the `Active` lock.
-9. **Finalization**: When playback completes, `AIService` resets `Active=false` and clears the current POI.
+1. **Concurrency & State Control**: `AIService` immediately acquires a mutex lock (`s.mu`) and sets `active=true` and `generating=true`. This "state lock" is critical; it prevents overlapping narrations if multiple selection triggers (e.g., manual and auto) occur simultaneously.
+2. **Immediate Tactical Feedback**: Before entering the "slow" AI generation phase, the `BeaconService` spawns a marker balloon at the POI ground coordinates. This provides the user with an instant visual confirmation of the selection.
+3. **Environmental Context Gathering**: The service assembles `NarrationPromptData`, which acts as the "world-view" for the LLM. It includes current and predicted telemetry, POI metadata (name, category, distance), and relevant Wikipedia extracts from the local cache.
+4. **Script Generation**: The `LLM Provider` (Gemini) generates the narrative script using the `narrator/script.tmpl` template. This prompt governs the persona's tone, language, and measurement units.
+5. **Session Memory Integration**: As soon as the script is generated, it is passed to the `tripSummary` update process. This asynchronously merges the new story into the rolling "Short-Term Memory," ensuring that subsequent narrations have a cohesive sense of the journey's history.
+6. **Audio Synthesis**: The script is sent to the active `TTS Provider`. The synthesis process (e.g., Azure or Edge-TTS) produces an MP3/WAV file. In the case of a "Fatal" error (like an API rate limit), the system handles the fallback retries here.
+7. **Latency Calibration**: The system measures the total time from Selection start to Synthesis completion. This **observed latency** is crucial; it is used to update the `sim.SetPredictionWindow`, ensuring that the spatial cues (like "at your 10 o'clock") generated in the next script will be accurate for when the pilot actually hears the audio.
+8. **Audio Playback**: The `AudioService` begins playing the synthesized file. The `generating` flag is released, but the `active` flag remains held to protect the listener's focus.
+9. **Finalization & Release**: A background Ticker polls `Audio.IsBusy()`. Once the audio finishes, the `active` flag is set to `false`, the current POI is cleared from the UI state, and the system becomes available for the next narration loop.
 
 ### Key Mechanisms
 
@@ -288,7 +287,44 @@ Templates are organized in `configs/prompts/` by their functional role:
 
 ---
 
-## 12. Final Verification Checklist
+## 13. Regional Essay Workflow
+Broad narrative tours triggered to provide context when specific POIs are sparse, such as during high-altitude cruise.
+
+### Flow Logic (`AIService.PlayEssay`)
+1. **Intelligent Trigger**: The `NarrationJob` triggers a regional essay only if no high-scoring POIs have Line-of-Sight, or if the aircraft is sustained above 2000ft AGL where wide-area context is more valuable than individual landmarks.
+2. **Topic Selection**: The `EssayHandler` uses a weighted selection algorithm to pick a relevant topic (Geography, Aviation History, or Regional Culture). It checks cooldowns and historical usage to ensure the tour doesn't become repetitive.
+3. **Narrative Orchestration (`narrateEssay`)**:
+   - **Visual Discipline**: Unlike POI flows, essays clear existing beacons. This signals to the user that the narrator is shifting from a "Point-and-Describe" mode to a broader "Historical Lecture" mode.
+   - **Prompt Engineering**: The service renders `narrator/essay.tmpl`, providing the LLM with the broad regional context of the current flight path.
+   - **Dynamic Metadata**: If the generated script includes a `TITLE:` prefix, the `AIService` parses this and updates the UI header in real-time, providing a visual anchor for the essay's theme.
+   - **Continuous Memory**: The essay script is added to the `tripSummary`. This ensures that if the flight later encounters a related POI, the AI can reference the "earlier lecture."
+   - **Finalization**: Similar to the POI flow, the essay maintains an `active` lock until the narration audio is complete.
+
+---
+
+## 14. TTS Fallback & State Persistence
+Mechanisms to ensure that the audio experience remains stable even during network congestion or API failures.
+
+### Failure Recovery (`handleTTSError`)
+1. **Detection**: The system distinguishes between "Soft" errors (temporary glitches) and "Fatal" errors (Rate Limits, Account Exhaustion, or persistent 5xx errors).
+2. **The Pivot**: If a fatal error is detected in the primary provider (e.g., Azure), `AIService.activateFallback()` is called. This switches the session's active provider to `Edge-TTS` (a free, highly reliable local/edge fallback).
+3. **Non-Destructive Release**: When an error occurs, the POI is **released** (the `LastPlayed` timestamp is NOT updated). This allows the narration job to immediately re-try the same POI with the fallback provider, ensuring the user doesn't "lose" a high-quality discovery due to a network error.
+
+### UI Synchronization (State Ticker)
+Because narration generation and playback occur in background goroutines, the service maintains UI consistency through a polling mechanism:
+- A **100ms Ticker** monitors the `Audio.IsBusy()` state. 
+- The `active` flag (which drives the "PLAYING" indicator in the UI) is only released when the audio hardware reports the clip is finished.
+- This ensures the UI accurately reflects the narrator's activity, even during long essays.
+
+### Narrative Replay (`ReplayLast`)
+Allows users to re-hear the previous stop's information without re-triggering the AI generation cost:
+- The `AudioService` maintains the previous MP3 file in a temporary buffer.
+- When `ReplayLast` is called, the service temporarily restores the `currentPOI` or `currentEssayTitle` to the UI.
+- This creates a seamless "Instant Replay" experience where the visuals and metrics re-synchronize with the playback audio.
+
+---
+
+## 15. Final Verification Checklist
 Files to audit against this document:
 - [ ] **H3 Resolution**: `pkg/wikidata/grid.go` (`h3Resolution`).
 - [ ] **Classification Path**: `pkg/classifier/classifier.go` (`Classify`).
@@ -297,7 +333,8 @@ Files to audit against this document:
 - [ ] **Article Winner**: `pkg/wikidata/service_enrich.go` (`determineBestArticle`).
 - [ ] **LanguageMapper Persistence**: Document the storage and refresh mechanism for country-to-language mappings.
 - [ ] **Selection Loop**: `pkg/core/scheduler.go` (`getVisibleCandidate`).
-- [x] **Narration Workflow**: `pkg/narrator/service_ai_workflow.go` (`narratePOI`).
+- [x] **Narration Workflow**: `pkg/narrator/service_ai_poi.go` (`narratePOI`).
+- [x] **Essay Workflow**: `pkg/narrator/service_ai_essay.go` (`narrateEssay`).
 - [x] **Beacon Logic**: `pkg/beacon/service.go` (`updateStep`).
 - [x] **Prompt Logic**: `pkg/narrator/service_ai_data.go` (`buildPromptData`).
 - [x] **Prompt Templates**: `configs/prompts/` (logic and macro consistency).
