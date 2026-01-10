@@ -121,6 +121,7 @@ type NarratorConfig struct {
 	Units              string      `yaml:"units"`
 	NarrationLengthMin int         `yaml:"narration_length_min"` // Random range min (default 400)
 	NarrationLengthMax int         `yaml:"narration_length_max"` // Random range max (default 600)
+	SummaryMaxWords    int         `yaml:"summary_max_words"`    // Max words for the trip summary (default 500)
 	TemperatureBase    float32     `yaml:"temperature_base"`     // Base temperature (default 1.0)
 	TemperatureJitter  float32     `yaml:"temperature_jitter"`   // Jitter range (bell curve distribution)
 	Essay              EssayConfig `yaml:"essay"`
@@ -274,6 +275,7 @@ func DefaultConfig() *Config {
 			Units:              "hybrid",
 			NarrationLengthMin: 150,
 			NarrationLengthMax: 400,
+			SummaryMaxWords:    500,
 			TemperatureBase:    1.0,
 			TemperatureJitter:  0.3,
 			Essay: EssayConfig{

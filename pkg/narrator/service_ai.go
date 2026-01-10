@@ -287,10 +287,12 @@ func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript
 		CurrentSummary string
 		LastTitle      string
 		LastScript     string
+		MaxWords       int
 	}{
 		CurrentSummary: currentSummary,
 		LastTitle:      lastTitle,
 		LastScript:     lastScript,
+		MaxWords:       s.cfg.Narrator.SummaryMaxWords,
 	}
 
 	prompt, err := s.prompts.Render("narrator/summary_update.tmpl", data)

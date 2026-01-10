@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.51 (2026-01-10)
+- **Feature**: **Configurable Summary Limits**
+    - Added `summary_max_words` (default: 500) to the narrator configuration, allowing users to control the depth of the trip memory.
+    - Updated the summary update prompt to dynamically respect the configured limit.
+
 ## v0.2.50 (2026-01-10)
 - **Feature**: **Rolling Trip Summaries (Phase 2)**
     - Replaced individual script history with a single, evolving Trip Summary. After each narration, the system consolidates the session memory in the background, maintaining a chronological account of everything discussed.
