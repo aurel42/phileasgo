@@ -126,15 +126,39 @@ The component responsible for resolving geographic coordinates to human language
 The automated loop that triggers narration.
 
 ### Logic: `NarrationJob` (`scheduler.go`)
-1. **Cooldown**: A randomized timer (`CooldownMin` to `CooldownMax`). Starts counting only **after** the previous narration has finished playing.
-2. **Candidate Selection**: Hits `poiMgr.GetCandidates()` to get all active POIs (sorted by score).
-3. **Line-of-Sight (LOS)**:
+1. **Sim State Check**: If `sim.GetState() != Active` (e.g., paused, in menus), narration is blocked.
+2. **Ground Logic**: If `IsOnGround == true`, narration only fires if the best POI is within **5km** (e.g., the local airport).
+3. **Cooldown**: A randomized timer (`CooldownMin` to `CooldownMax`). Starts counting only **after** the previous narration has finished playing.
+4. **Candidate Selection**: Hits `poiMgr.GetCandidates()` to get all active POIs (sorted by score).
+5. **Line-of-Sight (LOS)**:
     - If `Terrain.LineOfSight` is enabled, the job iterates through candidates starting from the highest score.
     - It performs a 3D ray-check between aircraft and POI using **ETOPO1** elevation data.
     - **Tolerance**: 50m vertical offset (grazing-ray buffer).
     - **Selection**: The first POI with valid LOS and `Score > MinScoreThreshold` (0.01) is selected.
-4. **Essay Fallback**:
+6. **Essay Fallback**:
     - If no POIs have LOS, or the aircraft is above 2000ft AGL, the system may trigger a "Regional Essay" on a general topic (Geography, Aviation, History).
+
+---
+
+## 6.5 Session Reset (Teleport Detection)
+How the system handles large position jumps caused by teleport, map changes, or flight loading.
+
+### Detection: `Scheduler.tick()`
+1. **Position Tracking**: The `Scheduler` tracks `lastTickPos` (the aircraft position from the previous tick).
+2. **Distance Check**: On each tick, if the distance between `lastTickPos` and the current position exceeds `cfg.Sim.TeleportThreshold` (default: 80km), a teleport is detected.
+3. **State Protection**: Detection only occurs when `sim.GetState() == Active` to avoid false positives during loading screens.
+
+### Reset Protocol
+When a teleport is detected, the `Scheduler` iterates through all registered `SessionResettable` components and calls `ResetSession(ctx)`:
+
+| Component | Reset Behavior |
+|-----------|----------------|
+| `narrator.AIService` | Clears `tripSummary`, `narratedCount`, and replay state. The "Short-Term Memory" is wiped for a fresh narrative start. |
+| `poi.Manager` | Clears the `trackedPOIs` in-memory cache and resets `lastScoredLat/Lon`. The `seen` filter (DB-backed `LastPlayed`) is **NOT** cleared. |
+| `DynamicConfigJob` | Resets `lastMajorPos`, `lastRunTime`, and `firstRun`. This forces a fresh AI context poll for the new region. |
+
+### Registration
+Components are registered in `main.go` via `scheduler.AddResettable(component)` during initialization.
 
 ---
 
@@ -235,7 +259,7 @@ The system used to visually highlight POIs in the 3D world.
 
 ### 3D Safety Logic (The "Altitude Floor")
 - **Eye-Level Sync**: Beacons dynamically match the aircraft's **MSL Altitude** while in flight to ensure they remain at the pilot's eye level.
-- **The Floor**: When the aircraft descends below the `AltitudeFloorFt` threshold (e.g., 2000ft AGL), the beacons **lock their altitude**.
+- **The Floor**: When the aircraft descends below the `AltitudeFloor` threshold (default: 2000ft, configurable as any distance unit), the beacons **lock their altitude**.
 - **Impact Prevention**: This "Lock" prevents the balloons from following the plane all the way to the ground, maintaining a realistic "aerial marker" appearance and preventing clipping into terrain or buildings.
 
 ---

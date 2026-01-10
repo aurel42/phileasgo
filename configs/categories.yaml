@@ -48,7 +48,7 @@ categories:
       "Q515": "city"
     weight: 0.8
     icon: "city"
-    sitelinks_min: 5
+    sitelinks_min: 3
     size: "XL"
   Dam:
     qids:
@@ -176,7 +176,7 @@ categories:
       "Q3957": "town"
     weight: 0.4
     icon: "town"
-    sitelinks_min: 5
+    sitelinks_min: 3
     size: "L"
   Village:
     qids:

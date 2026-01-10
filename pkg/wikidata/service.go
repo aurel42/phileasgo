@@ -86,14 +86,15 @@ func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Cl
 		normalizedLang = strings.Split(userLang, "-")[0]
 	}
 
+	client := NewClient(rc, slog.With("component", "wikidata_client"))
 	return &Service{
 		store:         st,
 		sim:           sim,
-		client:        NewClient(rc, slog.With("component", "wikidata_client")),
+		client:        client,
 		wiki:          wikipedia.NewClient(rc),
 		geo:           geoSvc,
 		poi:           poiMgr,
-		scheduler:     NewScheduler(cfg.Area.MaxDist),
+		scheduler:     NewScheduler(float64(cfg.Area.MaxDist) / 1000.0), // Config is meters, Scheduler wants KM
 		tracker:       tr,
 		classifier:    cl,
 		cfg:           cfg,

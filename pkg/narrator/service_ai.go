@@ -325,3 +325,23 @@ func (s *AIService) addScriptToHistory(qid, title, script string) {
 	// the summary update which is the new focus.
 	go s.updateTripSummary(context.Background(), title, script)
 }
+
+// ResetSession clears the session history (trip summary, counters, replay memory).
+// This is called when the aircraft teleports or starts a new flight.
+func (s *AIService) ResetSession(ctx context.Context) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.tripSummary = ""
+	s.narratedCount = 0
+	s.currentPOI = nil
+	s.currentTopic = nil
+	s.currentEssayTitle = ""
+	s.lastPOI = nil
+	s.lastEssayTopic = nil
+	s.lastEssayTitle = ""
+	// Clear fallback state if needed, or keep it per app run?
+	// User request implied trip summary and counts. Fallback TTS might be transient error related, so keeping it is safer.
+
+	slog.Info("Narrator: Session reset (teleport/new flight detected)")
+}

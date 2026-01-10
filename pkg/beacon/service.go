@@ -125,18 +125,19 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64) error {
 	title := titlesToTry[0] // TODO: Try loop if fails? (Spawn blocks now so we could)
 
 	// 3. Spawning Logic based on AGL
-	// If below MinSpawnAltitudeFt AGL (Config):
-	// - Spawn target at MSL + MinSpawnAltitudeFt
+	// If below MinSpawnAltitude AGL (Config):
+	// - Spawn target at MSL + MinSpawnAltitude
 	// - Do NOT spawn formation
-	// If above MinSpawnAltitudeFt AGL:
+	// If above MinSpawnAltitude AGL:
 	// - Spawn target at MSL
 	// - Spawn formation (if enabled)
 
 	var spawnFormation bool
 	s.isHoldingAlt = false // Reset holding state
 
-	if tel.AltitudeAGL < s.config.MinSpawnAltitudeFt {
-		s.targetAlt = tel.AltitudeMSL + s.config.MinSpawnAltitudeFt
+	minSpawnAltFt := float64(s.config.MinSpawnAltitude) * 3.28084
+	if tel.AltitudeAGL < minSpawnAltFt {
+		s.targetAlt = tel.AltitudeMSL + minSpawnAltFt
 		spawnFormation = false
 		s.isHoldingAlt = true // Lock immediately if spawned low
 		s.logger.Info("Low AGL, spawning target", "agl", tel.AltitudeAGL, "target_alt", s.targetAlt, "formation", false)
@@ -158,7 +159,7 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64) error {
 		latRad := tel.Latitude * (math.Pi / 180.0)
 
 		// Calc initial formation pos
-		formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, hdgRad, latRad, s.config.FormationDistanceKm)
+		formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, hdgRad, latRad, float64(s.config.FormationDistance)/1000.0)
 
 		offsets := computeFormationOffsets(s.config.FormationCount)
 		// We need unique Request IDs for each balloon.
@@ -376,7 +377,8 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 
 	// 2. Check Trigger Distance (User logic: If < Trigger -> Despawn formation)
 	// We derive trigger distance as 1.5x formation distance to provide a buffer
-	triggerDistKm := s.config.FormationDistanceKm * 1.5
+	// FormationDistance is meters, triggerDistKm expects km
+	triggerDistKm := (float64(s.config.FormationDistance) / 1000.0) * 1.5
 
 	if s.formationActive && distKm < triggerDistKm {
 		s.logger.Info("Target Distance < Trigger Distance. Despawning formation.", "dist_km", distKm, "trigger_km", triggerDistKm)
@@ -400,7 +402,8 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 	// - If AGL < AltitudeFloorFt: Balloons lock at last good MSL (targetAlt = held value)
 
 	// Note: We use s.targetAlt as the "Base MSL" for the formation
-	if tel.AltitudeAGL >= s.config.AltitudeFloorFt {
+	altFloorFt := float64(s.config.AltitudeFloor) * 3.28084
+	if tel.AltitudeAGL >= altFloorFt {
 		s.targetAlt = tel.AltitudeMSL
 		s.isHoldingAlt = false
 	} else if !s.isHoldingAlt {
@@ -414,7 +417,7 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 	// targetAlt remains unchanged in the else case (whether we just locked or were already locked)
 
 	// Calculate Formation Target Pos
-	formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, s.config.FormationDistanceKm)
+	formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, float64(s.config.FormationDistance)/1000.0)
 
 	for _, b := range s.spawnedBeacons {
 		// Calculate final absolute altitude for this specific beacon

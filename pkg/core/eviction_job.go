@@ -70,12 +70,12 @@ func (j *EvictionJob) Run(ctx context.Context, t *sim.Telemetry) {
 
 	// 1. Calculate Threshold
 	// "more than max_dist_km + 10km behind us"
-	// Current config default is 80.0, so valid threshold is 90.0
+	// Current config default is 80.0km (80000m), so valid threshold is 90.0km
 	maxDist := j.appCfg.Wikidata.Area.MaxDist
 	if maxDist <= 0 {
-		maxDist = 80.0
+		maxDist = 80000.0 // 80km in meters
 	}
-	thresholdKm := maxDist + 10.0
+	thresholdKm := (float64(maxDist) / 1000.0) + 10.0
 
 	// 2. Evict from POI Manager (Limit Memory)
 	// Only evict if BEHIND us to allow pre-fetching ahead.
@@ -89,7 +89,10 @@ func (j *EvictionJob) Run(ctx context.Context, t *sim.Telemetry) {
 	// If the tile is in `recentTiles` (memory), the Scheduler sees it but the Service skips it.
 	// So we MUST remove it from `recentTiles` when it is far away.
 	// Doing it at the same threshold (90km) is safe because the fetch radius is usually smaller.
-	evictedTiles := j.wikiSvc.EvictFarTiles(t.Latitude, t.Longitude, thresholdKm)
+	var evictedTiles int
+	if count := j.wikiSvc.EvictFarTiles(t.Latitude, t.Longitude, float64(thresholdKm)+10.0); count > 0 {
+		evictedTiles = count
+	}
 
 	if evictedPOIs > 0 || evictedTiles > 0 {
 		slog.Debug("Eviction Job Completed",

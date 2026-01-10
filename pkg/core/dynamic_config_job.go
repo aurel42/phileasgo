@@ -201,3 +201,26 @@ func (j *DynamicConfigJob) isKnownQID(qid string) bool {
 	}
 	return false
 }
+
+// ResetSession resets the job state for a new flight/teleport.
+func (j *DynamicConfigJob) ResetSession(ctx context.Context) {
+	// We need to lock because these fields are used in ShouldFire
+	if !j.TryLock() {
+		// If locked, we can't reset safely right now.
+		// However, since this is called on Teleport detection (sync tick),
+		// we might force it? Or just wait?
+		// For simplicity, just reset. This job runs infrequently.
+		// Actually, if it's running, we should let it finish or force reset.
+		// Given BaseJob logic, we can't force lock easily.
+		// But simple assignment is atomic enough for bool/struct copy? No.
+		// Let's just log warning if locked.
+		slog.Warn("DynamicConfigJob: Could not lock for session reset (job running)")
+		return
+	}
+	defer j.Unlock()
+
+	j.lastMajorPos = geo.Point{}
+	j.lastRunTime = time.Time{}
+	j.firstRun = true
+	slog.Info("DynamicConfigJob: Session reset")
+}

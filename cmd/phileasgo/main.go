@@ -321,18 +321,26 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, ns
 	sched.AddJob(core.NewDistanceJob("DistanceSync", 5000, func(c context.Context, t sim.Telemetry) {
 		_ = st.MarkEntitiesSeen(c, map[string][]string{})
 	}))
+
+	// Register Resettables for Teleport Detection
+	sched.AddResettable(ns)
+	sched.AddResettable(svcs.PoiMgr)
+
 	// REMOVED: NarrationJob from Scheduler (too frequent polling)
 	// sched.AddJob(core.NewNarrationJob(cfg, ns, ns.POIManager(), los))
 
 	// Hook NarrationJob into POI Manager's scoring loop (every 5s)
-	narrationJob := core.NewNarrationJob(cfg, ns, ns.POIManager(), los)
+	narrationJob := core.NewNarrationJob(cfg, ns, ns.POIManager(), simClient, los)
 	svcs.PoiMgr.SetScoringCallback(func(c context.Context, t *sim.Telemetry) {
 		if narrationJob.ShouldFire(t) {
 			go narrationJob.Run(c, t)
 		}
 	})
 
-	sched.AddJob(core.NewDynamicConfigJob(cfg, ns.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc))
+	dynamicJob := core.NewDynamicConfigJob(cfg, ns.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc)
+	sched.AddJob(dynamicJob)
+	sched.AddResettable(dynamicJob)
+
 	sched.AddJob(core.NewEvictionJob(cfg, svcs.PoiMgr, svcs.WikiSvc))
 	return sched
 }

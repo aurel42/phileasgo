@@ -72,16 +72,16 @@ func (m *MockClient) SetObjectPosition(objectID uint32, lat, lon, alt, pitch, ba
 func TestSetTarget_SpawnsBeacons(t *testing.T) {
 	mock := &MockClient{
 		Tel: sim.Telemetry{
-			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 1000, AltitudeAGL: 1000, Heading: 90,
+			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 3000, AltitudeAGL: 3000, Heading: 90,
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:             true,
-		FormationEnabled:    true,
-		FormationDistanceKm: 2.0,
-		FormationCount:      3,
-		MinSpawnAltitudeFt:  1000.0,
-		AltitudeFloorFt:     2000.0,
+		Enabled:           true,
+		FormationEnabled:  true,
+		FormationDistance: config.Distance(2000),
+		FormationCount:    3,
+		MinSpawnAltitude:  config.Distance(304.8),
+		AltitudeFloor:     config.Distance(609.6),
 	}
 
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
@@ -117,16 +117,16 @@ func TestSetTarget_SpawnsBeacons(t *testing.T) {
 func TestUpdateLoop_FormationLogic(t *testing.T) {
 	mock := &MockClient{
 		Tel: sim.Telemetry{
-			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 1000, AltitudeAGL: 1000, Heading: 90,
+			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 3000, AltitudeAGL: 3000, Heading: 90,
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:             true,
-		FormationEnabled:    true,
-		FormationDistanceKm: 2.0,
-		FormationCount:      3,
-		MinSpawnAltitudeFt:  1000.0,
-		AltitudeFloorFt:     2000.0,
+		Enabled:           true,
+		FormationEnabled:  true,
+		FormationDistance: config.Distance(2000),
+		FormationCount:    3,
+		MinSpawnAltitude:  config.Distance(304.8),
+		AltitudeFloor:     config.Distance(609.6),
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
@@ -176,12 +176,12 @@ func TestSetTarget_LowAGL(t *testing.T) {
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:             true,
-		FormationEnabled:    true,
-		FormationDistanceKm: 2.0,
-		FormationCount:      3,
-		MinSpawnAltitudeFt:  1000.0,
-		AltitudeFloorFt:     2000.0,
+		Enabled:           true,
+		FormationEnabled:  true,
+		FormationDistance: config.Distance(2000),
+		FormationCount:    3,
+		MinSpawnAltitude:  config.Distance(304.8),
+		AltitudeFloor:     config.Distance(609.6),
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
@@ -197,26 +197,28 @@ func TestSetTarget_LowAGL(t *testing.T) {
 	}
 
 	// Validate Target Altitude
-	// MSL=1000, AGL=500 (<MinSpawnAltitudeFt=1000) -> Target should be MSL+1000 = 2000
+	// MSL=1000, AGL=500 (<MinSpawnAltitude=304.8m ~1000ft) -> Target should be MSL+~1000 = ~2000
+	// Use tolerance for float comparison
 	target := mock.Spawns[0]
-	if target.Alt != 2000.0 {
-		t.Errorf("Expected target at 2000.0 (MSL+1000), got %.1f", target.Alt)
+	expectedAlt := 1000.0 + (304.8 * 3.28084) // MSL + minSpawnAlt in feet
+	if target.Alt < expectedAlt-1.0 || target.Alt > expectedAlt+1.0 {
+		t.Errorf("Expected target at ~%.1f (MSL+minSpawn), got %.1f", expectedAlt, target.Alt)
 	}
 }
 
 func TestSetTarget_HighAGL(t *testing.T) {
 	mock := &MockClient{
 		Tel: sim.Telemetry{
-			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 5000, AltitudeAGL: 2000, Heading: 90,
+			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 5000, AltitudeAGL: 3000, Heading: 90,
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:             true,
-		FormationEnabled:    true,
-		FormationDistanceKm: 2.0,
-		FormationCount:      3,
-		MinSpawnAltitudeFt:  1000.0,
-		AltitudeFloorFt:     2000.0,
+		Enabled:           true,
+		FormationEnabled:  true,
+		FormationDistance: config.Distance(2000),
+		FormationCount:    3,
+		MinSpawnAltitude:  config.Distance(304.8),
+		AltitudeFloor:     config.Distance(609.6),
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
@@ -249,12 +251,12 @@ func TestUpdateLoop_AltitudeLock(t *testing.T) {
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:             true,
-		FormationEnabled:    true,
-		FormationDistanceKm: 2.0,
-		FormationCount:      3,
-		MinSpawnAltitudeFt:  1000.0,
-		AltitudeFloorFt:     2000.0,
+		Enabled:           true,
+		FormationEnabled:  true,
+		FormationDistance: config.Distance(2000),
+		FormationCount:    3,
+		MinSpawnAltitude:  config.Distance(304.8),
+		AltitudeFloor:     config.Distance(609.6),
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 

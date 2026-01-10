@@ -429,6 +429,29 @@ func (m *Manager) ResetLastPlayed(ctx context.Context, lat, lon, radius float64)
 	return m.store.ResetLastPlayed(ctx, lat, lon, radius)
 }
 
+// ResetSession clears the in-memory cache of tracked POIs.
+// This is called on teleportation to remove POIs from the previous location.
+// It does NOT clear the database history (preserved for "seen" filtering).
+func (m *Manager) ResetSession(ctx context.Context) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Clear all tracked POIs
+	// Go optimized map clearing:
+	for k := range m.trackedPOIs {
+		delete(m.trackedPOIs, k)
+	}
+	// Or simply reallocate: m.trackedPOIs = make(map[string]*model.POI)
+	// Reallocation is safer to avoid GC overhead of large maps if map size varies wildly.
+	m.trackedPOIs = make(map[string]*model.POI)
+
+	// Reset consistency state
+	m.lastScoredLat = 0
+	m.lastScoredLon = 0
+
+	m.logger.Info("POIManager: Session reset (cache cleared)")
+}
+
 // LastScoredPosition returns the location used for the most recent scoring pass.
 // Returns 0,0 if no scoring has occurred yet.
 func (m *Manager) LastScoredPosition() (lat, lon float64) {

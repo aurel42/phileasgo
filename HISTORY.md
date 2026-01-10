@@ -1,5 +1,17 @@
 ﻿# Release History
 
+## v0.2.55 (2026-01-10)
+- **Feature**: **Teleport Detection & Session Reset**
+    - `Scheduler` now detects large position jumps (> `sim.teleport_distance`, default 80km) between ticks.
+    - On teleport, registered `SessionResettable` components are reset: `Narrator` (clears trip summary), `POIManager` (clears candidates cache), `DynamicConfigJob` (resets regional context).
+- **Feature**: **Ground/Inactive Narration Logic**
+    - `NarrationJob` now checks `sim.GetState()` to block narration during menus/pause.
+    - When on ground, narration is only allowed if the best POI is within 5km (e.g., departure airport on large airfields).
+- **Refactor**: **Unified Distance Configuration**
+    - Added `ft` (feet) unit support to `config.Distance` parser.
+    - Renamed `MinSpawnAltitudeFt` → `MinSpawnAltitude` and `AltitudeFloorFt` → `AltitudeFloor` in `BeaconConfig` (now `Distance` type accepting any unit).
+- **Testing**: Added `TestScheduler_TeleportDetection` and enhanced `TestNarrationJob_GroundSuppression` with distance-based checks.
+
 ## v0.2.54 (2026-01-10)
 - **Feature**: **Strict Essay Triggering**
     - Implemented a rigorous "Gap Filler" logic for Regional Essays in `pkg/core/scheduler.go`.

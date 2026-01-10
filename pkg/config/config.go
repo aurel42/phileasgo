@@ -43,8 +43,9 @@ type BackoffConfig struct {
 
 // SimConfig holds settings for the simulation connection.
 type SimConfig struct {
-	Provider string        `yaml:"provider"` // "simconnect", "mock"
-	Mock     MockSimConfig `yaml:"mock"`
+	Provider          string        `yaml:"provider"` // "simconnect", "mock"
+	TeleportThreshold Distance      `yaml:"teleport_distance"`
+	Mock              MockSimConfig `yaml:"mock"`
 }
 
 // MockSimConfig holds settings for the mock simulation.
@@ -60,12 +61,12 @@ type MockSimConfig struct {
 
 // BeaconConfig holds settings for the beacon guidance system.
 type BeaconConfig struct {
-	Enabled             bool    `yaml:"enabled"`
-	FormationEnabled    bool    `yaml:"formation_enabled"`
-	FormationDistanceKm float64 `yaml:"formation_distance_km"`
-	FormationCount      int     `yaml:"formation_count"`
-	MinSpawnAltitudeFt  float64 `yaml:"min_spawn_altitude_ft"`
-	AltitudeFloorFt     float64 `yaml:"altitude_floor_ft"`
+	Enabled           bool     `yaml:"enabled"`
+	FormationEnabled  bool     `yaml:"formation_enabled"`
+	FormationDistance Distance `yaml:"formation_distance"`
+	FormationCount    int      `yaml:"formation_count"`
+	MinSpawnAltitude  Distance `yaml:"min_spawn_altitude"`
+	AltitudeFloor     Distance `yaml:"altitude_floor"`
 }
 
 // LLMConfig holds settings for the Large Language Model provider.
@@ -169,8 +170,8 @@ type TerrainConfig struct {
 
 // AreaConfig holds settings for area-based Wikidata queries.
 type AreaConfig struct {
-	MaxArticles int     `yaml:"max_articles"`
-	MaxDist     float64 `yaml:"max_dist_km"`
+	MaxArticles int      `yaml:"max_articles"`
+	MaxDist     Distance `yaml:"max_dist"`
 }
 
 // ScorerConfig holds settings for the POI scorer.
@@ -243,7 +244,7 @@ func DefaultConfig() *Config {
 		Wikidata: WikidataConfig{
 			Area: AreaConfig{
 				MaxArticles: 500,
-				MaxDist:     80.0,
+				MaxDist:     Distance(80000), // 80km
 			},
 		},
 		Terrain: TerrainConfig{
@@ -285,7 +286,8 @@ func DefaultConfig() *Config {
 			},
 		},
 		Sim: SimConfig{
-			Provider: "simconnect",
+			Provider:          "simconnect",
+			TeleportThreshold: Distance(80000), // 80km
 			Mock: MockSimConfig{
 				StartLat:       51.6845,
 				StartLon:       14.4234,
@@ -297,12 +299,12 @@ func DefaultConfig() *Config {
 			},
 		},
 		Beacon: BeaconConfig{
-			Enabled:             true,
-			FormationEnabled:    true,
-			FormationDistanceKm: 2.0,
-			FormationCount:      3,
-			MinSpawnAltitudeFt:  1000.0,
-			AltitudeFloorFt:     2000.0,
+			Enabled:           true,
+			FormationEnabled:  true,
+			FormationDistance: Distance(2000), // 2km
+			FormationCount:    3,
+			MinSpawnAltitude:  Distance(304.8), // 1000ft
+			AltitudeFloor:     Distance(609.6), // 2000ft
 		},
 	}
 }

@@ -57,6 +57,22 @@ func (m *mockPOIManager) GetCandidates(limit int) []*model.POI {
 	return []*model.POI{m.best}
 }
 
+type mockJobSimClient struct {
+	state sim.State
+}
+
+func (m *mockJobSimClient) GetState() sim.State {
+	if m.state == "" {
+		return sim.StateActive
+	}
+	return m.state
+}
+func (m *mockJobSimClient) GetTelemetry(ctx context.Context) (sim.Telemetry, error) {
+	return sim.Telemetry{}, nil
+}
+func (m *mockJobSimClient) SetPredictionWindow(d time.Duration) {}
+func (m *mockJobSimClient) Close() error                        { return nil }
+
 func TestNarrationJob_GroundSuppression(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.AutoNarrate = true
@@ -67,6 +83,7 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 		isPaused         bool
 		altitudeAGL      float64
 		bestPOI          *model.POI
+		poiLat, poiLon   float64 // Optional override (default 48.0, -123.0)
 		expectShouldFire bool
 		expectEssay      bool
 	}{
@@ -85,7 +102,7 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 		{
 			name:             "Ground: High Score POI -> Narrate",
 			altitudeAGL:      0,
-			bestPOI:          &model.POI{Score: 15.0},
+			bestPOI:          &model.POI{Score: 15.0, Lat: 48.0, Lon: -123.0}, // Explicit location match
 			expectShouldFire: true,
 		},
 		{
@@ -115,14 +132,31 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 			isPaused:         true,
 			expectShouldFire: false,
 		},
+		{
+			name:             "Ground: High Score POI but Far (>5km) -> No Narration",
+			altitudeAGL:      0,
+			bestPOI:          &model.POI{Score: 15.0},
+			poiLat:           48.05, // ~5.5km away
+			poiLon:           -123.0,
+			expectShouldFire: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockN := &mockNarratorService{isPaused: tt.isPaused}
 			// Initialize with valid "last scored" position to pass consistency check
-			pm := &mockPOIManager{best: tt.bestPOI, lat: 48.0, lon: -123.0}
-			job := NewNarrationJob(cfg, mockN, pm, nil)
+			lat := 48.0
+			lon := -123.0
+			if tt.poiLat != 0 {
+				lat = tt.poiLat
+			}
+			if tt.poiLon != 0 {
+				lon = tt.poiLon
+			}
+			pm := &mockPOIManager{best: tt.bestPOI, lat: lat, lon: lon}
+			simC := &mockJobSimClient{state: sim.StateActive}
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: tt.altitudeAGL,
@@ -159,7 +193,8 @@ func TestNarrationJob_EssayCooldownMultiplier(t *testing.T) {
 
 	mockN := &mockNarratorService{}
 	pm := &mockPOIManager{best: nil} // Force essay
-	job := NewNarrationJob(cfg, mockN, pm, nil)
+	simC := &mockJobSimClient{state: sim.StateActive}
+	job := NewNarrationJob(cfg, mockN, pm, simC, nil)
 
 	tel := &sim.Telemetry{AltitudeAGL: 3000}
 	job.Run(context.Background(), tel)
@@ -245,7 +280,8 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockN := &mockNarratorService{}
 			pm := &mockPOIManager{best: tt.bestPOI, lat: 48.0, lon: -123.0}
-			job := NewNarrationJob(cfg, mockN, pm, nil)
+			simC := &mockJobSimClient{state: sim.StateActive}
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil)
 
 			// Set State
 			job.lastTime = time.Now().Add(-tt.lastNarrationAgo)

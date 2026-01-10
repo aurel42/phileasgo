@@ -167,6 +167,9 @@ func ParseDistance(s string) (float64, error) {
 	case strings.HasSuffix(s, "m"):
 		mult = 1
 		numStr = strings.TrimSuffix(s, "m")
+	case strings.HasSuffix(s, "ft"):
+		mult = 0.3048
+		numStr = strings.TrimSuffix(s, "ft")
 	default:
 		// No unit? assume meters? or error?
 		// "we need to accept values in m, km, nm" -> implies unit requirement or default.

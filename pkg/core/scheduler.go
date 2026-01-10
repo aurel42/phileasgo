@@ -28,6 +28,7 @@ type NarrationJob struct {
 	cfg              *config.Config
 	narrator         narrator.Service
 	poiMgr           POIProvider
+	sim              sim.Client
 	losChecker       *terrain.LOSChecker
 	lastTime         time.Time
 	nextFireDuration time.Duration
@@ -36,12 +37,13 @@ type NarrationJob struct {
 	lastCheckedCount int
 }
 
-func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, los *terrain.LOSChecker) *NarrationJob {
+func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, los *terrain.LOSChecker) *NarrationJob {
 	j := &NarrationJob{
 		BaseJob:    NewBaseJob("Narration"),
 		cfg:        cfg,
 		narrator:   n,
 		poiMgr:     pm,
+		sim:        simC,
 		losChecker: los,
 		lastTime:   time.Now(),
 	}
@@ -64,6 +66,34 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	if !j.isLocationConsistent(t) {
 		slog.Debug("NarrationJob: Location inconsistent")
 		return false
+	}
+
+	// 0.6 Sim State Check (Ground/Inactive)
+	if j.sim.GetState() != sim.StateActive {
+		// Even if we are technically "Active" in SimConnect, if the camera state implies inactive (Menu), we skip.
+		// However, GetState() already handles this logic via UpdateState().
+		return false
+	}
+
+	// 0.7 Ground Logic
+	// If on ground, only narrate if very close (e.g. 2km) - likely the airport itself.
+	if t.IsOnGround {
+		// We can't check distance to "best" yet because we haven't selected it.
+		// But we can defer this check to after selection?
+		// Or we check it here: If we are on ground, we ENFORCE that any candidate must be < 2km.
+		// Let's allow ShouldFire to proceed, and filter in Selection?
+		// Or easier: ShouldFire returns true, but we filter candidates in Run/getVisibleCandidate.
+		// Actuality: ShouldFire is a gate. If we return true here, we commit to TRYING to narrate.
+		// If we are on ground, we should peeking at the candidate to see if it's eligible.
+		best := j.poiMgr.GetBestCandidate()
+		if best == nil {
+			return false
+		}
+		dist := geo.Distance(geo.Point{Lat: t.Latitude, Lon: t.Longitude}, geo.Point{Lat: best.Lat, Lon: best.Lon})
+		if dist > 5000.0 { // 5km
+			// too far for ground narration
+			return false
+		}
 	}
 
 	// 1. Narrator Activity Check (Playback Aware)
@@ -319,20 +349,28 @@ type TelemetrySink interface {
 
 // Scheduler manages the central heartbeat and scheduled jobs.
 type Scheduler struct {
-	cfg  *config.Config
-	sim  sim.Client
-	sink TelemetrySink
-	jobs []Job
+	cfg         *config.Config
+	sim         sim.Client
+	sink        TelemetrySink
+	jobs        []Job
+	resettables []SessionResettable
+	lastTickPos geo.Point
 }
 
 // NewScheduler creates a new Scheduler.
 func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink) *Scheduler {
 	return &Scheduler{
-		cfg:  cfg,
-		sim:  simClient,
-		sink: sink,
-		jobs: []Job{},
+		cfg:         cfg,
+		sim:         simClient,
+		sink:        sink,
+		jobs:        []Job{},
+		resettables: []SessionResettable{},
 	}
+}
+
+// AddResettable registers a component to be reset on session change (teleport).
+func (s *Scheduler) AddResettable(r SessionResettable) {
+	s.resettables = append(s.resettables, r)
 }
 
 // AddJob registers a job.
@@ -386,6 +424,26 @@ func (s *Scheduler) tick(ctx context.Context) {
 	if s.sink != nil {
 		s.sink.Update(&tel)
 	}
+
+	// 2.5 Teleport Detection
+	// Check if we moved exceptionally far in a single tick (teleport/map change)
+	currPos := geo.Point{Lat: tel.Latitude, Lon: tel.Longitude}
+	if s.lastTickPos != (geo.Point{}) {
+		distM := geo.Distance(s.lastTickPos, currPos)
+		thresholdM := float64(s.cfg.Sim.TeleportThreshold)
+		if thresholdM <= 0 {
+			thresholdM = 80000.0 // Default 80km
+		}
+
+		if distM > thresholdM {
+			slog.Info("Scheduler: Teleport detected", "dist_m", distM, "threshold_m", thresholdM)
+			// Trigger Reset
+			for _, r := range s.resettables {
+				r.ResetSession(ctx)
+			}
+		}
+	}
+	s.lastTickPos = currPos
 
 	// 3. Evaluate Jobs
 	for _, job := range s.jobs {
