@@ -376,3 +376,63 @@ func TestAIService_BeaconCleanup(t *testing.T) {
 		t.Error("Expected Beacon to be cleared after LLM failure, but it was not")
 	}
 }
+func TestAIService_UpdateTripSummary(t *testing.T) {
+	tempDir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "summary_update.tmpl"), []byte("Summary: {{.CurrentSummary}} New: {{.LastScript}} Limit: {{.MaxWords}}"), 0o644)
+	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
+
+	pm, _ := prompts.NewManager(tempDir)
+
+	tests := []struct {
+		name           string
+		currentSummary string
+		lastTitle      string
+		lastScript     string
+		maxWords       int
+		llmResponse    string
+		expectSummary  string
+	}{
+		{
+			name:           "First Summary",
+			currentSummary: "",
+			lastTitle:      "Initial Stop",
+			lastScript:     "Hello world",
+			maxWords:       100,
+			llmResponse:    "New Summary",
+			expectSummary:  "New Summary",
+		},
+		{
+			name:           "Summary Update",
+			currentSummary: "Old info",
+			lastTitle:      "Second Stop",
+			lastScript:     "More info",
+			maxWords:       200,
+			llmResponse:    "Consolidated info",
+			expectSummary:  "Consolidated info",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Narrator: config.NarratorConfig{
+					SummaryMaxWords: tt.maxWords,
+				},
+			}
+			mockLLM := &MockLLM{Response: tt.llmResponse}
+			svc := &AIService{
+				cfg:         cfg,
+				llm:         mockLLM,
+				prompts:     pm,
+				tripSummary: tt.currentSummary,
+			}
+
+			svc.updateTripSummary(context.Background(), tt.lastTitle, tt.lastScript)
+
+			if svc.getTripSummary() != tt.expectSummary {
+				t.Errorf("Expected summary '%s', got '%s'", tt.expectSummary, svc.getTripSummary())
+			}
+		})
+	}
+}

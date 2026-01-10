@@ -113,7 +113,6 @@ func NewAIService(
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)
-	// s.scriptHistory = make([]ScriptEntry, 0, cfg.Narrator.ContextHistorySize) // Removed scriptHistory initialization
 	return s
 }
 

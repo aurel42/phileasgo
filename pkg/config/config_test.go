@@ -40,7 +40,7 @@ func TestLoad(t *testing.T) {
 			name: "ExistingFile_Override",
 			setup: func() {
 				// Pre-create file with custom value
-				err := os.WriteFile(configPath, []byte("tts:\n  engine: google\n"), 0o644)
+				err := os.WriteFile(configPath, []byte("tts:\n  engine: google\nnarrator:\n  summary_max_words: 300\n"), 0o644)
 				if err != nil {
 					t.Fatalf("failed to setup test file: %v", err)
 				}
@@ -48,6 +48,9 @@ func TestLoad(t *testing.T) {
 			validate: func(t *testing.T, cfg *Config) {
 				if cfg.TTS.Engine != "google" {
 					t.Errorf("expected TTS engine 'google', got '%s'", cfg.TTS.Engine)
+				}
+				if cfg.Narrator.SummaryMaxWords != 300 {
+					t.Errorf("expected SummaryMaxWords 300, got %d", cfg.Narrator.SummaryMaxWords)
 				}
 			},
 			checkFile: func(t *testing.T) {
@@ -57,6 +60,32 @@ func TestLoad(t *testing.T) {
 				}
 				if !strings.Contains(string(content), "engine: google") {
 					t.Error("config file should persist custom value")
+				}
+				if !strings.Contains(string(content), "summary_max_words: 300") {
+					t.Error("config file missing summary_max_words")
+				}
+			},
+		},
+		{
+			name: "NewField_Persistence",
+			setup: func() {
+				err := os.WriteFile(configPath, []byte("narrator:\n  summary_max_words: 750\n"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup test file: %v", err)
+				}
+			},
+			validate: func(t *testing.T, cfg *Config) {
+				if cfg.Narrator.SummaryMaxWords != 750 {
+					t.Errorf("expected SummaryMaxWords 750, got %d", cfg.Narrator.SummaryMaxWords)
+				}
+			},
+			checkFile: func(t *testing.T) {
+				content, err := os.ReadFile(configPath)
+				if err != nil {
+					t.Fatalf("failed to read config file: %v", err)
+				}
+				if !strings.Contains(string(content), "summary_max_words: 750") {
+					t.Error("config file should persist summary_max_words")
 				}
 			},
 		},
