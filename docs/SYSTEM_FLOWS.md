@@ -122,21 +122,88 @@ The component responsible for resolving geographic coordinates to human language
 
 ---
 
-## 6. Narration Selection & LOS
-The automated loop that triggers narration.
+## 6. Scheduler Architecture & Narration Selection
+The central heartbeat that drives all periodic tasks and triggers narration.
 
-### Logic: `NarrationJob` (`scheduler.go`)
-1. **Sim State Check**: If `sim.GetState() != Active` (e.g., paused, in menus), narration is blocked.
-2. **Ground Logic**: If `IsOnGround == true`, narration only fires if the best POI is within **5km** (e.g., the local airport).
-3. **Cooldown**: A randomized timer (`CooldownMin` to `CooldownMax`). Starts counting only **after** the previous narration has finished playing.
-4. **Candidate Selection**: Hits `poiMgr.GetCandidates()` to get all active POIs (sorted by score).
-5. **Line-of-Sight (LOS)**:
-    - If `Terrain.LineOfSight` is enabled, the job iterates through candidates starting from the highest score.
-    - It performs a 3D ray-check between aircraft and POI using **ETOPO1** elevation data.
-    - **Tolerance**: 50m vertical offset (grazing-ray buffer).
-    - **Selection**: The first POI with valid LOS and `Score > MinScoreThreshold` (0.01) is selected.
-6. **Essay Fallback**:
-    - If no POIs have LOS, or the aircraft is above 2000ft AGL, the system may trigger a "Regional Essay" on a general topic (Geography, Aviation, History).
+### The Tick Loop (`pkg/core/scheduler.go`)
+The `Scheduler` runs a **100ms ticker** (configurable via `ticker.telemetry_loop`) that:
+1. Broadcasts sim state to the API (UI updates)
+2. Fetches telemetry from SimConnect
+3. Broadcasts telemetry to the `TelemetrySink` (API)
+4. Checks for teleport (see Section 6.5)
+5. Evaluates all registered `Job` instances
+
+### Job Types
+
+| Job Type | Trigger | Example Usage |
+|----------|---------|---------------|
+| `NarrationJob` | Complex logic (see below) | Auto-narration of POIs |
+| `DistanceJob` | Distance traveled > threshold | Wikidata tile fetching (5km) |
+| `TimeJob` | Time elapsed > threshold | POI eviction check (5min) |
+
+All jobs implement the `Job` interface:
+```go
+type Job interface {
+    Name() string
+    ShouldFire(t *sim.Telemetry) bool
+    Run(ctx context.Context, t *sim.Telemetry)
+}
+```
+
+### NarrationJob Logic (`narration_job.go`)
+The `NarrationJob` is the most complex job, with multiple pre-conditions:
+
+#### 1. Pre-Conditions (`checkPreConditions`)
+- **AutoNarrate**: Must be enabled in config
+- **Location Consistency**: Scorer's last position must be within 10km of current position (prevents stale scores after teleport)
+- **Sim State**: Must be `StateActive` (not paused, in menus, or loading)
+- **Ground Proximity**: If on ground, best POI must be within **5km**
+
+#### 2. Narrator Activity (`checkNarratorReady`)
+The narrator has three activity states:
+
+| State | Meaning | ShouldFire? |
+|-------|---------|-------------|
+| `IsPlaying()` | Audio is playing | ❌ Block, set `wasBusy=true` |
+| `IsPaused()` | User paused playback | ❌ Block |
+| `IsActive()` | Generating script/TTS | ❌ Block |
+| None | Idle | ✅ Proceed |
+
+When `wasBusy` transitions from true→false (playback finished), the cooldown timer **resets to now**.
+
+#### 3. Cooldown (`checkCooldown`)
+- **Formula**: Random value between `CooldownMin` and `CooldownMax` (config)
+- **Clock Start**: Timer starts when **playback finishes**, not when generation starts
+- **Skip**: User can bypass via `narrator.ShouldSkipCooldown()`
+
+#### 4. POI Selection (`hasViablePOI`)
+Returns true if `GetBestCandidate().Score >= MinScoreThreshold` (default: 0.5)
+
+#### 5. Essay Eligibility (`checkEssayEligible`)
+If no viable POI, essays are considered with these rules:
+
+| Rule | Condition |
+|------|-----------|
+| **Enabled** | `narrator.essay.enabled = true` |
+| **Essay Cooldown** | `time.Since(lastEssayTime) >= essay.cooldown` (default: 10min) |
+| **Silence Rule** | `time.Since(lastNarration) >= 2 × CooldownMax` |
+| **Altitude** | `AltitudeAGL >= 2000ft` |
+
+#### 6. Line-of-Sight (LOS) Selection
+- **Enabled via**: `terrain.line_of_sight: true`
+- **Data**: ETOPO1 elevation grid (1 arc-minute resolution)
+- **Tolerance**: 50m vertical buffer (grazing-ray forgiveness)
+- **Iteration**: Candidates checked in score order; first with LOS wins
+
+### Lone Wolf Detection (`pkg/narrator/skew.go`)
+Determines narration length based on POI competition:
+
+**Threshold**: `math.Max(heroScore * 0.2, 0.5)`
+
+| Rivals Found | Strategy | Effect |
+|--------------|----------|--------|
+| > 1 | `min_skew` | Short narration (pick smallest of 3 random lengths) |
+| ≤ 1 | `max_skew` | Long narration (pick largest of 3 random lengths) |
 
 ---
 
@@ -227,21 +294,41 @@ Discourages repetitive category selection:
 - **Group Penalty**: Additional penalty if category belongs to same group (e.g., "Settlements") as the last narration.
 
 ### Bearing Multipliers (Airborne Only)
-POIs in the pilot's field of view receive scoring bonuses:
+POIs in the pilot's field of view receive scoring bonuses. Relative bearing is normalized to [-180°, 180°] then converted to [0°, 360°] for sector lookup:
 
-| Sector | Multiplier | Notes |
-|--------|------------|-------|
-| Left Front (300°-330°) | x2.0 | Best visibility from cockpit |
-| Left Side (270°-300°) | x1.5 | Good side window view |
-| Forward Left (330°-360°) | x1.5 | Forward visibility |
-| Right Front (0°-90°) | x1.0 | Baseline |
-| Rear (90°-225°) | x0.0 | Invisible behind aircraft |
-| Left Rear (225°-270°) | x0.5 | Limited visibility |
+| Sector (rb360) | Multiplier | Notes |
+|----------------|------------|-------|
+| 0° - 90° (Right Front) | x1.0 | Baseline |
+| 90° - 225° (Rear) | x0.0 | Invisible behind aircraft |
+| 225° - 270° (Left Rear) | x0.5 | Limited visibility |
+| 270° - 300° (Left Side) | x1.5 | Good side window view |
+| 300° - 330° (Left Front) | x2.0 | Best visibility from cockpit |
+| 330° - 360° (Forward Left) | x1.5 | Forward visibility |
+
+> [!NOTE]
+> Sector boundaries use `<` operator (exclusive upper bound). For example, exactly 270° falls into the Left Side sector, not Left Rear.
 
 ### Blind Spot Detection
 POIs directly beneath the aircraft (under the nose) are penalized:
-- **Blind Radius**: Scales with altitude (0.1nm at low altitude, up to 1.0nm at 5000ft+).
-- **Penalty**: `x0.1` if within blind radius and within ±90° of heading.
+
+**Algorithm** (`pkg/visibility/calculator.go`):
+```go
+blindRadius := 1.0 * math.Min((altAGL - 50.0) / 4950.0, 1.0)
+if altAGL < 500 {
+    blindRadius = 0.1
+}
+// Blind spot if: distNM < blindRadius AND abs(relBearing) < 90°
+```
+
+| Altitude (AGL) | Blind Radius (nm) |
+|----------------|-------------------|
+| < 500ft | 0.1 |
+| 500ft | 0.09 |
+| 2500ft | 0.49 |
+| 5000ft | 1.0 (max) |
+| 10000ft+ | 1.0 (capped) |
+
+**Penalty**: `x0.1` if POI is within blind radius and within ±90° of heading.
 
 ### Example Score Calculation
 *Castle (M, weight=1.2) at 2nm, aircraft at 3500ft, heading 090°, POI bearing 300° (left front)*

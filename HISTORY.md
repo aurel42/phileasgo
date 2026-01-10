@@ -1,5 +1,19 @@
 ﻿# Release History
 
+## v0.2.57 (2026-01-10)
+- **Refactor**: **Scheduler Split** (`pkg/core`)
+    - Split `scheduler.go` (580 lines) into 3 focused files: `scheduler.go` (120), `jobs.go` (123), `narration_job.go` (341).
+    - Cleaner imports, better testability, idiomatic Go file sizes.
+- **Fix**: **Lone Wolf Detection Tightening**
+    - Changed threshold from `score * 0.5` to `max(score * 0.2, 0.5)` in `pkg/narrator/skew.go`.
+    - Makes it harder to be "lone hero" → more short narrations to cover POIs faster.
+- **Tests**: **Coverage Improvements**
+    - Added `jobs_test.go` with table-driven tests (~95% for jobs.go).
+    - Added `eviction_job_test.go` for eviction logic (ShouldFire at 100%).
+    - Added `version_test.go` with backend/frontend version sync check.
+    - Improved `pkg/visibility` coverage: 63% → 91%.
+- **Documentation**: Expanded Section 6 in `SYSTEM_FLOWS.md` with full scheduler architecture.
+
 ## v0.2.56 (2026-01-10)
 - **Fix**: **POI Size Bias Tuning**
     - Added **Size Penalty** in `pkg/scorer/scorer.go`: L POIs now receive a 0.85x multiplier, XL POIs receive 0.70x.

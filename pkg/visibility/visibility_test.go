@@ -1,6 +1,7 @@
 package visibility
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -131,5 +132,175 @@ visibility:
 	dist := m.GetMaxVisibleDist(500, SizeM)
 	if dist < 2.0 || dist > 3.0 {
 		t.Errorf("Interpolation 500ft failed. Expected 2.5, got %f", dist)
+	}
+}
+
+// TestCalculateVisibility tests the map overlay visibility function
+func TestCalculateVisibility(t *testing.T) {
+	manager := NewManagerForTest([]AltitudeRow{
+		{AltAGL: 0, Distances: map[SizeType]float64{SizeS: 0, SizeM: 0, SizeL: 0}},
+		{AltAGL: 1000, Distances: map[SizeType]float64{SizeS: 1.0, SizeM: 5.0, SizeL: 10.0}},
+	})
+	calculator := NewCalculator(manager)
+
+	tests := []struct {
+		name       string
+		heading    float64
+		alt        float64
+		bearing    float64
+		dist       float64
+		isOnGround bool
+		wantScore  float64
+	}{
+		// Ground - always uses M size, applies distance decay
+		{"Ground visible", 0, 0, 0, 0.1, true, 0.0},
+		// Airborne visible
+		{"Airborne close", 0, 1000, 315, 1.0, false, 1.0}, // Left front 2.0x capped to 1.0
+		{"Airborne far", 0, 1000, 315, 4.0, false, 0.4},   // 1-4/5=0.2, x2.0=0.4
+		// Invisible
+		{"Too far", 0, 1000, 0, 10.0, false, 0.0},
+		// Blind spot returns 0
+		{"Blind spot", 0, 1000, 0, 0.1, false, 0.0},
+		// Rear returns 0 (bearing multiplier)
+		{"Rear", 0, 1000, 180, 2.0, false, 0.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			score := calculator.CalculateVisibility(tt.heading, tt.alt, tt.bearing, tt.dist, tt.isOnGround)
+			diff := math.Abs(score - tt.wantScore)
+			if diff > 0.1 {
+				t.Errorf("got %.3f, want %.3f", score, tt.wantScore)
+			}
+		})
+	}
+}
+
+// TestCalculateVisibilityForSize tests size-specific visibility
+func TestCalculateVisibilityForSize(t *testing.T) {
+	manager := NewManagerForTest([]AltitudeRow{
+		{AltAGL: 0, Distances: map[SizeType]float64{SizeS: 0, SizeM: 0, SizeL: 0, SizeXL: 0}},
+		{AltAGL: 1000, Distances: map[SizeType]float64{SizeS: 1.0, SizeM: 5.0, SizeL: 10.0, SizeXL: 20.0}},
+	})
+	calculator := NewCalculator(manager)
+
+	tests := []struct {
+		name      string
+		dist      float64
+		size      SizeType
+		wantScore float64
+	}{
+		{"S close", 0.5, SizeS, 0.5},
+		{"S too far", 2.0, SizeS, 0.0},
+		{"M close", 2.5, SizeM, 0.5},
+		{"L close", 5.0, SizeL, 0.5},
+		{"XL close", 10.0, SizeXL, 0.5},
+		{"XL at max", 20.0, SizeXL, 0.0}, // Exactly at max = invisible
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			score := calculator.CalculateVisibilityForSize(0, 1000, 45, tt.dist, tt.size, false)
+			diff := math.Abs(score - tt.wantScore)
+			if diff > 0.1 {
+				t.Errorf("got %.3f, want %.3f", score, tt.wantScore)
+			}
+		})
+	}
+}
+
+// TestGetMaxVisibleDist tests interpolation edge cases
+func TestGetMaxVisibleDist(t *testing.T) {
+	manager := NewManagerForTest([]AltitudeRow{
+		{AltAGL: 1000, Distances: map[SizeType]float64{SizeS: 1.0, SizeM: 5.0, SizeL: 10.0}},
+		{AltAGL: 5000, Distances: map[SizeType]float64{SizeS: 5.0, SizeM: 25.0, SizeL: 50.0}},
+	})
+
+	tests := []struct {
+		name string
+		alt  float64
+		size SizeType
+		want float64
+	}{
+		{"Below table floor", 0, SizeM, 5.0},            // Returns first row
+		{"At first row", 1000, SizeM, 5.0},              // Exact match
+		{"At last row", 5000, SizeM, 25.0},              // Exact match
+		{"Above table ceiling", 10000, SizeM, 25.0},     // Returns last row
+		{"Mid interpolation", 3000, SizeM, 15.0},        // 5+(25-5)*0.5=15
+		{"Missing size fallback", 1000, "INVALID", 5.0}, // Falls back to M
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dist := manager.GetMaxVisibleDist(tt.alt, tt.size)
+			diff := math.Abs(dist - tt.want)
+			if diff > 0.1 {
+				t.Errorf("got %.2f, want %.2f", dist, tt.want)
+			}
+		})
+	}
+}
+
+// TestNormalizeBearing tests bearing normalization
+func TestNormalizeBearing(t *testing.T) {
+	tests := []struct {
+		input float64
+		want  float64
+	}{
+		{0, 0},
+		{90, 90},
+		{180, 180},
+		{181, -179},
+		{270, -90},
+		{360, 0},
+		{-90, -90},
+		{-181, 179},
+		{540, 180},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%.0f", tt.input), func(t *testing.T) {
+			got := normalizeBearing(tt.input)
+			if math.Abs(got-tt.want) > 0.01 {
+				t.Errorf("normalizeBearing(%.0f) = %.1f, want %.1f", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestGetBearingMultiplier tests all bearing sectors
+func TestGetBearingMultiplier(t *testing.T) {
+	tests := []struct {
+		relBearing float64
+		want       float64
+		desc       string
+	}{
+		{45, 1.0, "Right Front"},
+		{0, 1.0, "Right Front (straight ahead)"},
+		{135, 0.0, "Rear"},
+		{180, 0.0, "Rear"},
+		{-135, 0.5, "Left Rear"},   // 225 (225-270 range)
+		{-100, 0.5, "Left Rear"},   // 260 (225-270 range)
+		{-80, 1.5, "Left Side"},    // 280 (270-300 range)
+		{-45, 2.0, "Left Front"},   // 315 (300-330 range)
+		{-15, 1.5, "Forward Left"}, // 345 (330+ range)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			got := getBearingMultiplier(tt.relBearing)
+			if got != tt.want {
+				t.Errorf("getBearingMultiplier(%.0f) = %.1f, want %.1f", tt.relBearing, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestEmptyTable tests behavior with empty visibility table
+func TestEmptyTable(t *testing.T) {
+	manager := NewManagerForTest([]AltitudeRow{})
+	dist := manager.GetMaxVisibleDist(1000, SizeM)
+	if dist != 0 {
+		t.Errorf("Expected 0 for empty table, got %f", dist)
 	}
 }

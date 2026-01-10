@@ -1,6 +1,7 @@
 package narrator
 
 import (
+	"math"
 	"math/rand"
 	"phileasgo/pkg/model"
 )
@@ -25,9 +26,10 @@ func DetermineSkewStrategy(p *model.POI, analyzer POIAnalyzer) string {
 	}
 
 	// Dynamic Length Logic: Relative Dominance
-	// "Rivals" are other POIs with > 50% of the winner's score.
+	// "Rivals" are POIs above a threshold: max(20% of winner's score, 0.5 absolute).
+	// The 0.5 floor ensures low-scoring areas still have meaningful competition.
 	// Note: CountScoredAbove includes the winner itself if score > 0.
-	threshold := p.Score * 0.5
+	threshold := math.Max(p.Score*0.2, 0.5)
 
 	// We only need to know if there are > 1 rivals (so limit=2 is sufficient to know if count >= 2)
 	rivals := analyzer.CountScoredAbove(threshold, 2)
