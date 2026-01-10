@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.52 (2026-01-10)
+- **Place-Centric Rolling Summaries**: Refined summary prompt to eliminate directional cues and formulaic lists, focusing on narrative continuity.
+- **Improved Summary Evolution**: Implemented logic to prune regional "filler" facts (like distance to national capitals) to prioritize unique session history.
+- **Narrative Bridge Logic**: Instructed LLM to weave stories naturally (e.g., "Continuing along the coast...") instead of using repetitive introductory phrases.
+- **Enhanced Test Coverage**: Increased statement coverage for `pkg/narrator` to 80.4% with new table-driven tests for mission memory consolidation.
+- **Verification Experiment**: Created a dedicated experiment script to validate summary quality against historical flight logs.
+- **Bug Fixes**: Restored missing `essay` profile in `phileas.yaml` and resolved linting issues in `service_ai.go`.
+
+
 ## v0.2.51 (2026-01-10)
 - **Feature**: **Configurable Summary Limits**
     - Added `summary_max_words` (default: 500) to the narrator configuration, allowing users to control the depth of the trip memory.
