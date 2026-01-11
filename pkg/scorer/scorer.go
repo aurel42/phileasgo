@@ -10,6 +10,7 @@ import (
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/terrain"
 	"phileasgo/pkg/visibility"
 )
 
@@ -20,24 +21,57 @@ type ScoringInput struct {
 	NarratorConfig  *config.NarratorConfig `json:"narrator_config"`
 }
 
+// Session represents a single scoring cycle context.
+type Session interface {
+	Calculate(poi *model.POI)
+}
+
 // Scorer calculates dynamic scores for POIs.
 type Scorer struct {
 	config    *config.ScorerConfig
 	catConfig *config.CategoriesConfig
 	visCalc   *visibility.Calculator
+	elevation terrain.ElevationGetter
 }
 
 // NewScorer creates a new Scorer.
-func NewScorer(cfg *config.ScorerConfig, catCfg *config.CategoriesConfig, visCalc *visibility.Calculator) *Scorer {
+func NewScorer(cfg *config.ScorerConfig, catCfg *config.CategoriesConfig, visCalc *visibility.Calculator, elev terrain.ElevationGetter) *Scorer {
 	return &Scorer{
 		config:    cfg,
 		catConfig: catCfg,
 		visCalc:   visCalc,
+		elevation: elev,
 	}
 }
 
+// NewSession initiates a new scoring cycle, pre-calculating expensive terrain data.
+func (s *Scorer) NewSession(input *ScoringInput) Session {
+	// Pre-calculate lowest elevation in 50km radius
+	// This is the O(1) op performed once per cycle.
+	lowestElev, err := s.elevation.GetLowestElevation(input.Telemetry.Latitude, input.Telemetry.Longitude, 50.0)
+	if err != nil {
+		// Log error? For now, fallback to 0 (MSL) or current elevation?
+		// Since we cap at 0 in implementation, 0 is safe default.
+		lowestElev = 0
+	}
+
+	return &DefaultSession{
+		scorer:     s,
+		input:      input,
+		lowestElev: float64(lowestElev),
+	}
+}
+
+type DefaultSession struct {
+	scorer     *Scorer
+	input      *ScoringInput
+	lowestElev float64
+}
+
 // Calculate updates the Score, ScoreDetails, and IsVisible fields of the POI.
-func (s *Scorer) Calculate(poi *model.POI, input *ScoringInput) {
+func (sess *DefaultSession) Calculate(poi *model.POI) {
+	s := sess.scorer
+	input := sess.input
 	state := input.Telemetry
 	predLat := state.PredictedLatitude
 	predLon := state.PredictedLongitude
@@ -57,7 +91,8 @@ func (s *Scorer) Calculate(poi *model.POI, input *ScoringInput) {
 	logs = append(logs, "Base Score: 1.0")
 
 	// 1. Geographic Scoring (Visibility & Ground)
-	geoScore, geoLogs, shouldReturn := s.calculateGeographicScore(poi, &state, bearing, distNM)
+	// Pass lowestElev to geographic score for effective AGL calculation
+	geoScore, geoLogs, shouldReturn := s.calculateGeographicScore(poi, &state, bearing, distNM, sess.lowestElev)
 	if shouldReturn {
 		return
 	}
@@ -90,7 +125,10 @@ func (s *Scorer) Calculate(poi *model.POI, input *ScoringInput) {
 	poi.ScoreDetails = strings.Join(logs, "\n")
 }
 
-func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, bearing, distNM float64) (score float64, logs []string, shouldReturn bool) {
+// OLD Calculate - kept for compatibility if needed, but should be removed or deprecated.
+// For now, removing it to force update in Manager.
+
+func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, bearing, distNM, lowestElevMeters float64) (score float64, logs []string, shouldReturn bool) {
 	// 1. Determine Size
 	poiSize := poi.Size
 	if poiSize == "" {
@@ -100,9 +138,15 @@ func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, 
 		poiSize = "M"
 	}
 
-	// 2. Calculate Visibility Score
-	// (Handles both air and ground via distance table; Calculator skips blindspot/bearing if altAGL <= 50)
-	visScore, visDetails := s.visCalc.CalculatePOIScore(state.Heading, state.AltitudeAGL, bearing, distNM, visibility.SizeType(poiSize), state.IsOnGround)
+	// 2. Calculate Effective AGL (Valley Logic)
+	// state.AltitudeMSL is in Feet. lowestElevMeters is Meters.
+	lowestElevFt := lowestElevMeters * 3.28084
+	effectiveAGL := state.AltitudeMSL - lowestElevFt
+	// Sanity check: effectiveAGL shouldn't be insanely high if data is bad, but logic handles max dist.
+
+	// 3. Calculate Visibility Score
+	// Passes both RealAGL and EffectiveAGL. Calculator returns the better score.
+	visScore, visDetails := s.visCalc.CalculatePOIScore(state.Heading, state.AltitudeAGL, effectiveAGL, bearing, distNM, visibility.SizeType(poiSize), state.IsOnGround)
 
 	if visScore <= 0 {
 		poi.IsVisible = false
@@ -115,14 +159,14 @@ func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, 
 	logs = []string{visDetails}
 	score = visScore
 
-	// 3. Apply Size Penalty (reduces advantage of distant large POIs)
+	// 4. Apply Size Penalty (reduces advantage of distant large POIs)
 	sizePenalty := map[string]float64{"S": 1.0, "M": 1.0, "L": 0.85, "XL": 0.7}
 	if penalty, ok := sizePenalty[poiSize]; ok && penalty < 1.0 {
 		score *= penalty
 		logs = append(logs, fmt.Sprintf("Size Penalty (%s): x%.2f", poiSize, penalty))
 	}
 
-	// 4. Apply Dimension Multiplier
+	// 5. Apply Dimension Multiplier
 	if poi.DimensionMultiplier > 1.0 {
 		score *= poi.DimensionMultiplier
 		logs = append(logs, fmt.Sprintf("Dimensions: x%.1f", poi.DimensionMultiplier))

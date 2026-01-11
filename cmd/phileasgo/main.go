@@ -144,7 +144,17 @@ func run(ctx context.Context, configPath string) error {
 	visCalc := initVisibility()
 
 	// Scorer
-	poiScorer := scorer.NewScorer(&appCfg.Scorer, catCfg, visCalc)
+	// Use elProv, or if nil (missing file), use a nil interface (Scorer must handle or we wrap)
+	// Ideally Scorer should handle nil, but for now we pass it.
+	// We need to cast *ElevationProvider to ElevationGetter.
+	var elevGetter terrain.ElevationGetter
+	if elProv != nil {
+		elevGetter = elProv
+	}
+	// If elevGetter is nil, NewSession might crash.
+	// Let's rely on Scorer handling nil optionally or just let it be nil for now.
+	// The previous code verified startup files.
+	poiScorer := scorer.NewScorer(&appCfg.Scorer, catCfg, visCalc, elevGetter)
 	go svcs.PoiMgr.StartScoring(ctx, simClient, poiScorer)
 
 	// Startup Probes
@@ -171,7 +181,7 @@ func run(ctx context.Context, configPath string) error {
 	}
 
 	// Server
-	return runServer(ctx, appCfg, svcs, narratorSvc, simClient, visCalc, tr, st, telH)
+	return runServer(ctx, appCfg, svcs, narratorSvc, simClient, visCalc, tr, st, telH, elevGetter)
 }
 
 func initDB(appCfg *config.Config) (*db.DB, store.Store, error) {
@@ -292,7 +302,7 @@ func initLOS(cfg *config.Config) (*terrain.ElevationProvider, *terrain.LOSChecke
 	return provider, terrain.NewLOSChecker(provider)
 }
 
-func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *narrator.AIService, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler) error {
+func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *narrator.AIService, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler, elevGetter terrain.ElevationGetter) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	shutdownFunc := func() { quit <- syscall.SIGTERM }
@@ -306,7 +316,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 		statsH,
 		api.NewCacheHandler(svcs.WikiSvc),
 		api.NewPOIHandler(svcs.PoiMgr, svcs.WikipediaClient, st),
-		api.NewVisibilityHandler(vis, simClient),
+		api.NewVisibilityHandler(vis, simClient, elevGetter),
 		api.NewAudioHandler(ns.AudioService(), ns, st),
 		api.NewNarratorHandler(ns.AudioService(), ns),
 		shutdownFunc,

@@ -24,6 +24,7 @@ func TestCalculator(t *testing.T) {
 		name       string
 		heading    float64
 		alt        float64
+		effAlt     float64 // Optional, defaults to alt
 		bearing    float64
 		dist       float64
 		size       SizeType
@@ -85,11 +86,29 @@ func TestCalculator(t *testing.T) {
 			wantScore: 0.098, // Base ~0.98 * 0.1
 			wantLog:   "Blind Spot",
 		},
+
+		// --- 4. Valley Boost ---
+		{
+			name:    "Valley Boost (Low Real, High Eff)",
+			heading: 0, alt: 100, effAlt: 2000, bearing: 315, dist: 2.0, size: SizeM,
+			// Real: 100ft. Interp 0-1000.  0->0, 1000->5. 100->0.5nm.
+			// Dist 2.0 > 0.5. Invisible real.
+			// Eff: 2000ft. Interp 1000-5000. 1000->5, 5000->25.
+			// 2000 is 1/4 way. 5 + 5 = 10nm.
+			// Max=10nm. Dist=2.0. Ratio=0.2. Base=0.8.
+			// Bearing x2.0. Total 1.6.
+			wantScore: 1.6,
+			wantLog:   "Valley Boost Applied",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score, details := calculator.CalculatePOIScore(tt.heading, tt.alt, tt.bearing, tt.dist, tt.size, tt.isOnGround)
+			eff := tt.effAlt
+			if eff == 0 {
+				eff = tt.alt
+			}
+			score, details := calculator.CalculatePOIScore(tt.heading, tt.alt, eff, tt.bearing, tt.dist, tt.size, tt.isOnGround)
 
 			// Fuzzy match score
 			diff := math.Abs(score - tt.wantScore)
@@ -200,7 +219,7 @@ func TestCalculateVisibilityForSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score := calculator.CalculateVisibilityForSize(0, 1000, 45, tt.dist, tt.size, false)
+			score := calculator.CalculateVisibilityForSize(0, 1000, 1000, 45, tt.dist, tt.size, false)
 			diff := math.Abs(score - tt.wantScore)
 			if diff > 0.1 {
 				t.Errorf("got %.3f, want %.3f", score, tt.wantScore)

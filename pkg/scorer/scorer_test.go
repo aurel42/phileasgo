@@ -10,6 +10,14 @@ import (
 	"phileasgo/pkg/visibility"
 )
 
+// --- Mock Elevation Getter ---
+type mockElevationGetter struct{}
+
+func (m *mockElevationGetter) GetElevation(lat, lon float64) (int16, error) { return 0, nil }
+func (m *mockElevationGetter) GetLowestElevation(lat, lon, radiusKM float64) (int16, error) {
+	return 0, nil
+}
+
 // setupScorer creates a Scorer with a controlled configuration for testing
 func setupScorer() *Scorer {
 	scorerCfg := &config.ScorerConfig{
@@ -34,25 +42,12 @@ func setupScorer() *Scorer {
 	catCfg.CategoryGroups = map[string][]string{
 		"dull": {"church", "boring"},
 	}
-	// We need to inject the groupLookup manually or via a helper if it was exported,
-	// but since it's unexported and built in LoadCategories, we might need a workaround
-	// or just call same logic here.
-	// Actually I can just duplicate the logic from LoadCategories here.
 	catCfg.GroupLookup = make(map[string]string)
 	for g, cats := range catCfg.CategoryGroups {
 		for _, c := range cats {
 			catCfg.GroupLookup[c] = g
 		}
 	}
-	// Since groupLookup is private, I can't set it directly if I can't see it.
-	// Wait, it IS private (lowercase groupLookup).
-	// I need to add a "SetGroupLookup" or similar for testing?
-	// OR I can use a patched version of CategoriesConfig that has it public?
-	// NO, I added it as private field.
-	// SOLUTION: I should just update LoadCategories to be callable or move the build logic to a method `BuildGroupLookup` that I can call?
-	// `LoadCategories` does it.
-	// I'll check if I can just use reflection or if I should change visibility.
-	// Changing visibility to public `GroupLookup` is easiest and safe enough for config.
 
 	// Alt 1000ft: SizeS=1nm, SizeM=5nm, SizeL=10nm
 	visMgr := visibility.NewManagerForTest([]visibility.AltitudeRow{
@@ -75,7 +70,7 @@ func setupScorer() *Scorer {
 	})
 	visCalc := visibility.NewCalculator(visMgr)
 
-	return NewScorer(scorerCfg, catCfg, visCalc)
+	return NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{})
 }
 
 func TestScorer_Calculate(t *testing.T) {
@@ -342,7 +337,9 @@ func TestScorer_Calculate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s.Calculate(tt.poi, tt.input)
+			// New Session Pattern for Testing
+			session := s.NewSession(tt.input)
+			session.Calculate(tt.poi)
 
 			if tt.poi.IsVisible != tt.wantVisible {
 				t.Errorf("got visible %v, want %v", tt.poi.IsVisible, tt.wantVisible)

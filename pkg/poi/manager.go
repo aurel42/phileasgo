@@ -391,8 +391,11 @@ func (m *Manager) StartScoring(ctx context.Context, simClient sim.Client, sc *sc
 				NarratorConfig:  &m.config.Narrator,
 			}
 
+			// Create Scoring Session (Pre-calculates terrain/context once)
+			session := sc.NewSession(&input)
+
 			for _, p := range m.trackedPOIs {
-				sc.Calculate(p, &input)
+				session.Calculate(p)
 			}
 
 			// 4. Update Last Scored Location

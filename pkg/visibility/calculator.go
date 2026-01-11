@@ -55,7 +55,21 @@ func (c *Calculator) CalculateVisibility(heading, altAGL, bearing, distNM float6
 }
 
 // CalculateVisibilityForSize returns a visibility score for a specific size category.
-func (c *Calculator) CalculateVisibilityForSize(heading, altAGL, bearing, distNM float64, size SizeType, isOnGround bool) float64 {
+// CalculateVisibilityForSize returns a visibility score for a specific size category.
+// Considers both Real AGL and Effective AGL. Max score is 1.0.
+func (c *Calculator) CalculateVisibilityForSize(heading, realAGL, effectiveAGL, bearing, distNM float64, size SizeType, isOnGround bool) float64 {
+	scoreReal := c.calculateOverlayScore(heading, realAGL, bearing, distNM, size, isOnGround)
+
+	if !isOnGround && effectiveAGL > realAGL+10.0 {
+		scoreEff := c.calculateOverlayScore(heading, effectiveAGL, bearing, distNM, size, isOnGround)
+		if scoreEff > scoreReal {
+			return scoreEff
+		}
+	}
+	return scoreReal
+}
+
+func (c *Calculator) calculateOverlayScore(heading, altAGL, bearing, distNM float64, size SizeType, isOnGround bool) float64 {
 	// 1. Get max visible distance for specified size
 	maxDist := c.manager.GetMaxVisibleDist(altAGL, size)
 	if maxDist <= 0 || distNM > maxDist {
@@ -82,13 +96,32 @@ func (c *Calculator) CalculateVisibilityForSize(heading, altAGL, bearing, distNM
 	if score > 1.0 {
 		score = 1.0
 	}
-
 	return score
 }
 
 // CalculatePOIScore calculates the comprehensive visibility score for a POI.
 // Returns the score multiplier and a log string explaining the factors.
-func (c *Calculator) CalculatePOIScore(heading, altAGL, bearing, distNM float64, size SizeType, isOnGround bool) (score float64, details string) {
+// Considers both Real AGL and Effective AGL (Valley Depth) and uses the best perspective.
+func (c *Calculator) CalculatePOIScore(heading, realAGL, effectiveAGL, bearing, distNM float64, size SizeType, isOnGround bool) (score float64, details string) {
+	// 1. Calculate for Real AGL (Actual physics)
+	sReal, dReal := c.calculateSingleScore(heading, realAGL, bearing, distNM, size, isOnGround)
+
+	// 2. Calculate for Effective AGL (Valley Prominence)
+	// Only if effective is significantly different to avoid redundant calc
+	// And only if not on ground (valley logic applies to air)
+	if !isOnGround && effectiveAGL > realAGL+10.0 { // +10ft buffer
+		sEff, dEff := c.calculateSingleScore(heading, effectiveAGL, bearing, distNM, size, isOnGround)
+
+		if sEff > sReal {
+			return sEff, fmt.Sprintf("%s\n[Valley Boost Applied: RealAGL %.0f -> EffAGL %.0f]", dEff, realAGL, effectiveAGL)
+		}
+	}
+
+	return sReal, dReal
+}
+
+// calculateSingleScore computes visibility score for a specific altitude context
+func (c *Calculator) calculateSingleScore(heading, altAGL, bearing, distNM float64, size SizeType, isOnGround bool) (score float64, details string) {
 	// 1. Get max visible distance
 	maxDist := c.manager.GetMaxVisibleDist(altAGL, size)
 

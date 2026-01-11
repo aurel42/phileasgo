@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/terrain"
 	"phileasgo/pkg/visibility"
 )
 
@@ -15,13 +16,15 @@ import (
 type VisibilityHandler struct {
 	calculator *visibility.Calculator
 	simClient  sim.Client
+	elevation  terrain.ElevationGetter
 }
 
 // NewVisibilityHandler creates a new handler
-func NewVisibilityHandler(calc *visibility.Calculator, sim sim.Client) *VisibilityHandler {
+func NewVisibilityHandler(calc *visibility.Calculator, sim sim.Client, elev terrain.ElevationGetter) *VisibilityHandler {
 	return &VisibilityHandler{
 		calculator: calc,
 		simClient:  sim,
+		elevation:  elev,
 	}
 }
 
@@ -64,7 +67,21 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 3. Generate Grid
+	// 3. Calculate Effective AGL (Valley)
+	var effectiveAGL float64
+	// Default to Real AGL if elevation scanning fails or is N/A
+	effectiveAGL = telemetry.AltitudeAGL
+
+	if h.elevation != nil {
+		// Quick scan similar to Scorer Session (50km radius)
+		lowestMeters, err := h.elevation.GetLowestElevation(telemetry.Latitude, telemetry.Longitude, 50.0)
+		if err == nil {
+			lowestFeet := float64(lowestMeters) * 3.28084
+			effectiveAGL = telemetry.AltitudeMSL - lowestFeet
+		}
+	}
+
+	// 4. Generate Grid
 	// We scan from North to South (Row 0 is North), West to East
 
 	latStep := (north - south) / float64(res)
@@ -109,6 +126,7 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 			scoreM := h.calculator.CalculateVisibilityForSize(
 				telemetry.Heading,
 				telemetry.AltitudeAGL,
+				effectiveAGL,
 				bearing,
 				dist,
 				visibility.SizeM,
@@ -117,6 +135,7 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 			scoreL := h.calculator.CalculateVisibilityForSize(
 				telemetry.Heading,
 				telemetry.AltitudeAGL,
+				effectiveAGL,
 				bearing,
 				dist,
 				visibility.SizeL,
@@ -125,6 +144,7 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 			scoreXL := h.calculator.CalculateVisibilityForSize(
 				telemetry.Heading,
 				telemetry.AltitudeAGL,
+				effectiveAGL,
 				bearing,
 				dist,
 				visibility.SizeXL,

@@ -260,8 +260,12 @@ FinalScore = VisibilityScore × SizePenalty × DimensionMultiplier × ContentSco
 visScore = 1 - (distanceNM / maxDistanceNM)
 ```
 - **Linear Decay**: Score decreases linearly from 1.0 (at POI location) to 0.0 (at max distance).
-- **Size-Dependent**: The `maxDistanceNM` is looked up from the visibility table based on POI size and aircraft altitude.
-- **Invisible Cutoff**: If `distance > maxDistance`, the POI is marked invisible (`Score = 0`).
+-   **Size-Dependent**: The `maxDistanceNM` is looked up from the visibility table based on POI size and aircraft altitude.
+-   **Effective AGL / Valley Boost**:
+    -   Logic: `FinalVisibilityScore = Max(Score(RealAGL), Score(EffectiveAGL))`
+    -   Effective AGL = `AircraftAltMSL - LowestValleyFloorMSL` (within 50km radius).
+    -   Scanned using efficient `terrain.GetLowestElevation`.
+-   **Invisible Cutoff**: If `distance > maxDistance`, the POI is marked invisible (`Score = 0`).
 
 #### 2. Size Penalty (Bias Correction)
 Applied after visibility score to reduce the advantage of distant large POIs:

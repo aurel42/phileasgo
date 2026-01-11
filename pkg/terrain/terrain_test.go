@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"phileasgo/pkg/geo"
 )
@@ -304,4 +305,111 @@ func createTempFile(t *testing.T, size int) string {
 
 	t.Cleanup(func() { os.Remove(f.Name()) })
 	return filepath.Clean(f.Name())
+}
+
+// --- GetLowestElevation Tests ---
+
+func TestElevationProvider_GetLowestElevation(t *testing.T) {
+	path := "../../data/etopo1/etopo1_ice_g_i2.bin"
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("ETOPO1 data file not available")
+	}
+
+	provider, err := NewElevationProvider(path)
+	if err != nil {
+		t.Fatalf("Failed to open ETOPO1: %v", err)
+	}
+	defer provider.Close()
+
+	// Helper to convert KM to NM - REMOVED
+
+	tests := []struct {
+		name        string
+		lat         float64
+		lon         float64
+		radiusKM    float64
+		wantMinLow  int16 // Lower bound of expected min elevation
+		wantMinHigh int16 // Upper bound of expected min elevation
+	}{
+		{
+			name:        "Dead Sea (Capped at MSL)",
+			lat:         31.7683, // Jerusalem
+			lon:         35.2137,
+			radiusKM:    50,
+			wantMinLow:  0, // Capped at 0
+			wantMinHigh: 0,
+		},
+		{
+			name:        "Pacific Ocean (Capped at MSL)",
+			lat:         0.0,
+			lon:         -140.0,
+			radiusKM:    50,
+			wantMinLow:  0,
+			wantMinHigh: 0,
+		},
+		{
+			name:        "Pole Proximity (Arctic Ocean)",
+			lat:         89.0, // Near North Pole
+			lon:         0.0,
+			radiusKM:    100,
+			wantMinLow:  0,
+			wantMinHigh: 0,
+		},
+		{
+			name:        "Date Line Crossing (Ocean)",
+			lat:         0.0,
+			lon:         179.5, // Close to 180
+			radiusKM:    60,
+			wantMinLow:  0,
+			wantMinHigh: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			minElev, err := provider.GetLowestElevation(tt.lat, tt.lon, tt.radiusKM)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if minElev < tt.wantMinLow || minElev > tt.wantMinHigh {
+				t.Errorf("GetLowestElevation = %d, want between [%d, %d]", minElev, tt.wantMinLow, tt.wantMinHigh)
+			}
+		})
+	}
+}
+
+func TestElevationProvider_GetLowestElevation_Performance_Everest(t *testing.T) {
+	path := "../../data/etopo1/etopo1_ice_g_i2.bin"
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("ETOPO1 data file not available")
+	}
+
+	provider, err := NewElevationProvider(path)
+	if err != nil {
+		t.Fatalf("Failed to open ETOPO1: %v", err)
+	}
+	defer provider.Close()
+
+	lat := 27.9881 // Everest
+	lon := 86.9250
+
+	// Radius in KM
+	radiiKM := []float64{10, 20, 30, 40, 50}
+
+	for _, rKM := range radiiKM {
+		start := time.Now()
+		minElev, err := provider.GetLowestElevation(lat, lon, rKM)
+		duration := time.Since(start)
+
+		if err != nil {
+			t.Fatalf("Error for radius %v km: %v", rKM, err)
+		}
+
+		t.Logf("Radius %2.0f km: MinElev = %5d m, Time = %v", rKM, minElev, duration)
+
+		// Performance Assertion: Should be under 100ms (generous budget, aiming for <10ms)
+		if duration > 100*time.Millisecond {
+			t.Errorf("Performance Warning: Radius %.0f km took %v (limit 100ms)", rKM, duration)
+		}
+	}
 }
