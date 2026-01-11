@@ -41,6 +41,8 @@ type POI struct {
 	IsVisible           bool    `json:"is_visible"`
 	// MSFS
 	IsMSFSPOI bool `json:"is_msfs_poi"`
+	// Narration
+	NarrationStrategy string `json:"narration_strategy"` // uniform, min_skew, max_skew
 
 	// Session persistence (in-memory only)
 	Script string `json:"-"`

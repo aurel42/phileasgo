@@ -1,5 +1,17 @@
 ﻿# Release History
 
+## v0.2.68 (2026-01-11)
+- **Fix**: **Duplicate TTS Generation Eliminated**
+    - Refactored narrator prompt templates (`script.tmpl`, `edge-tts.tmpl`, `azure.tmpl`) to remove redundant language instructions at the end of templates.
+    - Consolidated formatting rules and language requirements to prevent the LLM from "echoing" or repeating the curation script.
+- **Feature**: **In-Memory Skew Strategy Exposure**
+    - Added a `NarrationStrategy` field to the `model.POI` struct to track the length strategy used (Short, Medium, Long).
+    - Updated the frontend UI to synchronize with this strategy, automatically highlighting the corresponding S|M|L buttons in the POI Info Panel.
+    - Captures "Competition-based Skew" dynamically during the narration cycle for better user visibility into system decisions.
+- **Maintenance**: **Manual Rollback of DB Persistence**
+    - Ensured skew strategy remains a transient in-memory attribute; rolled back initial database schema/migration changes to avoid polluting persistent storage with ephemeral session state.
+
+
 ## v0.2.67 (2026-01-11)
 - **Fix**: **Metadata Pipeline Optimization & Stability**
     - Eliminated redundant secondary metadata fetches (API calls) in the Wikidata pipeline. Classification now relies strictly on high-performance SPARQL tile data.

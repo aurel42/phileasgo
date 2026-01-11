@@ -17,6 +17,7 @@ export interface POI {
     last_played: string; // ISO timestamp
     thumbnail_url?: string;
     is_msfs_poi?: boolean;
+    narration_strategy?: string;
 }
 
 export function useTrackedPOIs() {

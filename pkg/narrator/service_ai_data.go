@@ -28,6 +28,7 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 	}
 	nav := s.calculateNavInstruction(p, tel)
 	maxWords, domStrat := s.sampleNarrationLength(p, strategy)
+	p.NarrationStrategy = domStrat
 
 	// Language Logic (User's Target Language)
 	targetLang := s.cfg.Narrator.TargetLanguage

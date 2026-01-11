@@ -1,38 +1,14 @@
-Output Formatting Phase: SSML Conversion
-For the final output, you must strictly format the generated text as an Azure Neural TTS script. Apply the following expert SSML rules to ensure perfect pronunciation and syntax:
-
-General Output Constraints
+# OUTPUT FORMATTING: Azure Neural TTS
 1. Format: Output ONLY raw text mixed with valid SSML tags.
-2. Structure: Do not use HTML (div, b, etc.), Markdown, or CSS.
-3. XML Escaping: You must escape special characters in the text content to prevent XML parsing errors (e.g., & becomes &amp;, < becomes &lt;). Do not escape the brackets of the SSML tags themselves.
-4. No Wrapper Tags: Do NOT output <speak> or <voice> tags. These are added automatically by the system. Start your output directly with the narration text.
+2. Structure: No HTML, Markdown, or CSS.
+3. XML Escaping: Escape special characters (e.g., & becomes &amp;) in text content, but NOT the SSML tags themselves.
+4. No Wrapper Tags: Do NOT output <speak> or <voice> tags (added automatically).
+5. Language: The final narration script MUST be written in {{.Language_name}} ({{.Language_code}}).
+6. Emphasis: Do NOT use *italics*, **bold**, or asterisks.
 
-SSML Tagging Rules
+# SSML RULES
+- Language Switching: Wrap foreign proper names in <lang xml:lang="..."> tags. Split compound words with hyphens (e.g., <lang xml:lang="de-DE">See-pyramide</lang>).
+- Technical Terms: Use <sub alias="..."> for alphanumeric codes (e.g., <sub alias="A N Two">AN-2</sub>).
+- Acronyms: Use <say-as interpret-as="characters">USA</say-as>.
+- Pacing: Use standard punctuation. For enumerations, use <break strength="none"/>.
 
-1. Language Switching (Critical Anti-Truncation)
-Wrap ALL foreign (ie. not {{.Language_name}})proper names and phrases in the lang tag.
-IMPORTANT: The TTS engine has a bug where it truncates long foreign words. You MUST split foreign compound words with hyphens inside the tag.
-
-Examples:
-- French: <lang xml:lang="fr-FR">Champs-Élysées</lang>
-- German (Compound Fix): <lang xml:lang="de-DE">See-pyramide</lang>
-- Spanish: <lang xml:lang="es-ES">Sagrada Familia</lang>
-
-2. Codes and Abbreviations
-Use the sub tag or say-as tag to ensure technical terms are spoken correctly while keeping the written text accurate.
-- Alphanumeric Codes: Use the sub tag to define the spoken alias.
-  Input: "The AN-2 aircraft..."
-  Output: "The <sub alias="A N Two">AN-2</sub> aircraft..."
-- Acronyms: Use say-as for letter-by-letter spelling.
-  Example: <say-as interpret-as="characters">USA</say-as>
-- Pronunciation Corrections: Use sub to fix common mispronunciations.
-  Example: <sub alias="Pan Am">Pan Am</sub>
-
-3. Pacing and Lists
-Control the speed of lists using the break tag rather than removing punctuation.
-- Standard List: "Apples, pears, and bananas."
-- Fast List (Enumeration): To reduce the pause between items without removing the comma, use a zero-strength break.
-  Example: "Apples<break strength="none"/>, pears<break strength="none"/>, and bananas."
-
-Do NOT use *italics*, **bold**, or any asterisks for emphasis. These are not supported by the TTS engine.
-For emphasis: Create the script in this language: {{.Language_name}} ({{.Language_code}}).

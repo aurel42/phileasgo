@@ -61,6 +61,11 @@ export const POIInfoPanel = ({ poi, pois, onClose }: POIInfoPanelProps) => {
             return;
         }
 
+        // Sync narration strategy if available in fresh data
+        if (freshPoi?.narration_strategy) {
+            setStrategy(freshPoi.narration_strategy as any);
+        }
+
         // 1. Use thumbnail from fresh data if available
         if (thumbnailFromData) {
             setThumbnailUrl(thumbnailFromData);
