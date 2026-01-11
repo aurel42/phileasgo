@@ -1,5 +1,25 @@
 ﻿# Release History
 
+## v0.2.63 (2026-01-11)
+- **Refactor**: **Unified POI Thresholding & Filtering**
+    - Implemented **Adaptive Filtering** mode: the system automatically adjusts the score threshold to show a target number of POIs (default 20).
+    - **Persistence**: All POIs that have been narrated (`LastPlayed` is not zero) remain permanently visible on the map in blue.
+    - **Zero Zombie Logic**: Removed `RecentlyPlayed` and "5-minute bypass" hacks. All freshness and visibility logic is now driven strictly by `LastPlayed` and physical LOS.
+    - **Backend-Driven**: Filtering logic is now centralized in `POIManager`, ensuring 1:1 parity between map markers and narrator candidates.
+    - **Pure Quality Score**: The `Scorer` now returns a pure quality/interest score without temporal penalties (cooldowns are handled by `NarrationJob`).
+- **Refactor**: **Documentation Structure**
+    - Removed all numerical prefixes from `SYSTEM_FLOWS.md` headers (e.g., "1. Wikidata..." -> "Wikidata...").
+    - Updated internal cross-references to use named anchors for better stability.
+- **Tests**: **Comprehensive Backend Coverage**
+    - Achieved full table-driven test coverage for central components:
+        - `POIManager`: Validated adaptive/fixed filtering and persistence logic.
+        - `NarrationJob`: Verified `isPlayable` cooldown logic.
+        - `api/config`: Confirmed persistence of new filter settings.
+        - `api/pois`: Validated backend-to-frontend filtered delivery.
+
+## v0.2.62 (2026-01-11)
+- **Fix**: Resolved a deadlock in the `ReplayLast` mechanism caused by an early cancelled context.
+
 ## v0.2.61 (2026-01-11)
 - **Feature**: **Valley Visibility (Effective AGL)**
     - Implemented a new visibility logic that calculates "Effective AGL" based on valley floor elevation.

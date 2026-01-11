@@ -284,6 +284,69 @@ func (m *Manager) PruneByDistance(lat, lon, heading, thresholdKm float64) int {
 
 // CountScoredAbove returns the number of tracked POIs with a score strictly greater than the threshold.
 // It stops counting once the limit is reached to save resources.
+// GetFilteredCandidates returns a list of POIs base on visibility, quality and persistence rules.
+// It returns the filtered list and the effective threshold used (for logging/UI).
+func (m *Manager) GetFilteredCandidates(filterMode string, targetCount int, minScore float64) (pois []*model.POI, threshold float64) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// 1. Separate "Played" (Blue markers) from "Candidates"
+	var played []*model.POI
+	var visibleCandidates []*model.POI
+
+	for _, p := range m.trackedPOIs {
+		if !p.LastPlayed.IsZero() {
+			played = append(played, p)
+		}
+		if p.IsVisible {
+			visibleCandidates = append(visibleCandidates, p)
+		}
+	}
+
+	// 2. Calculate Effective Threshold
+	effectiveThreshold := minScore
+	if filterMode == "adaptive" && len(visibleCandidates) > 0 {
+		// Sort by score descending to find the cutoff
+		sort.Slice(visibleCandidates, func(i, j int) bool {
+			return visibleCandidates[i].Score > visibleCandidates[j].Score
+		})
+
+		if len(visibleCandidates) > targetCount {
+			effectiveThreshold = visibleCandidates[targetCount-1].Score
+		} else {
+			effectiveThreshold = 0.0 // All visible qualify
+		}
+	}
+
+	// 3. Assemble final list: All Played OR (Visible AND Score >= Threshold)
+	resultMap := make(map[string]*model.POI)
+	for _, p := range played {
+		resultMap[p.WikidataID] = p
+	}
+	for _, p := range visibleCandidates {
+		if p.Score >= effectiveThreshold {
+			resultMap[p.WikidataID] = p
+		}
+	}
+
+	result := make([]*model.POI, 0, len(resultMap))
+	for _, p := range resultMap {
+		result = append(result, p)
+	}
+
+	// 4. Stable sort for API output consistency
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Score != result[j].Score {
+			return result[i].Score > result[j].Score
+		}
+		return result[i].WikidataID < result[j].WikidataID
+	})
+
+	return result, effectiveThreshold
+}
+
+// CountScoredAbove returns the number of tracked POIs with a score strictly greater than the threshold.
+// It stops counting once the limit is reached to save resources.
 func (m *Manager) CountScoredAbove(threshold float64, limit int) int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

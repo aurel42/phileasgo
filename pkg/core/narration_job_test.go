@@ -333,3 +333,41 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 		})
 	}
 }
+
+func TestNarrationJob_isPlayable(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Narrator.RepeatTTL = config.Duration(10 * time.Minute)
+
+	now := time.Now()
+	tests := []struct {
+		name       string
+		lastPlayed time.Time
+		want       bool
+	}{
+		{
+			name:       "Never Played",
+			lastPlayed: time.Time{}, // Zero
+			want:       true,
+		},
+		{
+			name:       "Played Recently (1m ago)",
+			lastPlayed: now.Add(-1 * time.Minute),
+			want:       false,
+		},
+		{
+			name:       "Played Long Ago (20m ago)",
+			lastPlayed: now.Add(-20 * time.Minute),
+			want:       true,
+		},
+	}
+
+	job := &NarrationJob{cfg: cfg}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			poi := &model.POI{LastPlayed: tt.lastPlayed}
+			if got := job.isPlayable(poi); got != tt.want {
+				t.Errorf("isPlayable() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

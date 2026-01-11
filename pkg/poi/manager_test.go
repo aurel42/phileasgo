@@ -236,3 +236,99 @@ func TestManager_ResetLastPlayed(t *testing.T) {
 		t.Error("ResetLastPlayed failed to clear memory cache")
 	}
 }
+
+func TestManager_GetFilteredCandidates(t *testing.T) {
+	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	ctx := context.Background()
+
+	now := time.Now()
+	pois := []*model.POI{
+		{WikidataID: "P1", Score: 10.0, IsVisible: true},
+		{WikidataID: "P2", Score: 8.0, IsVisible: true},
+		{WikidataID: "P3", Score: 8.0, IsVisible: true},
+		{WikidataID: "P4", Score: 5.0, IsVisible: true},
+		{WikidataID: "P5", Score: 2.0, IsVisible: true},
+		{WikidataID: "P_Played", Score: 1.0, IsVisible: true, LastPlayed: now},
+		{WikidataID: "P_Invisible", Score: 15.0, IsVisible: false},
+	}
+
+	for _, p := range pois {
+		_ = mgr.TrackPOI(ctx, p)
+	}
+
+	tests := []struct {
+		name          string
+		mode          string
+		targetCount   int
+		minScore      float64
+		wantIDs       []string
+		wantThreshold float64
+	}{
+		{
+			name:          "Fixed Mode - Threshold 7",
+			mode:          "fixed",
+			minScore:      7.0,
+			wantIDs:       []string{"P1", "P2", "P3", "P_Played"},
+			wantThreshold: 7.0,
+		},
+		{
+			name:          "Fixed Mode - Threshold 11",
+			mode:          "fixed",
+			minScore:      11.0,
+			wantIDs:       []string{"P_Played"},
+			wantThreshold: 11.0,
+		},
+		{
+			name:          "Adaptive Mode - Target 1",
+			mode:          "adaptive",
+			targetCount:   1,
+			wantIDs:       []string{"P1", "P_Played"},
+			wantThreshold: 10.0,
+		},
+		{
+			name:          "Adaptive Mode - Target 2 (Ties included)",
+			mode:          "adaptive",
+			targetCount:   2,
+			wantIDs:       []string{"P1", "P2", "P3", "P_Played"},
+			wantThreshold: 8.0,
+		},
+		{
+			name:          "Adaptive Mode - Target 4",
+			mode:          "adaptive",
+			targetCount:   4,
+			wantIDs:       []string{"P1", "P2", "P3", "P4", "P_Played"},
+			wantThreshold: 5.0,
+		},
+		{
+			name:          "Adaptive Mode - Target 10 (Exhausted)",
+			mode:          "adaptive",
+			targetCount:   10,
+			wantIDs:       []string{"P1", "P2", "P3", "P4", "P5", "P_Played"},
+			wantThreshold: 0.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, threshold := mgr.GetFilteredCandidates(tt.mode, tt.targetCount, tt.minScore)
+			if threshold != tt.wantThreshold {
+				t.Errorf("got threshold %v, want %v", threshold, tt.wantThreshold)
+			}
+
+			if len(got) != len(tt.wantIDs) {
+				t.Errorf("got %d POIs, want %d", len(got), len(tt.wantIDs))
+			}
+
+			foundIDs := make(map[string]bool)
+			for _, p := range got {
+				foundIDs[p.WikidataID] = true
+			}
+
+			for _, wantID := range tt.wantIDs {
+				if !foundIDs[wantID] {
+					t.Errorf("expected POI %s not found in result", wantID)
+				}
+			}
+		})
+	}
+}

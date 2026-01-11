@@ -32,6 +32,8 @@ type ConfigResponse struct {
 	ShowVisibilityLayer bool    `json:"show_visibility_layer"`
 	MinPOIScore         float64 `json:"min_poi_score"`
 	Volume              float64 `json:"volume"`
+	FilterMode          string  `json:"filter_mode"`
+	TargetPOICount      int     `json:"target_poi_count"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -41,6 +43,8 @@ type ConfigRequest struct {
 	ShowCacheLayer      *bool    `json:"show_cache_layer,omitempty"`      // Pointer to detect false vs missing
 	ShowVisibilityLayer *bool    `json:"show_visibility_layer,omitempty"` // Pointer to detect false vs missing
 	MinPOIScore         *float64 `json:"min_poi_score,omitempty"`
+	FilterMode          string   `json:"filter_mode,omitempty"`
+	TargetPOICount      *int     `json:"target_poi_count,omitempty"`
 }
 
 // HandleGetConfig returns the current configuration.
@@ -82,6 +86,20 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	filterMode, _ := h.store.GetState(ctx, "filter_mode")
+	if filterMode == "" {
+		filterMode = "fixed"
+	}
+
+	targetCountStr, _ := h.store.GetState(ctx, "target_poi_count")
+	targetCount := 20 // Default
+	if targetCountStr != "" {
+		var val int
+		if _, err := fmt.Sscanf(targetCountStr, "%d", &val); err == nil {
+			targetCount = val
+		}
+	}
+
 	resp := ConfigResponse{
 		SimSource:           simSource,
 		Units:               units,
@@ -90,6 +108,8 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 		ShowVisibilityLayer: showVisBool,
 		MinPOIScore:         minScore,
 		Volume:              volume,
+		FilterMode:          filterMode,
+		TargetPOICount:      targetCount,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -142,15 +162,13 @@ func (h *ConfigHandler) HandleSetConfig(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if req.MinPOIScore != nil {
-		score := *req.MinPOIScore
-		// Validation removed to allow full range
-
-		strVal := fmt.Sprintf("%.2f", score)
-		if err := h.store.SetState(ctx, "min_poi_score", strVal); err != nil {
-			slog.Error("Failed to save state", "key", "min_poi_score", "error", err)
-		} else {
-			slog.Info("Config updated", "min_poi_score", strVal)
-		}
+		h.updateFloatState(ctx, "min_poi_score", *req.MinPOIScore)
+	}
+	if req.FilterMode != "" {
+		h.updateFilterMode(ctx, req.FilterMode)
+	}
+	if req.TargetPOICount != nil {
+		h.updateIntState(ctx, "target_poi_count", *req.TargetPOICount)
 	}
 
 	// Return updated config
@@ -188,5 +206,33 @@ func (h *ConfigHandler) updateBoolState(ctx context.Context, key string, val boo
 		slog.Error("Failed to save state", "key", key, "error", err)
 	} else {
 		slog.Info("Config updated", key, strVal)
+	}
+}
+
+func (h *ConfigHandler) updateFloatState(ctx context.Context, key string, val float64) {
+	strVal := fmt.Sprintf("%.2f", val)
+	if err := h.store.SetState(ctx, key, strVal); err != nil {
+		slog.Error("Failed to save state", "key", key, "error", err)
+	} else {
+		slog.Info("Config updated", key, strVal)
+	}
+}
+
+func (h *ConfigHandler) updateIntState(ctx context.Context, key string, val int) {
+	strVal := fmt.Sprintf("%d", val)
+	if err := h.store.SetState(ctx, key, strVal); err != nil {
+		slog.Error("Failed to save state", "key", key, "error", err)
+	} else {
+		slog.Info("Config updated", key, strVal)
+	}
+}
+
+func (h *ConfigHandler) updateFilterMode(ctx context.Context, val string) {
+	if val == "fixed" || val == "adaptive" {
+		if err := h.store.SetState(ctx, "filter_mode", val); err != nil {
+			slog.Error("Failed to save state", "key", "filter_mode", "error", err)
+		} else {
+			slog.Info("Config updated", "filter_mode", val)
+		}
 	}
 }

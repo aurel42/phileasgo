@@ -37,6 +37,10 @@ func (m *TestPOIProvider) GetCandidates(limit int) []*model.POI {
 	return []*model.POI{}
 }
 
+func (m *TestPOIProvider) GetFilteredCandidates(filterMode string, targetCount int, minScore float64) ([]*model.POI, float64) {
+	return []*model.POI{}, 0.0
+}
+
 func TestSampleNarrationLength_RelativeDominance(t *testing.T) {
 	// Setup
 	cfg := &config.Config{

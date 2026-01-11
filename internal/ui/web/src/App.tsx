@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 type Units = 'km' | 'nm';
 
-import { isPOIVisible } from './utils/poiUtils';
+
 
 function App() {
   const { data: telemetry, status } = useTelemetry();
@@ -18,6 +18,8 @@ function App() {
   const [showCacheLayer, setShowCacheLayer] = useState(false);
   const [showVisibilityLayer, setShowVisibilityLayer] = useState(false);
   const [minPoiScore, setMinPoiScore] = useState(0.5);
+  const [filterMode, setFilterMode] = useState<string>('fixed');
+  const [targetCount, setTargetCount] = useState(20);
   const pois = useTrackedPOIs();
   const { status: narratorStatus } = useNarrator();
 
@@ -38,8 +40,8 @@ function App() {
   const userDismissedRef = useRef<string | null>(null); // Track ID of user-dismissed POI
   const lastAutoOpenedIdRef = useRef<string | null>(null); // Track ID of last auto-opened POI to prevent loops
 
-  // Determine displayed POIs (using dynamic score threshold)
-  const displayedPOIs = pois.filter(p => isPOIVisible(p, minPoiScore));
+  // POIs are already filtered by the backend
+  const displayedPOIs = pois;
   const displayedCount = displayedPOIs.length;
 
   // Auto-open panel when narrator starts playing (unless user dismissed it)
@@ -108,6 +110,12 @@ function App() {
         if (typeof data.min_poi_score === 'number') {
           setMinPoiScore(data.min_poi_score);
         }
+        if (data.filter_mode) {
+          setFilterMode(data.filter_mode);
+        }
+        if (typeof data.target_poi_count === 'number') {
+          setTargetCount(data.target_poi_count);
+        }
       })
       .catch(e => console.error("Failed to fetch config", e));
   }, []);
@@ -150,6 +158,24 @@ function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ min_poi_score: score })
     }).catch(e => console.error("Failed to update min poi score", e));
+  }, []);
+
+  const handleFilterModeChange = useCallback((mode: string) => {
+    setFilterMode(mode);
+    fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filter_mode: mode })
+    }).catch(e => console.error("Failed to update filter mode", e));
+  }, []);
+
+  const handleTargetCountChange = useCallback((count: number) => {
+    setTargetCount(count);
+    fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_poi_count: count })
+    }).catch(e => console.error("Failed to update target count", e));
   }, []);
 
   return (
@@ -195,6 +221,10 @@ function App() {
             displayedCount={displayedCount}
             minPoiScore={minPoiScore}
             onMinPoiScoreChange={handleMinPoiScoreChange}
+            filterMode={filterMode}
+            onFilterModeChange={handleFilterModeChange}
+            targetPoiCount={targetCount}
+            onTargetPoiCountChange={handleTargetCountChange}
           />
         )}
       </div>

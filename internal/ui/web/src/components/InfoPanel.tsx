@@ -15,6 +15,10 @@ interface InfoPanelProps {
     displayedCount: number;
     minPoiScore: number;
     onMinPoiScoreChange: (score: number) => void;
+    filterMode: string;
+    onFilterModeChange: (mode: string) => void;
+    targetPoiCount: number;
+    onTargetPoiCountChange: (count: number) => void;
 }
 
 export const InfoPanel = ({
@@ -23,7 +27,11 @@ export const InfoPanel = ({
     showVisibilityLayer, onVisibilityLayerChange,
     displayedCount,
     minPoiScore,
-    onMinPoiScoreChange
+    onMinPoiScoreChange,
+    filterMode,
+    onFilterModeChange,
+    targetPoiCount,
+    onTargetPoiCountChange
 }: InfoPanelProps) => {
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
@@ -352,22 +360,65 @@ export const InfoPanel = ({
                             </label>
                         </div>
 
-                        <div className="config-label" style={{ marginTop: '16px' }}>POI SCORE THRESHOLD</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                            <input
-                                type="range"
-                                min="-10"
-                                max="10"
-                                step="0.5"
-                                value={minPoiScore}
-                                onChange={(e) => onMinPoiScoreChange(parseFloat(e.target.value))}
-                                style={{ flex: 1 }}
-                            />
-                            <span style={{ fontSize: '12px', minWidth: '24px', textAlign: 'right' }}>{minPoiScore.toFixed(1)}</span>
+                        <div className="config-label" style={{ marginTop: '16px' }}>POI FILTERING MODE</div>
+                        <div className="radio-group">
+                            <label className="radio-label">
+                                <input
+                                    type="radio"
+                                    name="filter-mode"
+                                    checked={filterMode === 'fixed'}
+                                    onChange={() => onFilterModeChange('fixed')}
+                                /> Fixed Score
+                            </label>
+                            <label className="radio-label">
+                                <input
+                                    type="radio"
+                                    name="filter-mode"
+                                    checked={filterMode === 'adaptive'}
+                                    onChange={() => onFilterModeChange('adaptive')}
+                                /> Adaptive (Target Count)
+                            </label>
                         </div>
-                        <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
-                            Show POIs with score higher than this value
-                        </div>
+
+                        {filterMode === 'fixed' ? (
+                            <>
+                                <div className="config-label" style={{ marginTop: '16px' }}>POI SCORE THRESHOLD</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+                                    <input
+                                        type="range"
+                                        min="-10"
+                                        max="10"
+                                        step="0.5"
+                                        value={minPoiScore}
+                                        onChange={(e) => onMinPoiScoreChange(parseFloat(e.target.value))}
+                                        style={{ flex: 1 }}
+                                    />
+                                    <span style={{ fontSize: '12px', minWidth: '24px', textAlign: 'right' }}>{minPoiScore.toFixed(1)}</span>
+                                </div>
+                                <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
+                                    Show POIs with score higher than this value
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="config-label" style={{ marginTop: '16px' }}>TARGET POI COUNT</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+                                    <input
+                                        type="range"
+                                        min="1"
+                                        max="50"
+                                        step="1"
+                                        value={targetPoiCount}
+                                        onChange={(e) => onTargetPoiCountChange(parseInt(e.target.value))}
+                                        style={{ flex: 1 }}
+                                    />
+                                    <span style={{ fontSize: '12px', minWidth: '24px', textAlign: 'right' }}>{targetPoiCount}</span>
+                                </div>
+                                <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
+                                    Dynamic visibility threshold to show approximately {targetPoiCount} POIs
+                                </div>
+                            </>
+                        )}
 
                         <div className="config-label" style={{ marginTop: '16px', color: '#ff4444' }}>DANGER ZONE</div>
                         <button

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"time"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/geo"
@@ -114,18 +113,6 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 	varietyScore, varietyLogs := s.calculateVarietyScore(poi, input.CategoryHistory)
 	score *= varietyScore
 	logs = append(logs, varietyLogs...)
-
-	// 4. Repeat Penalty (Specific POI)
-	if input.NarratorConfig != nil && !poi.LastPlayed.IsZero() {
-		// Use Real Time for "Time Since Played" to avoid SimTime skew issues
-		ts := time.Now()
-		playedAgo := math.Abs(float64(ts.Sub(poi.LastPlayed).Seconds()))
-		ttl := time.Duration(input.NarratorConfig.RepeatTTL).Seconds() // Convert to seconds
-		if playedAgo < ttl {
-			score = 0
-			logs = append(logs, fmt.Sprintf("Repeat Penalty (played %.0fs ago, TTL %.0fs)", playedAgo, ttl))
-		}
-	}
 
 	poi.Score = score
 	poi.ScoreDetails = strings.Join(logs, "\n")

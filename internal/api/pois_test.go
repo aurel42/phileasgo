@@ -64,8 +64,16 @@ func (m *apiMockStore) SetGeodataCache(ctx context.Context, key string, val []by
 func (m *apiMockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error) {
 	return nil, nil
 }
-func (m *apiMockStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
-func (m *apiMockStore) SetState(ctx context.Context, key, val string) error     { return nil }
+func (m *apiMockStore) GetState(ctx context.Context, key string) (string, bool) {
+	if key == "filter_mode" {
+		return "adaptive", true
+	}
+	if key == "target_poi_count" {
+		return "5", true
+	}
+	return "", false
+}
+func (m *apiMockStore) SetState(ctx context.Context, key, val string) error { return nil }
 func (m *apiMockStore) GetClassification(ctx context.Context, qid string) (category string, found bool, err error) {
 	return "", false, nil
 }
@@ -129,6 +137,43 @@ func TestHandleResetLastPlayed(t *testing.T) {
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("Expected 400 Bad Request, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandleTracked(t *testing.T) {
+	mockStore := &apiMockStore{}
+	mgr := poi.NewManager(&config.Config{}, mockStore, nil)
+	// Add some POIs to the manager
+	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P1", Score: 10.0, IsVisible: true})
+	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P2", Score: 8.0, IsVisible: true})
+
+	handler := NewPOIHandler(mgr, nil, mockStore)
+
+	t.Run("Success", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/pois/tracked", nil)
+		w := httptest.NewRecorder()
+
+		handler.HandleTracked(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200 OK, got %d", w.Code)
+		}
+
+		// Verify headers
+		if w.Header().Get("X-Phileas-Effective-Threshold") == "" {
+			t.Error("Expected X-Phileas-Effective-Threshold header")
+		}
+
+		var resp []*model.POI
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		// We mocked GetState to return "adaptive" with target 5.
+		// Since we have 2 visible POIs, they should both be returned.
+		if len(resp) != 2 {
+			t.Errorf("Expected 2 POIs, got %d", len(resp))
 		}
 	})
 }

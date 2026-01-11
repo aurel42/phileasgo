@@ -1,10 +1,10 @@
-# PhileasGo: System Architecture & Data Flows (v0.2.61)
+# PhileasGo: System Architecture & Data Flows (v0.2.62)
 
-This document provides a technical source of truth for the core logic of PhileasGo as of version **v0.2.61**.
+This document provides a technical source of truth for the core logic of PhileasGo as of version **v0.2.62**.
 
 ---
 
-## 1. Wikidata Tile Pipeline
+## Wikidata Tile Pipeline
 Converts flight telemetry into Points of Interest.
 
 ### Trigger: The Tick
@@ -29,7 +29,7 @@ Converts flight telemetry into Points of Interest.
 
 ---
 
-## 2. Classification & Rescue
+## Classification & Rescue
 How the system determines if a Wikidata item is worthy of being a POI.
 
 ### Phase 1: Direct Matching (The Fast Path)
@@ -66,7 +66,7 @@ Items that fail to classify into a known category are eligible for **Rescue** if
 
 ---
 
-## 3. Hydration & Language Selection
+## Hydration & Language Selection
 How we determine the POI's Name and Wikipedia link.
 
 ### Logic (v0.2.58)
@@ -87,7 +87,7 @@ How we determine the POI's Name and Wikipedia link.
 
 ---
 
-## 4. Spatial Deduplication (The Merger)
+## Spatial Deduplication (The Merger)
 How the system prevents clustering and "POI soup" by merging nearby items.
 
 ### Two-Stage Merging
@@ -107,7 +107,7 @@ PhileasGo performs deduplication at two different points in the ingest flow for 
 
 ---
 
-## 5. LanguageMapper & Country Detection
+## LanguageMapper & Country Detection
 The component responsible for resolving geographic coordinates to human languages.
 
 ### Operation
@@ -125,7 +125,7 @@ The component responsible for resolving geographic coordinates to human language
 
 ---
 
-## 6. Scheduler Architecture & Narration Selection
+## Scheduler Architecture & Narration Selection
 The central heartbeat that drives all periodic tasks and triggers narration.
 
 ### The Tick Loop (`pkg/core/scheduler.go`)
@@ -133,7 +133,7 @@ The `Scheduler` runs a **100ms ticker** (configurable via `ticker.telemetry_loop
 1. Broadcasts sim state to the API (UI updates)
 2. Fetches telemetry from SimConnect
 3. Broadcasts telemetry to the `TelemetrySink` (API)
-4. Checks for teleport (see Section 6.5)
+4. Checks for teleport (see [Session Reset (Teleport Detection)](#session-reset-teleport-detection))
 5. Evaluates all registered `Job` instances
 
 ### Job Types
@@ -156,13 +156,13 @@ type Job interface {
 ### NarrationJob Logic (`narration_job.go`)
 The `NarrationJob` is the most complex job, with multiple pre-conditions:
 
-#### 1. Pre-Conditions (`checkPreConditions`)
+#### Pre-Conditions (`checkPreConditions`)
 - **AutoNarrate**: Must be enabled in config
 - **Location Consistency**: Scorer's last position must be within 10km of current position (prevents stale scores after teleport)
 - **Sim State**: Must be `StateActive` (not paused, in menus, or loading)
 - **Ground Proximity**: If on ground, best POI must be within **5km**
 
-#### 2. Narrator Activity (`checkNarratorReady`)
+#### Narrator Activity (`checkNarratorReady`)
 The narrator has three activity states:
 
 | State | Meaning | ShouldFire? |
@@ -174,15 +174,18 @@ The narrator has three activity states:
 
 When `wasBusy` transitions from true→false (playback finished), the cooldown timer **resets to now**.
 
-#### 3. Cooldown (`checkCooldown`)
+#### Cooldown (`checkCooldown`)
 - **Formula**: Random value between `CooldownMin` and `CooldownMax` (config)
 - **Clock Start**: Timer starts when **playback finishes**, not when generation starts
 - **Skip**: User can bypass via `narrator.ShouldSkipCooldown()`
 
-#### 4. POI Selection (`hasViablePOI`)
+#### POI Selection (`hasViablePOI`)
 Returns true if `GetBestCandidate().Score >= MinScoreThreshold` (default: 0.5)
 
-#### 5. Essay Eligibility (`checkEssayEligible`)
+> [!NOTE]
+> **Update (v0.2.62)**: The selection logic now uses a centralized `isPlayable(poi)` check which relies solely on the `LastPlayed` timestamp and the `RepeatTTL` configured in the narrator settings. All "Zombie Rules" (like RecentlyPlayed or 5-minute visual persistence) have been removed in favor of this single source of truth for freshness.
+
+#### Essay Eligibility (`checkEssayEligible`)
 If no viable POI, essays are considered with these rules:
 
 | Rule | Condition |
@@ -192,7 +195,7 @@ If no viable POI, essays are considered with these rules:
 | **Silence Rule** | `time.Since(lastNarration) >= 2 × CooldownMax` |
 | **Altitude** | `AltitudeAGL >= 2000ft` |
 
-#### 6. Line-of-Sight (LOS) Selection
+#### Line-of-Sight (LOS) Selection
 - **Enabled via**: `terrain.line_of_sight: true`
 - **Data**: ETOPO1 elevation grid (1 arc-minute resolution)
 - **Tolerance**: 50m vertical buffer (grazing-ray forgiveness)
@@ -210,7 +213,7 @@ Determines narration length based on POI competition:
 
 ---
 
-## 6.5 Session Reset (Teleport Detection)
+## Session Reset (Teleport Detection)
 How the system handles large position jumps caused by teleport, map changes, or flight loading.
 
 ### Detection: `Scheduler.tick()`
@@ -232,8 +235,11 @@ Components are registered in `main.go` via `scheduler.AddResettable(component)` 
 
 ---
 
-## 6.6 POI Scoring & Visibility
+## POI Scoring & Visibility
 How the system ranks POIs for narration selection based on distance, size, and content quality.
+
+> [!NOTE]
+> **Update (v0.2.62)**: Scoring and Filtering are now decoupled. The `Scorer` provides a **Pure Quality Score** based on geographic and content factors. Temporal filtering (for both display and narration) is handled by the `POIManager` and `NarrationJob`.
 
 ### The Visibility Table (`configs/visibility.yaml`)
 Defines **maximum visible distances** (in nautical miles) for each size category at different altitudes. The table is interpolated at runtime.
@@ -255,7 +261,7 @@ The final score is computed as a product of multipliers:
 FinalScore = VisibilityScore × SizePenalty × DimensionMultiplier × ContentScore × VarietyMultiplier
 ```
 
-#### 1. Visibility Score (Distance Decay)
+#### Visibility Score (Distance Decay)
 ```go
 visScore = 1 - (distanceNM / maxDistanceNM)
 ```
@@ -268,7 +274,7 @@ visScore = 1 - (distanceNM / maxDistanceNM)
     -   Scanned using efficient `terrain.GetLowestElevation`.
 -   **Invisible Cutoff**: If `distance > maxDistance`, the POI is marked invisible (`Score = 0`).
 
-#### 2. Size Penalty (Bias Correction)
+#### Size Penalty (Bias Correction)
 Applied after visibility score to reduce the advantage of distant large POIs:
 
 | Size | Penalty |
@@ -280,12 +286,12 @@ Applied after visibility score to reduce the advantage of distant large POIs:
 
 **Purpose**: Without this penalty, XL POIs at 10nm would outscore nearby S/M POIs due to their slower distance decay rate.
 
-#### 3. Dimension Multiplier (Landmark Bonus)
+#### Dimension Multiplier (Landmark Bonus)
 Applied to geometrically significant POIs identified by the Rescue system:
 - **Tile Record OR Global Giant**: `x2.0`
 - **Both**: `x4.0`
 
-#### 4. Content Score
+#### Content Score
 Product of several quality factors:
 
 | Factor | Formula | Notes |
@@ -295,7 +301,7 @@ Product of several quality factors:
 | **Category Weight** | From `categories.yaml` | e.g., Monument=1.3, Railway=0.4 |
 | **MSFS POI** | `x4.0` | Photogrammetry landmarks |
 
-#### 5. Variety Multiplier
+#### Variety Multiplier
 Discourages repetitive category selection:
 - **Novelty Boost**: `x1.3` if category not in recent history.
 - **Variety Penalty**: `x0.1` to `x0.5` if same category was recently narrated (sliding scale).
@@ -352,7 +358,41 @@ if altAGL < 500 {
 
 ---
 
-## 7. Dynamic Categories & AI Extensions
+## Unified Filtering & Adaptive Thresholding (v0.2.62)
+To provide a consistent and responsive experience, PhileasGo v0.2.62 centralizes all POI filtering in `POIManager.GetFilteredCandidates`.
+
+### Unified Filtering Rules
+For a POI to be returned for display on the Map or as a Narration Candidate, it must meet one of these two criteria:
+1.  **Persistent (Played)**: `LastPlayed` is not zero. These POIs are **always** visible, rendered with a distinct **blue marker** in the UI, and never filtered out by score or visibility rules.
+2.  **Qualitative (Candidate)**:
+    -   `IsVisible` must be true (determined by Visibility Table/LOS).
+    -   `Score` must be greater than or equal to the **Effective Threshold**.
+
+### Filter Modes
+The user can toggle between two modes in the UI:
+
+| Mode | Threshold Calculation (`EffectiveThreshold`) | Use Case |
+|------|---------------------------------------------|----------|
+| **Fixed** | Equal to `Narrator.MinPOIScore` (default: 0.5). | Predictable density based on quality. |
+| **Adaptive** | Dynamically calculated to include at least `TargetPOICount` POIs. | Ensures a consistent number of indicators in sparse areas. |
+
+### Adaptive Mode Logic
+When in Adaptive mode, the system:
+1.  Collects all currently `IsVisible` POIs and sorts them by `Score` (descending).
+2.  Sets the `EffectiveThreshold` to the score of the Nth POI (where N = `TargetPOICount`).
+3.  **Tied Scores**: If multiple POIs have exactly the same score as the Nth POI, **all** of them are included to prevent "flickering" or arbitrary exclusion.
+4.  If total visible POIs < `TargetPOICount`, the threshold drops to `0.0` (all visible POIs are shown).
+
+### Narration Freshness (`isPlayable`)
+While the map shows all visible candidates, the `NarrationJob` applies an additional temporal filter:
+-   **RepeatTTL**: A POI is only "Playable" for narration if `time.Since(LastPlayed) >= RepeatTTL`.
+-   **LastPlayed**: This is the **sole** timestamp used for repeat prevention. Historic concepts like `RecentlyPlayed` lists have been removed.
+
+---
+
+---
+
+## Dynamic Categories & AI Extensions
 How PhileasGo adapts its taxonomy to the current region.
 
 ### The Problem
@@ -378,7 +418,7 @@ Every **30 minutes** or **50nm** of travel, the system triggers a background tas
 
 ---
 
-## 8. POI Narration Workflow (The AI Path)
+## POI Narration Workflow (The AI Path)
 Technical orchestration from discovery to playback.
 
 ### The Entry Points
@@ -402,7 +442,7 @@ Technical orchestration from discovery to playback.
 
 ### Key Mechanisms
 
-#### 1. Predictive Navigation Logic (`calculateNavInstruction`)
+#### Predictive Navigation Logic (`calculateNavInstruction`)
 To ensure directional cues (e.g., "At your 3 o'clock") remain accurate when the pilot actually *hears* them, the system performs a self-correcting transformation:
 - **Dynamic Window**: The system measures the actual **Selection-to-Audio** latency for every narration. It maintains a rolling average of these durations and uses it to set the `sim.SetPredictionWindow`.
 - **Latency-Aware Source**: Instead of using current coordinates, the prompt engine uses **Predicted Telemetry** calculated by projecting the aircraft's current vector ahead by the **observed average latency**. This ensures directional cues are synchronized with the moment of playback.
@@ -413,13 +453,13 @@ To ensure directional cues (e.g., "At your 3 o'clock") remain accurate when the 
     - **Airborne**: Uses the **Clock Face** (e.g., "at your 2 o'clock") for distant targets.
     - **On Ground**: Uses **Cardinal Directions** (e.g., "to the North-East") unless in extreme proximity, where it remains silent to avoid logical errors while taxiing.
 
-#### 2. Relative Dominance & Skew Strategy (`DetermineSkewStrategy`)
+#### Relative Dominance & Skew Strategy (`DetermineSkewStrategy`)
 Narration length is not purely random; it is governed by **Competition Density**:
 - **Lone Wolf**: If a POI has no "Rivals" (other POIs with >50% of its score) nearby, it uses **StrategyMaxSkew**. The system generates a pool of 3 random word counts and picks the **highest**, allowing for a deep, leisurely narration.
 - **High Competition**: If Rivals exist, it uses **StrategyMinSkew** to pick the **lowest** of 3 random counts. This forces brevity, preventing the narrator from talking through the next discovery.
 - **Dynamic Window**: The "Rival" check is performed every time a script is generated, ensuring the pacing adapts to the landscape.
 
-#### 3. Spatial & Chronological Context
+#### Spatial & Chronological Context
 - **Short-Term Memory (v0.2.50)**: The system maintains a rolling **Trip Summary** in session memory.
     - **Session Evolution**: After each narration, a background task uses the `summary` model profile to merge the previous summary with the latest script.
     - **Chronological Density**: The summary is strictly chronological, consolidation ensures it remains rich with detail (specific names, dates, facts) but concise (max 300 words).
@@ -427,7 +467,7 @@ Narration length is not purely random; it is governed by **Competition Density**
 - **Flight Stage Persona**: The `FlightStage` variable (Taxi, Takeoff, Cruise, Descent, Landing) is injected into the prompt, allowing the narration tone to shift (e.g., more concise during high-workload takeoff).
 - **Wikipedia Persistence**: Article extracts are cached in the local SQLite `articles` table, keyed by Wikidata QID, to bypass Wikipedia API rate limits during repeated flights over the same area.
 
-#### 4. Visual Feedback & Safety
+#### Visual Feedback & Safety
 - **Marker Spawning**: The marker balloon (Beacon) is spawned *before* LLM generation to provide instant interaction feedback.
 - **Deduplication**: `LastPlayed` is persisted to the DB only *after* successful TTS synthesis, ensuring a POI isn't "consumed" if the API calls fail.
 - **TTS Fallback**: If Azure TTS fails with a 429/5xx, the system switches to `edge-tts` for the remainder of the session.
@@ -436,7 +476,7 @@ Narration length is not purely random; it is governed by **Competition Density**
 
 ---
 
-## 9. Marker Beacons (Visual Guidance)
+## Marker Beacons (Visual Guidance)
 The system used to visually highlight POIs in the 3D world.
 
 ### Lifecycle
@@ -454,7 +494,7 @@ The system used to visually highlight POIs in the 3D world.
 
 ---
 
-## 10. The Prompt Engine (Context Orchestration)
+## The Prompt Engine (Context Orchestration)
 How technical context is translated into the Tour Guide persona.
 
 ### Data Aggregation (`buildPromptData`)
@@ -471,7 +511,7 @@ The prompt sent to the LLM is a complex JSON object containing:
 
 ---
 
-## 11. The Prompt Template System (Orchestration)
+## The Prompt Template System (Orchestration)
 
 The system uses a robust Go `text/template` based engine (`pkg/llm/prompts`) to construct the complex instructions sent to Gemini. This system ensures narrations remain fresh and variable through randomized logic and modular macros.
 
@@ -501,7 +541,7 @@ Templates are organized in `configs/prompts/` by their functional role:
 
 ---
 
-## 13. Regional Essay Workflow
+## Regional Essay Workflow
 Broad narrative tours triggered to provide context when specific POIs are sparse, such as during high-altitude cruise.
 
 ### Flow Logic (`AIService.PlayEssay`)
@@ -520,7 +560,7 @@ Broad narrative tours triggered to provide context when specific POIs are sparse
 
 ---
 
-## 14. TTS Fallback & State Persistence
+## TTS Fallback & State Persistence
 Mechanisms to ensure that the audio experience remains stable even during network congestion or API failures.
 
 ### Failure Recovery (`handleTTSError`)
@@ -542,7 +582,7 @@ Allows users to re-hear the previous stop's information without re-triggering th
 
 ---
 
-## 15. Final Verification Checklist
+## Final Verification Checklist
 Files to audit against this document:
 - [ ] **H3 Resolution**: `pkg/wikidata/grid.go` (`h3Resolution`).
 - [ ] **Classification Path**: `pkg/classifier/classifier.go` (`Classify`).

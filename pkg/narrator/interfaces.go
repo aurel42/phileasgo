@@ -12,6 +12,7 @@ type POIProvider interface {
 	GetBestCandidate() *model.POI
 	GetCandidates(limit int) []*model.POI
 	CountScoredAbove(threshold float64, limit int) int
+	GetFilteredCandidates(filterMode string, targetCount int, minScore float64) ([]*model.POI, float64)
 	LastScoredPosition() (lat, lon float64)
 }
 

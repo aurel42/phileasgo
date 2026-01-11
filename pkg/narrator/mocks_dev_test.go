@@ -103,6 +103,10 @@ func (m *MockPOIProvider) GetCandidates(limit int) []*model.POI {
 	return []*model.POI{}
 }
 
+func (m *MockPOIProvider) GetFilteredCandidates(filterMode string, targetCount int, minScore float64) ([]*model.POI, float64) {
+	return []*model.POI{}, 0.0
+}
+
 type MockGeo struct {
 	Country string
 	City    string

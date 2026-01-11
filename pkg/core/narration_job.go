@@ -147,18 +147,34 @@ func (j *NarrationJob) checkNarratorReady() bool {
 	return true
 }
 
-// hasViablePOI returns true if there's a POI above the score threshold.
+// hasViablePOI returns true if there's a POI above the score threshold and is playable.
 func (j *NarrationJob) hasViablePOI() bool {
 	best := j.poiMgr.GetBestCandidate()
 	if best == nil {
 		return false
 	}
-	if best.Score >= j.cfg.Narrator.MinScoreThreshold {
-		slog.Debug("NarrationJob: Viable POI found", "poi", best.DisplayName())
+
+	// 1. Playable check (RepeatTTL)
+	if !j.isPlayable(best) {
+		slog.Debug("NarrationJob: Best POI on cooldown", "poi", best.DisplayName(), "last_played", best.LastPlayed)
+		return false
+	}
+
+	// 2. Score check
+	if best.Score < j.cfg.Narrator.MinScoreThreshold {
+		slog.Debug("NarrationJob: Best POI below threshold", "poi", best.DisplayName(), "score", best.Score, "threshold", j.cfg.Narrator.MinScoreThreshold)
+		return false
+	}
+
+	slog.Debug("NarrationJob: Viable POI found", "poi", best.DisplayName())
+	return true
+}
+
+func (j *NarrationJob) isPlayable(p *model.POI) bool {
+	if p.LastPlayed.IsZero() {
 		return true
 	}
-	slog.Debug("NarrationJob: Best POI below threshold", "poi", best.DisplayName(), "score", best.Score, "threshold", j.cfg.Narrator.MinScoreThreshold)
-	return false
+	return time.Since(p.LastPlayed) >= time.Duration(j.cfg.Narrator.RepeatTTL)
 }
 
 // checkEssayEligible returns true if conditions for essay narration are met.
@@ -202,8 +218,8 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 		return
 	}
 
-	// Re-verify threshold just in case score changed between ShouldFire and Run
-	if best.Score < j.cfg.Narrator.MinScoreThreshold {
+	// Re-verify threshold and playability just in case state changed between ShouldFire and Run
+	if best.Score < j.cfg.Narrator.MinScoreThreshold || !j.isPlayable(best) {
 		// Try Essay
 		j.tryEssay(ctx, t)
 		return
@@ -235,10 +251,13 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 	checkedCount := 0
 	for i, poi := range candidates {
 		// Optimization: Skip POIs that don't meet the minimum score threshold.
-		// Since the list is sorted by Score (descending), if we hit one below threshold,
-		// all subsequent ones are also below threshold.
 		if poi.Score < j.cfg.Narrator.MinScoreThreshold {
 			break
+		}
+
+		// Also skip if not playable
+		if !j.isPlayable(poi) {
+			continue
 		}
 		checkedCount++
 

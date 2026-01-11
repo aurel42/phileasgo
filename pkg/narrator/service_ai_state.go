@@ -34,6 +34,9 @@ func (s *AIService) ReplayLast(ctx context.Context) bool {
 
 	// 3. Launch Monitor to clear state when done
 	go func() {
+		// Use Background context for the monitor to ensure it continues
+		// even if the triggering request context is cancelled.
+		ctx := context.Background()
 		ticker := time.NewTicker(200 * time.Millisecond)
 		defer ticker.Stop()
 		for {

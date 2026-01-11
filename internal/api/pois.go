@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"phileasgo/pkg/model"
@@ -33,12 +35,39 @@ func (h *POIHandler) HandleTracked(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	pois := h.mgr.GetTrackedPOIs()
+	ctx := r.Context()
 
+	// 1. Fetch filter settings from store
+	filterMode, _ := h.store.GetState(ctx, "filter_mode")
+	if filterMode == "" {
+		filterMode = "fixed"
+	}
+
+	targetCountStr, _ := h.store.GetState(ctx, "target_poi_count")
+	targetCount := 20
+	if targetCountStr != "" {
+		if val, err := strconv.Atoi(targetCountStr); err == nil {
+			targetCount = val
+		}
+	}
+
+	minScoreStr, _ := h.store.GetState(ctx, "min_poi_score")
+	minScore := 0.5
+	if minScoreStr != "" {
+		if val, err := strconv.ParseFloat(minScoreStr, 64); err == nil {
+			minScore = val
+		}
+	}
+
+	// 2. Get filtered POIs
+	pois, threshold := h.mgr.GetFilteredCandidates(filterMode, targetCount, minScore)
+
+	// 3. Optional: Custom response header for threshold
+	w.Header().Set("X-Phileas-Effective-Threshold", fmt.Sprintf("%.2f", threshold))
+
+	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(pois); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
+		slog.Error("Failed to encode tracked POIs", "error", err)
 	}
 }
 
