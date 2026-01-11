@@ -1,5 +1,17 @@
 ﻿# Release History
 
+## v0.2.67 (2026-01-11)
+- **Fix**: **Metadata Pipeline Optimization & Stability**
+    - Eliminated redundant secondary metadata fetches (API calls) in the Wikidata pipeline. Classification now relies strictly on high-performance SPARQL tile data.
+    - Improved stability by dropping items without valid category data (`P31`) early, unless they are rescued by notable physical dimensions (e.g., Height, Length).
+- **Feature**: **Generalized Group Isolation (POI Merging)**
+    - Replaced hardcoded "Island Group" logic with a generalized rule: **POI merging is now strictly forbidden across different `category_groups`**.
+    - This ensures that distinct features like a **City** (Settlement) and its **Airport** (Aerodrome) will always coexist on the map, even if they are physically overlapping.
+    - Removed legacy `isIslandGroup` helper function.
+- **Maintenance**: **Expanded Test Coverage**
+    - Implemented comprehensive table-driven unit tests in `merger_test.go` and `service_test.go`.
+    - Verified new isolation logic and Phase 1 dropout/rescue scenarios across 25+ files.
+
 ## v0.2.66 (2026-01-11)
 - **Fix**: **Generic "Camera" Icons (Healing on Load)**
     - Resolved the issue where many POIs were displaying a generic camera icon instead of their category-specific icon (e.g., `Length` -> `arrow`, `peak` -> `mountain`).

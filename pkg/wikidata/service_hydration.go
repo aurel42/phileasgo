@@ -55,30 +55,6 @@ func (s *Service) hydrateCandidates(ctx context.Context, candidates []Article, a
 	return hydrated, nil
 }
 
-func (s *Service) fetchMissingMetadata(ctx context.Context, toFetch []string, metaCache map[string]EntityMetadata) error {
-	if len(toFetch) == 0 {
-		return nil
-	}
-	chunkSize := 50
-	for i := 0; i < len(toFetch); i += chunkSize {
-		end := i + chunkSize
-		if end > len(toFetch) {
-			end = len(toFetch)
-		}
-		chunk := toFetch[i:end]
-
-		meta, err := s.client.GetEntitiesBatch(ctx, chunk)
-		if err != nil {
-			s.logger.Warn("Wikidata batch fetch failed", "error", err, "chunk_size", len(chunk))
-			continue
-		}
-		for id, m := range meta {
-			metaCache[id] = m
-		}
-	}
-	return nil
-}
-
 func (s *Service) processSitelinks(cand *Article, sitelinks map[string]string, allowedCodes map[string]bool) {
 	cand.LocalTitles = make(map[string]string)
 

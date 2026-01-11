@@ -321,7 +321,7 @@ func TestProcessTileData(t *testing.T) {
 				{"item":{"value":"http://wd.org/Q2"}, "lat":{"value":"52.5"}, "lon":{"value":"13.4"}, "sitelinks":{"value":"10"}}
 			]}}`,
 			fallbackErr: context.DeadlineExceeded,
-			expectError: true, // Should fail if hydration fails
+			expectError: false, // Dropped silently before hydration because no instances
 		},
 		{
 			name: "Filtered Existing POI",
@@ -339,7 +339,7 @@ func TestProcessTileData(t *testing.T) {
 			// Currently filterExisting is hardcoded in test setup.
 			// Let's use a new QID for 'seen' check if we had a seen store.
 			rawJSON: `{"results":{"bindings":[
-				{"item":{"value":"http://wd.org/Q3"}, "lat":{"value":"52.0"}, "lon":{"value":"13.0"}, "sitelinks":{"value":"5"}}
+				{"item":{"value":"http://wd.org/Q3"}, "lat":{"value":"52.0"}, "lon":{"value":"13.0"}, "sitelinks":{"value":"5"}, "instances":{"value":"http://wd.org/P31/Q515"}}
 			]}}`,
 			fallbackData: map[string]FallbackData{
 				"Q3": {Labels: map[string]string{"en": "Potsdam"}},
@@ -363,6 +363,48 @@ func TestProcessTileData(t *testing.T) {
 			},
 			wantArticles: 1, // Only Q2 survives
 			wantRescued:  0,
+			expectError:  false,
+		},
+		{
+			name: "Classification Persistence - No Metadata Fetch",
+			// This test ensures that if an article has "instances" in SPARQL JSON,
+			// it is classified correctly even if we do NOT fetch anything from API (or if API fetch is skipped).
+			rawJSON: `{"results":{"bindings":[
+				{"item":{"value":"http://wd.org/Q2"}, "lat":{"value":"52.5"}, "lon":{"value":"13.4"}, "sitelinks":{"value":"10"}, "instances":{"value":"http://wd.org/P31/Q515"}}
+			]}}`,
+			// Fallback Data IS needed for title/hydration
+			fallbackData: map[string]FallbackData{
+				"Q2": {Labels: map[string]string{"en": "Berlin"}},
+			},
+			wantArticles: 1,
+			expectError:  false,
+		},
+		{
+			name: "Drop - No Instances and No Dimensions",
+			// No instances in SPARQL, No dimensions. Should be dropped.
+			rawJSON: `{"results":{"bindings":[
+				{"item":{"value":"http://wd.org/Q4"}, "lat":{"value":"52.0"}, "lon":{"value":"13.0"}, "sitelinks":{"value":"10"}}
+			]}}`,
+			fallbackData: map[string]FallbackData{
+				"Q4": {Labels: map[string]string{"en": "Ghost POI"}},
+			},
+			wantArticles: 0,
+			expectError:  false,
+		},
+		{
+			name: "Rescue - Dimension Rescue (Height)",
+			// No instances, but has height. Should be rescued.
+			rawJSON: `{"results":{"bindings":[
+				{"item":{"value":"http://wd.org/Q5"}, "lat":{"value":"52.0"}, "lon":{"value":"13.0"}, "sitelinks":{"value":"10"}, "height":{"value":"100"}}
+			]}}`,
+			fallbackData: map[string]FallbackData{
+				"Q5": {
+					Labels:    map[string]string{"en": "Tall Tower"},
+					Sitelinks: map[string]string{"enwiki": "Tall Tower"},
+				},
+			},
+			wantArticles: 1,
+			wantRescued:  1,
 			expectError:  false,
 		},
 	}
@@ -404,6 +446,10 @@ func TestProcessTileData(t *testing.T) {
 					}
 				}
 				return res
+			}
+
+			cl.RescueFunc = func(h, l, area float64, instances []string) bool {
+				return h > 0 || l > 0 || area > 0
 			}
 
 			svc := &Service{

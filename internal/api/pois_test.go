@@ -145,8 +145,8 @@ func TestHandleTracked(t *testing.T) {
 	mockStore := &apiMockStore{}
 	mgr := poi.NewManager(&config.Config{}, mockStore, nil)
 	// Add some POIs to the manager
-	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P1", Score: 10.0, IsVisible: true})
-	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P2", Score: 8.0, IsVisible: true})
+	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P1", NameEn: "POI 1", Score: 10.0, IsVisible: true})
+	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P2", NameEn: "POI 2", Score: 8.0, IsVisible: true})
 
 	handler := NewPOIHandler(mgr, nil, mockStore)
 

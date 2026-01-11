@@ -11,18 +11,32 @@ import (
 )
 
 func TestMergePOIs(t *testing.T) {
-	// Setup Config with Merge Distances
+	// Setup Config with Groups and Sizes
 	cfg := &config.CategoriesConfig{
 		Categories: map[string]config.Category{
-			"mountain": {Size: "XL"},
-			"base":     {Size: "L"},
-			"shop":     {Size: "S"},
+			"mountain":  {Size: "XL"},
+			"base":      {Size: "L"},
+			"shop":      {Size: "S"},
+			"city":      {Size: "XL"},
+			"aerodrome": {Size: "L"},
+		},
+		CategoryGroups: map[string][]string{
+			"Settlements": {"city"},
+			"Aerodromes":  {"aerodrome"},
+			"Natural":     {"mountain", "base"},
 		},
 		MergeDistance: map[string]float64{
 			"S":  100,
 			"L":  2000,
 			"XL": 5000,
 		},
+	}
+	// Manual Group Lookup Setup
+	cfg.GroupLookup = map[string]string{
+		"mountain":  "Natural",
+		"base":      "Natural",
+		"city":      "Settlements",
+		"aerodrome": "Aerodromes",
 	}
 
 	logger := slog.Default()
@@ -45,30 +59,35 @@ func TestMergePOIs(t *testing.T) {
 			expected: []string{"Q1"},
 		},
 		{
-			name: "Close Mountain Gobbles Base",
-			// Mountain (XL, 5km radius) is close to Base (L, 2km radius).
-			// Mountain has longer article (1000 vs 200).
-			// Distance is 1km (within 5km).
-			// Expect: Mountain kept.
+			name: "Same Group - Close Mountain Gobbles Base",
+			// Mountain (XL, 5km radius) vs Base (L, 2km radius). Both 'Natural'.
+			// Distance is 1km (within 5km). Mountain has longer article.
 			candidates: []*model.POI{
-				{WikidataID: "Base", Category: "base", Lat: 0.01, Lon: 0, WPArticleLength: 200},  // ~1.1km away
+				{WikidataID: "Base", Category: "base", Lat: 0.01, Lon: 0, WPArticleLength: 200},  // ~1.1km
 				{WikidataID: "Mtn", Category: "mountain", Lat: 0, Lon: 0, WPArticleLength: 1000}, // Center
 			},
 			expected: []string{"Mtn"},
 		},
 		{
-			name: "Base Gobbles Mountain (if Base is Huge)",
-			// If the Base has a massive article, it should win even if Mountain is "XL" sized?
-			// The logic sorts by Length first.
-			// Base (Len 2000) vs Mountain (Len 100).
-			// Base wins sort. Base radius (L=2km) vs Mtn Radius (XL=5km). Max=5km.
-			// Distance 1km.
-			// Expect: Base kept.
+			name: "Different Groups - ISOLATION (City vs Aerodrome)",
+			// City (Settlements, XL=5km) vs Aerodrome (Aerodromes, L=2km).
+			// Dist 1.1km. Without isolation, City gobbles Aerodrome.
+			// With isolation, both kept.
 			candidates: []*model.POI{
-				{WikidataID: "Base", Category: "base", Lat: 0.01, Lon: 0, WPArticleLength: 2000},
-				{WikidataID: "Mtn", Category: "mountain", Lat: 0, Lon: 0, WPArticleLength: 100},
+				{WikidataID: "City", Category: "city", Lat: 0, Lon: 0, WPArticleLength: 1000},
+				{WikidataID: "Airport", Category: "aerodrome", Lat: 0.01, Lon: 0, WPArticleLength: 500},
 			},
-			expected: []string{"Base"},
+			expected: []string{"City", "Airport"},
+		},
+		{
+			name: "Different Groups - ISOLATION (Natural vs Settlements)",
+			// Mountain (Natural, XL=5km) vs City (Settlements, XL=5km).
+			// Same Location. Both kept.
+			candidates: []*model.POI{
+				{WikidataID: "Mtn", Category: "mountain", Lat: 0, Lon: 0, WPArticleLength: 1000},
+				{WikidataID: "City", Category: "city", Lat: 0, Lon: 0, WPArticleLength: 1000},
+			},
+			expected: []string{"City", "Mtn"},
 		},
 		{
 			name: "Far Apart - Keep Both",
@@ -77,7 +96,7 @@ func TestMergePOIs(t *testing.T) {
 				{WikidataID: "Mtn", Category: "mountain", Lat: 0, Lon: 0, WPArticleLength: 1000},
 				{WikidataID: "Shop", Category: "shop", Lat: 0.1, Lon: 0, WPArticleLength: 100}, // ~11km
 			},
-			expected: []string{"Mtn", "Shop"}, // Order depends on sort (Mtn first)
+			expected: []string{"Mtn", "Shop"},
 		},
 	}
 
@@ -88,8 +107,6 @@ func TestMergePOIs(t *testing.T) {
 			for _, p := range result {
 				gotQIDs = append(gotQIDs, p.WikidataID)
 			}
-			// Sort for deterministic comparison if needed, but ElementsMatch handles generic "bag"
-			// Here we just sort both constraints
 			sort.Strings(tt.expected)
 			sort.Strings(gotQIDs)
 
@@ -108,20 +125,20 @@ func TestMergeArticles(t *testing.T) {
 			"monument": {Size: "M"},
 			"lake":     {Size: "L"},
 			"park":     {Size: "M"},
+			"mountain": {Size: "XL"},
 		},
 		CategoryGroups: map[string][]string{
 			"Settlements": {"city"},
 			"Attractions": {"monument"},
-			"Natural":     {"lake", "park"},
+			"Natural":     {"lake", "park", "mountain"},
 		},
 		MergeDistance: map[string]float64{
+			"S":  100,
 			"M":  500,
 			"L":  2000,
 			"XL": 5000,
 		},
 	}
-	// Rebuild lookup usually happens on load, but we can manually set it or just mock GetGroup behavior via manually populated map if Config allows.
-	// Config.GetGroup relies on GroupLookup. We must populate it.
 	cfg.GroupLookup = make(map[string]string)
 	for grp, cats := range cfg.CategoryGroups {
 		for _, c := range cats {
@@ -138,23 +155,16 @@ func TestMergeArticles(t *testing.T) {
 	}{
 		{
 			name: "Same Group - Merge (Lake gobbles Park)",
-			// Lake (Natural) vs Park (Natural).
-			// Lake (500 links, L=2km) vs Park (100 links, M=500m).
-			// Dist 1km.
-			// Lake wins by Sitelinks. Lake Radius covers Park.
+			// Lake (Natural) vs Park (Natural). Dist 1.1km. Link win.
 			candidates: []Article{
-				{QID: "Park", Category: "park", Lat: 0.01, Lon: 0, Sitelinks: 100}, // ~1.1km
+				{QID: "Park", Category: "park", Lat: 0.01, Lon: 0, Sitelinks: 100},
 				{QID: "Lake", Category: "lake", Lat: 0, Lon: 0, Sitelinks: 500},
 			},
 			expected: []string{"Lake"},
 		},
 		{
 			name: "Different Groups - ISOLATION (City vs Monument)",
-			// City (Settlements) vs Monument (Attractions).
-			// City (1000 links, XL=5km) vs Monument (500 links, M=500m).
-			// Same Location.
-			// Normal merge: City wins.
-			// Isolation: SHOULD KEEP BOTH.
+			// Settlements vs Attractions. Same Location. Both kept.
 			candidates: []Article{
 				{QID: "City", Category: "city", Lat: 0, Lon: 0, Sitelinks: 1000},
 				{QID: "Monu", Category: "monument", Lat: 0, Lon: 0, Sitelinks: 500},
@@ -162,10 +172,19 @@ func TestMergeArticles(t *testing.T) {
 			expected: []string{"City", "Monu"},
 		},
 		{
+			name: "Different Groups - ISOLATION (City vs Mountain)",
+			// Settlements vs Natural. Dist 1km. Both kept.
+			candidates: []Article{
+				{QID: "City", Category: "city", Lat: 0, Lon: 0, Sitelinks: 1000},
+				{QID: "Mtn", Category: "mountain", Lat: 0.01, Lon: 0, Sitelinks: 800},
+			},
+			expected: []string{"City", "Mtn"},
+		},
+		{
 			name: "Same Group - Too Far (Keep Both)",
 			candidates: []Article{
 				{QID: "Lake1", Category: "lake", Lat: 0, Lon: 0, Sitelinks: 500},
-				{QID: "Lake2", Category: "lake", Lat: 0.1, Lon: 0, Sitelinks: 400}, // ~11km
+				{QID: "Lake2", Category: "lake", Lat: 0.1, Lon: 0, Sitelinks: 400},
 			},
 			expected: []string{"Lake1", "Lake2"},
 		},

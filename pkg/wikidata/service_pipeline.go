@@ -196,21 +196,42 @@ func (s *Service) classifyInChunks(ctx context.Context, rawArticles []Article, c
 	}
 
 	// 2. Identify Metadata Source
+	// We priorities SPARQL Instances (from rawArticles) as they are the source of truth for the tile.
 	metaCache := make(map[string]EntityMetadata)
-	toFetch := make([]string, 0) // Truly unknown
 
-	for _, qid := range candidates {
-		if insts, ok := seenMap[qid]; ok && len(insts) > 0 {
-			metaCache[qid] = EntityMetadata{Claims: map[string][]string{"P31": insts}}
-		} else {
-			toFetch = append(toFetch, qid)
+	// Build a lookup for candidate instances from rawArticles
+	// Using a map for quick access
+	candidateInstances := make(map[string][]string)
+	for i := range rawArticles {
+		art := &rawArticles[i]
+		if len(art.Instances) > 0 {
+			candidateInstances[art.QID] = art.Instances
 		}
 	}
 
-	// 3. Fetch missing metadata
-	if err := s.fetchMissingMetadata(ctx, toFetch, metaCache); err != nil {
-		s.logger.Warn("Failed to fetch missing metadata", "error", err)
+	for _, qid := range candidates {
+		var insts []string
+
+		// Priority 1: Seen Map (Override from previous runs?) - Should we trust it?
+		// Actually, standardizing on SPARQL results is safer for "current state".
+		// But seenMap might contain more detailed history or merged instances.
+		// Let's check seenMap first, then SPARQL.
+		if seen, ok := seenMap[qid]; ok && len(seen) > 0 {
+			insts = seen
+		} else if sparqlInsts, ok := candidateInstances[qid]; ok {
+			insts = sparqlInsts
+		}
+
+		// If we have instances, cache them.
+		if len(insts) > 0 {
+			metaCache[qid] = EntityMetadata{Claims: map[string][]string{"P31": insts}}
+		}
+		// If we DON'T have instances, we now accept we can't classify it.
+		// We DO NOT fetch anymore.
 	}
+
+	// 3. (REMOVED) Fetch missing metadata
+	// The call to s.fetchMissingMetadata is deleted to prevent redundant/fragile API calls.
 
 	// 4. Batch Classification
 	return s.runBatchClassification(ctx, rawArticles, metaCache)

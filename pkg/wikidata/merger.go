@@ -42,11 +42,18 @@ func MergePOIs(candidates []*model.POI, cfg *config.CategoriesConfig, logger *sl
 			candSize = cfg.GetSize(cand.Category)
 		}
 		candRadius := cfg.GetMergeDistance(candSize)
+		candGroup := cfg.GetGroup(cand.Category)
 
 		isDuplicate := false
 
 		// Check against already accepted POIs
 		for _, acc := range accepted {
+			// 2a. Group Isolation Check: Never merge across different category groups
+			accGroup := cfg.GetGroup(acc.Category)
+			if candGroup != "" && accGroup != "" && candGroup != accGroup {
+				continue // distinct items, skip merge check against this 'acc'
+			}
+
 			// Determine Merge Distance for Accepted POI
 			accSize := acc.Size
 			if accSize == "" {
@@ -113,16 +120,10 @@ func MergeArticles(candidates []Article, cfg *config.CategoriesConfig, logger *s
 			accSize := cfg.GetSize(acc.Category)
 			accRadius := cfg.GetMergeDistance(accSize)
 
-			// 2a. Group Isolation Check
-			// If groups differ, and one of them is a "Strong Island" (Settlements, Attractions),
-			// we DO NOT merge them. They coexist.
-			// E.g. City (Settlements) vs Monument (Attractions) -> Coexist.
-			// E.g. Park (Natural) vs Lake (Natural) -> Merge (Same Group).
+			// 2a. Group Isolation Check: Never merge across different category groups
 			accGroup := cfg.GetGroup(acc.Category)
-			if candGroup != accGroup {
-				if isIslandGroup(candGroup) || isIslandGroup(accGroup) {
-					continue // distinct items, skip merge check against this 'acc'
-				}
+			if candGroup != "" && accGroup != "" && candGroup != accGroup {
+				continue // distinct items, skip merge check against this 'acc'
 			}
 
 			// 2b. Spatial Check
@@ -145,14 +146,4 @@ func MergeArticles(candidates []Article, cfg *config.CategoriesConfig, logger *s
 	}
 
 	return accepted
-}
-
-func isIslandGroup(group string) bool {
-	// These groups are distinct "layers" of the map and should not gobble each other.
-	switch group {
-	case "Settlements", "Attractions", "Aerodromes":
-		return true
-	default:
-		return false
-	}
 }
