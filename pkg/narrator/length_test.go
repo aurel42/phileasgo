@@ -21,7 +21,7 @@ type TestPOIProvider struct {
 func (m *TestPOIProvider) GetPOI(ctx context.Context, qid string) (*model.POI, error) {
 	return nil, nil
 }
-func (m *TestPOIProvider) GetBestCandidate() *model.POI { return nil }
+func (m *TestPOIProvider) GetBestCandidate(isOnGround bool) *model.POI { return nil }
 func (m *TestPOIProvider) CountScoredAbove(threshold float64, limit int) int {
 	if m.CountVal > limit {
 		return limit
@@ -33,11 +33,11 @@ func (m *TestPOIProvider) LastScoredPosition() (float64, float64) {
 	return 0, 0
 }
 
-func (m *TestPOIProvider) GetCandidates(limit int) []*model.POI {
+func (m *TestPOIProvider) GetCandidates(limit int, isOnGround bool) []*model.POI {
 	return []*model.POI{}
 }
 
-func (m *TestPOIProvider) GetFilteredCandidates(filterMode string, targetCount int, minScore float64) ([]*model.POI, float64) {
+func (m *TestPOIProvider) GetFilteredCandidates(filterMode string, targetCount int, minScore float64, isOnGround bool) ([]*model.POI, float64) {
 	return []*model.POI{}, 0.0
 }
 

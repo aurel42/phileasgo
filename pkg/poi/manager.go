@@ -286,7 +286,7 @@ func (m *Manager) PruneByDistance(lat, lon, heading, thresholdKm float64) int {
 // It stops counting once the limit is reached to save resources.
 // GetFilteredCandidates returns a list of POIs base on visibility, quality and persistence rules.
 // It returns the filtered list and the effective threshold used (for logging/UI).
-func (m *Manager) GetFilteredCandidates(filterMode string, targetCount int, minScore float64) (pois []*model.POI, threshold float64) {
+func (m *Manager) GetFilteredCandidates(filterMode string, targetCount int, minScore float64, isOnGround bool) (pois []*model.POI, threshold float64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -295,6 +295,10 @@ func (m *Manager) GetFilteredCandidates(filterMode string, targetCount int, minS
 	var visibleCandidates []*model.POI
 
 	for _, p := range m.trackedPOIs {
+		// Ground Filter: If on ground, ONLY show aerodromes
+		if isOnGround && !strings.EqualFold(p.Category, "aerodrome") {
+			continue
+		}
 		if !p.LastPlayed.IsZero() {
 			played = append(played, p)
 		}
@@ -364,7 +368,7 @@ func (m *Manager) CountScoredAbove(threshold float64, limit int) int {
 }
 
 // GetBestCandidate returns the currently tracked POI with the highest score.
-func (m *Manager) GetBestCandidate() *model.POI {
+func (m *Manager) GetBestCandidate(isOnGround bool) *model.POI {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -372,6 +376,9 @@ func (m *Manager) GetBestCandidate() *model.POI {
 	maxScore := -1.0
 
 	for _, p := range m.trackedPOIs {
+		if isOnGround && !strings.EqualFold(p.Category, "aerodrome") {
+			continue
+		}
 		if p.Score > maxScore {
 			maxScore = p.Score
 			best = p
@@ -381,12 +388,15 @@ func (m *Manager) GetBestCandidate() *model.POI {
 }
 
 // GetCandidates returns the top N POIs sorted by score (highest first).
-func (m *Manager) GetCandidates(limit int) []*model.POI {
+func (m *Manager) GetCandidates(limit int, isOnGround bool) []*model.POI {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	candidates := make([]*model.POI, 0, len(m.trackedPOIs))
 	for _, p := range m.trackedPOIs {
+		if isOnGround && !strings.EqualFold(p.Category, "aerodrome") {
+			continue
+		}
 		candidates = append(candidates, p)
 	}
 

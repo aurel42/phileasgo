@@ -74,7 +74,7 @@ func (m *MockAudio) Duration() time.Duration   { return 0 }
 type MockPOIProvider struct {
 	GetPOIFunc func(ctx context.Context, qid string) (*model.POI, error)
 
-	GetBestFunc          func() *model.POI
+	GetBestFunc          func(isOnGround bool) *model.POI
 	CountScoredAboveFunc func(threshold float64, limit int) int
 }
 
@@ -84,7 +84,10 @@ func (m *MockPOIProvider) GetPOI(ctx context.Context, qid string) (*model.POI, e
 	}
 	return nil, nil
 }
-func (m *MockPOIProvider) GetBestCandidate() *model.POI {
+func (m *MockPOIProvider) GetBestCandidate(isOnGround bool) *model.POI {
+	if m.GetBestFunc != nil {
+		return m.GetBestFunc(isOnGround)
+	}
 	return nil
 }
 
@@ -99,11 +102,11 @@ func (m *MockPOIProvider) LastScoredPosition() (lat, lon float64) {
 	return 0, 0
 }
 
-func (m *MockPOIProvider) GetCandidates(limit int) []*model.POI {
+func (m *MockPOIProvider) GetCandidates(limit int, isOnGround bool) []*model.POI {
 	return []*model.POI{}
 }
 
-func (m *MockPOIProvider) GetFilteredCandidates(filterMode string, targetCount int, minScore float64) ([]*model.POI, float64) {
+func (m *MockPOIProvider) GetFilteredCandidates(filterMode string, targetCount int, minScore float64, isOnGround bool) ([]*model.POI, float64) {
 	return []*model.POI{}, 0.0
 }
 

@@ -193,7 +193,7 @@ func TestManager_CandidateLogic(t *testing.T) {
 	}
 
 	// 1. GetBestCandidate
-	best := mgr.GetBestCandidate()
+	best := mgr.GetBestCandidate(false)
 	if best == nil || best.WikidataID != "P1" {
 		t.Errorf("GetBestCandidate failed. Want P1, got %v", best)
 	}
@@ -209,7 +209,7 @@ func TestManager_CandidateLogic(t *testing.T) {
 	}
 
 	// 3. GetCandidates (Sort)
-	sorted := mgr.GetCandidates(3)
+	sorted := mgr.GetCandidates(3, false)
 	if len(sorted) != 3 {
 		t.Fatalf("GetCandidates(3) expected 3, got %d", len(sorted))
 	}
@@ -250,6 +250,7 @@ func TestManager_GetFilteredCandidates(t *testing.T) {
 		{WikidataID: "P5", Score: 2.0, IsVisible: true},
 		{WikidataID: "P_Played", Score: 1.0, IsVisible: true, LastPlayed: now},
 		{WikidataID: "P_Invisible", Score: 15.0, IsVisible: false},
+		{WikidataID: "P_Airport", Score: 5.0, IsVisible: true, Category: "Aerodrome"},
 	}
 
 	for _, p := range pois {
@@ -263,6 +264,7 @@ func TestManager_GetFilteredCandidates(t *testing.T) {
 		minScore      float64
 		wantIDs       []string
 		wantThreshold float64
+		isOnGround    bool
 	}{
 		{
 			name:          "Fixed Mode - Threshold 7",
@@ -296,21 +298,29 @@ func TestManager_GetFilteredCandidates(t *testing.T) {
 			name:          "Adaptive Mode - Target 4",
 			mode:          "adaptive",
 			targetCount:   4,
-			wantIDs:       []string{"P1", "P2", "P3", "P4", "P_Played"},
+			wantIDs:       []string{"P1", "P2", "P3", "P4", "P_Played", "P_Airport"},
 			wantThreshold: 5.0,
 		},
 		{
 			name:          "Adaptive Mode - Target 10 (Exhausted)",
 			mode:          "adaptive",
 			targetCount:   10,
-			wantIDs:       []string{"P1", "P2", "P3", "P4", "P5", "P_Played"},
+			wantIDs:       []string{"P1", "P2", "P3", "P4", "P5", "P_Played", "P_Airport"},
+			wantThreshold: 0.0,
+		},
+		{
+			name:          "Ground Mode - Aerodromes ONLY",
+			mode:          "fixed",
+			minScore:      0.0,
+			isOnGround:    true,
+			wantIDs:       []string{"P_Airport"},
 			wantThreshold: 0.0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, threshold := mgr.GetFilteredCandidates(tt.mode, tt.targetCount, tt.minScore)
+			got, threshold := mgr.GetFilteredCandidates(tt.mode, tt.targetCount, tt.minScore, tt.isOnGround)
 			if threshold != tt.wantThreshold {
 				t.Errorf("got threshold %v, want %v", threshold, tt.wantThreshold)
 			}

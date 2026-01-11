@@ -6,6 +6,7 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator"
 	"phileasgo/pkg/sim"
+	"strings"
 	"testing"
 	"time"
 )
@@ -38,7 +39,10 @@ type mockPOIManager struct {
 	lon  float64
 }
 
-func (m *mockPOIManager) GetBestCandidate() *model.POI {
+func (m *mockPOIManager) GetBestCandidate(isOnGround bool) *model.POI {
+	if isOnGround && m.best != nil && !strings.EqualFold(m.best.Category, "aerodrome") {
+		return nil
+	}
 	return m.best
 }
 
@@ -50,8 +54,11 @@ func (m *mockPOIManager) LastScoredPosition() (lat, lon float64) {
 	return m.lat, m.lon
 }
 
-func (m *mockPOIManager) GetCandidates(limit int) []*model.POI {
+func (m *mockPOIManager) GetCandidates(limit int, isOnGround bool) []*model.POI {
 	if m.best == nil {
+		return []*model.POI{}
+	}
+	if isOnGround && !strings.EqualFold(m.best.Category, "aerodrome") {
 		return []*model.POI{}
 	}
 	return []*model.POI{m.best}

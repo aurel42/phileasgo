@@ -1,6 +1,6 @@
-# PhileasGo: System Architecture & Data Flows (v0.2.62)
+# PhileasGo: System Architecture & Data Flows (v0.2.64)
 
-This document provides a technical source of truth for the core logic of PhileasGo as of version **v0.2.62**.
+This document provides a technical source of truth for the core logic of PhileasGo as of version **v0.2.64**.
 
 ---
 
@@ -160,7 +160,7 @@ The `NarrationJob` is the most complex job, with multiple pre-conditions:
 - **AutoNarrate**: Must be enabled in config
 - **Location Consistency**: Scorer's last position must be within 10km of current position (prevents stale scores after teleport)
 - **Sim State**: Must be `StateActive` (not paused, in menus, or loading)
-- **Ground Proximity**: If on ground, best POI must be within **5km**
+- **Ground Proximity (v0.2.64)**: Replaced legacy distance checks with centralized category filtering. If on ground, the system only considers POIs in the `Aerodrome` category.
 
 #### Narrator Activity (`checkNarratorReady`)
 The narrator has three activity states:
@@ -358,7 +358,7 @@ if altAGL < 500 {
 
 ---
 
-## Unified Filtering & Adaptive Thresholding (v0.2.62)
+## Unified Filtering & Adaptive Thresholding (v0.2.64)
 To provide a consistent and responsive experience, PhileasGo v0.2.62 centralizes all POI filtering in `POIManager.GetFilteredCandidates`.
 
 ### Unified Filtering Rules
@@ -387,6 +387,12 @@ When in Adaptive mode, the system:
 While the map shows all visible candidates, the `NarrationJob` applies an additional temporal filter:
 -   **RepeatTTL**: A POI is only "Playable" for narration if `time.Since(LastPlayed) >= RepeatTTL`.
 -   **LastPlayed**: This is the **sole** timestamp used for repeat prevention. Historic concepts like `RecentlyPlayed` lists have been removed.
+
+### Ground-Aware Filtering (v0.2.64)
+To prevent "shadowing" of airports by nearby city centers or landmarks while the pilot is on the ground, the system implements strict category filtering:
+-   **Rule**: If `IsOnGround` is true, `GetFilteredCandidates` returns **only** POIs belonging to the `Aerodrome` category.
+-   **Centralization**: This logic is enforced within the `POIManager`, ensuring that `GetBestCandidate` and `GetCandidates` also respect the ground state.
+-   **Exemption**: Map display (API) is exempt from this rule to maintain situational awareness, defaulting to `IsOnGround: false`.
 
 ---
 

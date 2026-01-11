@@ -1,5 +1,17 @@
 ﻿# Release History
 
+## v0.2.64 (2026-01-11)
+- **Feature**: **Ground-Aware POI Filtering (The "Airport First" Rule)**
+    - Centralized ground-aware filtering in `POIManager`. When the aircraft is on the ground (taxiing or parked), the system now strictly includes only POIs in the `Aerodrome` category.
+    - This fix resolves the "shadowing" issue where high-scoring non-aviation POIs (e.g., "Innsbruck City") would prevent nearby airports ("Innsbruck Airport") from being narrated.
+    - **API Autonomy**: The map display remains unaffected, continuing to show all landmarks and cities while on the ground by explicitly bypassing the ground-filter for the map API.
+- **Refactor**: **Lean Narration Job**
+    - Removed redundant and complex `checkGroundProximity` logic from `NarrationJob`. The job now relies on the `POIManager` to provide correctly filtered candidates based on the aircraft's `IsOnGround` state.
+    - Simplified candidate selection pipeline and improved reliability for ground-based triggers.
+- **Tests**: **Aviation-Specific Scenarios**
+    - Updated `manager_test.go` and `narration_job_test.go` with specific table-driven tests for ground-mode Aerodrome priority.
+    - Verified full interface compliance for all mock providers across the test suite.
+
 ## v0.2.63 (2026-01-11)
 - **Refactor**: **Unified POI Thresholding & Filtering**
     - Implemented **Adaptive Filtering** mode: the system automatically adjusts the score threshold to show a target number of POIs (default 20).

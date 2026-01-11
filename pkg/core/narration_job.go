@@ -17,8 +17,8 @@ import (
 
 // POIProvider matches the GetBestCandidate method used by NarrationJob.
 type POIProvider interface {
-	GetBestCandidate() *model.POI
-	GetCandidates(limit int) []*model.POI
+	GetBestCandidate(isOnGround bool) *model.POI
+	GetCandidates(limit int, isOnGround bool) []*model.POI
 	LastScoredPosition() (lat, lon float64)
 }
 
@@ -72,7 +72,7 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	}
 
 	// 3. POI Selection - Priority over essays
-	if j.hasViablePOI() {
+	if j.hasViablePOI(t) {
 		return true
 	}
 
@@ -96,28 +96,9 @@ func (j *NarrationJob) checkPreConditions(t *sim.Telemetry) bool {
 		return false
 	}
 
-	// Ground logic: only narrate if POI is very close
-	if t.IsOnGround && !j.checkGroundProximity(t) {
-		return false
-	}
-
+	// Ground logic is now handled during POI candidate selection.
+	// If t.IsOnGround, the POI provider will only return Aerodromes.
 	return true
-}
-
-// checkGroundProximity returns true if there's a POI close enough for ground narration.
-func (j *NarrationJob) checkGroundProximity(t *sim.Telemetry) bool {
-	best := j.poiMgr.GetBestCandidate()
-	if best == nil {
-		return false
-	}
-
-	// Strict filter: On ground, ONLY narrate Aerodromes
-	if best.Category != "Aerodrome" {
-		return false
-	}
-
-	dist := geo.Distance(geo.Point{Lat: t.Latitude, Lon: t.Longitude}, geo.Point{Lat: best.Lat, Lon: best.Lon})
-	return dist <= 5000.0 // 5km
 }
 
 // checkNarratorReady returns true if the narrator is not playing, paused, or generating.
@@ -148,8 +129,8 @@ func (j *NarrationJob) checkNarratorReady() bool {
 }
 
 // hasViablePOI returns true if there's a POI above the score threshold and is playable.
-func (j *NarrationJob) hasViablePOI() bool {
-	best := j.poiMgr.GetBestCandidate()
+func (j *NarrationJob) hasViablePOI(t *sim.Telemetry) bool {
+	best := j.poiMgr.GetBestCandidate(t.IsOnGround)
 	if best == nil {
 		return false
 	}
@@ -238,11 +219,11 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 	// If LOS is disabled or checker unavailable, use simple best candidate
 	if !j.cfg.Terrain.LineOfSight || j.losChecker == nil {
 		slog.Debug("NarrationJob: LOS disabled or no checker", "los_enabled", j.cfg.Terrain.LineOfSight, "checker_nil", j.losChecker == nil)
-		return j.poiMgr.GetBestCandidate()
+		return j.poiMgr.GetBestCandidate(t.IsOnGround)
 	}
 
 	// Get ALL candidates sorted by score (no arbitrary limit)
-	candidates := j.poiMgr.GetCandidates(1000)
+	candidates := j.poiMgr.GetCandidates(1000, t.IsOnGround)
 	slog.Debug("NarrationJob: LOS checking candidates", "count", len(candidates), "aircraft_alt_ft", t.AltitudeMSL)
 
 	aircraftPos := geo.Point{Lat: t.Latitude, Lon: t.Longitude}
