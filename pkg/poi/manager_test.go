@@ -76,6 +76,26 @@ func (s *MockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) 
 }
 func (s *MockStore) Close() error { return nil }
 
+func TestManager_TrackPOI_Nameless(t *testing.T) {
+	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	ctx := context.Background()
+
+	p := &model.POI{
+		WikidataID: "Q_Nameless",
+	}
+	// TrackPOI calls upsertInternal which should now drop nameless POIs
+	err := mgr.TrackPOI(ctx, p)
+	if err != nil {
+		t.Errorf("TrackPOI returned error for nameless POI: %v", err)
+	}
+
+	// Verify it's NOT tracked in memory
+	tracked := mgr.GetTrackedPOIs()
+	if len(tracked) != 0 {
+		t.Errorf("Expected 0 tracked POIs, got %d", len(tracked))
+	}
+}
+
 func TestManager_ActiveTracking(t *testing.T) {
 	mockStore := NewMockStore()
 	mgr := NewManager(&config.Config{}, mockStore, nil)
@@ -114,8 +134,8 @@ func TestManager_Prune(t *testing.T) {
 	oldTime := time.Now().Add(-2 * time.Hour)
 	newTime := time.Now()
 
-	pOld := &model.POI{WikidataID: "QOld", CreatedAt: oldTime}
-	pNew := &model.POI{WikidataID: "QNew", CreatedAt: newTime}
+	pOld := &model.POI{WikidataID: "QOld", NameEn: "Old POI", CreatedAt: oldTime}
+	pNew := &model.POI{WikidataID: "QNew", NameEn: "New POI", CreatedAt: newTime}
 
 	_ = mgr.UpsertPOI(ctx, pOld)
 	_ = mgr.UpsertPOI(ctx, pNew)
@@ -144,6 +164,7 @@ func TestManager_UpdateExistingPOI_LastPlayed_Safety(t *testing.T) {
 	t1 := time.Now()
 	p := &model.POI{
 		WikidataID: "QTest",
+		NameEn:     "Test POI",
 		LastPlayed: t1,
 	}
 	// Add to Manager (simulate Narrator play and track)
@@ -155,6 +176,7 @@ func TestManager_UpdateExistingPOI_LastPlayed_Safety(t *testing.T) {
 	t0 := t1.Add(-10 * time.Minute)
 	pOld := &model.POI{
 		WikidataID: "QTest",
+		NameEn:     "Test POI",
 		LastPlayed: t0,
 	}
 
@@ -178,10 +200,10 @@ func TestManager_CandidateLogic(t *testing.T) {
 	ctx := context.Background()
 
 	pois := []*model.POI{
-		{WikidataID: "P1", Score: 10.0}, // Best
-		{WikidataID: "P2", Score: 5.0},
-		{WikidataID: "P3", Score: 8.0},
-		{WikidataID: "P4", Score: 2.0}, // Worst
+		{WikidataID: "P1", NameEn: "P1", Score: 10.0}, // Best
+		{WikidataID: "P2", NameEn: "P2", Score: 5.0},
+		{WikidataID: "P3", NameEn: "P3", Score: 8.0},
+		{WikidataID: "P4", NameEn: "P4", Score: 2.0}, // Worst
 	}
 
 	for _, p := range pois {
@@ -224,6 +246,7 @@ func TestManager_ResetLastPlayed(t *testing.T) {
 
 	p := &model.POI{
 		WikidataID: "Q1",
+		NameEn:     "Q1",
 		LastPlayed: time.Now(),
 	}
 	_ = mgr.TrackPOI(ctx, p)
@@ -243,14 +266,14 @@ func TestManager_GetFilteredCandidates(t *testing.T) {
 
 	now := time.Now()
 	pois := []*model.POI{
-		{WikidataID: "P1", Score: 10.0, IsVisible: true},
-		{WikidataID: "P2", Score: 8.0, IsVisible: true},
-		{WikidataID: "P3", Score: 8.0, IsVisible: true},
-		{WikidataID: "P4", Score: 5.0, IsVisible: true},
-		{WikidataID: "P5", Score: 2.0, IsVisible: true},
-		{WikidataID: "P_Played", Score: 1.0, IsVisible: true, LastPlayed: now},
-		{WikidataID: "P_Invisible", Score: 15.0, IsVisible: false},
-		{WikidataID: "P_Airport", Score: 5.0, IsVisible: true, Category: "Aerodrome"},
+		{WikidataID: "P1", NameEn: "P1", Score: 10.0, IsVisible: true},
+		{WikidataID: "P2", NameEn: "P2", Score: 8.0, IsVisible: true},
+		{WikidataID: "P3", NameEn: "P3", Score: 8.0, IsVisible: true},
+		{WikidataID: "P4", NameEn: "P4", Score: 5.0, IsVisible: true},
+		{WikidataID: "P5", NameEn: "P5", Score: 2.0, IsVisible: true},
+		{WikidataID: "P_Played", NameEn: "P_Played", Score: 1.0, IsVisible: true, LastPlayed: now},
+		{WikidataID: "P_Invisible", NameEn: "P_Invisible", Score: 15.0, IsVisible: false},
+		{WikidataID: "P_Airport", NameEn: "P_Airport", Score: 5.0, IsVisible: true, Category: "Aerodrome"},
 	}
 
 	for _, p := range pois {

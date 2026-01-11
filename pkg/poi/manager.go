@@ -75,7 +75,13 @@ func (m *Manager) TrackPOI(ctx context.Context, p *model.POI) error {
 }
 
 func (m *Manager) upsertInternal(ctx context.Context, p *model.POI, shouldSave bool) error {
-	// 0. Pre-check MSFS Overlap if needed
+	// 0. Name Validation: Drop POIs without ANY valid name
+	if p.NameEn == "" && p.NameLocal == "" && p.NameUser == "" {
+		m.logger.Debug("Dropping nameless POI", "qid", p.WikidataID)
+		return nil
+	}
+
+	// 0a. Pre-check MSFS Overlap if needed
 	if err := m.EnrichWithMSFS(ctx, p); err != nil {
 		m.logger.Warn("Failed to check MSFS overlap", "qid", p.WikidataID, "error", err)
 	}

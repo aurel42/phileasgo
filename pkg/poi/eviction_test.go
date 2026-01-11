@@ -69,7 +69,7 @@ func TestManager_PruneByDistance(t *testing.T) {
 			// 'go test' compiles all _test.go files in the package together, so it should be visible.
 
 			mgr := NewManager(&config.Config{}, NewMockStore(), nil)
-			p := &model.POI{WikidataID: tt.name, Lat: tt.poiLat, Lon: tt.poiLon}
+			p := &model.POI{WikidataID: tt.name, NameEn: tt.name, Lat: tt.poiLat, Lon: tt.poiLon}
 			_ = mgr.TrackPOI(context.Background(), p)
 
 			count := mgr.PruneByDistance(acLat, acLon, heading, thresholdKm)

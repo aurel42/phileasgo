@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.65 (2026-01-11)
+- **Fix**: **Nameless POI Invalidation (Final Cleanup)**
+    - Implemented strict name validation in `POIManager`. The system now automatically rejects any POI that lacks a valid English, Local, or User-language name.
+    - This fix successfully removes "zombie" entries—nameless database records from older versions that were erroneously pinned to the map due to having been previously "played."
+    - All existing "Unknown" entries on the map are now dropped from active tracking, ensuring a cleaner POI overlay.
+- **Maintenance**:
+    - Cleaned up experimental diagnostic scripts for Wikidata hydration.
+    - Updated `pkg/poi` test suite to use properly named POIs for all pruning and eviction scenarios.
+
 ## v0.2.64 (2026-01-11)
 - **Feature**: **Ground-Aware POI Filtering (The "Airport First" Rule)**
     - Centralized ground-aware filtering in `POIManager`. When the aircraft is on the ground (taxiing or parked), the system now strictly includes only POIs in the `Aerodrome` category.
