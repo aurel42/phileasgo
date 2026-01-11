@@ -367,41 +367,35 @@ if altAGL < 500 {
 
 ---
 
-## Unified Filtering & Adaptive Thresholding (v0.2.64)
-To provide a consistent and responsive experience, PhileasGo v0.2.62 centralizes all POI filtering in `POIManager.GetFilteredCandidates`.
+## POI List Filtering
+To provide a consistent and responsive experience, PhileasGo centralizes all POI filtering in `POIManager`. The manager exposes two distinct access methods tailored to different consumers (UI vs. Backend), ensuring that strict rules (like cooldowns) don't hide visibility in the map.
 
-### Unified Filtering Rules
-For a POI to be returned for display on the Map or as a Narration Candidate, it must meet one of these two criteria:
-1.  **Persistent (Played)**: `LastPlayed` is not zero. These POIs are **always** visible, rendered with a distinct **blue marker** in the UI, and never filtered out by score or visibility rules.
-2.  **Qualitative (Candidate)**:
-    -   `IsVisible` must be true (determined by Visibility Table/LOS).
-    -   `Score` must be greater than or equal to the **Effective Threshold**.
+### Frontend: `GetPOIsForUI`
+Designed for the visual map and list.
+- **Goal**: Providing situational awareness and history.
+- **Input**: `filterMode` (fixed/adaptive), `targetCount`, `minScore`.
+- **Output**: A unified list of POIs including:
+    -   **Played Items**: `LastPlayed != zero`. These are **always** included (rendered as blue markers) regardless of visibility or score, ensuring travel history is preserved.
+    -   **Visible Candidates**: Unplayed items that meet the visibility and score criteria.
+-   **Logic**:
+    -   **Ground Agnostic**: Does **NOT** apply the Aerodrome-only filter. This ensures that even when taxiing, the user can see nearby landmarks on the map.
+    -   **Thresholding**: Calculates an `EffectiveThreshold` based on the active `Filter Mode`.
+        -   **Fixed Mode**: Threshold = `Narrator.MinPOIScore` (default: 0.5).
+        -   **Adaptive Mode**: Dynamically calculated to include at least `TargetPOICount` visible POIs. (If ties exist at the cutoff score, all tied POIs are included).
 
-### Filter Modes
-The user can toggle between two modes in the UI:
+### Backend: `GetNarrationCandidates`
+Designed for the `NarrationJob` and `GetBestCandidate`.
+- **Goal**: Finding the next valid target to speak about.
+- **Output**: A strictly filtered list of viable targets.
+- **Logic** (Strict Filtering):
+    -   **Strictly Fresh (`isPlayable`)**: Filters out **ANY** POI that is currently on cooldown (where `time.Since(LastPlayed) < RepeatTTL`). Does not return "Played" items.
+    -   **Strictly Visible**: `IsVisible` must be true (determined by Visibility Table/LOS).
+    -   **Ground Aware**: If `IsOnGround` is true, strictly restricts results to the `Aerodrome` category to prevent "shadowing" of airports by nearby city centers.
+    -   **Score Gated**: If a score threshold is provided, candidates below it are dropped.
 
-| Mode | Threshold Calculation (`EffectiveThreshold`) | Use Case |
-|------|---------------------------------------------|----------|
-| **Fixed** | Equal to `Narrator.MinPOIScore` (default: 0.5). | Predictable density based on quality. |
-| **Adaptive** | Dynamically calculated to include at least `TargetPOICount` POIs. | Ensures a consistent number of indicators in sparse areas. |
-
-### Adaptive Mode Logic
-When in Adaptive mode, the system:
-1.  Collects all currently `IsVisible` POIs and sorts them by `Score` (descending).
-2.  Sets the `EffectiveThreshold` to the score of the Nth POI (where N = `TargetPOICount`).
-3.  **Tied Scores**: If multiple POIs have exactly the same score as the Nth POI, **all** of them are included to prevent "flickering" or arbitrary exclusion.
-4.  If total visible POIs < `TargetPOICount`, the threshold drops to `0.0` (all visible POIs are shown).
-
-### Narration Freshness (`isPlayable`)
-While the map shows all visible candidates, the `NarrationJob` applies an additional temporal filter:
--   **RepeatTTL**: A POI is only "Playable" for narration if `time.Since(LastPlayed) >= RepeatTTL`.
--   **LastPlayed**: This is the **sole** timestamp used for repeat prevention. Historic concepts like `RecentlyPlayed` lists have been removed.
-
-### Ground-Aware Filtering (v0.2.64)
-To prevent "shadowing" of airports by nearby city centers or landmarks while the pilot is on the ground, the system implements strict category filtering:
--   **Rule**: If `IsOnGround` is true, `GetFilteredCandidates` returns **only** POIs belonging to the `Aerodrome` category.
--   **Centralization**: This logic is enforced within the `POIManager`, ensuring that `GetBestCandidate` and `GetCandidates` also respect the ground state.
--   **Exemption**: Map display (API) is exempt from this rule to maintain situational awareness, defaulting to `IsOnGround: false`.
+### `GetBestCandidate`
+- **Logic**: A wrapper around `GetNarrationCandidates` with `limit=1`.
+- **Behavior**: Returns the absolute best *playable* and *visible* POI. By delegating to the unified backend filter, it strictly prevents the narrator from stalling on a high-scoring but recently-played POI.
 
 ---
 

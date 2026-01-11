@@ -60,7 +60,7 @@ func (h *POIHandler) HandleTracked(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Get filtered POIs (API always uses airborne mode to show all POIs)
-	pois, threshold := h.mgr.GetFilteredCandidates(filterMode, targetCount, minScore, false)
+	pois, threshold := h.mgr.GetPOIsForUI(filterMode, targetCount, minScore)
 
 	// 3. Optional: Custom response header for threshold
 	w.Header().Set("X-Phileas-Effective-Threshold", fmt.Sprintf("%.2f", threshold))

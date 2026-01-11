@@ -340,7 +340,7 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, ns
 	// sched.AddJob(core.NewNarrationJob(cfg, ns, ns.POIManager(), los))
 
 	// Hook NarrationJob into POI Manager's scoring loop (every 5s)
-	narrationJob := core.NewNarrationJob(cfg, ns, ns.POIManager(), simClient, los)
+	narrationJob := core.NewNarrationJob(cfg, ns, ns.POIManager(), simClient, st, los)
 	svcs.PoiMgr.SetScoringCallback(func(c context.Context, t *sim.Telemetry) {
 		if narrationJob.ShouldFire(t) {
 			go narrationJob.Run(c, t)

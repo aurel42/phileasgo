@@ -1,5 +1,23 @@
 ﻿# Release History
 
+## v0.2.70 (2026-01-11)
+- **Refactor**: **Unified Narration Selection**
+    - Consolidated all POI selection logic into `GetNarrationCandidates`, removing deprecated methods and redundant loops.
+    - `NarrationJob` now relies entirely on the `POIManager` to provide pre-filtered candidates, reducing complexity and potential for logic drift.
+- **Feature**: **Dynamic Adaptive Filtering**
+    - `NarrationJob` now dynamically respects the `filter_mode` (fixed/adaptive) and `min_poi_score` settings from the store.
+    - **Adaptive Mode**: When enabled, the job requests candidates without a score threshold, allowing the Manager to return the best available items to meet the target count.
+    - **Responsiveness**: Changes to settings in the UI are applied immediately to the next narration cycle without restart.
+- **Maintenance**: **Test Coverage**
+    - Refactored `pkg/poi` and `pkg/narrator` tests to align with the new interface.
+    - Verified full compliance of mocks (`MockPOIProvider`, `TestPOIProvider`) with the updated `POIProvider` interface.
+
+## v0.2.69 (2026-01-11)
+- **Refactor**: **Strict Narration Filtering (Split Pipeline)**
+    - Split `GetFilteredCandidates` into `GetPOIsForUI` (permissive, for map) and `GetNarrationCandidates` (strict, for narrator).
+    - **Fix**: Resolved narration loop stalls where "Played" items were being reconsidered as candidates.
+    - **Fix**: `GetBestCandidate` now strictly enforces `isPlayable`, `IsVisible`, and Score thresholds.
+
 ## v0.2.68 (2026-01-11)
 - **Fix**: **Duplicate TTS Generation Eliminated**
     - Refactored narrator prompt templates (`script.tmpl`, `edge-tts.tmpl`, `azure.tmpl`) to remove redundant language instructions at the end of templates.

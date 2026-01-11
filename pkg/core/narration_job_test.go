@@ -55,10 +55,18 @@ func (m *mockPOIManager) LastScoredPosition() (lat, lon float64) {
 }
 
 func (m *mockPOIManager) GetCandidates(limit int, isOnGround bool) []*model.POI {
+	return m.GetNarrationCandidates(limit, nil, isOnGround)
+}
+
+func (m *mockPOIManager) GetNarrationCandidates(limit int, minScore *float64, isOnGround bool) []*model.POI {
 	if m.best == nil {
 		return []*model.POI{}
 	}
 	if isOnGround && !strings.EqualFold(m.best.Category, "aerodrome") {
+		return []*model.POI{}
+	}
+	// Mock score check
+	if minScore != nil && m.best.Score < *minScore {
 		return []*model.POI{}
 	}
 	return []*model.POI{m.best}
@@ -169,7 +177,7 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 			}
 			pm := &mockPOIManager{best: tt.bestPOI, lat: lat, lon: lon}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: tt.altitudeAGL,
@@ -207,7 +215,7 @@ func TestNarrationJob_EssayCooldownMultiplier(t *testing.T) {
 	mockN := &mockNarratorService{}
 	pm := &mockPOIManager{best: nil} // Force essay
 	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, nil)
+	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 
 	tel := &sim.Telemetry{AltitudeAGL: 3000}
 	job.Run(context.Background(), tel)
@@ -294,7 +302,7 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 			mockN := &mockNarratorService{}
 			pm := &mockPOIManager{best: tt.bestPOI, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 
 			// Set State
 			job.lastTime = time.Now().Add(-tt.lastNarrationAgo)
@@ -376,5 +384,160 @@ func TestNarrationJob_isPlayable(t *testing.T) {
 				t.Errorf("isPlayable() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// --- Mock Store ---
+
+type MockStore struct {
+	state map[string]string
+}
+
+func NewMockStore() *MockStore {
+	return &MockStore{state: make(map[string]string)}
+}
+
+// StateStore implementation
+func (m *MockStore) GetState(ctx context.Context, key string) (string, bool) {
+	val, ok := m.state[key]
+	return val, ok
+}
+func (m *MockStore) SetState(ctx context.Context, key, val string) error {
+	m.state[key] = val
+	return nil
+}
+
+// No-op implementations for other interfaces
+func (m *MockStore) GetPOI(ctx context.Context, wikidataID string) (*model.POI, error) {
+	return nil, nil
+}
+func (m *MockStore) GetPOIsBatch(ctx context.Context, ids []string) (map[string]*model.POI, error) {
+	return nil, nil
+}
+func (m *MockStore) SavePOI(ctx context.Context, poi *model.POI) error { return nil }
+func (m *MockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error) {
+	return nil, nil
+}
+func (m *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
+func (m *MockStore) GetCache(ctx context.Context, key string) ([]byte, bool)             { return nil, false }
+func (m *MockStore) HasCache(ctx context.Context, key string) (bool, error)              { return false, nil }
+func (m *MockStore) SetCache(ctx context.Context, key string, val []byte) error          { return nil }
+func (m *MockStore) ListCacheKeys(ctx context.Context, prefix string) ([]string, error) {
+	return nil, nil
+}
+func (m *MockStore) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
+	return nil, 0, false
+}
+func (m *MockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error {
+	return nil
+}
+func (m *MockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error) {
+	return nil, nil
+}
+func (m *MockStore) GetHierarchy(ctx context.Context, qid string) (*model.WikidataHierarchy, error) {
+	return nil, nil
+}
+func (m *MockStore) SaveHierarchy(ctx context.Context, h *model.WikidataHierarchy) error { return nil }
+func (m *MockStore) GetClassification(ctx context.Context, qid string) (string, bool, error) {
+	return "", false, nil
+}
+func (m *MockStore) SaveClassification(ctx context.Context, qid, category string, parents []string, label string) error {
+	return nil
+}
+func (m *MockStore) GetArticle(ctx context.Context, uuid string) (*model.Article, error) {
+	return nil, nil
+}
+func (m *MockStore) SaveArticle(ctx context.Context, article *model.Article) error { return nil }
+func (m *MockStore) GetSeenEntitiesBatch(ctx context.Context, qids []string) (map[string][]string, error) {
+	return nil, nil
+}
+func (m *MockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]string) error {
+	return nil
+}
+func (m *MockStore) GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error) {
+	return nil, nil
+}
+func (m *MockStore) SaveMSFSPOI(ctx context.Context, poi *model.MSFSPOI) error { return nil }
+func (m *MockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) (bool, error) {
+	return false, nil
+}
+func (m *MockStore) Close() error { return nil }
+
+// --- New Tests for Adaptive/Dynamic Logic ---
+
+func TestNarrationJob_AdaptiveMode(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Narrator.AutoNarrate = true
+	cfg.Narrator.MinScoreThreshold = 10.0 // Strict Default
+
+	// Setup Mock Store with Adaptive Mode
+	store := NewMockStore()
+	store.SetState(context.Background(), "filter_mode", "adaptive")
+
+	mockN := &mockNarratorService{}
+	// POI has score 5.0, which is BELOW strict threshold (10.0)
+	pm := &mockPOIManager{best: &model.POI{Score: 5.0, WikidataID: "Q_LOW"}, lat: 48.0, lon: -123.0}
+	simC := &mockJobSimClient{state: sim.StateActive}
+	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil)
+
+	tel := &sim.Telemetry{
+		AltitudeAGL: 3000,
+		Latitude:    48.0,
+		Longitude:   -123.0,
+	}
+	job.lastTime = time.Time{} // Force ready
+
+	// 1. ShouldFire should be TRUE because adaptive mode ignores the 10.0 threshold
+	if !job.ShouldFire(tel) {
+		t.Error("Adaptive Mode: ShouldFire returned false for valid low-score POI")
+	}
+
+	// 2. Run should trigger PlayPOI
+	job.Run(context.Background(), tel)
+	if !mockN.playPOICalled {
+		t.Error("Adaptive Mode: Expected PlayPOI to be called for low-score POI")
+	}
+}
+
+func TestNarrationJob_DynamicMinScore(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Narrator.AutoNarrate = true
+	cfg.Narrator.MinScoreThreshold = 10.0 // Strict Default
+	cfg.Narrator.Essay.Enabled = false    // Disable Essay to isolate POI check
+
+	// Setup Mock Store with Dynamic Score (Lower than default, but higher than POI)
+	store := NewMockStore()
+	store.SetState(context.Background(), "filter_mode", "fixed")
+	store.SetState(context.Background(), "min_poi_score", "6.0") // Dynamic Override
+
+	mockN := &mockNarratorService{}
+	pm := &mockPOIManager{best: &model.POI{Score: 5.0, WikidataID: "Q5"}, lat: 48.0, lon: -123.0}
+	simC := &mockJobSimClient{state: sim.StateActive}
+	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil)
+
+	tel := &sim.Telemetry{
+		AltitudeAGL: 3000,
+		Latitude:    48.0,
+		Longitude:   -123.0,
+	}
+	job.lastTime = time.Time{}
+
+	// 1. ShouldFire should be FALSE (5.0 < 6.0)
+	// (Even though default was 10.0, we override to 6.0. 5.0 is still < 6.0)
+	if job.ShouldFire(tel) {
+		t.Error("Dynamic Score: ShouldFire returned true, expected false (5.0 < 6.0)")
+	}
+
+	// Update Store to be even lower (4.0)
+	store.SetState(context.Background(), "min_poi_score", "4.0")
+
+	// 2. ShouldFire should now be TRUE (5.0 >= 4.0)
+	if !job.ShouldFire(tel) {
+		t.Error("Dynamic Score: ShouldFire returned false, expected true (5.0 >= 4.0)")
+	}
+
+	job.Run(context.Background(), tel)
+	if !mockN.playPOICalled {
+		t.Error("Dynamic Score: Expected PlayPOI call after lowering threshold")
 	}
 }

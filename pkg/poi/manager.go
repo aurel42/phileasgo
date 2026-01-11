@@ -305,9 +305,10 @@ func (m *Manager) PruneByDistance(lat, lon, heading, thresholdKm float64) int {
 
 // CountScoredAbove returns the number of tracked POIs with a score strictly greater than the threshold.
 // It stops counting once the limit is reached to save resources.
-// GetFilteredCandidates returns a list of POIs base on visibility, quality and persistence rules.
+// GetPOIsForUI returns a list of POIs base on visibility, quality and persistence rules.
 // It returns the filtered list and the effective threshold used (for logging/UI).
-func (m *Manager) GetFilteredCandidates(filterMode string, targetCount int, minScore float64, isOnGround bool) (pois []*model.POI, threshold float64) {
+// Unlike GetNarrationCandidates, this includes "Played" items for history display and ignores ground logic.
+func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore float64) (pois []*model.POI, threshold float64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -316,10 +317,7 @@ func (m *Manager) GetFilteredCandidates(filterMode string, targetCount int, minS
 	var visibleCandidates []*model.POI
 
 	for _, p := range m.trackedPOIs {
-		// Ground Filter: If on ground, ONLY show aerodromes
-		if isOnGround && !strings.EqualFold(p.Category, "aerodrome") {
-			continue
-		}
+		// UI explicitly does NOT filter by ground/air state to allow seeing what's around you on the ground map.
 		if !p.LastPlayed.IsZero() {
 			played = append(played, p)
 		}
@@ -370,6 +368,57 @@ func (m *Manager) GetFilteredCandidates(filterMode string, targetCount int, minS
 	return result, effectiveThreshold
 }
 
+// GetNarrationCandidates returns a list of POIs strictly filtered for narration eligibility.
+// Filters: Playable (TTL), Visible, Score >= minScore (if set), Ground Logic (Aerodrome only).
+func (m *Manager) GetNarrationCandidates(limit int, minScore *float64, isOnGround bool) []*model.POI {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	candidates := make([]*model.POI, 0, len(m.trackedPOIs))
+
+	for _, p := range m.trackedPOIs {
+		// 1. Ground Logic
+		if isOnGround && !strings.EqualFold(p.Category, "aerodrome") {
+			continue
+		}
+
+		// 2. Playability (Cooldown)
+		if !m.isPlayable(p) {
+			continue
+		}
+
+		// 3. Visibility
+		if !p.IsVisible {
+			continue
+		}
+
+		// 4. Score Threshold (if provided)
+		if minScore != nil && p.Score < *minScore {
+			continue
+		}
+
+		candidates = append(candidates, p)
+	}
+
+	// Sort Descending
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].Score > candidates[j].Score
+	})
+
+	if len(candidates) > limit {
+		return candidates[:limit]
+	}
+	return candidates
+}
+
+// isPlayable helper checks if a POI is on cooldown.
+func (m *Manager) isPlayable(p *model.POI) bool {
+	if p.LastPlayed.IsZero() {
+		return true
+	}
+	return time.Since(p.LastPlayed) >= time.Duration(m.config.Narrator.RepeatTTL)
+}
+
 // CountScoredAbove returns the number of tracked POIs with a score strictly greater than the threshold.
 // It stops counting once the limit is reached to save resources.
 func (m *Manager) CountScoredAbove(threshold float64, limit int) int {
@@ -386,49 +435,6 @@ func (m *Manager) CountScoredAbove(threshold float64, limit int) int {
 		}
 	}
 	return count
-}
-
-// GetBestCandidate returns the currently tracked POI with the highest score.
-func (m *Manager) GetBestCandidate(isOnGround bool) *model.POI {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var best *model.POI
-	maxScore := -1.0
-
-	for _, p := range m.trackedPOIs {
-		if isOnGround && !strings.EqualFold(p.Category, "aerodrome") {
-			continue
-		}
-		if p.Score > maxScore {
-			maxScore = p.Score
-			best = p
-		}
-	}
-	return best
-}
-
-// GetCandidates returns the top N POIs sorted by score (highest first).
-func (m *Manager) GetCandidates(limit int, isOnGround bool) []*model.POI {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	candidates := make([]*model.POI, 0, len(m.trackedPOIs))
-	for _, p := range m.trackedPOIs {
-		if isOnGround && !strings.EqualFold(p.Category, "aerodrome") {
-			continue
-		}
-		candidates = append(candidates, p)
-	}
-
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].Score > candidates[j].Score
-	})
-
-	if len(candidates) > limit {
-		return candidates[:limit]
-	}
-	return candidates
 }
 
 // ActiveCount returns the number of currently tracked POIs.

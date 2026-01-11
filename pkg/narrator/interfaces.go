@@ -9,10 +9,10 @@ import (
 // POIProvider defines the interface for POI management.
 type POIProvider interface {
 	GetPOI(ctx context.Context, qid string) (*model.POI, error)
-	GetBestCandidate(isOnGround bool) *model.POI
-	GetCandidates(limit int, isOnGround bool) []*model.POI
+
+	GetNarrationCandidates(limit int, minScore *float64, isOnGround bool) []*model.POI
 	CountScoredAbove(threshold float64, limit int) int
-	GetFilteredCandidates(filterMode string, targetCount int, minScore float64, isOnGround bool) ([]*model.POI, float64)
+
 	LastScoredPosition() (lat, lon float64)
 }
 

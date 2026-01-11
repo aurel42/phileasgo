@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -12,13 +13,13 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/store"
 	"phileasgo/pkg/terrain"
 )
 
 // POIProvider matches the GetBestCandidate method used by NarrationJob.
 type POIProvider interface {
-	GetBestCandidate(isOnGround bool) *model.POI
-	GetCandidates(limit int, isOnGround bool) []*model.POI
+	GetNarrationCandidates(limit int, minScore *float64, isOnGround bool) []*model.POI
 	LastScoredPosition() (lat, lon float64)
 }
 
@@ -29,6 +30,7 @@ type NarrationJob struct {
 	narrator         narrator.Service
 	poiMgr           POIProvider
 	sim              sim.Client
+	store            store.Store
 	losChecker       *terrain.LOSChecker
 	lastTime         time.Time
 	nextFireDuration time.Duration
@@ -37,13 +39,14 @@ type NarrationJob struct {
 	lastCheckedCount int
 }
 
-func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, los *terrain.LOSChecker) *NarrationJob {
+func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker) *NarrationJob {
 	j := &NarrationJob{
 		BaseJob:    NewBaseJob("Narration"),
 		cfg:        cfg,
 		narrator:   n,
 		poiMgr:     pm,
 		sim:        simC,
+		store:      st,
 		losChecker: los,
 		lastTime:   time.Now(),
 	}
@@ -71,8 +74,17 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		return false
 	}
 
-	// 3. POI Selection - Priority over essays
-	if j.hasViablePOI(t) {
+	// 3. POI Selection (Dynamic Check)
+	// We ask the Manager for *any* candidate that meets the criteria.
+	// We use limit=1 just to see if one exists.
+	var minScore *float64
+	if j.getFilterMode() != "adaptive" {
+		val := j.getMinScore()
+		minScore = &val
+	}
+
+	candidates := j.poiMgr.GetNarrationCandidates(1, minScore, t.IsOnGround)
+	if len(candidates) > 0 {
 		return true
 	}
 
@@ -128,29 +140,6 @@ func (j *NarrationJob) checkNarratorReady() bool {
 	return true
 }
 
-// hasViablePOI returns true if there's a POI above the score threshold and is playable.
-func (j *NarrationJob) hasViablePOI(t *sim.Telemetry) bool {
-	best := j.poiMgr.GetBestCandidate(t.IsOnGround)
-	if best == nil {
-		return false
-	}
-
-	// 1. Playable check (RepeatTTL)
-	if !j.isPlayable(best) {
-		slog.Debug("NarrationJob: Best POI on cooldown", "poi", best.DisplayName(), "last_played", best.LastPlayed)
-		return false
-	}
-
-	// 2. Score check
-	if best.Score < j.cfg.Narrator.MinScoreThreshold {
-		slog.Debug("NarrationJob: Best POI below threshold", "poi", best.DisplayName(), "score", best.Score, "threshold", j.cfg.Narrator.MinScoreThreshold)
-		return false
-	}
-
-	slog.Debug("NarrationJob: Viable POI found", "poi", best.DisplayName())
-	return true
-}
-
 func (j *NarrationJob) isPlayable(p *model.POI) bool {
 	if p.LastPlayed.IsZero() {
 		return true
@@ -199,11 +188,18 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 		return
 	}
 
-	// Re-verify threshold and playability just in case state changed between ShouldFire and Run
-	if best.Score < j.cfg.Narrator.MinScoreThreshold || !j.isPlayable(best) {
-		// Try Essay
+	// Re-verify threshold (Dynamic) and playability
+	// State might have changed or getVisibleCandidate might be used differently
+	if !j.isPlayable(best) {
 		j.tryEssay(ctx, t)
 		return
+	}
+
+	if j.getFilterMode() != "adaptive" {
+		if best.Score < j.getMinScore() {
+			j.tryEssay(ctx, t)
+			return
+		}
 	}
 
 	slog.Info("NarrationJob: Triggering narration", "name", best.DisplayName(), "score", fmt.Sprintf("%.2f", best.Score))
@@ -219,22 +215,47 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 	// If LOS is disabled or checker unavailable, use simple best candidate
 	if !j.cfg.Terrain.LineOfSight || j.losChecker == nil {
 		slog.Debug("NarrationJob: LOS disabled or no checker", "los_enabled", j.cfg.Terrain.LineOfSight, "checker_nil", j.losChecker == nil)
-		return j.poiMgr.GetBestCandidate(t.IsOnGround)
+		// Use dynamic config here too: Get top 1 respecting filter
+		var minScore *float64
+		if j.getFilterMode() != "adaptive" {
+			val := j.getMinScore()
+			minScore = &val
+		}
+		cands := j.poiMgr.GetNarrationCandidates(1, minScore, t.IsOnGround)
+		if len(cands) > 0 {
+			return cands[0]
+		}
+		return nil
 	}
 
 	// Get ALL candidates sorted by score (no arbitrary limit)
-	candidates := j.poiMgr.GetCandidates(1000, t.IsOnGround)
+	// We pass nil for minScore because we want to filter ourselves later?
+	// Actually no, we should filter at source if possible to reduce count,
+	// BUT we need to potentially check adaptive mode inside the loop OR we just pass the threshold here.
+	// Since checking LOS is expensive, filtering by score FIRST is good.
+	// Wait, if adaptive mode is ON, minScore is effectively nil.
+	// If adaptive mode is OFF, minScore is set.
+	// So we can compute minScore and pass it!
+	var minScore *float64
+	if j.getFilterMode() != "adaptive" {
+		val := j.getMinScore()
+		minScore = &val
+	}
+
+	candidates := j.poiMgr.GetNarrationCandidates(1000, minScore, t.IsOnGround)
 	slog.Debug("NarrationJob: LOS checking candidates", "count", len(candidates), "aircraft_alt_ft", t.AltitudeMSL)
 
 	aircraftPos := geo.Point{Lat: t.Latitude, Lon: t.Longitude}
 	aircraftAltFt := t.AltitudeMSL
 
+	// Dynamic Config reading (once per run)
+	// threshold := j.getMinScore()
+	// isAdaptive := j.getFilterMode() == "adaptive"
+
 	checkedCount := 0
 	for i, poi := range candidates {
-		// Optimization: Skip POIs that don't meet the minimum score threshold.
-		if poi.Score < j.cfg.Narrator.MinScoreThreshold {
-			break
-		}
+		// Optimization: Score threshold already applied by GetNarrationCandidates
+		// Only adaptive vs fixed logic was handled there too via minScore arg.
 
 		// Also skip if not playable
 		if !j.isPlayable(poi) {
@@ -345,4 +366,34 @@ func (j *NarrationJob) calculateCooldown(multiplier float64, strategy string) {
 		base = cMin + (time.Now().UnixNano() % delta)
 	}
 	j.nextFireDuration = time.Duration(float64(base) * multiplier)
+}
+
+// Helpers for Dynamic Config Reading
+func (j *NarrationJob) getFilterMode() string {
+	if j.store == nil {
+		return "fixed"
+	}
+	val, ok := j.store.GetState(context.Background(), "filter_mode")
+	if !ok || val == "" {
+		return "fixed"
+	}
+	return val
+}
+
+func (j *NarrationJob) getMinScore() float64 {
+	fallback := j.cfg.Narrator.MinScoreThreshold
+
+	if j.store == nil {
+		return fallback
+	}
+	val, ok := j.store.GetState(context.Background(), "min_poi_score")
+	if !ok || val == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }

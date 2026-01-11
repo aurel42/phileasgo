@@ -200,10 +200,10 @@ func TestManager_CandidateLogic(t *testing.T) {
 	ctx := context.Background()
 
 	pois := []*model.POI{
-		{WikidataID: "P1", NameEn: "P1", Score: 10.0}, // Best
-		{WikidataID: "P2", NameEn: "P2", Score: 5.0},
-		{WikidataID: "P3", NameEn: "P3", Score: 8.0},
-		{WikidataID: "P4", NameEn: "P4", Score: 2.0}, // Worst
+		{WikidataID: "P1", NameEn: "P1", Score: 10.0, IsVisible: true}, // Best
+		{WikidataID: "P2", NameEn: "P2", Score: 5.0, IsVisible: true},
+		{WikidataID: "P3", NameEn: "P3", Score: 8.0, IsVisible: true},
+		{WikidataID: "P4", NameEn: "P4", Score: 2.0, IsVisible: true}, // Worst
 	}
 
 	for _, p := range pois {
@@ -214,10 +214,10 @@ func TestManager_CandidateLogic(t *testing.T) {
 		t.Errorf("Expected 4 active POIs, got %d", mgr.ActiveCount())
 	}
 
-	// 1. GetBestCandidate
-	best := mgr.GetBestCandidate(false)
-	if best == nil || best.WikidataID != "P1" {
-		t.Errorf("GetBestCandidate failed. Want P1, got %v", best)
+	// 1. GetNarrationCandidates (Best)
+	candidates := mgr.GetNarrationCandidates(1, nil, false)
+	if len(candidates) == 0 || candidates[0].WikidataID != "P1" {
+		t.Errorf("GetNarrationCandidates(limit=1) failed. Want P1, got %v", candidates)
 	}
 
 	// 2. CountScoredAbove
@@ -230,10 +230,10 @@ func TestManager_CandidateLogic(t *testing.T) {
 		t.Errorf("CountScoredAbove(4.0) expected 3, got %d", c4)
 	}
 
-	// 3. GetCandidates (Sort)
-	sorted := mgr.GetCandidates(3, false)
+	// 3. GetNarrationCandidates (Sort)
+	sorted := mgr.GetNarrationCandidates(3, nil, false)
 	if len(sorted) != 3 {
-		t.Fatalf("GetCandidates(3) expected 3, got %d", len(sorted))
+		t.Fatalf("GetNarrationCandidates(3) expected 3, got %d", len(sorted))
 	}
 	if sorted[0].WikidataID != "P1" || sorted[1].WikidataID != "P3" || sorted[2].WikidataID != "P2" {
 		t.Errorf("Candidates not sorted correctly. Got %v %v %v", sorted[0].WikidataID, sorted[1].WikidataID, sorted[2].WikidataID)
@@ -260,7 +260,7 @@ func TestManager_ResetLastPlayed(t *testing.T) {
 	}
 }
 
-func TestManager_GetFilteredCandidates(t *testing.T) {
+func TestManager_GetPOIsForUI(t *testing.T) {
 	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
 	ctx := context.Background()
 
@@ -287,7 +287,6 @@ func TestManager_GetFilteredCandidates(t *testing.T) {
 		minScore      float64
 		wantIDs       []string
 		wantThreshold float64
-		isOnGround    bool
 	}{
 		{
 			name:          "Fixed Mode - Threshold 7",
@@ -331,19 +330,11 @@ func TestManager_GetFilteredCandidates(t *testing.T) {
 			wantIDs:       []string{"P1", "P2", "P3", "P4", "P5", "P_Played", "P_Airport"},
 			wantThreshold: 0.0,
 		},
-		{
-			name:          "Ground Mode - Aerodromes ONLY",
-			mode:          "fixed",
-			minScore:      0.0,
-			isOnGround:    true,
-			wantIDs:       []string{"P_Airport"},
-			wantThreshold: 0.0,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, threshold := mgr.GetFilteredCandidates(tt.mode, tt.targetCount, tt.minScore, tt.isOnGround)
+			got, threshold := mgr.GetPOIsForUI(tt.mode, tt.targetCount, tt.minScore)
 			if threshold != tt.wantThreshold {
 				t.Errorf("got threshold %v, want %v", threshold, tt.wantThreshold)
 			}
@@ -363,5 +354,88 @@ func TestManager_GetFilteredCandidates(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestManager_GetNarrationCandidates(t *testing.T) {
+	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	ctx := context.Background()
+
+	now := time.Now()
+	cfg := config.Config{}
+	cfg.Narrator.RepeatTTL = config.Duration(1 * time.Hour) // Cooldown of 1 hour
+	mgr.config = &cfg
+
+	pois := []*model.POI{
+		{WikidataID: "P1", NameEn: "P1", Score: 10.0, IsVisible: true},
+		{WikidataID: "P2", NameEn: "P2", Score: 8.0, IsVisible: true},
+		{WikidataID: "P_Cooldown", NameEn: "P_Cooldown", Score: 12.0, IsVisible: true, LastPlayed: now}, // Best but Cooldown
+		{WikidataID: "P_Invisible", NameEn: "P_Invisible", Score: 15.0, IsVisible: false},               // Best but Invisible
+		{WikidataID: "P_Airport", NameEn: "P_Airport", Score: 5.0, IsVisible: true, Category: "Aerodrome"},
+	}
+
+	for _, p := range pois {
+		_ = mgr.TrackPOI(ctx, p)
+	}
+
+	floatPtr := func(v float64) *float64 { return &v }
+
+	tests := []struct {
+		name       string
+		isOnGround bool
+		limit      int
+		minScore   *float64
+		wantIDs    []string
+	}{
+		{
+			name:       "Airborne - Best Candidates (Cooldown/Invisible Filtered)",
+			isOnGround: false,
+			limit:      10,
+			minScore:   nil,
+			wantIDs:    []string{"P1", "P2", "P_Airport"},
+		},
+		{
+			name:       "Ground - Aerodromes Only",
+			isOnGround: true,
+			limit:      10,
+			minScore:   nil,
+			wantIDs:    []string{"P_Airport"},
+		},
+		{
+			name:       "Score Threshold (MinScore 9.0)",
+			isOnGround: false,
+			limit:      10,
+			minScore:   floatPtr(9.0),
+			wantIDs:    []string{"P1"}, // Only P1(10) > 9
+		},
+		{
+			name:       "Limit Constraints (Top 1)",
+			isOnGround: false,
+			limit:      1,
+			minScore:   nil,
+			wantIDs:    []string{"P1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mgr.GetNarrationCandidates(tt.limit, tt.minScore, tt.isOnGround)
+
+			if len(got) != len(tt.wantIDs) {
+				t.Errorf("got %d candidates, want %d", len(got), len(tt.wantIDs))
+			}
+
+			for i, wantID := range tt.wantIDs {
+				if i < len(got) && got[i].WikidataID != wantID {
+					t.Errorf("rank %d: got %s, want %s", i, got[i].WikidataID, wantID)
+				}
+			}
+		})
+	}
+
+	// Double Check BestCandidate logic
+	best := mgr.GetNarrationCandidates(1, nil, false)
+	if len(best) == 0 || best[0].WikidataID != "P1" {
+		t.Errorf("GetNarrationCandidates(1): Expected P1, got %v", best)
 	}
 }
