@@ -2,6 +2,7 @@ export interface POI {
     wikidata_id: string;
     source: string;
     category: string;
+    specific_category?: string;
     icon: string;
     lat: number;
     lon: number;
@@ -9,8 +10,13 @@ export interface POI {
     name_en: string;
     name_local: string;
     name_user: string;
+    wp_url: string;
     score: number;
+    score_details: string;
+    last_played: string;
+    thumbnail_url?: string;
     is_visible: boolean;
+    is_msfs_poi?: boolean;
 }
 
 export interface NarratorStatusResponse {

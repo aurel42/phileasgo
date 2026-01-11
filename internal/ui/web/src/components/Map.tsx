@@ -145,10 +145,15 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
     const { data: telemetry } = useTelemetry();
     const { status: narratorStatus } = useNarrator();
 
-    // Determine the currently narrated POI ID
-    const currentNarratedId = narratorStatus?.playback_status !== 'idle' && narratorStatus?.current_poi
-        ? narratorStatus.current_poi.wikidata_id
-        : null;
+    // Determine the currently narrated POI
+    const currentNarratedPoi = narratorStatus?.playback_status !== 'idle' ? narratorStatus?.current_poi : null;
+    const currentNarratedId = currentNarratedPoi?.wikidata_id;
+
+    // Merge active POI if missing from the main list (e.g. filtered out by backend)
+    const displayPois = [...pois];
+    if (currentNarratedPoi && !displayPois.find(p => p.wikidata_id === currentNarratedId)) {
+        displayPois.push(currentNarratedPoi);
+    }
 
     // Default to Berlin if no telemetry yet
     const center: [number, number] = telemetry ? [telemetry.Latitude, telemetry.Longitude] : [52.52, 13.40];
@@ -188,7 +193,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
                 </>
             )}
 
-            {pois.filter(p => isPOIVisible(p, minPoiScore) || p.wikidata_id === currentNarratedId).map((poi) => (
+            {displayPois.filter(p => isPOIVisible(p, minPoiScore) || p.wikidata_id === currentNarratedId).map((poi) => (
                 <POIMarker
                     key={poi.wikidata_id}
                     poi={poi}

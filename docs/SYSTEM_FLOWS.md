@@ -64,6 +64,15 @@ Items that fail to classify into a known category are eligible for **Rescue** if
         - `x2.0`: If it's a Tile Record **OR** exceeds the Global Median.
         - `x4.0`: If it is **BOTH** a Tile Record and a Global Giant.
 
+### Phase 4: Icon Assignment ("Heal on Load")
+Since some categories (like "Rescued" internal categories) do not exist in the public `categories.yaml` config, and legacy data may have missing icons, the system acts as a final gatekeeper during **Ingestion/Loading**:
+
+1.  **Gatekeeper**: `POIManager.upsertInternal` calls `ensureIcon(m)` on every POI before it enters the active tracking list.
+2.  **Lookup Logic**:
+    -   **Config Check**: Attempts to look up the category in `categories.yaml` (case-insensitive normalization).
+    -   **Internal Fallback**: If the config check fails, it checks for hardcoded "Internal Categories" (e.g., `Length` -> `arrow`, `Area` -> `circle-stroked`).
+3.  **Result**: This ensures that all POIs served to the API have a valid `Icon` property, healing any legacy or config-missing issues automatically on server start.
+
 ---
 
 ## Hydration & Language Selection

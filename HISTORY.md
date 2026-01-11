@@ -1,5 +1,13 @@
 ﻿# Release History
 
+## v0.2.66 (2026-01-11)
+- **Fix**: **Generic "Camera" Icons (Healing on Load)**
+    - Resolved the issue where many POIs were displaying a generic camera icon instead of their category-specific icon (e.g., `Length` -> `arrow`, `peak` -> `mountain`).
+    - Implemented a "Healing" mechanism in `POIManager.upsertInternal`: every POI now gets its icon validated and assigned immediately upon loading or ingestion.
+    - This fix handles both "Internal Categories" (via hardcoded fallbacks for `Length`, `Area`, etc.) and Case-Sensitivity mismatches (via normalized config lookup).
+- **Doc**: **System Flows Updated**
+    - Updated `SYSTEM_FLOWS.md` with a new section documenting the Icon Assignment & Healing logic.
+
 ## v0.2.65 (2026-01-11)
 - **Fix**: **Nameless POI Invalidation (Final Cleanup)**
     - Implemented strict name validation in `POIManager`. The system now automatically rejects any POI that lacks a valid English, Local, or User-language name.

@@ -86,6 +86,9 @@ func (m *Manager) upsertInternal(ctx context.Context, p *model.POI, shouldSave b
 		m.logger.Warn("Failed to check MSFS overlap", "qid", p.WikidataID, "error", err)
 	}
 
+	// 1. Ensure Icon Availability (Heal on Load)
+	m.ensureIcon(p)
+
 	m.mu.Lock()
 
 	existing, ok := m.trackedPOIs[p.WikidataID]
@@ -93,7 +96,7 @@ func (m *Manager) upsertInternal(ctx context.Context, p *model.POI, shouldSave b
 		// Not in active cache, check DB
 		dbPOI, err := m.store.GetPOI(ctx, p.WikidataID)
 		if err == nil && dbPOI != nil {
-			existing = dbPOI
+			existing = dbPOI // Note: existing DB POI might also have missing icon, but we replace/update below
 		}
 	}
 
@@ -117,6 +120,38 @@ func (m *Manager) upsertInternal(ctx context.Context, p *model.POI, shouldSave b
 	}
 
 	return nil
+}
+
+// ensureIcon populates the POI icon if missing, using config or internal defaults.
+func (m *Manager) ensureIcon(p *model.POI) {
+	if p.Icon != "" {
+		return
+	}
+	if p.Category == "" {
+		return
+	}
+
+	// 1. Check Config (Case-Insensitive)
+	if m.catConfig != nil {
+		if cfg, ok := m.catConfig.Categories[strings.ToLower(p.Category)]; ok {
+			if cfg.Icon != "" {
+				p.Icon = cfg.Icon
+				return
+			}
+		}
+	}
+
+	// 2. Dimension/Internal Fallbacks
+	switch strings.ToLower(p.Category) {
+	case "area":
+		p.Icon = "circle-stroked"
+	case "height":
+		p.Icon = "cemetery-JP" // Specific reuse of tower-like icon
+	case "length":
+		p.Icon = "arrow"
+	case "landmark":
+		p.Icon = "monument"
+	}
 }
 
 // EnrichWithMSFS checks for MSFS overlap and updates the POI if found.
@@ -198,26 +233,6 @@ func (m *Manager) GetTrackedPOIs() []*model.POI {
 
 	list := make([]*model.POI, 0, len(m.trackedPOIs))
 	for _, p := range m.trackedPOIs {
-		// Runtime Hydration: If Icon is missing, try to resolve from config or dimension defaults
-		if p.Icon == "" && p.Category != "" {
-			// 1. Check Config
-			if m.catConfig != nil {
-				if cfg, ok := m.catConfig.Categories[strings.ToLower(p.Category)]; ok {
-					p.Icon = cfg.Icon
-				}
-			}
-			// 2. Dimension Fallbacks (if still empty)
-			if p.Icon == "" {
-				switch p.Category {
-				case "Area":
-					p.Icon = "circle-stroked"
-				case "Height":
-					p.Icon = "cemetery-JP"
-				case "Length":
-					p.Icon = "arrow"
-				}
-			}
-		}
 		list = append(list, p)
 	}
 	return list
