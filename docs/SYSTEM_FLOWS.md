@@ -1,6 +1,6 @@
-# PhileasGo: System Architecture & Data Flows (v0.2.47)
+# PhileasGo: System Architecture & Data Flows (v0.2.61)
 
-This document provides a technical source of truth for the core logic of PhileasGo as of version **v0.2.47**.
+This document provides a technical source of truth for the core logic of PhileasGo as of version **v0.2.61**.
 
 ---
 

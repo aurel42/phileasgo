@@ -86,26 +86,42 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 4. Generate Grid
-	// We scan from North to South (Row 0 is North), West to East
+	gridM, gridL, gridXL := h.computeGrids(&telemetry, effectiveAGL, north, east, south, west, res)
 
+	// 4. Response
+	resp := map[string]interface{}{
+		"gridM":  gridM,
+		"gridL":  gridL,
+		"gridXL": gridXL,
+		"rows":   res,
+		"cols":   res,
+		"bounds": map[string]float64{
+			"north": north, "east": east, "south": south, "west": west,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (h *VisibilityHandler) computeGrids(telemetry *sim.Telemetry, effectiveAGL, north, east, south, west float64, res int) (gridM, gridL, gridXL []float64) {
 	latStep := (north - south) / float64(res)
 
-	// Ensure positive steps (handle wrapping if needed, but simple for now)
+	// Ensure positive steps
 	if latStep < 0 {
 		latStep = -latStep
 	}
 
-	// Handle dateline crossing? simple logic for now: west < east usually
-	// If west > east, we crossed 180.
+	// Handle dateline crossing
 	width := east - west
 	if width < 0 {
 		width += 360
 	}
 	lonStep := width / float64(res)
 
-	gridM := make([]float64, 0, res*res)
-	gridL := make([]float64, 0, res*res)
-	gridXL := make([]float64, 0, res*res)
+	gridM = make([]float64, 0, res*res)
+	gridL = make([]float64, 0, res*res)
+	gridXL = make([]float64, 0, res*res)
 
 	// Rows: North -> South
 	for row := 0; row < res; row++ {
@@ -160,21 +176,7 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 			gridXL = append(gridXL, scoreXL)
 		}
 	}
-
-	// 4. Response
-	resp := map[string]interface{}{
-		"gridM":  gridM,
-		"gridL":  gridL,
-		"gridXL": gridXL,
-		"rows":   res,
-		"cols":   res,
-		"bounds": map[string]float64{
-			"north": north, "east": east, "south": south, "west": west,
-		},
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	return gridM, gridL, gridXL
 }
 
 // Simple Haversine/Bearing helper

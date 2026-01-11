@@ -2,15 +2,17 @@
 
 ## v0.2.61 (2026-01-11)
 - **Feature**: **Valley Visibility (Effective AGL)**
-    - Implemented a new visibility logic that calculates "Effective AGL" based on the actual valley floor elevation rather than just sea level.
+    - Implemented a new visibility logic that calculates "Effective AGL" based on valley floor elevation.
     - **Logic**: Use the *Lowest* elevation point within a **dynamic radius** (determined by Max Visible Distance for XL POI) as the reference floor.
     - **Impact**: Aircraft flying at low AGL above a deep valley floor will now "see" POIs as if they were flying much higher, drastically boosting visibility for mountain flying.
     - **Map Overlay**: Updated the visibility heatmap API (`GET /api/map/visibility`) to match this logic.
 - **Refactor**: **Scorer Session Pattern**
     - Introduced `scorer.Session` to optimize elevation lookups. The valley scan is performed once per scoring cycle (O(1)) and reused for all POIs.
     - **Dynamic Radius**: Switched from hardcoded 50km to precise Nautical Mile radius based on altitude.
+- **Refactor**: **API Complexity Reduction**
+    - Decomposed `VisibilityHandler.Handler` by extracting grid computation into `computeGrids` helper, reducing cyclomatic complexity to meet linting standards.
 - **Documentation**: **Flow Specifications**
-    - Updated `SYSTEM_FLOWS.md` Section 6.6 with the new Effective AGL formula.
+    - Updated `SYSTEM_FLOWS.md` Section 6. sections to reflect the new Effective AGL formula and dynamic scan radius.
 
 ## v0.2.60 (2026-01-10)
 - **Fix**: **Nameless POI Filtering**
