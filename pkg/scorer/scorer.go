@@ -46,9 +46,15 @@ func NewScorer(cfg *config.ScorerConfig, catCfg *config.CategoriesConfig, visCal
 
 // NewSession initiates a new scoring cycle, pre-calculating expensive terrain data.
 func (s *Scorer) NewSession(input *ScoringInput) Session {
-	// Pre-calculate lowest elevation in 50km radius
+	// Pre-calculate lowest elevation in dynamic radius based on XL visibility at MSL
+	// This ensures we scan far enough to see big mountains if we are high up.
+	radiusNM := s.visCalc.GetMaxVisibleDistance(input.Telemetry.AltitudeMSL, visibility.SizeXL)
+	if radiusNM < 10.0 {
+		radiusNM = 10.0 // Minimum scan radius safety
+	}
+
 	// This is the O(1) op performed once per cycle.
-	lowestElev, err := s.elevation.GetLowestElevation(input.Telemetry.Latitude, input.Telemetry.Longitude, 50.0)
+	lowestElev, err := s.elevation.GetLowestElevation(input.Telemetry.Latitude, input.Telemetry.Longitude, radiusNM)
 	if err != nil {
 		// Log error? For now, fallback to 0 (MSL) or current elevation?
 		// Since we cap at 0 in implementation, 0 is safe default.

@@ -73,8 +73,12 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	effectiveAGL = telemetry.AltitudeAGL
 
 	if h.elevation != nil {
-		// Quick scan similar to Scorer Session (50km radius)
-		lowestMeters, err := h.elevation.GetLowestElevation(telemetry.Latitude, telemetry.Longitude, 50.0)
+		// Quick scan similar to Scorer Session (dynamic radius)
+		radiusNM := h.calculator.GetMaxVisibleDistance(telemetry.AltitudeMSL, visibility.SizeXL)
+		if radiusNM < 10.0 {
+			radiusNM = 10.0
+		}
+		lowestMeters, err := h.elevation.GetLowestElevation(telemetry.Latitude, telemetry.Longitude, radiusNM)
 		if err == nil {
 			lowestFeet := float64(lowestMeters) * 3.28084
 			effectiveAGL = telemetry.AltitudeMSL - lowestFeet

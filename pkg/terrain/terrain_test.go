@@ -327,7 +327,7 @@ func TestElevationProvider_GetLowestElevation(t *testing.T) {
 		name        string
 		lat         float64
 		lon         float64
-		radiusKM    float64
+		radiusNM    float64
 		wantMinLow  int16 // Lower bound of expected min elevation
 		wantMinHigh int16 // Upper bound of expected min elevation
 	}{
@@ -335,7 +335,7 @@ func TestElevationProvider_GetLowestElevation(t *testing.T) {
 			name:        "Dead Sea (Capped at MSL)",
 			lat:         31.7683, // Jerusalem
 			lon:         35.2137,
-			radiusKM:    50,
+			radiusNM:    50,
 			wantMinLow:  0, // Capped at 0
 			wantMinHigh: 0,
 		},
@@ -343,7 +343,7 @@ func TestElevationProvider_GetLowestElevation(t *testing.T) {
 			name:        "Pacific Ocean (Capped at MSL)",
 			lat:         0.0,
 			lon:         -140.0,
-			radiusKM:    50,
+			radiusNM:    50,
 			wantMinLow:  0,
 			wantMinHigh: 0,
 		},
@@ -351,7 +351,7 @@ func TestElevationProvider_GetLowestElevation(t *testing.T) {
 			name:        "Pole Proximity (Arctic Ocean)",
 			lat:         89.0, // Near North Pole
 			lon:         0.0,
-			radiusKM:    100,
+			radiusNM:    100,
 			wantMinLow:  0,
 			wantMinHigh: 0,
 		},
@@ -359,7 +359,7 @@ func TestElevationProvider_GetLowestElevation(t *testing.T) {
 			name:        "Date Line Crossing (Ocean)",
 			lat:         0.0,
 			lon:         179.5, // Close to 180
-			radiusKM:    60,
+			radiusNM:    60,
 			wantMinLow:  0,
 			wantMinHigh: 0,
 		},
@@ -367,7 +367,7 @@ func TestElevationProvider_GetLowestElevation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			minElev, err := provider.GetLowestElevation(tt.lat, tt.lon, tt.radiusKM)
+			minElev, err := provider.GetLowestElevation(tt.lat, tt.lon, tt.radiusNM)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
@@ -393,23 +393,23 @@ func TestElevationProvider_GetLowestElevation_Performance_Everest(t *testing.T) 
 	lat := 27.9881 // Everest
 	lon := 86.9250
 
-	// Radius in KM
-	radiiKM := []float64{10, 20, 30, 40, 50}
+	// Radius in NM
+	radiiNM := []float64{10, 20, 30, 40, 50}
 
-	for _, rKM := range radiiKM {
+	for _, rNM := range radiiNM {
 		start := time.Now()
-		minElev, err := provider.GetLowestElevation(lat, lon, rKM)
+		minElev, err := provider.GetLowestElevation(lat, lon, rNM)
 		duration := time.Since(start)
 
 		if err != nil {
-			t.Fatalf("Error for radius %v km: %v", rKM, err)
+			t.Fatalf("Error for radius %v NM: %v", rNM, err)
 		}
 
-		t.Logf("Radius %2.0f km: MinElev = %5d m, Time = %v", rKM, minElev, duration)
+		t.Logf("Radius %2.0f NM: MinElev = %5d m, Time = %v", rNM, minElev, duration)
 
 		// Performance Assertion: Should be under 100ms (generous budget, aiming for <10ms)
 		if duration > 100*time.Millisecond {
-			t.Errorf("Performance Warning: Radius %.0f km took %v (limit 100ms)", rKM, duration)
+			t.Errorf("Performance Warning: Radius %.0f NM took %v (limit 100ms)", rNM, duration)
 		}
 	}
 }

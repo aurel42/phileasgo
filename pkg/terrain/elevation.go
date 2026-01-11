@@ -17,7 +17,7 @@ const (
 // ElevationGetter defines the efficient retrieval of terrain elevation.
 type ElevationGetter interface {
 	GetElevation(lat, lon float64) (int16, error)
-	GetLowestElevation(lat, lon, radiusKM float64) (int16, error)
+	GetLowestElevation(lat, lon, radiusNM float64) (int16, error)
 }
 
 // ElevationProvider reads elevation data from ETOPO1.
@@ -87,18 +87,18 @@ func (e *ElevationProvider) GetElevation(lat, lon float64) (int16, error) {
 	return val, nil
 }
 
-// GetLowestElevation returns the minimum altitude (meters) within radiusKM.
+// GetLowestElevation returns the minimum altitude (meters) within radiusNM.
 // It uses an efficient buffered scanning approach to minimize I/O operations.
-func (e *ElevationProvider) GetLowestElevation(lat, lon, radiusKM float64) (int16, error) {
-	if radiusKM < 0 {
+func (e *ElevationProvider) GetLowestElevation(lat, lon, radiusNM float64) (int16, error) {
+	if radiusNM < 0 {
 		return 0, fmt.Errorf("negative radius")
 	}
 
 	// 1. Calculate Grid Bounds
 	// ETOPO1 resolution is 1 arc-minute.
-	// 1 arc-minute latitude approx 1.852 km (1 NM).
-	radiusNM := radiusKM / 1.852
-	radiusRows := int(math.Ceil(radiusNM))
+	// 1 arc-minute latitude approx 1 NM.
+	// So radiusNM is directly the padding in arc-minutes (approx).
+	radiusRows := int(math.Ceil(radiusNM)) + 1
 
 	// Adjust for longitude convergence: radiusCols = radiusRows / cos(lat)
 	// We use the maximum latitude in the range to be safe (closest to pole = widest relative longitude coverage needed? No, cos(90)=0, 1/0=inf.

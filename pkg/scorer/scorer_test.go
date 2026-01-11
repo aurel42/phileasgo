@@ -14,7 +14,7 @@ import (
 type mockElevationGetter struct{}
 
 func (m *mockElevationGetter) GetElevation(lat, lon float64) (int16, error) { return 0, nil }
-func (m *mockElevationGetter) GetLowestElevation(lat, lon, radiusKM float64) (int16, error) {
+func (m *mockElevationGetter) GetLowestElevation(lat, lon, radiusNM float64) (int16, error) {
 	return 0, nil
 }
 
@@ -54,17 +54,19 @@ func setupScorer() *Scorer {
 		{
 			AltAGL: 0,
 			Distances: map[visibility.SizeType]float64{
-				visibility.SizeS: 1.0,
-				visibility.SizeM: 2.0,
-				visibility.SizeL: 5.0,
+				visibility.SizeS:  1.0,
+				visibility.SizeM:  2.0,
+				visibility.SizeL:  5.0,
+				visibility.SizeXL: 8.0,
 			},
 		},
 		{
 			AltAGL: 1000,
 			Distances: map[visibility.SizeType]float64{
-				visibility.SizeS: 1.0,
-				visibility.SizeM: 5.0,
-				visibility.SizeL: 10.0,
+				visibility.SizeS:  1.0,
+				visibility.SizeM:  5.0,
+				visibility.SizeL:  10.0,
+				visibility.SizeXL: 15.0,
 			},
 		},
 	})

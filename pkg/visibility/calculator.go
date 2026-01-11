@@ -17,6 +17,14 @@ func NewCalculator(m *Manager) *Calculator {
 	}
 }
 
+// GetMaxVisibleDistance returns the maximum visible distance for a given altitude and size.
+func (c *Calculator) GetMaxVisibleDistance(alt float64, size SizeType) float64 {
+	if c.manager == nil {
+		return 0
+	}
+	return c.manager.GetMaxVisibleDist(alt, size)
+}
+
 // CalculateVisibility returns a score from 0.0 to 1.0 representing visibility
 // heading: aircraft heading in degrees (0-360)
 // altAGL: aircraft altitude above ground level in feet

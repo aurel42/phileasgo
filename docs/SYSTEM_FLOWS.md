@@ -263,7 +263,8 @@ visScore = 1 - (distanceNM / maxDistanceNM)
 -   **Size-Dependent**: The `maxDistanceNM` is looked up from the visibility table based on POI size and aircraft altitude.
 -   **Effective AGL / Valley Boost**:
     -   Logic: `FinalVisibilityScore = Max(Score(RealAGL), Score(EffectiveAGL))`
-    -   Effective AGL = `AircraftAltMSL - LowestValleyFloorMSL` (within 50km radius).
+    -   Effective AGL = `AircraftAltMSL - LowestValleyFloorMSL` (within dynamic radius).
+    -   **Dynamic Radius**: The scan radius is determined by the maximum visible distance for an **XL** POI at the aircraft's current altitude (e.g., higher altitude = wider valley scan).
     -   Scanned using efficient `terrain.GetLowestElevation`.
 -   **Invisible Cutoff**: If `distance > maxDistance`, the POI is marked invisible (`Score = 0`).
 
