@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.72 (2026-01-12)
+- **Refactor**: **Decoupled Narration Generation**
+    - Split the monolithic `PlayPOI` workflow into granular `GenerateNarrative` and `PlayNarrative` methods in `AIService`.
+    - Allows the system to prepare scripts and synthesis in the background (potentially for a Playlist/Queue system) without blocking or requiring immediate playback.
+    - Updated `Service` interface to expose these primitives.
+- **Tuning**: **Visibility Distance Calibration**
+    - Adjusted `visibility.yaml` lookup table to increase visibility ranges for Small (S) and Medium (M) POIs at lower altitudes (0-2000ft).
+    - Ensures better detection of local landmarks when flying low in valleys, while maintaining performance at high altitudes.
+
 ## v0.2.71 (2026-01-12)
 - **Fix**: **Hierarchy Caching Infinite Refetches**
     - Resolved a critical bug where empty cache entries for unclassified nodes caused an infinite refetches in the hierarchy classifier.

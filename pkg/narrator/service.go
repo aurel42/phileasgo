@@ -7,6 +7,7 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 	"sync"
+	"time"
 )
 
 // Service defines the interface for narration control.
@@ -27,6 +28,10 @@ type Service interface {
 	IsPlaying() bool
 	// PlayPOI triggers narration for a specific POI.
 	PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string)
+	// GenerateNarrative prepares a narrative for a POI without playing it.
+	GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) (*Narrative, error)
+	// PlayNarrative plays a previously generated narrative.
+	PlayNarrative(ctx context.Context, n *Narrative) error
 	// PlayEssay triggers a regional essay narration.
 	PlayEssay(ctx context.Context, tel *sim.Telemetry) bool
 	// SkipCooldown forces the cooldown to expire immediately.
@@ -43,6 +48,15 @@ type Service interface {
 	CurrentTitle() string
 	// ReplayLast triggers replay of the last narrated item and restores its state.
 	ReplayLast(ctx context.Context) bool
+}
+
+// Narrative represents a prepared narration ready for playback.
+type Narrative struct {
+	POI       *model.POI
+	Script    string
+	AudioPath string
+	Format    string // e.g., "mp3"
+	Duration  time.Duration
 }
 
 // StubService is a stub implementation of the narrator service.
@@ -129,6 +143,25 @@ func (s *StubService) PlayPOI(ctx context.Context, poiID string, manual bool, te
 		slog.Info("Narrator stub: automated play triggering", "poi_id", poiID)
 	}
 	s.narratedPOIs[poiID] = true
+}
+
+// GenerateNarrative prepares a narrative (stub).
+func (s *StubService) GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) (*Narrative, error) {
+	slog.Info("Narrator stub: generated narrative for POI", "poi_id", poiID)
+	return &Narrative{
+		POI:      &model.POI{WikidataID: poiID},
+		Script:   "Stub script",
+		Duration: time.Second,
+	}, nil
+}
+
+// PlayNarrative plays a narrative (stub).
+func (s *StubService) PlayNarrative(ctx context.Context, n *Narrative) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	slog.Info("Narrator stub: playing narrative for POI", "poi_id", n.POI.WikidataID)
+	s.narratedPOIs[n.POI.WikidataID] = true
+	return nil
 }
 
 // PlayEssay triggers a regional essay narration (stub).

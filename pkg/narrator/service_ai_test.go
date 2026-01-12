@@ -363,9 +363,9 @@ func TestAIService_BeaconCleanup(t *testing.T) {
 
 	mockBeacon := &MockBeacon{}
 
-	// Scenario: LLM fails, Beacon should be cleared
-	svc := NewAIService(&config.Config{}, &MockLLM{Err: errors.New("fail")}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
-		return &model.POI{}, nil
+	// Scenario: Audio playback fails, Beacon should be cleared (it was set at start of play)
+	svc := NewAIService(&config.Config{}, &MockLLM{Response: "Script"}, &MockTTS{Format: "mp3"}, pm, &MockAudio{PlayErr: errors.New("fail")}, &MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
+		return &model.POI{WikidataID: "Q1"}, nil
 	}}, mockBeacon, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
 
 	svc.Start()
@@ -373,7 +373,54 @@ func TestAIService_BeaconCleanup(t *testing.T) {
 	time.Sleep(50 * time.Millisecond) // Wait for go routine
 
 	if !mockBeacon.Cleared {
-		t.Error("Expected Beacon to be cleared after LLM failure, but it was not")
+		t.Error("Expected Beacon to be cleared after Audio failure, but it was not")
+	}
+}
+
+func TestAIService_GeneratePlay(t *testing.T) {
+	// Verify decoupled methods
+	tempDir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
+	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
+	pm, _ := prompts.NewManager(tempDir)
+
+	svc := NewAIService(&config.Config{},
+		&MockLLM{Response: "GenScript"},
+		&MockTTS{Format: "mp3"},
+		pm,
+		&MockAudio{},
+		&MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
+			return &model.POI{WikidataID: "QGen"}, nil
+		}},
+		&MockBeacon{},
+		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
+
+	ctx := context.Background()
+
+	// 1. Generate
+	narrative, err := svc.GenerateNarrative(ctx, "QGen", "uniform", &sim.Telemetry{})
+	if err != nil {
+		t.Fatalf("GenerateNarrative failed: %v", err)
+	}
+	if narrative == nil {
+		t.Fatal("Narrative is nil")
+	}
+	if narrative.Script != "GenScript" {
+		t.Errorf("Expected script 'GenScript', got '%s'", narrative.Script)
+	}
+	if narrative.POI.WikidataID != "QGen" {
+		t.Errorf("Expected POI QGen, got %s", narrative.POI.WikidataID)
+	}
+
+	// 2. Play
+	err = svc.PlayNarrative(ctx, narrative)
+	if err != nil {
+		t.Fatalf("PlayNarrative failed: %v", err)
+	}
+	// Wait for playback "busy" loop (mock audio not busy by default so it returns immediately)
+	if svc.NarratedCount() != 1 {
+		t.Errorf("Expected narrated count 1, got %d", svc.NarratedCount())
 	}
 }
 func TestAIService_UpdateTripSummary(t *testing.T) {
