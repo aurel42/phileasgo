@@ -1,5 +1,13 @@
 ﻿# Release History
 
+## v0.2.73 (2026-01-12)
+- **Feature**: **Strict Audio File Lifecycle (Rotation)**
+    - Implemented a "One In, One Out" rotation strategy in the Audio Manager (`pkg/audio/manager.go`).
+    - **Logic**: When a new audio file is loaded for playback, the *previously* played file is immediately deleted from disk.
+    - **Impact**: Ensures disk usage is minimal (typically 1 active audio file in `%TEMP%` at any time) while strictly preserving the ability to **Replay** the current narration.
+    - **Fix**: Prevents indefinite accumulation of `.mp3` artifacts in the system temporary directory.
+    - **Fix**: Added explicit file handle closing in `Stop` and `Play` to prevent file lock leaks on Windows.
+
 ## v0.2.72 (2026-01-12)
 - **Refactor**: **Decoupled Narration Generation**
     - Split the monolithic `PlayPOI` workflow into granular `GenerateNarrative` and `PlayNarrative` methods in `AIService`.

@@ -61,7 +61,7 @@ type Manager struct {
 	speakerInitialized bool
 	currentSampleRate  beep.SampleRate
 	streamer           *effects.Volume // Added for volume control
-	trackStreamer      beep.StreamSeeker
+	trackStreamer      beep.StreamSeekCloser
 	trackFormat        beep.Format
 }
 
@@ -77,7 +77,11 @@ func (m *Manager) Play(filepath string, startPaused bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Stop any current playback
+	// Stop any current playback and close the file handle
+	if m.trackStreamer != nil {
+		m.trackStreamer.Close()
+		m.trackStreamer = nil
+	}
 	if m.ctrl != nil {
 		speaker.Clear()
 		m.ctrl = nil
@@ -144,7 +148,6 @@ func (m *Manager) Play(filepath string, startPaused bool) error {
 	// Wrap in control for pause/resume
 	m.ctrl = &beep.Ctrl{Streamer: volStreamer, Paused: startPaused}
 	m.isPaused = startPaused
-	m.lastNarrationFile = filepath
 
 	// Play with callback to clean up when done
 	speaker.Play(beep.Seq(m.ctrl, beep.Callback(func() {
@@ -154,6 +157,20 @@ func (m *Manager) Play(filepath string, startPaused bool) error {
 		m.mu.Unlock()
 		streamer.Close()
 	})))
+
+	// Check if this is a new file or replay
+	if m.lastNarrationFile != "" && m.lastNarrationFile != filepath {
+		oldFile := m.lastNarrationFile
+		// We can safely delete the old file now that the new one is loaded
+		// Note: We don't need to lock for os.Remove as it's an OS operation and we have a local copy of the path
+		if err := os.Remove(oldFile); err == nil {
+			slog.Debug("Audio: Cleaned up previous narration artifact", "path", oldFile)
+		} else if !os.IsNotExist(err) {
+			slog.Warn("Audio: Failed to cleanup previous narration artifact", "path", oldFile, "error", err)
+		}
+	}
+
+	m.lastNarrationFile = filepath
 
 	if startPaused {
 		slog.Info("Loaded audio in PAUSED state", "path", filepath)
@@ -195,6 +212,10 @@ func (m *Manager) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.trackStreamer != nil {
+		m.trackStreamer.Close()
+		m.trackStreamer = nil
+	}
 	if m.ctrl != nil {
 		speaker.Clear()
 		m.ctrl = nil
