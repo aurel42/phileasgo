@@ -33,6 +33,9 @@ func (m *mockNarratorService) PlayEssay(ctx context.Context, tel *sim.Telemetry)
 func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string) {
 	m.playPOICalled = true
 }
+func (m *mockNarratorService) PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error {
+	return nil
+}
 
 type mockPOIManager struct {
 	best *model.POI

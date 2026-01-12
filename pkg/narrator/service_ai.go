@@ -61,6 +61,9 @@ type AIService struct {
 	lastEssayTopic *EssayTopic
 	lastEssayTitle string
 
+	// Staging State (Pipeline)
+	stagedNarrative *Narrative
+
 	essayH    *EssayHandler
 	interests []string
 
@@ -227,6 +230,19 @@ func (s *AIService) updateLatency(d time.Duration) {
 	// Update the sim's prediction window with the observed latency
 	s.sim.SetPredictionWindow(avg)
 	slog.Debug("Narrator: Updated latency stats", "new_latency", d, "rolling_window_size", len(s.latencies), "new_prediction_window", avg)
+}
+
+func (s *AIService) getAverageLatency() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.latencies) == 0 {
+		return 60 * time.Second // Default initial window
+	}
+	var sum time.Duration
+	for _, lat := range s.latencies {
+		sum += lat
+	}
+	return sum / time.Duration(len(s.latencies))
 }
 
 // POIManager returns the internal POI manager.

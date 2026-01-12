@@ -537,3 +537,60 @@ func TestAIService_LatencyTracking(t *testing.T) {
 		t.Errorf("Expected latency >= 40ms (from simulated delay), got %dms", latencyMs)
 	}
 }
+
+func TestAIService_Staging(t *testing.T) {
+	tempDir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
+	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
+	pm, _ := prompts.NewManager(tempDir)
+
+	mockLLM := &MockLLM{Response: "StagedScript"}
+	svc := NewAIService(&config.Config{},
+		mockLLM,
+		&MockTTS{Format: "mp3"},
+		pm,
+		&MockAudio{},
+		&MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
+			return &model.POI{WikidataID: "QStage", NameEn: "Staged POI"}, nil
+		}},
+		&MockBeacon{},
+		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
+
+	ctx := context.Background()
+
+	// 1. Prepare (Stage)
+	err := svc.PrepareNextNarrative(ctx, "QStage", "uniform", &sim.Telemetry{})
+	if err != nil {
+		t.Fatalf("PrepareNextNarrative failed: %v", err)
+	}
+
+	// Verify it is staged
+	func() {
+		svc.mu.Lock()
+		defer svc.mu.Unlock()
+		if svc.stagedNarrative == nil {
+			t.Fatal("stagedNarrative is nil after Prepare")
+		}
+		if svc.stagedNarrative.POI.WikidataID != "QStage" {
+			t.Errorf("Expected staged QID QStage, got %s", svc.stagedNarrative.POI.WikidataID)
+		}
+	}()
+
+	// 2. Play (Should consume staged)
+	// We'll modify the mock LLM to ensure it's NOT called again if using staged?
+	// Hard to check directly without better mocks, but we can check if staged is nil after play.
+	svc.PlayPOI(ctx, "QStage", false, &sim.Telemetry{}, "uniform")
+
+	func() {
+		svc.mu.Lock()
+		defer svc.mu.Unlock()
+		if svc.stagedNarrative != nil {
+			t.Error("stagedNarrative should be nil after PlayPOI")
+		}
+	}()
+
+	if svc.NarratedCount() != 1 {
+		t.Errorf("Expected narrated count 1, got %d", svc.NarratedCount())
+	}
+}

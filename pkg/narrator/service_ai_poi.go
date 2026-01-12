@@ -18,17 +18,51 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 		slog.Info("Narrator: Automated play triggering", "poi_id", poiID)
 	}
 
-	// 1. Generation Phase
-	narrative, err := s.GenerateNarrative(ctx, poiID, strategy, tel)
-	if err != nil {
-		slog.Error("Narrator: Generation failed", "poi_id", poiID, "error", err)
-		return
+	var narrative *Narrative
+	var err error
+
+	// 0. Check Staging (Pipeline Optimization)
+	s.mu.Lock()
+	if s.stagedNarrative != nil {
+		if s.stagedNarrative.POI.WikidataID == poiID {
+			slog.Info("Narrator: Using staged narrative (Zero Latency)", "poi_id", poiID)
+			narrative = s.stagedNarrative
+			s.stagedNarrative = nil
+		} else {
+			slog.Debug("Narrator: Staged narrative mismatch, discarding", "staged", s.stagedNarrative.POI.WikidataID, "requested", poiID)
+			s.stagedNarrative = nil
+		}
+	}
+	s.mu.Unlock()
+
+	// 1. Generation Phase (if not staged)
+	if narrative == nil {
+		narrative, err = s.GenerateNarrative(ctx, poiID, strategy, tel)
+		if err != nil {
+			slog.Error("Narrator: Generation failed", "poi_id", poiID, "error", err)
+			return
+		}
 	}
 
 	// 2. Playback Phase
 	if err := s.PlayNarrative(ctx, narrative); err != nil {
 		slog.Error("Narrator: Playback failed", "poi_id", poiID, "error", err)
 	}
+}
+
+// PrepareNextNarrative prepares a narrative for a POI and stages it for later playback.
+func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error {
+	slog.Info("Narrator: Pipeline preparing next narrative", "poi_id", poiID)
+
+	narrative, err := s.GenerateNarrative(ctx, poiID, strategy, tel)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	s.stagedNarrative = narrative
+	s.mu.Unlock()
+	return nil
 }
 
 // GenerateNarrative prepares a narrative for a POI without playing it.
@@ -69,7 +103,12 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 
 	// Gather Context & Build Prompt
 	promptData := s.buildPromptData(ctx, p, tel, strategy)
-	slog.Info("Narrator: Generating script", "name", p.DisplayName(), "qid", p.WikidataID, "relative_dominance", promptData.DominanceStrategy)
+	slog.Info("Narrator: Generating script",
+		"name", p.DisplayName(),
+		"qid", p.WikidataID,
+		"relative_dominance", promptData.DominanceStrategy,
+		"predicted_delay", s.getAverageLatency(),
+	)
 
 	prompt, err := s.prompts.Render("narrator/script.tmpl", promptData)
 	if err != nil {
@@ -84,7 +123,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 
 	// Save to history (This was in narratePOI, ok to do here as it's part of "creation")
 	p.Script = script
-	s.addScriptToHistory(p.WikidataID, p.DisplayName(), script)
+	// REMOVED: s.addScriptToHistory(p.WikidataID, p.DisplayName(), script) - Moved to PlayNarrative
 
 	// TTS Synthesis
 	safeID := strings.ReplaceAll(p.WikidataID, "/", "_")
@@ -165,6 +204,9 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 		"words", genWords,
 		"audio_duration", duration,
 	)
+
+	// Update History (Trip Summary) - Moved from GenerateNarrative
+	s.addScriptToHistory(n.POI.WikidataID, n.POI.DisplayName(), n.Script)
 
 	// Update stats
 	s.mu.Lock()
