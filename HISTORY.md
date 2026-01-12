@@ -1,8 +1,8 @@
 ﻿# Release History
 
 ## v0.2.71 (2026-01-12)
-- **Fix**: **Hierarchy Caching Infinite Loop**
-    - Resolved a critical bug where empty cache entries for unclassified nodes caused an infinite loop in the hierarchy classifier.
+- **Fix**: **Hierarchy Caching Infinite Refetches**
+    - Resolved a critical bug where empty cache entries for unclassified nodes caused an infinite refetches in the hierarchy classifier.
     - Optimized `classifyHierarchyNode` to strictly treat empty cache entries as "Dead Ends" and return immediately, preventing unnecessary re-traversal.
 - **Refactor**: **Simplified Dynamic Config**
     - Removed the `ReprocessNearTiles` feature and associated `ForceRefresh` logic from `service.go` and `dynamic_config_job.go`.
