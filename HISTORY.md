@@ -1,5 +1,10 @@
 ﻿# Release# History
 
+## v0.2.78
+
+*   **Maintenance**: General stabilization and verification of the Headset Audio Effect and Pipelined Narration logic.
+*   **Testing**: Verified all audio and core tests pass in a clean state.
+
 ## v0.2.77
 
 *   **Feature: Optional Headset Audio Effect**: Added a configurable digital bandpass filter to simulate the sound of an aviation headset or radio.
