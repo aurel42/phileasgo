@@ -42,7 +42,17 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 	s.generating = true
 	s.mu.Unlock()
 
+	// Capture start time for latency tracking
+	startTime := time.Now()
+
 	defer func() {
+		// Update Latency (Total Generation Cost)
+		// We do this in defer to catch errors too, though ideally we only care about success or expensive failures?
+		// Let's count it all for now as "Cost of utilizing the creation pipeline".
+		// Actually, if it errors early, it's fast. That might skew avg down.
+		// But if it takes 5s and fails, we want to know that cost.
+		s.updateLatency(time.Since(startTime))
+
 		s.mu.Lock()
 		s.generating = false
 		s.mu.Unlock()
@@ -86,10 +96,11 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 
 	// If synthesis successful, return Narrative
 	return &Narrative{
-		POI:       p,
-		Script:    script,
-		AudioPath: audioPath,
-		Format:    format,
+		POI:            p,
+		Script:         script,
+		AudioPath:      audioPath,
+		Format:         format,
+		RequestedWords: promptData.MaxWords,
 	}, nil
 }
 
@@ -121,7 +132,6 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 	}()
 
 	// Optional: Marker Spawning
-	startTime := time.Now()
 	if s.beaconSvc != nil {
 		_ = s.beaconSvc.SetTarget(ctx, n.POI.Lat, n.POI.Lon)
 	}
@@ -136,8 +146,8 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 		return fmt.Errorf("audio playback failed: %w", err)
 	}
 
-	// Update Latency (Setup time only)
-	s.updateLatency(time.Since(startTime))
+	// Update Latency (Setup time only) - MOVED TO GenerateNarrative
+	// s.updateLatency(time.Since(startTime))
 
 	// Mark as played
 	n.POI.LastPlayed = time.Now()
@@ -151,6 +161,7 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 	slog.Info("Narrator: Narration stats",
 		"name", n.POI.DisplayName(),
 		"qid", n.POI.WikidataID,
+		"requested_len", n.RequestedWords,
 		"words", genWords,
 		"audio_duration", duration,
 	)

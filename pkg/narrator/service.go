@@ -46,17 +46,21 @@ type Service interface {
 	CurrentPOI() *model.POI
 	// CurrentTitle returns the title of the current narration.
 	CurrentTitle() string
+	// Explanation: We need Remaining() to calculate pipeline trigger
+	// Remaining returns the estimated remaining duration of the current playback.
+	Remaining() time.Duration
 	// ReplayLast triggers replay of the last narrated item and restores its state.
 	ReplayLast(ctx context.Context) bool
 }
 
 // Narrative represents a prepared narration ready for playback.
 type Narrative struct {
-	POI       *model.POI
-	Script    string
-	AudioPath string
-	Format    string // e.g., "mp3"
-	Duration  time.Duration
+	POI            *model.POI
+	Script         string
+	AudioPath      string
+	Format         string // e.g., "mp3"
+	Duration       time.Duration
+	RequestedWords int
 }
 
 // StubService is a stub implementation of the narrator service.
@@ -212,6 +216,11 @@ func (s *StubService) CurrentPOI() *model.POI {
 // CurrentTitle returns the title of the current narration (stub: empty).
 func (s *StubService) CurrentTitle() string {
 	return ""
+}
+
+// Remaining returns the remaining duration (stub: 0).
+func (s *StubService) Remaining() time.Duration {
+	return 0
 }
 
 // ReplayLast replays the last narration (stub: always false).

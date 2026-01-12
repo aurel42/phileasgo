@@ -483,3 +483,57 @@ func TestAIService_UpdateTripSummary(t *testing.T) {
 		})
 	}
 }
+
+func TestAIService_LatencyTracking(t *testing.T) {
+	tempDir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
+	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
+	pm, _ := prompts.NewManager(tempDir)
+
+	// Mock LLM with delay to simulate generation time
+	mockLLM := &MockLLM{Response: "Script"}
+	mockLLM.GenerateTextFunc = func(ctx context.Context, name, prompt string) (string, error) {
+		time.Sleep(50 * time.Millisecond)
+		return "Script", nil
+	}
+
+	svc := NewAIService(&config.Config{},
+		mockLLM,
+		&MockTTS{Format: "mp3"},
+		pm,
+		&MockAudio{},
+		&MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
+			return &model.POI{WikidataID: "QLatency"}, nil
+		}},
+		&MockBeacon{},
+		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
+
+	// 1. Initial latencies should be empty
+	stats := svc.Stats()
+	if _, ok := stats["latency_avg_ms"]; ok {
+		t.Error("latency_avg_ms should be missing initially")
+	}
+
+	// 2. GenerateNarrative (should take ~50ms)
+	_, err := svc.GenerateNarrative(context.Background(), "QLatency", "uniform", &sim.Telemetry{})
+	if err != nil {
+		t.Fatalf("GenerateNarrative failed: %v", err)
+	}
+
+	// 3. Check Stats
+	stats = svc.Stats()
+	val, ok := stats["latency_avg_ms"]
+	if !ok {
+		t.Fatal("latency_avg_ms missing after generation")
+	}
+
+	latencyMs, ok := val.(int64)
+	if !ok {
+		t.Fatalf("latency_avg_ms is not int64, got %T", val)
+	}
+
+	if latencyMs < 40 {
+		t.Errorf("Expected latency >= 40ms (from simulated delay), got %dms", latencyMs)
+	}
+}

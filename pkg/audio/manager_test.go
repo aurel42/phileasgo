@@ -99,3 +99,12 @@ func TestGetVoiceByID(t *testing.T) {
 		t.Errorf("Expected fallback voice ID 'aoede', got '%s'", v.ID)
 	}
 }
+
+func TestManager_Remaining(t *testing.T) {
+	m := New()
+
+	// Remaining should be 0 when nothing playing
+	if m.Remaining() != 0 {
+		t.Errorf("Expected remaining 0, got %v", m.Remaining())
+	}
+}

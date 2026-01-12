@@ -244,6 +244,11 @@ func (s *AIService) AudioService() audio.Service {
 	return s.audio
 }
 
+// Remaining returns the remaining duration of the current narration.
+func (s *AIService) Remaining() time.Duration {
+	return s.audio.Remaining()
+}
+
 // activateFallback switches to edge-tts for the remainder of this session.
 // Called when Azure TTS returns a fatal error (429, 5xx, etc.)
 func (s *AIService) activateFallback() {

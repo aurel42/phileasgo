@@ -51,6 +51,8 @@ type Service interface {
 	Position() time.Duration
 	// Duration returns the total duration of the current audio.
 	Duration() time.Duration
+	// Remaining returns the remaining time of the current playback.
+	Remaining() time.Duration
 }
 
 // Manager implements the Service interface using gopxl/beep.
@@ -360,4 +362,20 @@ func (m *Manager) Duration() time.Duration {
 		return 0
 	}
 	return m.trackFormat.SampleRate.D(m.trackStreamer.Len())
+}
+
+// Remaining returns the remaining time of the current playback.
+func (m *Manager) Remaining() time.Duration {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.trackStreamer == nil || m.trackFormat.SampleRate == 0 {
+		return 0
+	}
+	// beep.StreamSeekCloser.Len() returns total samples, Position() returns current sample index
+	// So remaining = (Len - Position) / SampleRate
+	remainingSamples := m.trackStreamer.Len() - m.trackStreamer.Position()
+	if remainingSamples < 0 {
+		return 0
+	}
+	return m.trackFormat.SampleRate.D(remainingSamples)
 }
