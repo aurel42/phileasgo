@@ -250,7 +250,7 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 		}
 	}
 
-	narratorSvc := createAIService(cfg, llmProv, ttsProv, promptMgr, audio.New(), svcs.PoiMgr, beaconSvc, svcs.WikiSvc, simClient, st, tr)
+	narratorSvc := createAIService(cfg, llmProv, ttsProv, promptMgr, audio.New(&cfg.Narrator), svcs.PoiMgr, beaconSvc, svcs.WikiSvc, simClient, st, tr)
 
 	// Restore Volume
 	volStr, _ := st.GetState(ctx, "volume")

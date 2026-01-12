@@ -3,10 +3,12 @@ package audio
 import (
 	"fmt"
 	"testing"
+
+	"phileasgo/pkg/config"
 )
 
 func TestNew(t *testing.T) {
-	m := New()
+	m := New(&config.NarratorConfig{})
 	if m == nil {
 		t.Fatal("New returned nil")
 	}
@@ -16,7 +18,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestManager_StateAccessors(t *testing.T) {
-	m := New()
+	m := New(&config.NarratorConfig{})
 
 	tests := []struct {
 		name   string

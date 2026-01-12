@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"phileasgo/pkg/config"
+
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/effects"
 	"github.com/gopxl/beep/v2/mp3"
@@ -68,12 +70,14 @@ type Manager struct {
 	streamer           *effects.Volume // Added for volume control
 	trackStreamer      beep.StreamSeekCloser
 	trackFormat        beep.Format
+	config             *config.NarratorConfig
 }
 
 // New creates a new Manager instance.
-func New() *Manager {
+func New(cfg *config.NarratorConfig) *Manager {
 	return &Manager{
 		volume: 1.0,
+		config: cfg,
 	}
 }
 
@@ -92,32 +96,10 @@ func (m *Manager) Play(filepath string, startPaused bool) error {
 		m.ctrl = nil
 	}
 
-	// Open the audio file
-	f, err := os.Open(filepath)
+	// Open and decode audio file
+	streamer, format, err := m.decodeStreamer(filepath)
 	if err != nil {
-		slog.Error("Failed to open audio file", "path", filepath, "error", err)
 		return err
-	}
-
-	// Decode based on file extension
-	var streamer beep.StreamSeekCloser
-	var format beep.Format
-
-	// Try MP3 first, then WAV
-	streamer, format, err = mp3.Decode(f)
-	if err != nil {
-		// Reopen file for WAV attempt
-		f.Close()
-		f, err = os.Open(filepath)
-		if err != nil {
-			return err
-		}
-		streamer, format, err = wav.Decode(f)
-		if err != nil {
-			f.Close()
-			slog.Error("Failed to decode audio file", "path", filepath, "error", err)
-			return err
-		}
 	}
 
 	// Initialize speaker once at 48kHz if not done
@@ -136,11 +118,20 @@ func (m *Manager) Play(filepath string, startPaused bool) error {
 	// Resample streamer to target rate
 	resampled := beep.Resample(3, format.SampleRate, m.currentSampleRate, streamer)
 
+	// Apply Audio Effects (if enabled)
+	var finalStreamer beep.Streamer = resampled
+	if m.config != nil && m.config.AudioEffects.Headset {
+		finalStreamer = NewHeadsetFilter(resampled, float64(m.currentSampleRate), m.config.AudioEffects.LowCutoff, m.config.AudioEffects.HighCutoff)
+		slog.Debug("Audio: Headset effect applied",
+			"low", m.config.AudioEffects.LowCutoff,
+			"high", m.config.AudioEffects.HighCutoff)
+	}
+
 	// Wrap in Volume control
 	// Map 0-1 linear volume to Beep logic (Base 2)
 	// Simple mapping: for now we pass it through, SetVolume handles calculation
 	volStreamer := &effects.Volume{
-		Streamer: resampled,
+		Streamer: finalStreamer,
 		Base:     2,
 		Volume:   volumeToPower(m.volume),
 		Silent:   m.volume <= 0.01,
@@ -378,4 +369,38 @@ func (m *Manager) Remaining() time.Duration {
 		return 0
 	}
 	return m.trackFormat.SampleRate.D(remainingSamples)
+}
+
+func (m *Manager) decodeStreamer(path string) (beep.StreamSeekCloser, beep.Format, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		slog.Error("Failed to open audio file", "path", path, "error", err)
+		return nil, beep.Format{}, err
+	}
+
+	// Try MP3 first
+	streamer, format, err := mp3.Decode(f)
+	if err == nil {
+		return streamer, format, nil
+	}
+
+	// Reopen file for WAV attempt (MP3 decode failure might leave file state uncertain)
+	f.Close()
+	f, err = os.Open(path)
+	if err != nil {
+		return nil, beep.Format{}, err
+	}
+	defer func() {
+		if err != nil {
+			f.Close()
+		}
+	}()
+
+	streamer, format, err = wav.Decode(f)
+	if err != nil {
+		slog.Error("Failed to decode audio file", "path", path, "error", err)
+		return nil, beep.Format{}, err
+	}
+
+	return streamer, format, nil
 }

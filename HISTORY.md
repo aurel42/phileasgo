@@ -1,4 +1,12 @@
-﻿# Release History
+﻿# Release# History
+
+## v0.2.77
+
+*   **Feature: Optional Headset Audio Effect**: Added a configurable digital bandpass filter to simulate the sound of an aviation headset or radio.
+    *   Configurable frequency range (defaults to 400Hz - 3500Hz for speech intelligibility).
+    *   Toggleable in `phileas.yaml`.
+*   **Refactor: Audio Pipeline**: Refactored `audio.Manager` to support real-time audio effects using a custom Biquad filter implementation.
+*   **Fix: Pipelined Narration**: Reduced cyclomatic complexity in audio playback logic to improve maintainability.
 
 ## v0.2.76
 *   **Refactor: Enable Pipelined Narration Fix**: Previously, the cooldown logic doubled the wait time in some cases (Waiting Cooldown + Then Generating). The logic has been adjusted to subtract `AverageLatency` from the `Cooldown` wait time. This ensures playback initiates closer to the target cadence.

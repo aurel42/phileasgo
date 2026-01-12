@@ -111,21 +111,29 @@ type EssayConfig struct {
 	ScoreThreshold float64  `yaml:"score_threshold"`
 }
 
+// AudioEffectsConfig holds settings for audio post-processing.
+type AudioEffectsConfig struct {
+	Headset    bool    `yaml:"headset"`
+	LowCutoff  float64 `yaml:"low_cutoff"`
+	HighCutoff float64 `yaml:"high_cutoff"`
+}
+
 // NarratorConfig holds settings for the AI narrator.
 type NarratorConfig struct {
-	AutoNarrate        bool        `yaml:"auto_narrate"`
-	MinScoreThreshold  float64     `yaml:"min_score_threshold"`
-	CooldownMin        Duration    `yaml:"cooldown_min"`
-	CooldownMax        Duration    `yaml:"cooldown_max"`
-	RepeatTTL          Duration    `yaml:"repeat_ttl"`
-	TargetLanguage     string      `yaml:"target_language"`
-	Units              string      `yaml:"units"`
-	NarrationLengthMin int         `yaml:"narration_length_min"` // Random range min (default 400)
-	NarrationLengthMax int         `yaml:"narration_length_max"` // Random range max (default 600)
-	SummaryMaxWords    int         `yaml:"summary_max_words"`    // Max words for the trip summary (default 500)
-	TemperatureBase    float32     `yaml:"temperature_base"`     // Base temperature (default 1.0)
-	TemperatureJitter  float32     `yaml:"temperature_jitter"`   // Jitter range (bell curve distribution)
-	Essay              EssayConfig `yaml:"essay"`
+	AutoNarrate        bool               `yaml:"auto_narrate"`
+	MinScoreThreshold  float64            `yaml:"min_score_threshold"`
+	CooldownMin        Duration           `yaml:"cooldown_min"`
+	CooldownMax        Duration           `yaml:"cooldown_max"`
+	RepeatTTL          Duration           `yaml:"repeat_ttl"`
+	TargetLanguage     string             `yaml:"target_language"`
+	Units              string             `yaml:"units"`
+	NarrationLengthMin int                `yaml:"narration_length_min"` // Random range min (default 400)
+	NarrationLengthMax int                `yaml:"narration_length_max"` // Random range max (default 600)
+	SummaryMaxWords    int                `yaml:"summary_max_words"`    // Max words for the trip summary (default 500)
+	TemperatureBase    float32            `yaml:"temperature_base"`     // Base temperature (default 1.0)
+	TemperatureJitter  float32            `yaml:"temperature_jitter"`   // Jitter range (bell curve distribution)
+	Essay              EssayConfig        `yaml:"essay"`
+	AudioEffects       AudioEffectsConfig `yaml:"audio_effects"`
 }
 
 // LogConfig holds logging settings.
@@ -283,6 +291,11 @@ func DefaultConfig() *Config {
 				Enabled:        true,
 				Cooldown:       Duration(10 * time.Minute),
 				ScoreThreshold: 2.0,
+			},
+			AudioEffects: AudioEffectsConfig{
+				Headset:    false,
+				LowCutoff:  400.0,
+				HighCutoff: 3500.0,
 			},
 		},
 		Sim: SimConfig{
