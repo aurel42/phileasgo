@@ -368,6 +368,17 @@ func (j *NarrationJob) checkCooldown() bool {
 		required = time.Duration(j.cfg.Narrator.CooldownMin)
 	}
 
+	// PRE-FETCH COMPENSATION:
+	// We want the NEXT playback to START at (lastTime + required).
+	// Generation takes 'latency'.
+	// So we must trigger generation at (lastTime + required - latency).
+	latency := j.narrator.AverageLatency()
+	if latency < required {
+		required -= latency
+	} else {
+		required = 0 // Latency > Cooldown implies we should have pipelined (or fire immediately now)
+	}
+
 	return elapsed >= required
 }
 

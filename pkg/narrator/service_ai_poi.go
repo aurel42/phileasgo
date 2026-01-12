@@ -121,6 +121,17 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 		return nil, fmt.Errorf("LLM generation failed: %w", err)
 	}
 
+	// Plausibility Check: Reject excessive output (Reasoning Leak / Hallucination)
+	wordCount := len(strings.Fields(script))
+	limit := promptData.MaxWords + 200
+	if wordCount > limit {
+		slog.Warn("Narrator: Generated script rejected (too long)",
+			"requested", promptData.MaxWords,
+			"actual", wordCount,
+			"limit", limit)
+		return nil, fmt.Errorf("generated script too long: %d > %d words", wordCount, limit)
+	}
+
 	// Save to history (This was in narratePOI, ok to do here as it's part of "creation")
 	p.Script = script
 	// REMOVED: s.addScriptToHistory(p.WikidataID, p.DisplayName(), script) - Moved to PlayNarrative

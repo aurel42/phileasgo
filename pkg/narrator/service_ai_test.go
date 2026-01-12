@@ -629,3 +629,46 @@ func TestAIService_PipelineFlow(t *testing.T) {
 		})
 	}
 }
+func TestAIService_ScriptValidation(t *testing.T) {
+	tempDir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
+	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
+	pm, _ := prompts.NewManager(tempDir)
+
+	// Create a script that is definitely too long
+	// Config Default MaxWords is usually around 400. Limit is +200 = 600.
+	// We generate 1000 words.
+	longScript := strings.Repeat("word ", 1000)
+
+	mockLLM := &MockLLM{Response: longScript}
+	mockPOI := &MockPOIProvider{
+		GetPOIFunc: func(_ context.Context, qid string) (*model.POI, error) {
+			return &model.POI{WikidataID: qid}, nil
+		},
+	}
+
+	cfg := &config.Config{
+		Narrator: config.NarratorConfig{
+			NarrationLengthMax: 200, // Explicitly set low max
+		},
+	}
+
+	svc := NewAIService(cfg,
+		mockLLM,
+		&MockTTS{Format: "mp3"},
+		pm,
+		&MockAudio{},
+		mockPOI,
+		&MockBeacon{},
+		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
+
+	_, err := svc.GenerateNarrative(context.Background(), "QLong", "uniform", &sim.Telemetry{})
+	if err == nil {
+		t.Fatal("Expected error for excessively long script, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "generated script too long") {
+		t.Errorf("Expected error message to contain 'generated script too long', got: %v", err)
+	}
+}

@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.76
+*   **Refactor: Enable Pipelined Narration Fix**: Previously, the cooldown logic doubled the wait time in some cases (Waiting Cooldown + Then Generating). The logic has been adjusted to subtract `AverageLatency` from the `Cooldown` wait time. This ensures playback initiates closer to the target cadence.
+*   **Feature: Narrator Plausibility Check**: To prevent infinite stalls caused by "reasoning leaks" (where the LLM generates thousands of words instead of the requested amount), the Narrator now validates the script length. Scripts exceeding the limit (Requested + 200 words) are rejected with a warning, unblocking the system immediately.
+*   **Fix: Pipelined Narration Tests**: Added specific test cases to verify script length validation and pipeline logic stability.
+
 ## v0.2.75 (2026-01-12)
 - **Refactor**: **Pipelined Narration Tests**
     - Refactored `pkg/core/narration_job_test.go` and `pkg/narrator/service_ai_test.go` into comprehensive table-driven tests.
