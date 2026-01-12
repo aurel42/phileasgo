@@ -232,7 +232,7 @@ func (s *AIService) updateLatency(d time.Duration) {
 	slog.Debug("Narrator: Updated latency stats", "new_latency", d, "rolling_window_size", len(s.latencies), "new_prediction_window", avg)
 }
 
-func (s *AIService) getAverageLatency() time.Duration {
+func (s *AIService) AverageLatency() time.Duration {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.latencies) == 0 {

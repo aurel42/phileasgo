@@ -13,19 +13,27 @@ import (
 
 type mockNarratorService struct {
 	narrator.StubService
-	isPlaying       bool
-	isActive        bool
-	isPaused        bool
-	playEssayCalled bool
-	playPOICalled   bool
+	isPlaying         bool
+	isActive          bool
+	isPaused          bool
+	playEssayCalled   bool
+	playPOICalled     bool
+	prepareNextCalled bool
+	RemainingFunc     func() time.Duration
+	AvgLatencyFunc    func() time.Duration
 }
 
-func (m *mockNarratorService) IsPlaying() bool          { return m.isPlaying }
-func (m *mockNarratorService) IsActive() bool           { return m.isActive }
-func (m *mockNarratorService) IsGenerating() bool       { return false }
-func (m *mockNarratorService) IsPaused() bool           { return m.isPaused }
-func (m *mockNarratorService) CurrentTitle() string     { return "" }
-func (m *mockNarratorService) Remaining() time.Duration { return 0 }
+func (m *mockNarratorService) IsPlaying() bool      { return m.isPlaying }
+func (m *mockNarratorService) IsActive() bool       { return m.isActive }
+func (m *mockNarratorService) IsGenerating() bool   { return false }
+func (m *mockNarratorService) IsPaused() bool       { return m.isPaused }
+func (m *mockNarratorService) CurrentTitle() string { return "" }
+func (m *mockNarratorService) Remaining() time.Duration {
+	if m.RemainingFunc != nil {
+		return m.RemainingFunc()
+	}
+	return 0
+}
 func (m *mockNarratorService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 	m.playEssayCalled = true
 	return true
@@ -34,7 +42,14 @@ func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual 
 	m.playPOICalled = true
 }
 func (m *mockNarratorService) PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error {
+	m.prepareNextCalled = true
 	return nil
+}
+func (m *mockNarratorService) AverageLatency() time.Duration {
+	if m.AvgLatencyFunc != nil {
+		return m.AvgLatencyFunc()
+	}
+	return 0
 }
 
 type mockPOIManager struct {
@@ -543,5 +558,53 @@ func TestNarrationJob_DynamicMinScore(t *testing.T) {
 	job.Run(context.Background(), tel)
 	if !mockN.playPOICalled {
 		t.Error("Dynamic Score: Expected PlayPOI call after lowering threshold")
+	}
+}
+
+func TestNarrationJob_PipelineTrigger(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Narrator.AutoNarrate = true
+	cfg.Narrator.MinScoreThreshold = 5.0
+	cfg.Narrator.CooldownMin = config.Duration(10 * time.Second)
+	cfg.Narrator.CooldownMax = config.Duration(10 * time.Second) // Force deterministic cooldown
+
+	mockN := &mockNarratorService{
+		isPlaying: true, // Currently playing
+		isActive:  true,
+	}
+	pm := &mockPOIManager{best: &model.POI{Score: 10.0, WikidataID: "Q_NEXT"}, lat: 48.0, lon: -123.0}
+	simC := &mockJobSimClient{state: sim.StateActive}
+	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+
+	// Override internal state manually for test
+	// If IsPlaying is true, we need wasBusy to be set if we want to simulate steady state vs rising edge?
+	// Actually ShouldFire sets wasBusy=true if playing.
+
+	// Mock Timings for Pipeline:
+	// Remaining: 2s
+	// Cooldown: 10s (from config)
+	// Avg Latency: 15s (Predicted)
+	// Condition: Remaining(2) + Cooldown(10) = 12 <= Latency(15) -> TRUE
+	mockN.RemainingFunc = func() time.Duration { return 2 * time.Second }
+	mockN.AvgLatencyFunc = func() time.Duration { return 15 * time.Second }
+
+	tel := &sim.Telemetry{
+		AltitudeAGL: 3000,
+		Latitude:    48.0,
+		Longitude:   -123.0,
+	}
+
+	// 1. ShouldFire
+	if !job.ShouldFire(tel) {
+		t.Error("Pipeline: ShouldFire returned false, expected true (Timing correct)")
+	}
+
+	// 2. Run -> PrepareNextNarrative
+	job.Run(context.Background(), tel)
+	if !mockN.prepareNextCalled {
+		t.Error("Pipeline: Expected PrepareNextNarrative to be called")
+	}
+	if mockN.playPOICalled {
+		t.Error("Pipeline: Expected PlayPOI to NOT be called directly during pipeline")
 	}
 }

@@ -78,6 +78,10 @@ func (m *MockAudio) Remaining() time.Duration {
 	return 0
 }
 
+func (m *MockAudio) AverageLatency() time.Duration {
+	return 0
+}
+
 type MockPOIProvider struct {
 	GetPOIFunc func(ctx context.Context, qid string) (*model.POI, error)
 

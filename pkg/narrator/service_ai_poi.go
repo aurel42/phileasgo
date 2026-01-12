@@ -107,7 +107,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 		"name", p.DisplayName(),
 		"qid", p.WikidataID,
 		"relative_dominance", promptData.DominanceStrategy,
-		"predicted_delay", s.getAverageLatency(),
+		"predicted_delay", s.AverageLatency(),
 	)
 
 	prompt, err := s.prompts.Render("narrator/script.tmpl", promptData)

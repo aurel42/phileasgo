@@ -142,3 +142,7 @@ func (m *MockAudioService) Duration() time.Duration {
 func (m *MockAudioService) Remaining() time.Duration {
 	return 0
 }
+
+func (m *MockAudioService) AverageLatency() time.Duration {
+	return 0
+}

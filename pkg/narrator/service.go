@@ -53,6 +53,8 @@ type Service interface {
 	Remaining() time.Duration
 	// ReplayLast triggers replay of the last narrated item and restores its state.
 	ReplayLast(ctx context.Context) bool
+	// AverageLatency returns the rolling average of generation time.
+	AverageLatency() time.Duration
 }
 
 // Narrative represents a prepared narration ready for playback.
@@ -233,6 +235,10 @@ func (s *StubService) Remaining() time.Duration {
 
 // ReplayLast replays the last narration (stub: always false).
 func (s *StubService) ReplayLast(ctx context.Context) bool {
-	slog.Info("Narrator stub: ReplayLast requested")
 	return false
+}
+
+// AverageLatency returns the rolling average of generation time (stub: 0).
+func (s *StubService) AverageLatency() time.Duration {
+	return 0
 }

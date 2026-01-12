@@ -54,6 +54,39 @@ func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, sim
 	return j
 }
 
+// checkNarratorReady returns true if the narrator is ready to accept a new command.
+// For pipelining, we allow firing if playing, provided timing is right.
+func (j *NarrationJob) checkNarratorReady() bool {
+	if j.narrator.IsPaused() {
+		return false
+	}
+
+	// Active means generating or other non-interruptible state
+	if j.narrator.IsActive() && !j.narrator.IsPlaying() {
+		// If active but NOT playing (e.g. generating for first time), we block.
+		// If playing, we might be "active" in service terms, but we want to allow pipeline.
+		// However, AIService.IsActive() returns true for both generating and playing.
+		// We need to differentiate:
+		// If Generating -> Busy (don't interrupt generation)
+		// If Playing -> Potentially Ready (for pipeline)
+		if j.narrator.IsGenerating() {
+			slog.Debug("NarrationJob: Narrator generating")
+			return false
+		}
+	}
+
+	// Playback just finished - start cooldown
+	// This logic handles the "falling edge" of IsPlaying
+	if !j.narrator.IsPlaying() && j.wasBusy {
+		j.wasBusy = false
+		j.lastTime = time.Now()
+		slog.Debug("NarrationJob: Cooldown started", "duration", j.nextFireDuration)
+		return false
+	}
+
+	return true
+}
+
 func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	if atomic.LoadInt32(&j.running) == 1 {
 		return false
@@ -69,9 +102,35 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		return false
 	}
 
-	// 2. Cooldown Check
-	if !j.checkCooldown() {
-		return false
+	// 2. Cooldown & Pipeline Check
+	if j.narrator.IsPlaying() {
+		j.wasBusy = true // Mark as busy so we detect falling edge later
+
+		// PIPELINE LOGIC
+		// Fire if: Remaining + Cooldown <= AvgLatency
+		remaining := j.narrator.Remaining()
+		avgLat := j.narrator.AverageLatency()
+		cooldown := j.nextFireDuration
+
+		// If cooldown is huge (e.g. 5 mins) and latency is small (10s),
+		// we don't want to generate 5 mins early.
+		// We want to generate when we are close to the target start time.
+		// Target Start Time = Now + Remaining + Cooldown
+		// We need generation to finish at Target Start Time.
+		// So we start when TimeToTarget <= Latency.
+		// TimeToTarget = Remaining + Cooldown.
+
+		if remaining+cooldown > avgLat {
+			// Too early
+			return false
+		}
+
+		slog.Info("NarrationJob: Pipeline trigger", "remaining", remaining, "cooldown", cooldown, "latency", avgLat)
+	} else {
+		// Standard Cooldown Check (Not playing)
+		if !j.checkCooldown() {
+			return false
+		}
 	}
 
 	// 3. POI Selection (Dynamic Check)
@@ -89,6 +148,10 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	}
 
 	// 4. Essay fallback
+	// Don't pipeline essays for now (keeps it simple)
+	if j.narrator.IsPlaying() {
+		return false
+	}
 	return j.checkEssayEligible(t)
 }
 
@@ -110,33 +173,6 @@ func (j *NarrationJob) checkPreConditions(t *sim.Telemetry) bool {
 
 	// Ground logic is now handled during POI candidate selection.
 	// If t.IsOnGround, the POI provider will only return Aerodromes.
-	return true
-}
-
-// checkNarratorReady returns true if the narrator is not playing, paused, or generating.
-func (j *NarrationJob) checkNarratorReady() bool {
-	if j.narrator.IsPlaying() {
-		j.wasBusy = true
-		return false
-	}
-
-	if j.narrator.IsPaused() {
-		return false
-	}
-
-	// Playback just finished - start cooldown
-	if j.wasBusy {
-		j.wasBusy = false
-		j.lastTime = time.Now()
-		slog.Debug("NarrationJob: Cooldown started", "duration", j.nextFireDuration)
-		return false
-	}
-
-	if j.narrator.IsActive() {
-		slog.Debug("NarrationJob: Narrator still active")
-		return false
-	}
-
 	return true
 }
 
@@ -205,8 +241,24 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	slog.Info("NarrationJob: Triggering narration", "name", best.DisplayName(), "score", fmt.Sprintf("%.2f", best.Score))
 
 	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer))
-	j.narrator.PlayPOI(ctx, best.WikidataID, false, t, strategy)
-	j.calculateCooldown(1.0, strategy)
+
+	// Pipeline vs Direct Play
+	if j.narrator.IsPlaying() {
+		if err := j.narrator.PrepareNextNarrative(ctx, best.WikidataID, strategy, t); err != nil {
+			slog.Error("NarrationJob: Pipeline preparation failed", "error", err)
+		} else {
+			// Success: We reset cooldown HERE so that when playback finishes,
+			// the "falling edge" logic in checkNarratorReady sees we are "fresh".
+			// Actually, if we stage it, we want the scheduler to potentially Pick it up immediately after playback stops?
+			// No, PlayPOI handles staging check.
+			// But we need to make sure we don't trigger AGAIN immediately.
+			// Calculating cooldown here is correct.
+			j.calculateCooldown(1.0, strategy)
+		}
+	} else {
+		j.narrator.PlayPOI(ctx, best.WikidataID, false, t, strategy)
+		j.calculateCooldown(1.0, strategy)
+	}
 }
 
 // getVisibleCandidate returns the highest-scoring POI that has line-of-sight.
