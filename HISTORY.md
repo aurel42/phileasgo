@@ -1,12 +1,14 @@
-﻿# Release# History
+﻿# History
+
+## v0.2.79
+*   **Fix: Filter Markdown Artifacts from TTS**: Asterisks (`*`) are now stripped from LLM-generated scripts before TTS synthesis. This prevents markdown formatting (like `**bold**`) from being read aloud.
+*   **UI: Reduced Cache Layer Opacity**: The map's cache layer circles are now 50% more transparent for better visibility of underlying terrain.
 
 ## v0.2.78
-
 *   **Maintenance**: General stabilization and verification of the Headset Audio Effect and Pipelined Narration logic.
 *   **Testing**: Verified all audio and core tests pass in a clean state.
 
 ## v0.2.77
-
 *   **Feature: Optional Headset Audio Effect**: Added a configurable digital bandpass filter to simulate the sound of an aviation headset or radio.
     *   Configurable frequency range (defaults to 400Hz - 3500Hz for speech intelligibility).
     *   Toggleable in `phileas.yaml`.

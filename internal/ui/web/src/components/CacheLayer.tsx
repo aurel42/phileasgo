@@ -39,7 +39,7 @@ export const CacheLayer = () => {
                     pathOptions={{
                         color: 'white',
                         fillColor: 'white',
-                        fillOpacity: 0.15,
+                        fillOpacity: 0.075,
                         stroke: false,
                         interactive: false,
                     }}

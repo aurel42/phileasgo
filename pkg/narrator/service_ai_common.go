@@ -6,13 +6,20 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"phileasgo/pkg/tts"
 )
 
 func (s *AIService) generateScript(ctx context.Context, prompt string) (string, error) {
-	return s.llm.GenerateText(ctx, "narration", prompt)
+	script, err := s.llm.GenerateText(ctx, "narration", prompt)
+	if err != nil {
+		return "", err
+	}
+	// Filter markdown artifacts that don't sound good in TTS
+	script = strings.ReplaceAll(script, "*", "")
+	return script, nil
 }
 
 func (s *AIService) synthesizeAudio(ctx context.Context, script, safeID string) (audioPath, format string, err error) {

@@ -108,6 +108,8 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		slog.Error("Narrator: LLM essay script generation failed", "error", err)
 		return
 	}
+	// Filter markdown artifacts
+	script = strings.ReplaceAll(script, "*", "")
 
 	// Save to history
 	s.addScriptToHistory("", topic.Name, script)
