@@ -176,8 +176,10 @@ func (c *Classifier) classifyHierarchyNode(ctx context.Context, qid string) (*mo
 		if storedCat != "" {
 			return c.resultFor(storedCat), nil
 		}
-		// If found but empty, it implies a structural node (parents cached but no direct category).
-		// We MUST fall through to slowPathHierarchy to verify parents, otherwise we block valid paths.
+
+		// If found but empty, it implies a "Dead End" (Checked and found nothing).
+		// Return nil to stop the loop.
+		return nil, nil
 	}
 
 	// 3. Slow Path: Graph Traversal (Subclass Of P279)

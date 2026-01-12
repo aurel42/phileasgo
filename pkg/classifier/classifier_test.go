@@ -230,14 +230,14 @@ func TestClassifier_CachingLevels(t *testing.T) {
 			expectDBHier:  1, // Hit Q_INTER hierarchy
 		},
 		{
-			name: "Negative Cache (Unclassified Class Hit - Falls Through)",
+			name: "Negative Cache (Unclassified Class Hit - Fast Return)",
 			qid:  "Q_NEG",
 			setupStore: func(s *MockStore) {
 				s.Classifications["Q_USELESS"] = "" // Explicitly unclassified
-				// We must provide parents to support the fall-through traversal
+				// Parents are not needed now as we don't fall through
 				s.Hierarchies["Q_USELESS"] = &model.WikidataHierarchy{
 					QID:     "Q_USELESS",
-					Parents: []string{}, // No parents, so it will eventually fail matching
+					Parents: []string{},
 				}
 			},
 			setupClient: func(c *MockClient) {
@@ -247,7 +247,7 @@ func TestClassifier_CachingLevels(t *testing.T) {
 			expectSingle:  1, // P31
 			expectHBatch:  0,
 			expectDBClass: 1, // Hit Q_USELESS -> ""
-			expectDBHier:  1, // Now falls through to check hierarchy of Q_USELESS
+			expectDBHier:  0, // Returns immediately, no hierarchy lookup
 		},
 		{
 			name: "ClassifyBatch (Bulk Efficiency)",

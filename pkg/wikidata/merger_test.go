@@ -102,7 +102,7 @@ func TestMergePOIs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := MergePOIs(tt.candidates, cfg, logger)
+			result, _ := MergePOIs(tt.candidates, cfg, logger)
 			var gotQIDs []string
 			for _, p := range result {
 				gotQIDs = append(gotQIDs, p.WikidataID)
@@ -192,7 +192,7 @@ func TestMergeArticles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := MergeArticles(tt.candidates, cfg, logger)
+			result, _ := MergeArticles(tt.candidates, cfg, logger)
 			var gotQIDs []string
 			for _, a := range result {
 				gotQIDs = append(gotQIDs, a.QID)

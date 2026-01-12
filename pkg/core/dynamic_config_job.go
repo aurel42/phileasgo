@@ -179,12 +179,7 @@ func (j *DynamicConfigJob) Run(ctx context.Context, t *sim.Telemetry) {
 		if len(dynamicInterests) > 0 {
 			j.classifier.SetDynamicInterests(dynamicInterests)
 			slog.Info("DynamicConfigJob: Updated classifier with new dynamic interests", "count", len(dynamicInterests))
-
-			// Trigger Reprocessing of cached tiles
-			// 100km radius to cover what's ahead
-			if err := j.wikiSvc.ReprocessNearTiles(ctx, lat, lon, 100.0); err != nil {
-				slog.Warn("DynamicConfigJob: Failed to reprocess near tiles", "error", err)
-			}
+			// Reprocessing disabled per user request
 		} else {
 			slog.Warn("DynamicConfigJob: No valid interests found in suggestion")
 		}

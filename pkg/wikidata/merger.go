@@ -11,9 +11,10 @@ import (
 )
 
 // MergePOIs groups spatially close POIs and selects the best candidate based on Article Length.
-func MergePOIs(candidates []*model.POI, cfg *config.CategoriesConfig, logger *slog.Logger) []*model.POI {
+// It returns the accepted POIs and a list of QIDs that were rejected (merged away).
+func MergePOIs(candidates []*model.POI, cfg *config.CategoriesConfig, logger *slog.Logger) (accepted []*model.POI, rejected []string) {
 	if len(candidates) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// 1. Sort Candidates by "Quality" (Length Descending)
@@ -30,8 +31,6 @@ func MergePOIs(candidates []*model.POI, cfg *config.CategoriesConfig, logger *sl
 		// Priority 3: Stability (QID)
 		return candidates[i].WikidataID < candidates[j].WikidataID
 	})
-
-	var accepted []*model.POI
 
 	// 2. Greedy Selection
 	for _, cand := range candidates {
@@ -75,6 +74,7 @@ func MergePOIs(candidates []*model.POI, cfg *config.CategoriesConfig, logger *sl
 				// Since we sorted by quality, 'acc' is better or equal to 'cand'.
 				// We drop 'cand'.
 				isDuplicate = true
+				rejected = append(rejected, cand.WikidataID)
 				break
 			}
 		}
@@ -84,14 +84,15 @@ func MergePOIs(candidates []*model.POI, cfg *config.CategoriesConfig, logger *sl
 		}
 	}
 
-	return accepted
+	return accepted, rejected
 }
 
 // MergeArticles groups spatially close Articles and selects the best candidate based on Sitelinks.
 // This runs BEFORE hydration/enrichment to reduce API calls.
-func MergeArticles(candidates []Article, cfg *config.CategoriesConfig, logger *slog.Logger) []Article {
+// It returns the accepted Articles and a list of QIDs that were rejected.
+func MergeArticles(candidates []Article, cfg *config.CategoriesConfig, logger *slog.Logger) (accepted []Article, rejected []string) {
 	if len(candidates) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// 1. Sort Candidates by "Importance" Proxy (Sitelinks Descending)
@@ -101,8 +102,6 @@ func MergeArticles(candidates []Article, cfg *config.CategoriesConfig, logger *s
 		}
 		return candidates[i].QID < candidates[j].QID
 	})
-
-	var accepted []Article
 
 	// 2. Greedy Selection
 	for i := range candidates {
@@ -136,6 +135,7 @@ func MergeArticles(candidates []Article, cfg *config.CategoriesConfig, logger *s
 			if distMeters < mergeDist {
 				// It's a duplicate!
 				isDuplicate = true
+				rejected = append(rejected, cand.QID)
 				break
 			}
 		}
@@ -145,5 +145,5 @@ func MergeArticles(candidates []Article, cfg *config.CategoriesConfig, logger *s
 		}
 	}
 
-	return accepted
+	return accepted, rejected
 }

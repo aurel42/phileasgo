@@ -90,8 +90,23 @@ func (s *Service) processAndHydrate(ctx context.Context, rawArticles []Article, 
 	// 1b. Optimization: Merge *BEFORE* Hydration (Save API calls)
 	// We use "Sitelinks" as the proxy for importance here, instead of Article Length.
 	// This reduces the number of items we need to fetch Titles/Lengths for.
+	// 1b. Optimization: Merge *BEFORE* Hydration (Save API calls)
+	// We use "Sitelinks" as the proxy for importance here, instead of Article Length.
+	// This reduces the number of items we need to fetch Titles/Lengths for.
 	if dc, ok := s.classifier.(DimClassifier); ok {
-		candidates = MergeArticles(candidates, dc.GetConfig(), s.logger)
+		var rejected []string
+		candidates, rejected = MergeArticles(candidates, dc.GetConfig(), s.logger)
+
+		// Save rejected items from Pre-Merge
+		if len(rejected) > 0 {
+			toMark := make(map[string][]string)
+			for _, qid := range rejected {
+				toMark[qid] = []string{"merged"} // dummy instance or "merged" tag
+			}
+			if err := s.store.MarkEntitiesSeen(ctx, toMark); err != nil {
+				s.logger.Warn("Failed to mark merged-away articles as seen", "error", err)
+			}
+		}
 	}
 
 	// 2. Hydration (Fetch Titles/Labels for survivors)

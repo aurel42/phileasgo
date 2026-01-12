@@ -14,28 +14,49 @@ func (s *Service) enrichAndSave(ctx context.Context, articles []Article, localLa
 	lengths := s.fetchArticleLengths(ctx, articles, localLangs, userLang)
 
 	// 4c. Construct POIs
+	// 4c. Construct POIs
 	var candidates []*model.POI
+	var rejectedQIDs []string
+
 	for i := range articles {
 		if p := constructPOI(&articles[i], lengths, localLangs, userLang, s.getIcon); p != nil {
 			candidates = append(candidates, p)
+		} else {
+			// Failed to construct (e.g. no valid name). Mark as seen/ignore.
+			rejectedQIDs = append(rejectedQIDs, articles[i].QID)
 		}
 	}
-
-	// 5. RESCUE REMOVED - We rely on strict SPARQL filtering.
-	// If constructPOI returned a POI, it has at least one title.
 
 	// 5. MERGE DUPLICATES (Spatial Gobbling)
 	var finalPOIs []*model.POI = candidates
 	if dc, ok := s.classifier.(DimClassifier); ok {
-		finalPOIs = MergePOIs(candidates, dc.GetConfig(), s.logger)
+		var mergedRejected []string
+		finalPOIs, mergedRejected = MergePOIs(candidates, dc.GetConfig(), s.logger)
+		rejectedQIDs = append(rejectedQIDs, mergedRejected...)
 	}
 
 	// 6. Save Valid POIs
 	for _, p := range finalPOIs {
 		if err := s.poi.UpsertPOI(ctx, p); err != nil {
 			s.logger.Error("Failed to save POI", "qid", p.WikidataID, "error", err)
+			// IMPORTANT: If save fails, we ideally should NOT mark it as seen,
+			// so it retries next time. So we don't add to rejectedQIDs here.
 		}
 	}
+
+	// 7. Save Rejected Items (Mark as Seen to prevent re-fetching)
+	if len(rejectedQIDs) > 0 {
+		toMark := make(map[string][]string)
+		for _, qid := range rejectedQIDs {
+			toMark[qid] = []string{"rejected"} // simple tag
+		}
+		if err := s.store.MarkEntitiesSeen(ctx, toMark); err != nil {
+			s.logger.Warn("Failed to mark rejected POIs as seen", "count", len(rejectedQIDs), "error", err)
+		} else {
+			s.logger.Debug("Marked rejected POIs as seen", "count", len(rejectedQIDs))
+		}
+	}
+
 	return nil
 }
 

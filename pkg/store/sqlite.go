@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"math"
 	"time"
 
@@ -370,12 +371,7 @@ func (s *SQLiteStore) GetClassification(ctx context.Context, qid string) (catego
 func (s *SQLiteStore) SaveClassification(ctx context.Context, qid, category string, parents []string, label string) error {
 	parentsJSON, _ := json.Marshal(parents)
 
-	// We need to preserve created_at if it exists, but REPLACE DELETEs the old row.
-	// So we use ON CONFLICT instead or specific UPDATE.
-	// For SQLite simplicity with "INSERT OR REPLACE", we might lose created_at if we don't read it first.
-	// However, usually we don't care *that* much about created_at for cache.
-	// Let's stick to INSERT OR REPLACE for robustness, effectively resetting created_at,
-	// or use UPSERT syntax (INSERT ... ON CONFLICT DO UPDATE).
+	slog.Debug("Store: Saving Classification", "qid", qid, "cat", category)
 
 	query := `INSERT INTO wikidata_hierarchy (qid, name, parents, category, created_at, updated_at) 
 			  VALUES (?, ?, ?, ?, ?, ?)
@@ -386,6 +382,9 @@ func (s *SQLiteStore) SaveClassification(ctx context.Context, qid, category stri
 			  updated_at=excluded.updated_at`
 
 	_, err := s.db.ExecContext(ctx, query, qid, label, string(parentsJSON), category, time.Now(), time.Now())
+	if err != nil {
+		slog.Error("Store: SaveClassification Failed", "qid", qid, "error", err)
+	}
 	return err
 }
 

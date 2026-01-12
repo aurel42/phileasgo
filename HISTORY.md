@@ -1,5 +1,17 @@
 ﻿# Release History
 
+## v0.2.71 (2026-01-12)
+- **Fix**: **Hierarchy Caching Infinite Loop**
+    - Resolved a critical bug where empty cache entries for unclassified nodes caused an infinite loop in the hierarchy classifier.
+    - Optimized `classifyHierarchyNode` to strictly treat empty cache entries as "Dead Ends" and return immediately, preventing unnecessary re-traversal.
+- **Refactor**: **Simplified Dynamic Config**
+    - Removed the `ReprocessNearTiles` feature and associated `ForceRefresh` logic from `service.go` and `dynamic_config_job.go`.
+    - This simplification prevents cache-busting behaviors that contributed to instability and high query counts.
+- **Maintenance**: **Code Hygiene**
+    - Downgraded `sqlite.go` hierarchy save logs from INFO to DEBUG to reduce console noise.
+    - Resolved `gocritic` lint errors in `pkg/wikidata/merger.go` by adding named return parameters.
+    - Verified fix with `make test` passing cleanly.
+
 ## v0.2.70 (2026-01-11)
 - **Refactor**: **Unified Narration Selection**
     - Consolidated all POI selection logic into `GetNarrationCandidates`, removing deprecated methods and redundant loops.

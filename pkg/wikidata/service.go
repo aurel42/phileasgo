@@ -317,56 +317,6 @@ func (s *Service) GetCachedTiles(ctx context.Context, lat, lon, radiusKm float64
 	return results, nil
 }
 
-// ReprocessNearTiles forces a re-ingestion of cached tiles near the given location.
-func (s *Service) ReprocessNearTiles(ctx context.Context, lat, lon, radiusKm float64) error {
-	keys, err := s.store.ListCacheKeys(ctx, "wd_h3_")
-	if err != nil {
-		s.logger.Error("Failed to list cache keys for reprocessing", "error", err)
-		return err
-	}
-
-	s.logger.Info("ReprocessNearTiles triggered", "lat", lat, "lon", lon, "radius", radiusKm)
-
-	// Iterate all keys to find matches
-	tilesChecked := 0
-	rescuedCount := 0
-	totalArticles := 0
-
-	for _, k := range keys {
-		// Key format: wd_h3_{index}
-		if len(k) <= 6 {
-			continue
-		}
-		index := k[6:]
-		t := HexTile{Index: index}
-		cLat, cLon := s.gridCenter(t)
-
-		if DistKm(lat, lon, cLat, cLon) <= radiusKm {
-			tilesChecked++
-			// Get Raw Data from Cache
-			raw, _, ok := s.store.GetGeodataCache(ctx, k)
-			if !ok {
-				continue
-			}
-
-			// Reprocess this tile!
-			// Force reprocessing (bypass seen filter)
-			reprocessed, rescued, err := s.ProcessTileData(ctx, raw, cLat, cLon, true)
-			if err != nil {
-				s.logger.Warn("Failed to reprocess tile", "key", k, "error", err)
-			} else {
-				totalArticles += len(reprocessed)
-				rescuedCount += rescued
-				if rescued > 0 {
-					s.logger.Debug("Reprocessed tile and rescued entities", "key", k, "rescued", rescued)
-				}
-			}
-		}
-	}
-	s.logger.Info("ReprocessNearTiles complete", "component", "wikidata", "tiles_checked", tilesChecked, "dynamic_pois_added", rescuedCount, "total_articles", totalArticles)
-	return nil
-}
-
 // EvictFarTiles removes tiles from the recent cache if they are beyond the max distance.
 func (s *Service) EvictFarTiles(lat, lon, thresholdKm float64) int {
 	// 1. Snapshot keys to avoid deep locking issues if logic is complex
