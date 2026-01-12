@@ -58,6 +58,7 @@ func (m *MockAudio) Play(filepath string, startPaused bool) error {
 func (m *MockAudio) Pause()                    {}
 func (m *MockAudio) Resume()                   {}
 func (m *MockAudio) Stop()                     {}
+func (m *MockAudio) Shutdown()                 {}
 func (m *MockAudio) IsPlaying() bool           { return m.IsPlayingVal }
 func (m *MockAudio) IsBusy() bool              { return m.IsPlayingVal }
 func (m *MockAudio) IsPaused() bool            { return false }

@@ -24,6 +24,9 @@ type Service interface {
 	Resume()
 	// Stop stops current playback.
 	Stop()
+	// Shutdown stops playback and cleans up resources/files.
+	Shutdown()
+
 	// IsPlaying returns true if audio is currently playing (not paused).
 	IsPlaying() bool
 	// IsBusy returns true if audio is loaded/playing/paused (ctrl is not nil).
@@ -220,6 +223,23 @@ func (m *Manager) Stop() {
 		speaker.Clear()
 		m.ctrl = nil
 		m.isPaused = false
+	}
+}
+
+// Shutdown stops playback and deletes any residual audio artifacts.
+func (m *Manager) Shutdown() {
+	m.Stop()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.lastNarrationFile != "" {
+		if err := os.Remove(m.lastNarrationFile); err == nil {
+			slog.Debug("Audio: Shutdown cleanup of residual artifact", "path", m.lastNarrationFile)
+		} else if !os.IsNotExist(err) {
+			slog.Warn("Audio: Failed to cleanup residual artifact on shutdown", "path", m.lastNarrationFile, "error", err)
+		}
+		m.lastNarrationFile = ""
 	}
 }
 

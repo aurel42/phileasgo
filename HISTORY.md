@@ -1,5 +1,12 @@
 ﻿# Release History
 
+## v0.2.74 (2026-01-12)
+- **Feature**: **Encapsulated Audio Shutdown**
+    - Implemented `Shutdown()` in `Audio Manager` to delete the final residual audio file when the application closes.
+    - Encapsulated this logic within `AIService.Stop()`, adhering to clean separation of concerns.
+    - Ensures zero audio artifacts remain in `%TEMP%` after a graceful exit.
+    - **Fix**: Resolved build issues by updating test mocks in `pkg/narrator`.
+
 ## v0.2.73 (2026-01-12)
 - **Feature**: **Strict Audio File Lifecycle (Rotation)**
     - Implemented a "One In, One Out" rotation strategy in the Audio Manager (`pkg/audio/manager.go`).

@@ -129,6 +129,7 @@ func (s *AIService) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.running = false
+	s.audio.Shutdown()
 	slog.Info("AI Narrator service stopped")
 }
 

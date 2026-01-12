@@ -120,6 +120,7 @@ type MockAudioService struct {
 
 func (m *MockAudioService) Play(path string, skipChecks bool) error { return nil }
 func (m *MockAudioService) Stop()                                   {}
+func (m *MockAudioService) Shutdown()                               {}
 func (m *MockAudioService) Pause()                                  {}
 func (m *MockAudioService) Resume()                                 {}
 func (m *MockAudioService) Skip()                                   {}
