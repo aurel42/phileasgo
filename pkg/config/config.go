@@ -53,7 +53,7 @@ type MockSimConfig struct {
 	StartLat       float64  `yaml:"start_lat"`
 	StartLon       float64  `yaml:"start_lon"`
 	StartAlt       float64  `yaml:"start_alt"`
-	StartHeading   float64  `yaml:"start_heading"`
+	StartHeading   *float64 `yaml:"start_heading"`
 	DurationParked Duration `yaml:"duration_parked"`
 	DurationTaxi   Duration `yaml:"duration_taxi"`
 	DurationHold   Duration `yaml:"duration_hold"`
@@ -289,10 +289,10 @@ func DefaultConfig() *Config {
 			Provider:          "simconnect",
 			TeleportThreshold: Distance(80000), // 80km
 			Mock: MockSimConfig{
-				StartLat:       51.6845,
-				StartLon:       14.4234,
-				StartAlt:       285.0,
-				StartHeading:   0.0,
+				StartLat: 51.6845,
+				StartLon: 14.4234,
+				StartAlt: 285.0,
+				// StartHeading defaults to nil (random)
 				DurationParked: Duration(120 * time.Second),
 				DurationTaxi:   Duration(120 * time.Second),
 				DurationHold:   Duration(30 * time.Second),

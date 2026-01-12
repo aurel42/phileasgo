@@ -126,11 +126,8 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		}
 
 		slog.Info("NarrationJob: Pipeline trigger", "remaining", remaining, "cooldown", cooldown, "latency", avgLat)
-	} else {
-		// Standard Cooldown Check (Not playing)
-		if !j.checkCooldown() {
-			return false
-		}
+	} else if !j.checkCooldown() {
+		return false
 	}
 
 	// 3. POI Selection (Dynamic Check)
@@ -238,26 +235,18 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 		}
 	}
 
-	slog.Info("NarrationJob: Triggering narration", "name", best.DisplayName(), "score", fmt.Sprintf("%.2f", best.Score))
-
 	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer))
+	j.calculateCooldown(1.0, strategy)
+
+	slog.Info("NarrationJob: Triggering narration", "name", best.DisplayName(), "score", fmt.Sprintf("%.2f", best.Score), "cooldown_after", j.nextFireDuration)
 
 	// Pipeline vs Direct Play
 	if j.narrator.IsPlaying() {
 		if err := j.narrator.PrepareNextNarrative(ctx, best.WikidataID, strategy, t); err != nil {
 			slog.Error("NarrationJob: Pipeline preparation failed", "error", err)
-		} else {
-			// Success: We reset cooldown HERE so that when playback finishes,
-			// the "falling edge" logic in checkNarratorReady sees we are "fresh".
-			// Actually, if we stage it, we want the scheduler to potentially Pick it up immediately after playback stops?
-			// No, PlayPOI handles staging check.
-			// But we need to make sure we don't trigger AGAIN immediately.
-			// Calculating cooldown here is correct.
-			j.calculateCooldown(1.0, strategy)
 		}
 	} else {
 		j.narrator.PlayPOI(ctx, best.WikidataID, false, t, strategy)
-		j.calculateCooldown(1.0, strategy)
 	}
 }
 

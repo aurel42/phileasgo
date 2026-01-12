@@ -538,59 +538,94 @@ func TestAIService_LatencyTracking(t *testing.T) {
 	}
 }
 
-func TestAIService_Staging(t *testing.T) {
+func TestAIService_PipelineFlow(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
 	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
 	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
 	pm, _ := prompts.NewManager(tempDir)
 
-	mockLLM := &MockLLM{Response: "StagedScript"}
-	svc := NewAIService(&config.Config{},
-		mockLLM,
-		&MockTTS{Format: "mp3"},
-		pm,
-		&MockAudio{},
-		&MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
-			return &model.POI{WikidataID: "QStage", NameEn: "Staged POI"}, nil
-		}},
-		&MockBeacon{},
-		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
-
-	ctx := context.Background()
-
-	// 1. Prepare (Stage)
-	err := svc.PrepareNextNarrative(ctx, "QStage", "uniform", &sim.Telemetry{})
-	if err != nil {
-		t.Fatalf("PrepareNextNarrative failed: %v", err)
+	tests := []struct {
+		name             string
+		stagedPOIID      string // If set, we prepare this first
+		requestPOIID     string // What we request to Play
+		expectedNarrated int
+		expectedStaged   bool // Should staged be nil after Play? (Always true if consumed or cleared)
+	}{
+		{
+			name:             "Happy Path: Consumes Staged Constraint",
+			stagedPOIID:      "QStaged",
+			requestPOIID:     "QStaged",
+			expectedNarrated: 1,
+			expectedStaged:   false, // Should be consumed
+		},
+		{
+			name:             "Mismatch: Staged A, Play B -> Ignores Stage, Generates B",
+			stagedPOIID:      "QStaged",
+			requestPOIID:     "QOther",
+			expectedNarrated: 1,     // Only QOther played (Staged is discarded)
+			expectedStaged:   false, // Cleared on mismatch? No, PlayPOI clears it if mismatch? Implementation says: if mismatch, we ignore staged. Does it clear? Let's check logic: "if s.stagedNarrative != nil ... if match { use } else { s.stagedNarrative = nil }" -> Yes, it clears.
+		},
+		{
+			name:             "No Staged Data -> Generates Fresh",
+			stagedPOIID:      "",
+			requestPOIID:     "QFresh",
+			expectedNarrated: 1,
+			expectedStaged:   false,
+		},
 	}
 
-	// Verify it is staged
-	func() {
-		svc.mu.Lock()
-		defer svc.mu.Unlock()
-		if svc.stagedNarrative == nil {
-			t.Fatal("stagedNarrative is nil after Prepare")
-		}
-		if svc.stagedNarrative.POI.WikidataID != "QStage" {
-			t.Errorf("Expected staged QID QStage, got %s", svc.stagedNarrative.POI.WikidataID)
-		}
-	}()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockLLM := &MockLLM{Response: "Script"}
+			mockPOI := &MockPOIProvider{
+				GetPOIFunc: func(_ context.Context, qid string) (*model.POI, error) {
+					return &model.POI{WikidataID: qid, NameEn: "POI"}, nil
+				},
+			}
 
-	// 2. Play (Should consume staged)
-	// We'll modify the mock LLM to ensure it's NOT called again if using staged?
-	// Hard to check directly without better mocks, but we can check if staged is nil after play.
-	svc.PlayPOI(ctx, "QStage", false, &sim.Telemetry{}, "uniform")
+			svc := NewAIService(&config.Config{},
+				mockLLM,
+				&MockTTS{Format: "mp3"},
+				pm,
+				&MockAudio{},
+				mockPOI,
+				&MockBeacon{},
+				&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
 
-	func() {
-		svc.mu.Lock()
-		defer svc.mu.Unlock()
-		if svc.stagedNarrative != nil {
-			t.Error("stagedNarrative should be nil after PlayPOI")
-		}
-	}()
+			ctx := context.Background()
 
-	if svc.NarratedCount() != 1 {
-		t.Errorf("Expected narrated count 1, got %d", svc.NarratedCount())
+			// 1. Stage if needed
+			if tt.stagedPOIID != "" {
+				err := svc.PrepareNextNarrative(ctx, tt.stagedPOIID, "uniform", &sim.Telemetry{})
+				if err != nil {
+					t.Fatalf("PrepareNextNarrative failed: %v", err)
+				}
+				// Verify staged
+				func() {
+					svc.mu.Lock()
+					defer svc.mu.Unlock()
+					if svc.stagedNarrative == nil {
+						t.Fatal("stagedNarrative is nil after Prepare")
+					}
+				}()
+			}
+
+			// 2. Play
+			svc.PlayPOI(ctx, tt.requestPOIID, false, &sim.Telemetry{}, "uniform")
+
+			// 3. Verify
+			func() {
+				svc.mu.Lock()
+				defer svc.mu.Unlock()
+				if !tt.expectedStaged && svc.stagedNarrative != nil {
+					t.Error("stagedNarrative should be nil after PlayPOI")
+				}
+			}()
+
+			if svc.NarratedCount() != tt.expectedNarrated {
+				t.Errorf("Expected narrated count %d, got %d", tt.expectedNarrated, svc.NarratedCount())
+			}
+		})
 	}
 }

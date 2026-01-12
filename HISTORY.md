@@ -1,5 +1,22 @@
 ﻿# Release History
 
+## v0.2.75 (2026-01-12)
+- **Refactor**: **Pipelined Narration Tests**
+    - Refactored `pkg/core/narration_job_test.go` and `pkg/narrator/service_ai_test.go` into comprehensive table-driven tests.
+    - Verified pipeline logic: standard triggers, just-in-time preparation, and high-latency compensation.
+    - Verified staging flow: consuming staged narratives, handling mismatches, and empty staging.
+- **Refactor**: **Audio Manager Tests**
+    - Consolidated individual state accessor tests in `pkg/audio/manager_test.go` into a unified table-driven suite (`TestManager_StateAccessors`) for better maintainability.
+- **Feature**: **Random Mock Simulator Heading**
+    - The Mock Simulator now automatically picks a random starting heading (0-360°) if `sim.mock.start_heading` is not configured (set to `null` or omitted).
+    - Prevents repetitive testing scenarios always starting in the exact same direction.
+    - Updated `pkg/config` and `pkg/sim/mocksim` to handle optional heading configuration.
+- **Fix**: **Test Stability**
+    - Resolved `make test` failures caused by `SA9003` lint errors (empty branch) in `pkg/core/narration_job.go`.
+    - Removed duplicate code blocks in test files that were causing syntax errors.
+- **Log**: **Cooldown Visibility**
+    - The "Triggering narration" log message now explicitly includes `cooldown_after` duration, making it easier to verify pipeline timing logic.
+
 ## v0.2.74 (2026-01-12)
 - **Feature**: **Encapsulated Audio Shutdown**
     - Implemented `Shutdown()` in `Audio Manager` to delete the final residual audio file when the application closes.

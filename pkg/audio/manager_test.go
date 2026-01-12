@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -14,97 +15,166 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestManager_Volume(t *testing.T) {
+func TestManager_StateAccessors(t *testing.T) {
 	m := New()
 
-	// Test setting valid volume
-	m.SetVolume(0.5)
-	if m.Volume() != 0.5 {
-		t.Errorf("Expected volume 0.5, got %f", m.Volume())
+	tests := []struct {
+		name   string
+		action func(*Manager)
+		check  func(*Manager) error
+	}{
+		{
+			name:   "Default State",
+			action: func(m *Manager) {},
+			check: func(m *Manager) error {
+				if m.Volume() != 1.0 {
+					return errFmt("expected volume 1.0, got %f", m.Volume())
+				}
+				if m.IsUserPaused() {
+					return errFmt("expected user pause false")
+				}
+				if m.IsPlaying() {
+					return errFmt("expected IsPlaying false")
+				}
+				if m.Remaining() != 0 {
+					return errFmt("expected Remaining 0")
+				}
+				return nil
+			},
+		},
+		{
+			name: "Volume Control",
+			action: func(m *Manager) {
+				m.SetVolume(0.5)
+			},
+			check: func(m *Manager) error {
+				if m.Volume() != 0.5 {
+					return errFmt("expected volume 0.5, got %f", m.Volume())
+				}
+				return nil
+			},
+		},
+		{
+			name: "Volume Clamping Low",
+			action: func(m *Manager) {
+				m.SetVolume(-0.5)
+			},
+			check: func(m *Manager) error {
+				if m.Volume() != 0 {
+					return errFmt("expected volume 0, got %f", m.Volume())
+				}
+				return nil
+			},
+		},
+		{
+			name: "Volume Clamping High",
+			action: func(m *Manager) {
+				m.SetVolume(1.5)
+			},
+			check: func(m *Manager) error {
+				if m.Volume() != 1.0 {
+					return errFmt("expected volume 1.0, got %f", m.Volume())
+				}
+				return nil
+			},
+		},
+		{
+			name: "User Pause Toggle",
+			action: func(m *Manager) {
+				m.SetUserPaused(true)
+			},
+			check: func(m *Manager) error {
+				if !m.IsUserPaused() {
+					return errFmt("expected user pause true")
+				}
+				return nil
+			},
+		},
+		{
+			name: "User Pause Reset",
+			action: func(m *Manager) {
+				m.SetUserPaused(true)
+				m.ResetUserPause()
+			},
+			check: func(m *Manager) error {
+				if m.IsUserPaused() {
+					return errFmt("expected user pause false")
+				}
+				return nil
+			},
+		},
+		{
+			name:   "Last Narration Empty",
+			action: func(m *Manager) {},
+			check: func(m *Manager) error {
+				if m.LastNarrationFile() != "" {
+					return errFmt("expected empty last file")
+				}
+				if m.ReplayLastNarration() {
+					return errFmt("expected ReplayLastNarration false")
+				}
+				return nil
+			},
+		},
 	}
 
-	// Test clamping to 0
-	m.SetVolume(-0.5)
-	if m.Volume() != 0 {
-		t.Errorf("Expected volume 0, got %f", m.Volume())
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset manager for each test ideally, or share?
+			// Since actions mutate, we should reset.
+			// Re-create manager or reset fields.
+			m.mu.Lock()
+			m.volume = 1.0
+			m.userPaused = false
+			m.lastNarrationFile = ""
+			m.mu.Unlock()
 
-	// Test clamping to 1
-	m.SetVolume(1.5)
-	if m.Volume() != 1 {
-		t.Errorf("Expected volume 1, got %f", m.Volume())
-	}
-}
-
-func TestManager_UserPause(t *testing.T) {
-	m := New()
-
-	// Default should be false
-	if m.IsUserPaused() {
-		t.Error("Expected user pause to be false by default")
-	}
-
-	// Set user paused
-	m.SetUserPaused(true)
-	if !m.IsUserPaused() {
-		t.Error("Expected user pause to be true")
-	}
-
-	// Reset user pause
-	m.ResetUserPause()
-	if m.IsUserPaused() {
-		t.Error("Expected user pause to be false after reset")
-	}
-}
-
-func TestManager_PlaybackState(t *testing.T) {
-	m := New()
-
-	// Initially not playing or paused
-	if m.IsPlaying() {
-		t.Error("Expected IsPlaying to be false initially")
-	}
-	if m.IsPaused() {
-		t.Error("Expected IsPaused to be false initially")
-	}
-}
-
-func TestManager_LastNarrationFile(t *testing.T) {
-	m := New()
-
-	// Initially empty
-	if m.LastNarrationFile() != "" {
-		t.Error("Expected LastNarrationFile to be empty initially")
-	}
-
-	// ReplayLastNarration should return false when no file
-	if m.ReplayLastNarration() {
-		t.Error("Expected ReplayLastNarration to return false when no file")
+			tt.action(m)
+			if err := tt.check(m); err != nil {
+				t.Error(err)
+			}
+		})
 	}
 }
 
 func TestGetVoiceByID(t *testing.T) {
-	// Test valid voice
-	v := GetVoiceByID("charon")
-	if v.ID != "charon" {
-		t.Errorf("Expected voice ID 'charon', got '%s'", v.ID)
-	}
-	if v.Gender != "Male" {
-		t.Errorf("Expected gender 'Male', got '%s'", v.Gender)
+	tests := []struct {
+		name         string
+		inputID      string
+		expectID     string
+		expectGender string
+	}{
+		{
+			name:         "Valid Voice",
+			inputID:      "charon",
+			expectID:     "charon",
+			expectGender: "Male",
+		},
+		{
+			name:         "Invalid Voice Fallback",
+			inputID:      "nonexistent",
+			expectID:     "aoede",
+			expectGender: "Female", // Aoede is female
+		},
 	}
 
-	// Test invalid voice returns first
-	v = GetVoiceByID("nonexistent")
-	if v.ID != "aoede" {
-		t.Errorf("Expected fallback voice ID 'aoede', got '%s'", v.ID)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := GetVoiceByID(tt.inputID)
+			if v.ID != tt.expectID {
+				t.Errorf("Expected ID %s, got %s", tt.expectID, v.ID)
+			}
+			if tt.expectGender != "" && v.Gender != tt.expectGender {
+				t.Errorf("Expected gender %s, got %s", tt.expectGender, v.Gender)
+			}
+		})
 	}
 }
 
-func TestManager_Remaining(t *testing.T) {
-	m := New()
+// Helper for concise error returning
+type strErr string
 
-	// Remaining should be 0 when nothing playing
-	if m.Remaining() != 0 {
-		t.Errorf("Expected remaining 0, got %v", m.Remaining())
-	}
+func (e strErr) Error() string { return string(e) }
+func errFmt(format string, a ...interface{}) error {
+	return strErr(fmt.Sprintf(format, a...))
 }

@@ -31,7 +31,7 @@ type Config struct {
 	StartLat       float64
 	StartLon       float64
 	StartAlt       float64
-	StartHeading   float64
+	StartHeading   *float64
 }
 
 type scenarioStep struct {
@@ -71,7 +71,7 @@ func NewClient(cfg Config) *MockClient {
 			Longitude:          cfg.StartLon,
 			AltitudeMSL:        cfg.StartAlt,
 			AltitudeAGL:        0,
-			Heading:            cfg.StartHeading,
+			Heading:            getHeading(cfg.StartHeading),
 			IsOnGround:         true,
 			PredictedLatitude:  cfg.StartLat, // Initialize to start position
 			PredictedLongitude: cfg.StartLon, // Initialize to start position
@@ -332,4 +332,11 @@ func (m *MockClient) updateScenario(dt float64, now time.Time) {
 			m.tel.AltitudeMSL += delta
 		}
 	}
+}
+
+func getHeading(h *float64) float64 {
+	if h == nil {
+		return rand.Float64() * 360.0
+	}
+	return *h
 }

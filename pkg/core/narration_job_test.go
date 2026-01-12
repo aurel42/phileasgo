@@ -561,50 +561,100 @@ func TestNarrationJob_DynamicMinScore(t *testing.T) {
 	}
 }
 
-func TestNarrationJob_PipelineTrigger(t *testing.T) {
+func TestNarrationJob_PipelineLogic(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.AutoNarrate = true
 	cfg.Narrator.MinScoreThreshold = 5.0
+	// Base Config: Cooldown 10s
 	cfg.Narrator.CooldownMin = config.Duration(10 * time.Second)
-	cfg.Narrator.CooldownMax = config.Duration(10 * time.Second) // Force deterministic cooldown
+	cfg.Narrator.CooldownMax = config.Duration(10 * time.Second)
 
-	mockN := &mockNarratorService{
-		isPlaying: true, // Currently playing
-		isActive:  true,
+	tests := []struct {
+		name              string
+		isPlaying         bool
+		remaining         time.Duration
+		avgLatency        time.Duration
+		expectShouldFire  bool
+		expectPrepareNext bool
+		expectPlayPOI     bool
+	}{
+		{
+			name:              "Not Playing (Standard Trigger)",
+			isPlaying:         false,
+			remaining:         0,
+			avgLatency:        10 * time.Second,
+			expectShouldFire:  true,
+			expectPrepareNext: false,
+			expectPlayPOI:     true,
+		},
+		{
+			name:              "Playing - Timing Good (Just in time)",
+			isPlaying:         true,
+			remaining:         2 * time.Second,  // + 10s Cooldown = 12s Target
+			avgLatency:        12 * time.Second, // 12 <= 12 -> True
+			expectShouldFire:  true,
+			expectPrepareNext: true,
+			expectPlayPOI:     false,
+		},
+		{
+			name:              "Playing - Timing Early (Wait longer)",
+			isPlaying:         true,
+			remaining:         10 * time.Second, // + 10s Cooldown = 20s Target
+			avgLatency:        5 * time.Second,  // 20 > 5 -> False (Too early)
+			expectShouldFire:  false,
+			expectPrepareNext: false,
+			expectPlayPOI:     false,
+		},
+		{
+			name:              "Playing - High Latency (Start earlier)",
+			isPlaying:         true,
+			remaining:         5 * time.Second,  // + 10s Cooldown = 15s Target
+			avgLatency:        20 * time.Second, // 15 <= 20 -> True
+			expectShouldFire:  true,
+			expectPrepareNext: true,
+			expectPlayPOI:     false,
+		},
 	}
-	pm := &mockPOIManager{best: &model.POI{Score: 10.0, WikidataID: "Q_NEXT"}, lat: 48.0, lon: -123.0}
-	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 
-	// Override internal state manually for test
-	// If IsPlaying is true, we need wasBusy to be set if we want to simulate steady state vs rising edge?
-	// Actually ShouldFire sets wasBusy=true if playing.
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockN := &mockNarratorService{
+				isPlaying: tt.isPlaying,
+				isActive:  tt.isPlaying, // Active if playing
+			}
+			// Setup Mocks
+			mockN.RemainingFunc = func() time.Duration { return tt.remaining }
+			mockN.AvgLatencyFunc = func() time.Duration { return tt.avgLatency }
 
-	// Mock Timings for Pipeline:
-	// Remaining: 2s
-	// Cooldown: 10s (from config)
-	// Avg Latency: 15s (Predicted)
-	// Condition: Remaining(2) + Cooldown(10) = 12 <= Latency(15) -> TRUE
-	mockN.RemainingFunc = func() time.Duration { return 2 * time.Second }
-	mockN.AvgLatencyFunc = func() time.Duration { return 15 * time.Second }
+			pm := &mockPOIManager{best: &model.POI{Score: 10.0, WikidataID: "Q_NEXT"}, lat: 48.0, lon: -123.0}
+			simC := &mockJobSimClient{state: sim.StateActive}
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 
-	tel := &sim.Telemetry{
-		AltitudeAGL: 3000,
-		Latitude:    48.0,
-		Longitude:   -123.0,
-	}
+			// Force cooldown ready for non-playing case
+			job.lastTime = time.Time{}
 
-	// 1. ShouldFire
-	if !job.ShouldFire(tel) {
-		t.Error("Pipeline: ShouldFire returned false, expected true (Timing correct)")
-	}
+			tel := &sim.Telemetry{
+				AltitudeAGL: 3000,
+				Latitude:    48.0,
+				Longitude:   -123.0,
+			}
 
-	// 2. Run -> PrepareNextNarrative
-	job.Run(context.Background(), tel)
-	if !mockN.prepareNextCalled {
-		t.Error("Pipeline: Expected PrepareNextNarrative to be called")
-	}
-	if mockN.playPOICalled {
-		t.Error("Pipeline: Expected PlayPOI to NOT be called directly during pipeline")
+			// 1. ShouldFire
+			fired := job.ShouldFire(tel)
+			if fired != tt.expectShouldFire {
+				t.Errorf("ShouldFire() = %v, want %v", fired, tt.expectShouldFire)
+			}
+
+			// 2. Run (if fired)
+			if fired {
+				job.Run(context.Background(), tel)
+				if mockN.prepareNextCalled != tt.expectPrepareNext {
+					t.Errorf("PrepareNextNarrative called? %v, want %v", mockN.prepareNextCalled, tt.expectPrepareNext)
+				}
+				if mockN.playPOICalled != tt.expectPlayPOI {
+					t.Errorf("PlayPOI called? %v, want %v", mockN.playPOICalled, tt.expectPlayPOI)
+				}
+			}
+		})
 	}
 }
