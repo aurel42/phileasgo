@@ -87,8 +87,9 @@ func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
 		h.audio.Resume()
 	}
 
-	// Trigger narration (Manual play -> uniform strategy, or pass explicitly if needed)
-	h.narrator.PlayPOI(r.Context(), req.POIID, true, nil, req.Strategy)
+	// Trigger narration asynchronously (Manual play -> uniform strategy, or pass explicitly if needed)
+	// We use background context because the HTTP request context will be canceled when this handler returns.
+	go h.narrator.PlayPOI(context.Background(), req.POIID, true, nil, req.Strategy)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]string{

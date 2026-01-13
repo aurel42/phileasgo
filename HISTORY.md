@@ -1,5 +1,9 @@
 ﻿# Release History
 
+## v0.2.82 (2026-01-13)
+- **Fix**: Resolved a regression where manual play requests repeated endlessly due to client-side timeouts. The API handler now processes requests asynchronously (`HandlePlay` returns immediately).
+- **Cleanup**: Removed spammy "NarrationJob: Pipeline trigger" log from `pkg/core/narration_job.go`.
+
 ## v0.2.81 (2026-01-13)
 - **Dynamic Visibility Boost**: implemented a mechanism to dynamically increase visibility range (up to 1.5x) when POIs are scarce, improving content discovery in sparse areas.
 - **Frontend Sync**: updated the map visibility API to accurately reflect the boosted visibility radius in the UI.

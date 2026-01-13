@@ -18,8 +18,17 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 		slog.Info("Narrator: Automated play triggering", "poi_id", poiID)
 	}
 
+	// Immediate Visual Update (Marker Preview)
+	// We do this before generation so the user sees the target while the LLM thinks.
+	// Note: We need the coordinates. If we don't have the POI object yet, we might need to fetch it.
+	// But PlayPOI is usually called with an ID. We need to fetch it to get coords.
+	// Optimization: If we miss cache, it might delay slightly, but fetching context is fast.
+	p, err := s.poiMgr.GetPOI(ctx, poiID)
+	if err == nil && p != nil && s.beaconSvc != nil {
+		_ = s.beaconSvc.SetTarget(context.Background(), p.Lat, p.Lon)
+	}
+
 	var narrative *Narrative
-	var err error
 
 	// 0. Check Staging (Pipeline Optimization)
 	s.mu.Lock()
@@ -191,11 +200,6 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 	s.lastEssayTitle = ""
 	s.mu.Unlock()
 
-	// Optional: Marker Spawning
-	if s.beaconSvc != nil {
-		_ = s.beaconSvc.SetTarget(ctx, n.POI.Lat, n.POI.Lon)
-	}
-
 	audioFile := n.AudioPath + "." + n.Format
 
 	// Start playback (synchronous to catch immediate errors)
@@ -252,6 +256,20 @@ func (s *AIService) monitorPlayback(n *Narrative) {
 			slog.Info("Narrator: Playback ended", "name", n.POI.DisplayName(), "qid", n.POI.WikidataID)
 			break
 		}
+	}
+
+	// Update Beacon Target immediately after playback
+	if s.beaconSvc != nil {
+		s.mu.RLock()
+		next := s.stagedNarrative
+		s.mu.RUnlock()
+
+		if next != nil {
+			slog.Info("Narrator: Switching marker to next staged POI", "qid", next.POI.WikidataID)
+			// Use background context as the original ctx might be cancelled
+			_ = s.beaconSvc.SetTarget(context.Background(), next.POI.Lat, next.POI.Lon)
+		}
+		// Else: Do nothing. Keep marker on the last played POI.
 	}
 
 	// Wait before clearing active (prevent rapid re-trigger)

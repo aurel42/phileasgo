@@ -125,7 +125,6 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 			return false
 		}
 
-		slog.Info("NarrationJob: Pipeline trigger", "remaining", remaining, "cooldown", cooldown, "latency", avgLat)
 	} else if !j.checkCooldown() {
 		return false
 	}

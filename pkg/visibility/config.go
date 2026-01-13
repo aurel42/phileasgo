@@ -81,13 +81,14 @@ func (m *Manager) GetMaxVisibleDist(altAGL float64, size SizeType, boostFactor f
 	// Handle out of bounds
 	// Handle out of bounds
 	var baseDist float64
-	if lower == nil {
+	switch {
+	case lower == nil:
 		baseDist = getDist(m.table[0].Distances, size)
-	} else if upper == nil {
+	case upper == nil:
 		baseDist = getDist(m.table[len(m.table)-1].Distances, size)
-	} else if lower == upper {
+	case lower == upper:
 		baseDist = getDist(lower.Distances, size)
-	} else {
+	default:
 		// Interpolate
 		ratio := (altAGL - lower.AltAGL) / (upper.AltAGL - lower.AltAGL)
 		d1 := getDist(lower.Distances, size)

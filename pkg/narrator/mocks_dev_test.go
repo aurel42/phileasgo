@@ -53,6 +53,7 @@ type MockAudio struct {
 func (m *MockAudio) Play(filepath string, startPaused bool) error {
 	m.PlayCalls++
 	m.LastFile = filepath
+	m.IsPlayingVal = true
 	return m.PlayErr
 }
 func (m *MockAudio) Pause()                    {}
@@ -151,15 +152,22 @@ func (m *MockWikipedia) GetArticleContent(ctx context.Context, title, lang strin
 }
 
 type MockBeacon struct {
-	Cleared bool
+	Cleared    bool
+	TargetSet  bool
+	LastTgtLat float64
+	LastTgtLon float64
 }
 
 func (m *MockBeacon) SetTarget(ctx context.Context, lat, lon float64) error {
+	m.TargetSet = true
+	m.LastTgtLat = lat
+	m.LastTgtLon = lon
 	return nil
 }
 
 func (m *MockBeacon) Clear() {
 	m.Cleared = true
+	m.TargetSet = false
 }
 
 type MockSim struct {

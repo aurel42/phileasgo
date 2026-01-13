@@ -131,7 +131,7 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 // OLD Calculate - kept for compatibility if needed, but should be removed or deprecated.
 // For now, removing it to force update in Manager.
 
-func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, bearing, distNM, lowestElevMeters float64, boostFactor float64) (score float64, logs []string, shouldReturn bool) {
+func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, bearing, distNM, lowestElevMeters, boostFactor float64) (score float64, logs []string, shouldReturn bool) {
 	// 1. Determine Size
 	poiSize := poi.Size
 	if poiSize == "" {
