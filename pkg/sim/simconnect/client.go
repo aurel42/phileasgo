@@ -262,6 +262,10 @@ func (c *Client) connect() {
 }
 
 func (c *Client) disconnect() {
+	if !c.connected {
+		return
+	}
+
 	c.telemetryMu.Lock()
 	c.simState = sim.StateDisconnected
 	c.telemetryMu.Unlock()
@@ -331,6 +335,9 @@ func (c *Client) dispatchLoop() {
 		case <-c.stopChan:
 			return
 		default:
+			if !c.connected || c.handle == 0 {
+				return
+			}
 			ppData, _, err := GetNextDispatch(c.handle)
 			if err != nil {
 				c.logger.Error("GetNextDispatch error", "error", err)

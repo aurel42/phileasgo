@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.84 (2026-01-13)
+- **Cleanup**: **SimConnect Unification**: Unified SimConnect disconnect logic to be idempotent and thread-safe.
+    - Updated `disconnect` to return early if already disconnected, eliminating redundant logs.
+    - Updated `dispatchLoop` to terminate immediately on handle loss, preventing race conditions that triggered spurious watchdog timeouts.
+
 ## v0.2.83 (2026-01-13)
 - **Fix**: **Beacon Cleanup**: `ResetSession` (triggered by teleport or new flight) now explicitly clears any active beacons (balloons) from the simulator, preventing visual clutter.
 
