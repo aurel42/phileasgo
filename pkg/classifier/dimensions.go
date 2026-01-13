@@ -38,9 +38,13 @@ func NewDimensionTracker(windowSize int) *DimensionTracker {
 func (dt *DimensionTracker) ResetTile() {
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
-	dt.currentHeight = 0
-	dt.currentLength = 0
-	dt.currentArea = 0
+	// Dynamic Baseline: Set current max to the global median to avoid rescuing small items in empty tiles.
+	// We use 1.0 (100%) of the median as the baseline.
+	medH, medL, medA := dt.getMedians()
+
+	dt.currentHeight = medH * 1.0
+	dt.currentLength = medL * 1.0
+	dt.currentArea = medA * 1.0
 }
 
 // ObserveArticle updates the current tile's max records based on an article.

@@ -24,14 +24,18 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 	// 0. Check Staging (Pipeline Optimization)
 	s.mu.Lock()
 	if s.stagedNarrative != nil {
-		if s.stagedNarrative.POI.WikidataID == poiID {
-			slog.Info("Narrator: Using staged narrative (Zero Latency)", "poi_id", poiID)
-			narrative = s.stagedNarrative
-			s.stagedNarrative = nil
-		} else {
-			slog.Debug("Narrator: Staged narrative mismatch, discarding", "staged", s.stagedNarrative.POI.WikidataID, "requested", poiID)
-			s.stagedNarrative = nil
+		// Use staged narrative unconditionally if available
+		slog.Info("Narrator: Using staged narrative (Zero Latency)", "poi_id", s.stagedNarrative.POI.WikidataID)
+
+		if s.stagedNarrative.POI.WikidataID != poiID {
+			slog.Warn("Narrator: Priority Override - Playing prepared POI instead of requested",
+				"staged", s.stagedNarrative.POI.WikidataID,
+				"requested", poiID)
 		}
+
+		narrative = s.stagedNarrative
+		s.stagedNarrative = nil
+
 	}
 	s.mu.Unlock()
 
@@ -89,6 +93,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 
 		s.mu.Lock()
 		s.generating = false
+		s.generatingPOI = nil
 		s.mu.Unlock()
 	}()
 
@@ -100,6 +105,11 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 	if p == nil {
 		return nil, fmt.Errorf("POI not found: %s", poiID)
 	}
+
+	// Update state to show we are generating THIS POI
+	s.mu.Lock()
+	s.generatingPOI = p
+	s.mu.Unlock()
 
 	// Gather Context & Build Prompt
 	promptData := s.buildPromptData(ctx, p, tel, strategy)
@@ -121,15 +131,26 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 		return nil, fmt.Errorf("LLM generation failed: %w", err)
 	}
 
-	// Plausibility Check: Reject excessive output (Reasoning Leak / Hallucination)
+	// Plausibility Check: Script too long may indicate reasoning leak
 	wordCount := len(strings.Fields(script))
-	limit := promptData.MaxWords + 200
+	limit := promptData.MaxWords + 50
 	if wordCount > limit {
-		slog.Warn("Narrator: Generated script rejected (too long)",
+		slog.Warn("Narrator: Script exceeded limit, attempting rescue",
 			"requested", promptData.MaxWords,
 			"actual", wordCount,
 			"limit", limit)
-		return nil, fmt.Errorf("generated script too long: %d > %d words", wordCount, limit)
+
+		// Attempt LLM-based rescue
+		rescuedScript, err := s.rescueScript(ctx, script)
+		if err != nil {
+			slog.Error("Narrator: Script rescue failed", "error", err)
+			return nil, fmt.Errorf("script rescue failed: %w", err)
+		}
+
+		slog.Info("Narrator: Script rescue successful",
+			"original_words", wordCount,
+			"rescued_words", len(strings.Fields(rescuedScript)))
+		script = rescuedScript
 	}
 
 	// Save to history (This was in narratePOI, ok to do here as it's part of "creation")
@@ -155,6 +176,8 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 }
 
 // PlayNarrative plays a previously generated narrative.
+// This method is non-blocking: it starts playback and returns immediately.
+// Playback completion is monitored in a background goroutine.
 func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 	s.mu.Lock()
 	if s.active {
@@ -168,19 +191,6 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 	s.lastEssayTitle = ""
 	s.mu.Unlock()
 
-	defer func() {
-		// Wait a bit before clearing active to prevent rapid re-triggering?
-		// Previous code had: time.Sleep(3 * time.Second) inside defer!
-		// We should replicate that behavior or decision.
-		go func() {
-			time.Sleep(3 * time.Second)
-			s.mu.Lock()
-			s.active = false
-			s.currentPOI = nil
-			s.mu.Unlock()
-		}()
-	}()
-
 	// Optional: Marker Spawning
 	if s.beaconSvc != nil {
 		_ = s.beaconSvc.SetTarget(ctx, n.POI.Lat, n.POI.Lon)
@@ -188,16 +198,18 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 
 	audioFile := n.AudioPath + "." + n.Format
 
-	// Playback
+	// Start playback (synchronous to catch immediate errors)
 	if err := s.audio.Play(audioFile, false); err != nil {
 		if s.beaconSvc != nil {
 			s.beaconSvc.Clear()
 		}
+		// Reset state on error
+		s.mu.Lock()
+		s.active = false
+		s.currentPOI = nil
+		s.mu.Unlock()
 		return fmt.Errorf("audio playback failed: %w", err)
 	}
-
-	// Update Latency (Setup time only) - MOVED TO GenerateNarrative
-	// s.updateLatency(time.Since(startTime))
 
 	// Mark as played
 	n.POI.LastPlayed = time.Now()
@@ -216,7 +228,7 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 		"audio_duration", duration,
 	)
 
-	// Update History (Trip Summary) - Moved from GenerateNarrative
+	// Update History (Trip Summary)
 	s.addScriptToHistory(n.POI.WikidataID, n.POI.DisplayName(), n.Script)
 
 	// Update stats
@@ -224,19 +236,52 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 	s.narratedCount++
 	s.mu.Unlock()
 
-	// Block until playback finishes (keep active logic)
+	// Non-blocking: Monitor playback completion in background
+	go s.monitorPlayback(n)
+
+	return nil
+}
+
+// monitorPlayback waits for audio to finish and cleans up state.
+func (s *AIService) monitorPlayback(n *Narrative) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ctx.Done():
-			s.audio.Stop()
-			return ctx.Err()
-		case <-ticker.C:
-			if !s.audio.IsBusy() {
-				return nil
-			}
+	for range ticker.C {
+		if !s.audio.IsBusy() {
+			slog.Info("Narrator: Playback ended", "name", n.POI.DisplayName(), "qid", n.POI.WikidataID)
+			break
 		}
 	}
+
+	// Wait before clearing active (prevent rapid re-trigger)
+	time.Sleep(3 * time.Second)
+	s.mu.Lock()
+	s.active = false
+	s.currentPOI = nil
+	s.mu.Unlock()
+}
+
+// rescueScript attempts to extract a clean script from contaminated LLM output.
+// It uses a secondary LLM call to identify and remove chain-of-thought reasoning.
+func (s *AIService) rescueScript(ctx context.Context, script string) (string, error) {
+	prompt, err := s.prompts.Render("context/rescue_script.tmpl", map[string]any{
+		"Script": script,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to render rescue prompt: %w", err)
+	}
+
+	// Use script_rescue profile (cheap model)
+	rescued, err := s.llm.GenerateText(ctx, "script_rescue", prompt)
+	if err != nil {
+		return "", fmt.Errorf("rescue LLM call failed: %w", err)
+	}
+
+	// Check for explicit failure signal
+	if strings.TrimSpace(rescued) == "RESCUE_FAILED" {
+		return "", fmt.Errorf("LLM could not extract valid script")
+	}
+
+	return strings.TrimSpace(rescued), nil
 }

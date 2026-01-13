@@ -1,5 +1,17 @@
 ﻿# History
 
+## v0.2.80
+
+### Bug Fixes
+- **Telemetry Loop Stall**: Fixed a regression where the main telemetry loop would stall after a SimConnect disconnection. Added a **Watchdog Timer** to the client that forces a reconnection if no data is received for 5 seconds.
+- **Narrator Continuity**: Updated script template to explicitly forbid the LLM from repeating the previous sentence's ending, reducing redundant narration.
+- **POI Playback**: Fixed a race condition where prepared narrations were discarded if the scheduler updated the target POI mid-generation. The narrator now prioritizes the prepared script.
+
+### Improvements
+- **Dynamic Baseline**: Refined the "Dimension Rescue" logic to use the full global median (100%) as the baseline for filtering small POIs, reducing noise in sparse areas.
+- **Content Expansion**: Added "myths" and "mysteries" to interest categories and essay topics.
+- **Flight Status**: Refined the flight status description prompt logic for better natural language generation.
+
 ## v0.2.79
 *   **Fix: Filter Markdown Artifacts from TTS**: Asterisks (`*`) are now stripped from LLM-generated scripts before TTS synthesis. This prevents markdown formatting (like `**bold**`) from being read aloud.
 *   **UI: Reduced Cache Layer Opacity**: The map's cache layer circles are now 50% more transparent for better visibility of underlying terrain.

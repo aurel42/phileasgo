@@ -272,6 +272,7 @@ func DefaultConfig() *Config {
 				"essay":          "gemini-2.5-flash",
 				"narration":      "gemini-2.5-flash-lite",
 				"dynamic_config": "gemini-2.5-flash",
+				"script_rescue":  "gemini-2.5-flash-lite", // Script rescue uses cheap model
 			},
 		},
 		Narrator: NarratorConfig{

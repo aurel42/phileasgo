@@ -163,3 +163,29 @@ func TestCalculateNavInstruction(t *testing.T) {
 		})
 	}
 }
+
+func TestHumanRound(t *testing.T) {
+	tests := []struct {
+		input float64
+		want  float64
+	}{
+		{4.2, 4.0},
+		{4.7, 5.0},
+		{9.4, 9.0},
+		{11.0, 10.0}, // 11 -> 10 (nearest 5)
+		{12.4, 10.0},
+		{12.6, 15.0}, // 12.6 -> 15 (nearest 5)
+		{23.0, 25.0},
+		{98.0, 100.0},
+		{102.0, 100.0},
+		{106.0, 110.0},
+		{123.0, 120.0},
+	}
+
+	for _, tt := range tests {
+		got := humanRound(tt.input)
+		if got != tt.want {
+			t.Errorf("humanRound(%.1f) = %.1f, want %.1f", tt.input, got, tt.want)
+		}
+	}
+}

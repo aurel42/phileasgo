@@ -47,11 +47,20 @@ func (s *AIService) calculateNavInstruction(p *model.POI, tel *sim.Telemetry) st
 	unitSys := strings.ToLower(s.cfg.Narrator.Units)
 
 	if unitSys == "metric" || unitSys == "hybrid" {
-		distStr = fmt.Sprintf("about %.0f kilometers", distKm)
+		val := humanRound(distKm)
+		distStr = fmt.Sprintf("about %.0f kilometers", val)
 	} else {
 		// Imperial
-		distNm := distMeters * 0.000539957
-		distStr = fmt.Sprintf("about %.0f miles", distNm)
+		distNm := distMeters * 0.000539957 // nautical miles actually? or statute miles?
+		// "miles" usually implies statute miles in common parlance, but aviation uses NM.
+		// logic uses 0.000539957 which IS Nautical Miles (1m = 0.000539957 NM).
+		// Prompt says "miles". Let's assume we want NM but called "miles" or just "miles" as statute?
+		// Existing code said "miles" with NM conversion. I'll stick to that but apply rounding.
+		// Wait, user might want Statute Miles for "human" passengers?
+		// 1 km = 0.621371 miles.
+		// If I stick to existing conversion (NM), I just round that.
+		val := humanRound(distNm)
+		distStr = fmt.Sprintf("about %.0f miles", val)
 	}
 
 	if tel.IsOnGround {
@@ -113,4 +122,19 @@ func capitalizeStart(s string) string {
 	}
 	// Basic uppercase
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// humanRound rounds the distance based on "human" perception rules.
+// < 10 -> round to 1
+// 10-100 -> round to 5
+// > 100 -> round to 10
+// Same rules apply for KM and Miles (magnitude is similar enough for this heuristic).
+func humanRound(val float64) float64 {
+	if val < 10 {
+		return math.Round(val)
+	}
+	if val < 100 {
+		return math.Round(val/5.0) * 5.0
+	}
+	return math.Round(val/10.0) * 10.0
 }

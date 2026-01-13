@@ -668,7 +668,8 @@ func TestAIService_ScriptValidation(t *testing.T) {
 		t.Fatal("Expected error for excessively long script, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "generated script too long") {
-		t.Errorf("Expected error message to contain 'generated script too long', got: %v", err)
+	// New behavior: attempts rescue first, then fails because template not found in test env
+	if !strings.Contains(err.Error(), "script rescue failed") {
+		t.Errorf("Expected error message to contain 'script rescue failed', got: %v", err)
 	}
 }

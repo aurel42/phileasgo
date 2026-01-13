@@ -149,10 +149,17 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
     const currentNarratedPoi = narratorStatus?.playback_status !== 'idle' ? narratorStatus?.current_poi : null;
     const currentNarratedId = currentNarratedPoi?.wikidata_id;
 
+    // Determine the POI being prepared (pipeline)
+    const preparingPoi = narratorStatus?.preparing_poi;
+    const preparingId = preparingPoi?.wikidata_id;
+
     // Merge active POI if missing from the main list (e.g. filtered out by backend)
     const displayPois = [...pois];
     if (currentNarratedPoi && !displayPois.find(p => p.wikidata_id === currentNarratedId)) {
         displayPois.push(currentNarratedPoi);
+    }
+    if (preparingPoi && !displayPois.find(p => p.wikidata_id === preparingId)) {
+        displayPois.push(preparingPoi);
     }
 
     // Default to Berlin if no telemetry yet
@@ -193,11 +200,12 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
                 </>
             )}
 
-            {displayPois.filter(p => isPOIVisible(p, minPoiScore) || p.wikidata_id === currentNarratedId).map((poi) => (
+            {displayPois.filter(p => isPOIVisible(p, minPoiScore) || p.wikidata_id === currentNarratedId || p.wikidata_id === preparingId).map((poi) => (
                 <POIMarker
                     key={poi.wikidata_id}
                     poi={poi}
                     highlighted={poi.wikidata_id === currentNarratedId || poi.wikidata_id === selectedPOI?.wikidata_id}
+                    preparing={poi.wikidata_id === preparingId && poi.wikidata_id !== currentNarratedId}
                     onClick={onPOISelect}
                 />
             ))}

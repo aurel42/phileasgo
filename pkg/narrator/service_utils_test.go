@@ -1,70 +1,80 @@
 package narrator
 
 import (
-	"phileasgo/pkg/sim"
+	"strings"
 	"testing"
+
+	"phileasgo/pkg/sim"
 )
 
-func TestDetermineFlightStage(t *testing.T) {
+func TestGenerateFlightStatusSentence(t *testing.T) {
 	tests := []struct {
-		name      string
-		telemetry *sim.Telemetry
-		expected  string
+		name string
+		tel  *sim.Telemetry
+		want []string // Substrings to expect
 	}{
 		{
-			name:      "Nil Telemetry",
-			telemetry: nil,
-			expected:  "Unknown",
+			name: "Sitting on Ground",
+			tel: &sim.Telemetry{
+				IsOnGround:         true,
+				GroundSpeed:        1.5,
+				PredictedLatitude:  10.12345,
+				PredictedLongitude: 20.67891,
+			},
+			want: []string{"sitting on the ground", "10.1235, 20.6789"},
 		},
 		{
-			name: "On Ground",
-			telemetry: &sim.Telemetry{
-				IsOnGround: true,
+			name: "Taxiing on Ground",
+			tel: &sim.Telemetry{
+				IsOnGround:         true,
+				GroundSpeed:        5.0,
+				PredictedLatitude:  10.0,
+				PredictedLongitude: 20.0,
 			},
-			expected: "Ground",
+			want: []string{"taxiing on the ground"},
 		},
 		{
-			name: "Takeoff/Climb",
-			telemetry: &sim.Telemetry{
-				IsOnGround:    false,
-				AltitudeAGL:   1500,
-				VerticalSpeed: 500,
+			name: "Flying Low Rounding",
+			tel: &sim.Telemetry{
+				IsOnGround:        false,
+				AltitudeAGL:       840,
+				GroundSpeed:       100,
+				Heading:           90,
+				PredictedLatitude: 10, PredictedLongitude: 20,
 			},
-			expected: "Takeoff/Climb",
+			want: []string{"cruising about 800 ft", "moving at 100 knots"},
 		},
 		{
-			name: "Approach/Landing",
-			telemetry: &sim.Telemetry{
-				IsOnGround:    false,
-				AltitudeAGL:   1500,
-				VerticalSpeed: -500,
+			name: "Flying High Rounding",
+			tel: &sim.Telemetry{
+				IsOnGround:        false,
+				AltitudeAGL:       5400,
+				GroundSpeed:       120,
+				Heading:           180,
+				PredictedLatitude: 10, PredictedLongitude: 20,
 			},
-			expected: "Approach/Landing",
+			want: []string{"cruising about 5000 ft"},
 		},
 		{
-			name: "Low Altitude Cruise",
-			telemetry: &sim.Telemetry{
-				IsOnGround:    false,
-				AltitudeAGL:   1500,
-				VerticalSpeed: 0,
+			name: "Flying High Rounding Up",
+			tel: &sim.Telemetry{
+				IsOnGround:        false,
+				AltitudeAGL:       5600,
+				GroundSpeed:       120,
+				Heading:           180,
+				PredictedLatitude: 10, PredictedLongitude: 20,
 			},
-			expected: "Cruise",
-		},
-		{
-			name: "High Altitude Cruise",
-			telemetry: &sim.Telemetry{
-				IsOnGround:  false,
-				AltitudeAGL: 5000,
-			},
-			expected: "Cruise",
+			want: []string{"cruising about 6000 ft"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := determineFlightStage(tt.telemetry)
-			if got != tt.expected {
-				t.Errorf("determineFlightStage() = %v, want %v", got, tt.expected)
+			got := generateFlightStatusSentence(tt.tel)
+			for _, w := range tt.want {
+				if !strings.Contains(got, w) {
+					t.Errorf("generateFlightStatusSentence() = %q, want substring %q", got, w)
+				}
 			}
 		})
 	}

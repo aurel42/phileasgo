@@ -42,6 +42,18 @@ func TestBuildPromptData(t *testing.T) {
 	}
 	svc.poiMgr = mockPOI
 
+	t.Run("Last Sentence Injection", func(t *testing.T) {
+		// Set internal state directly
+		svc.lastScriptEnd = "It was a dark and stormy night"
+
+		poi := &model.POI{Lat: 10, Lon: 20}
+		pd := svc.buildPromptData(context.Background(), poi, nil, "uniform")
+
+		if pd.LastSentence != "It was a dark and stormy night" {
+			t.Errorf("Expected last sentence injected, got %q", pd.LastSentence)
+		}
+	})
+
 	t.Run("Happy Path", func(t *testing.T) {
 		poi := &model.POI{
 			WikidataID: "Q1",

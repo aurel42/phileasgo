@@ -68,6 +68,9 @@ type Client struct {
 	// Spawning synchronization
 	spawnMu       sync.Mutex
 	pendingSpawns map[uint32]chan uint32
+
+	// Watchdog
+	lastMessageTime time.Time
 }
 
 // NewClient creates a new SimConnect client.
@@ -239,6 +242,7 @@ func (c *Client) connect() {
 
 	c.handle = handle
 	c.connected = true
+	c.lastMessageTime = time.Now() // Initialize watchdog
 	c.logger.Info("SimConnect Connected")
 
 	// Setup data definitions
@@ -335,11 +339,18 @@ func (c *Client) dispatchLoop() {
 			}
 
 			if ppData == nil {
+				// Watchdog check
+				if time.Since(c.lastMessageTime) > 5*time.Second {
+					c.logger.Warn("Watchdog timeout (no data for 5s), resetting connection")
+					c.disconnect()
+					return
+				}
 				// No message, sleep briefly to prevent busy loop
 				time.Sleep(10 * time.Millisecond)
 				continue
 			}
 
+			c.lastMessageTime = time.Now() // Update watchdog
 			c.handleMessage(ppData)
 		}
 	}

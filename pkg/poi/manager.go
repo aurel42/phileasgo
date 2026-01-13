@@ -468,6 +468,18 @@ func (m *Manager) StartScoring(ctx context.Context, simClient sim.Client, sc *sc
 				continue
 			}
 
+			// Instrumentation: Log prediction offset distance
+			if telemetry.PredictedLatitude != 0 || telemetry.PredictedLongitude != 0 {
+				currentPos := geo.Point{Lat: telemetry.Latitude, Lon: telemetry.Longitude}
+				predictedPos := geo.Point{Lat: telemetry.PredictedLatitude, Lon: telemetry.PredictedLongitude}
+				predDistMeters := geo.Distance(currentPos, predictedPos)
+				predDistNM := predDistMeters / 1852.0
+				m.logger.Debug("Scoring: Prediction offset",
+					"dist_nm", fmt.Sprintf("%.2f", predDistNM),
+					"groundspeed_kts", fmt.Sprintf("%.0f", telemetry.GroundSpeed),
+				)
+			}
+
 			// 2. Fetch History for Variety Scoring
 			// We fetch last 1 hour, which is plenty for variety (usually < 10 items)
 			since := time.Now().Add(-1 * time.Hour)

@@ -33,5 +33,9 @@ topics:
     max_words: 300
   - id: "criminal_cases"
     name: "Criminal Cases & Mystery"
-    description: "Famous regional mysteries, historical crimes, and local legends."
+    description: "Famous regional mysteries and historical crimes."
+    max_words: 800
+  - id: "myths"
+    name: "Myths & Mysteries"
+    description: "Famous regional mysteries, mysteries, and legends."
     max_words: 800

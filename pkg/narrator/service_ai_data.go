@@ -95,6 +95,8 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		PredictedLat:         tel.PredictedLatitude,
 		PredictedLon:         tel.PredictedLongitude,
 		TripSummary:          s.getTripSummary(),
+		LastSentence:         s.lastScriptEnd,
+		FlightStatusSentence: generateFlightStatusSentence(tel),
 	}
 	// Fetch TTS instructions with full context
 	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
@@ -243,6 +245,8 @@ type NarrationPromptData struct {
 	PredictedLon         float64
 	DominanceStrategy    string
 	TripSummary          string
+	LastSentence         string
+	FlightStatusSentence string
 }
 
 func (s *AIService) sampleNarrationLength(p *model.POI, strategy string) (words int, strategyUsed string) {

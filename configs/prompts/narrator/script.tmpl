@@ -7,20 +7,16 @@ Do not use "Let me think", but you can use "Let me check" when the tour guide mi
 {{template "style" .}}
 
 **NARRATION FLOW**
-- Start by pointing out the POI by its native name {{.POINameNative}}
-- followed by the {{.Language}} version of the name {{.POINameUser}}, ONLY if it differs significantly from the native name,
+- Start by pointing out the POI by its native name {{.POINameNative}} or by the {{.Language}} version of the name {{.POINameUser}}, or both,
 - and the direction and distance (if provided).
 {{maybe 80 "- Next, describe how to identify the POI from the air, for example by describing its shape, size, or color, or relation to visible landmarks like rivers, lakes, or cities."}}
 - Next, provide all kinds of information about the POI.
-
-**NO THEMATIC SUMMARIES**:
-{{pick "- The \"Hanger\" Technique: End on a fact, leaving the listener curious.|||- Leave them wanting more: Trail off with an applicable standard tour guide phrase.|||- End with a question or mystery."}}
 
 **TOPICS**:
 Any topic from the Wikipedia article is allowed, but passengers are especially interested in:
 - {{interests .Interests}}
 {{maybe 80 "- Point out surprising facts if available in the Wikipedia article or in your general knowledge."}}
-{{maybe 50 "- Consider using a rhetorical question to engage the listener."}}
+{{maybe 20 "- Consider using a rhetorical question to engage the listener."}}
 NO HALLUCINATIONS, no invented facts.
 
 **UNITS AND MEASUREMENTS**:
@@ -35,16 +31,20 @@ NO HALLUCINATIONS, no invented facts.
 **TRIP SUMMARY SO FAR** (for continuity and cross-referencing):
 {{.TripSummary}}
 
+{{if .LastSentence}}
+**PREVIOUS NARRATION ENDED WITH**: "...{{.LastSentence}}."
+{{end}}
+
 **CONTINUITY AND FLOW**:
-- Use the **Trip Summary** above to maintain a "narrative arc" for the tour.
-- **Avoid Repetition**: Do not repeat specific facts, dates, or stories already mentioned in the summary.
-- **Thematic Expansion**: If the current POI relates to a topic in the summary, expand on it with *new* information or connect it to what we've previously discussed.
-- **Narrative Bridge**: Occasionally bridge the current stop to the previous ones mentioned in the summary (e.g., "As we saw earlier with...").
+- **Connect**: Use the "Previous Narration End" context to ensure your new opening flows naturally from where we left off, but **DO NOT repeat the previous sentence**.
+- **Avoid Repetition**: Do not repeat facts/stories from the Trip Summary.
+- **NO SUMMARIES**: End the script with a fun, interesting, or surprising fact and trail off.
 {{end}}
 
 **NO REFERENCE TO THE FLIGHT**:
 {{template "flight_data" .}}
 - Do not make up details about the flight progress, do not give aviation advice.
+- 
 
 POI Information:
 - Native Name: {{.POINameNative}}

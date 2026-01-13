@@ -8,6 +8,7 @@ import type { POI } from '../hooks/usePOIs';
 interface POIMarkerProps {
     poi: POI;
     highlighted?: boolean;
+    preparing?: boolean;
     onClick: (poi: POI) => void;
 }
 
@@ -19,7 +20,7 @@ const getColor = (score: number) => {
     return `hsl(${hue}, 100%, 50%)`;
 };
 
-export const POIMarker = React.memo(({ poi, highlighted, onClick }: POIMarkerProps) => {
+export const POIMarker = React.memo(({ poi, highlighted, preparing, onClick }: POIMarkerProps) => {
     // Memoize icon to prevent flickering/re-creation on every render
     const icon = useMemo(() => {
         // Safe check for icon, default if missing
@@ -28,15 +29,20 @@ export const POIMarker = React.memo(({ poi, highlighted, onClick }: POIMarkerPro
 
         const isPlayed = poi.last_played && poi.last_played !== "0001-01-01T00:00:00Z";
 
-        // Colors: Green for playing, Blue for played, Score-based for others
+        // Colors: Green for playing, Dark Green for preparing, Blue for played, Score-based for others
         let bgColor = getColor(poi.score);
+        let scale = 1.0;
+
         if (highlighted) {
-            bgColor = '#22c55e'; // Vibrant Green
+            bgColor = '#22c55e'; // Vibrant Green (playing/selected)
+            scale = 1.5;
+        } else if (preparing) {
+            bgColor = '#166534'; // Dark Green (preparing)
+            scale = 1.25;
         } else if (isPlayed) {
             bgColor = '#3b82f6'; // Vibrant Blue
         }
 
-        const scale = highlighted ? 1.5 : 1.0;
         const borderWidth = 2;
         const borderColor = bgColor;
         const shadow = '0 2px 4px rgba(0, 0, 0, 0.5)';
@@ -53,7 +59,7 @@ export const POIMarker = React.memo(({ poi, highlighted, onClick }: POIMarkerPro
         ">★</div>` : '';
 
         return L.divIcon({
-            className: `poi-marker-container ${highlighted ? 'highlighted' : ''}`,
+            className: `poi-marker-container ${highlighted ? 'highlighted' : ''} ${preparing ? 'preparing' : ''}`,
             html: `<div class="poi-marker-bg" style="
                 position: relative;
                 background-color: ${bgColor}; 
@@ -69,7 +75,7 @@ export const POIMarker = React.memo(({ poi, highlighted, onClick }: POIMarkerPro
             iconSize: [32, 32],
             iconAnchor: [16, 16],
         });
-    }, [poi.icon, poi.score, poi.last_played, poi.is_msfs_poi, highlighted]);
+    }, [poi.icon, poi.score, poi.last_played, poi.is_msfs_poi, highlighted, preparing]);
 
     return (
         <Marker

@@ -23,6 +23,7 @@ export interface NarratorStatusResponse {
     active: boolean;
     playback_status: 'idle' | 'preparing' | 'playing' | 'paused';
     current_poi?: POI;
+    preparing_poi?: POI;
     current_title?: string;
     narrated_count: number;
     stats: Record<string, unknown>;

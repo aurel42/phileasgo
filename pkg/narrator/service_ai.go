@@ -28,19 +28,20 @@ type ScriptEntry struct {
 
 // AIService is the real implementation of the narrator service using LLM and TTS.
 type AIService struct {
-	cfg         *config.Config
-	llm         llm.Provider
-	tts         tts.Provider
-	prompts     *prompts.Manager
-	audio       audio.Service
-	poiMgr      POIProvider
-	beaconSvc   BeaconProvider
-	geoSvc      GeoProvider
-	sim         sim.Client
-	st          store.Store
-	wikipedia   WikipediaProvider
-	langRes     LanguageResolver
-	tripSummary string // Added tripSummary field
+	cfg           *config.Config
+	llm           llm.Provider
+	tts           tts.Provider
+	prompts       *prompts.Manager
+	audio         audio.Service
+	poiMgr        POIProvider
+	beaconSvc     BeaconProvider
+	geoSvc        GeoProvider
+	sim           sim.Client
+	st            store.Store
+	wikipedia     WikipediaProvider
+	langRes       LanguageResolver
+	tripSummary   string // Added tripSummary field
+	lastScriptEnd string // The last sentence of the previous narration for flow continuity
 
 	mu            sync.RWMutex
 	running       bool
@@ -63,6 +64,7 @@ type AIService struct {
 
 	// Staging State (Pipeline)
 	stagedNarrative *Narrative
+	generatingPOI   *model.POI // The POI currently being generated (for UI feedback)
 
 	essayH    *EssayHandler
 	interests []string
@@ -168,6 +170,19 @@ func (s *AIService) CurrentPOI() *model.POI {
 	return s.currentPOI
 }
 
+// PreparingPOI returns the POI being prepared for pipeline playback, if any.
+func (s *AIService) PreparingPOI() *model.POI {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.stagedNarrative != nil {
+		return s.stagedNarrative.POI
+	}
+	if s.generatingPOI != nil {
+		return s.generatingPOI
+	}
+	return nil
+}
+
 // CurrentTitle returns the title of the current narration.
 func (s *AIService) CurrentTitle() string {
 	s.mu.RLock()
@@ -227,9 +242,10 @@ func (s *AIService) updateLatency(d time.Duration) {
 	avg := sum / time.Duration(len(s.latencies))
 	s.mu.Unlock()
 
-	// Update the sim's prediction window with the observed latency
-	s.sim.SetPredictionWindow(avg)
-	slog.Debug("Narrator: Updated latency stats", "new_latency", d, "rolling_window_size", len(s.latencies), "new_prediction_window", avg)
+	// Update the sim's prediction window with the observed latency (minimum 60s)
+	predWindow := max(avg, 60*time.Second)
+	s.sim.SetPredictionWindow(predWindow)
+	slog.Debug("Narrator: Updated latency stats", "new_latency", d, "rolling_window_size", len(s.latencies), "new_prediction_window", predWindow)
 }
 
 func (s *AIService) AverageLatency() time.Duration {
@@ -342,6 +358,24 @@ func (s *AIService) getTripSummary() string {
 }
 
 func (s *AIService) addScriptToHistory(qid, title, script string) {
+	// Extract the last sentence for flow continuity
+	// Simple heuristic: split by period, take the last non-empty one.
+	sentences := strings.Split(script, ".")
+	var lastSentence string
+	for i := len(sentences) - 1; i >= 0; i-- {
+		trimmed := strings.TrimSpace(sentences[i])
+		if len(trimmed) > 10 { // Ignore tiny fragments
+			lastSentence = trimmed
+			break
+		}
+	}
+
+	s.mu.Lock()
+	if lastSentence != "" {
+		s.lastScriptEnd = lastSentence
+	}
+	s.mu.Unlock()
+
 	// Legacy method call for POI script storage (from Phase 1)
 	// We no longer need the s.scriptHistory slice, but we still trigger
 	// the summary update which is the new focus.
@@ -362,6 +396,7 @@ func (s *AIService) ResetSession(ctx context.Context) {
 	s.lastPOI = nil
 	s.lastEssayTopic = nil
 	s.lastEssayTitle = ""
+	s.lastScriptEnd = ""
 	// Clear fallback state if needed, or keep it per app run?
 	// User request implied trip summary and counts. Fallback TTS might be transient error related, so keeping it is safer.
 
