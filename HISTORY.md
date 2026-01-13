@@ -1,5 +1,8 @@
 ﻿# Release History
 
+## v0.2.83 (2026-01-13)
+- **Fix**: **Beacon Cleanup**: `ResetSession` (triggered by teleport or new flight) now explicitly clears any active beacons (balloons) from the simulator, preventing visual clutter.
+
 ## v0.2.82 (2026-01-13)
 - **Fix**: Resolved a regression where manual play requests repeated endlessly due to client-side timeouts. The API handler now processes requests asynchronously (`HandlePlay` returns immediately).
 - **Cleanup**: Removed spammy "NarrationJob: Pipeline trigger" log from `pkg/core/narration_job.go`.

@@ -400,5 +400,10 @@ func (s *AIService) ResetSession(ctx context.Context) {
 	// Clear fallback state if needed, or keep it per app run?
 	// User request implied trip summary and counts. Fallback TTS might be transient error related, so keeping it is safer.
 
+	// Clear active beacons
+	if s.beaconSvc != nil {
+		s.beaconSvc.Clear()
+	}
+
 	slog.Info("Narrator: Session reset (teleport/new flight detected)")
 }
