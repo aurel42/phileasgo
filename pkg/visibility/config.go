@@ -60,8 +60,8 @@ func NewManagerForTest(table []AltitudeRow) *Manager {
 }
 
 // GetMaxVisibleDist returns the maximum visible distance for a given altitude and size.
-// Interpolates between altitude levels.
-func (m *Manager) GetMaxVisibleDist(altAGL float64, size SizeType) float64 {
+// Interpolates between altitude levels and applies the dynamic boost factor.
+func (m *Manager) GetMaxVisibleDist(altAGL float64, size SizeType, boostFactor float64) float64 {
 	if len(m.table) == 0 {
 		return 0
 	}
@@ -79,22 +79,23 @@ func (m *Manager) GetMaxVisibleDist(altAGL float64, size SizeType) float64 {
 	}
 
 	// Handle out of bounds
+	// Handle out of bounds
+	var baseDist float64
 	if lower == nil {
-		return getDist(m.table[0].Distances, size)
-	}
-	if upper == nil {
-		return getDist(m.table[len(m.table)-1].Distances, size)
-	}
-	if lower == upper {
-		return getDist(lower.Distances, size)
+		baseDist = getDist(m.table[0].Distances, size)
+	} else if upper == nil {
+		baseDist = getDist(m.table[len(m.table)-1].Distances, size)
+	} else if lower == upper {
+		baseDist = getDist(lower.Distances, size)
+	} else {
+		// Interpolate
+		ratio := (altAGL - lower.AltAGL) / (upper.AltAGL - lower.AltAGL)
+		d1 := getDist(lower.Distances, size)
+		d2 := getDist(upper.Distances, size)
+		baseDist = d1 + (d2-d1)*ratio
 	}
 
-	// Interpolate
-	ratio := (altAGL - lower.AltAGL) / (upper.AltAGL - lower.AltAGL)
-	d1 := getDist(lower.Distances, size)
-	d2 := getDist(upper.Distances, size)
-
-	return d1 + (d2-d1)*ratio
+	return baseDist * boostFactor
 }
 
 func getDist(distances map[SizeType]float64, size SizeType) float64 {

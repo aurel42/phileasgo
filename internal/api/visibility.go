@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/store"
 	"phileasgo/pkg/terrain"
 	"phileasgo/pkg/visibility"
 )
@@ -17,14 +18,16 @@ type VisibilityHandler struct {
 	calculator *visibility.Calculator
 	simClient  sim.Client
 	elevation  terrain.ElevationGetter
+	store      store.Store
 }
 
 // NewVisibilityHandler creates a new handler
-func NewVisibilityHandler(calc *visibility.Calculator, sim sim.Client, elev terrain.ElevationGetter) *VisibilityHandler {
+func NewVisibilityHandler(calc *visibility.Calculator, sim sim.Client, elev terrain.ElevationGetter, st store.Store) *VisibilityHandler {
 	return &VisibilityHandler{
 		calculator: calc,
 		simClient:  sim,
 		elevation:  elev,
+		store:      st,
 	}
 }
 
@@ -72,9 +75,20 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	// Default to Real AGL if elevation scanning fails or is N/A
 	effectiveAGL = telemetry.AltitudeAGL
 
+	// 3a. Get Visibility Boost
+	boostFactor := 1.0
+	if h.store != nil {
+		val, ok := h.store.GetState(r.Context(), "visibility_boost")
+		if ok && val != "" {
+			if f, err := strconv.ParseFloat(val, 64); err == nil {
+				boostFactor = f
+			}
+		}
+	}
+
 	if h.elevation != nil {
 		// Quick scan similar to Scorer Session (dynamic radius)
-		radiusNM := h.calculator.GetMaxVisibleDistance(telemetry.AltitudeMSL, visibility.SizeXL)
+		radiusNM := h.calculator.GetMaxVisibleDistance(telemetry.AltitudeMSL, visibility.SizeXL, boostFactor)
 		if radiusNM < 10.0 {
 			radiusNM = 10.0
 		}
@@ -86,7 +100,7 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 4. Generate Grid
-	gridM, gridL, gridXL := h.computeGrids(&telemetry, effectiveAGL, north, east, south, west, res)
+	gridM, gridL, gridXL := h.computeGrids(&telemetry, effectiveAGL, north, east, south, west, res, boostFactor)
 
 	// 4. Response
 	resp := map[string]interface{}{
@@ -104,7 +118,7 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func (h *VisibilityHandler) computeGrids(telemetry *sim.Telemetry, effectiveAGL, north, east, south, west float64, res int) (gridM, gridL, gridXL []float64) {
+func (h *VisibilityHandler) computeGrids(telemetry *sim.Telemetry, effectiveAGL, north, east, south, west float64, res int, boostFactor float64) (gridM, gridL, gridXL []float64) {
 	latStep := (north - south) / float64(res)
 
 	// Ensure positive steps
@@ -151,6 +165,7 @@ func (h *VisibilityHandler) computeGrids(telemetry *sim.Telemetry, effectiveAGL,
 				dist,
 				visibility.SizeM,
 				telemetry.IsOnGround,
+				boostFactor,
 			)
 			scoreL := h.calculator.CalculateVisibilityForSize(
 				telemetry.Heading,
@@ -160,6 +175,7 @@ func (h *VisibilityHandler) computeGrids(telemetry *sim.Telemetry, effectiveAGL,
 				dist,
 				visibility.SizeL,
 				telemetry.IsOnGround,
+				boostFactor,
 			)
 			scoreXL := h.calculator.CalculateVisibilityForSize(
 				telemetry.Heading,
@@ -169,6 +185,7 @@ func (h *VisibilityHandler) computeGrids(telemetry *sim.Telemetry, effectiveAGL,
 				dist,
 				visibility.SizeXL,
 				telemetry.IsOnGround,
+				boostFactor,
 			)
 
 			gridM = append(gridM, scoreM)

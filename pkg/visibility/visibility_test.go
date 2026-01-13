@@ -108,7 +108,7 @@ func TestCalculator(t *testing.T) {
 			if eff == 0 {
 				eff = tt.alt
 			}
-			score, details := calculator.CalculatePOIScore(tt.heading, tt.alt, eff, tt.bearing, tt.dist, tt.size, tt.isOnGround)
+			score, details := calculator.CalculatePOIScore(tt.heading, tt.alt, eff, tt.bearing, tt.dist, tt.size, tt.isOnGround, 1.0)
 
 			// Fuzzy match score
 			diff := math.Abs(score - tt.wantScore)
@@ -148,7 +148,7 @@ visibility:
 		t.Fatalf("NewManager failed: %v", err)
 	}
 
-	dist := m.GetMaxVisibleDist(500, SizeM)
+	dist := m.GetMaxVisibleDist(500, SizeM, 1.0)
 	if dist < 2.0 || dist > 3.0 {
 		t.Errorf("Interpolation 500ft failed. Expected 2.5, got %f", dist)
 	}
@@ -186,7 +186,7 @@ func TestCalculateVisibility(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score := calculator.CalculateVisibility(tt.heading, tt.alt, tt.bearing, tt.dist, tt.isOnGround)
+			score := calculator.CalculateVisibility(tt.heading, tt.alt, tt.bearing, tt.dist, tt.isOnGround, 1.0)
 			diff := math.Abs(score - tt.wantScore)
 			if diff > 0.1 {
 				t.Errorf("got %.3f, want %.3f", score, tt.wantScore)
@@ -219,7 +219,7 @@ func TestCalculateVisibilityForSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score := calculator.CalculateVisibilityForSize(0, 1000, 1000, 45, tt.dist, tt.size, false)
+			score := calculator.CalculateVisibilityForSize(0, 1000, 1000, 45, tt.dist, tt.size, false, 1.0)
 			diff := math.Abs(score - tt.wantScore)
 			if diff > 0.1 {
 				t.Errorf("got %.3f, want %.3f", score, tt.wantScore)
@@ -251,7 +251,7 @@ func TestGetMaxVisibleDist(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dist := manager.GetMaxVisibleDist(tt.alt, tt.size)
+			dist := manager.GetMaxVisibleDist(tt.alt, tt.size, 1.0)
 			diff := math.Abs(dist - tt.want)
 			if diff > 0.1 {
 				t.Errorf("got %.2f, want %.2f", dist, tt.want)
@@ -318,8 +318,43 @@ func TestGetBearingMultiplier(t *testing.T) {
 // TestEmptyTable tests behavior with empty visibility table
 func TestEmptyTable(t *testing.T) {
 	manager := NewManagerForTest([]AltitudeRow{})
-	dist := manager.GetMaxVisibleDist(1000, SizeM)
+	dist := manager.GetMaxVisibleDist(1000, SizeM, 1.0)
 	if dist != 0 {
 		t.Errorf("Expected 0 for empty table, got %f", dist)
+	}
+}
+
+func TestVisibilityBoost(t *testing.T) {
+	// Setup: Alt 1000ft -> Max Dist 5nm for SizeM
+	manager := NewManagerForTest([]AltitudeRow{
+		{AltAGL: 1000, Distances: map[SizeType]float64{SizeS: 1.0, SizeM: 5.0, SizeL: 10.0}},
+	})
+	calculator := NewCalculator(manager)
+
+	// Case 1: No Boost (1.0). Object at 6nm should be invisible (Max 5nm)
+	// Score calculation: 5nm max. 6nm dist. Ratio > 1.0 -> 0 score.
+	scoreNoBoost := calculator.CalculateVisibility(0, 1000, 315, 6.0, false, 1.0)
+	if scoreNoBoost > 0 {
+		t.Errorf("Expected score 0 for 6nm dist (max 5nm), got %.2f", scoreNoBoost)
+	}
+
+	// Case 2: Boost 1.5x. Max Dist becomes 5 * 1.5 = 7.5nm.
+	// Object at 6nm is now visible.
+	// Calculation: Ratio = 6.0 / 7.5 = 0.8.
+	// Base Score = 1.0 - 0.8 = 0.2.
+	// Bearing Multiplier (315/LeftFront) = 2.0.
+	// Final Score = 0.2 * 2.0 = 0.4.
+	scoreBoost := calculator.CalculateVisibility(0, 1000, 315, 6.0, false, 1.5)
+	if scoreBoost <= 0 {
+		t.Errorf("Expected positive score with boost, got %.2f", scoreBoost)
+	}
+	if math.Abs(scoreBoost-0.4) > 0.05 {
+		t.Errorf("Expected approx 0.4 score, got %.2f", scoreBoost)
+	}
+
+	// Verify GetMaxVisibleDist respects boost
+	maxDist := manager.GetMaxVisibleDist(1000, SizeM, 1.5)
+	if maxDist != 7.5 {
+		t.Errorf("Expected max dist 7.5 with boost, got %.2f", maxDist)
 	}
 }

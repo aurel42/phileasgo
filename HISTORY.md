@@ -1,12 +1,15 @@
-﻿# History
+﻿# Release History
+
+## v0.2.81 (2026-01-13)
+- **Dynamic Visibility Boost**: implemented a mechanism to dynamically increase visibility range (up to 1.5x) when POIs are scarce, improving content discovery in sparse areas.
+- **Frontend Sync**: updated the map visibility API to accurately reflect the boosted visibility radius in the UI.
+- **Narrator**: added logging for current visibility boost factor during narration triggers.
 
 ## v0.2.80
-
 ### Bug Fixes
 - **Telemetry Loop Stall**: Fixed a regression where the main telemetry loop would stall after a SimConnect disconnection. Added a **Watchdog Timer** to the client that forces a reconnection if no data is received for 5 seconds.
 - **Narrator Continuity**: Updated script template to explicitly forbid the LLM from repeating the previous sentence's ending, reducing redundant narration.
 - **POI Playback**: Fixed a race condition where prepared narrations were discarded if the scheduler updated the target POI mid-generation. The narrator now prioritizes the prepared script.
-
 ### Improvements
 - **Dynamic Baseline**: Refined the "Dimension Rescue" logic to use the full global median (100%) as the baseline for filtering small POIs, reducing noise in sparse areas.
 - **Content Expansion**: Added "myths" and "mysteries" to interest categories and essay topics.

@@ -18,6 +18,7 @@ type ScoringInput struct {
 	Telemetry       sim.Telemetry          `json:"telemetry"`
 	CategoryHistory []string               `json:"category_history"`
 	NarratorConfig  *config.NarratorConfig `json:"narrator_config"`
+	BoostFactor     float64                `json:"boost_factor"` // Multiplier for visibility range (1.0 - 1.5)
 }
 
 // Session represents a single scoring cycle context.
@@ -47,7 +48,11 @@ func NewScorer(cfg *config.ScorerConfig, catCfg *config.CategoriesConfig, visCal
 func (s *Scorer) NewSession(input *ScoringInput) Session {
 	// Pre-calculate lowest elevation in dynamic radius based on XL visibility at MSL
 	// This ensures we scan far enough to see big mountains if we are high up.
-	radiusNM := s.visCalc.GetMaxVisibleDistance(input.Telemetry.AltitudeMSL, visibility.SizeXL)
+	boost := input.BoostFactor
+	if boost < 1.0 {
+		boost = 1.0
+	}
+	radiusNM := s.visCalc.GetMaxVisibleDistance(input.Telemetry.AltitudeMSL, visibility.SizeXL, boost)
 	if radiusNM < 10.0 {
 		radiusNM = 10.0 // Minimum scan radius safety
 	}
@@ -97,7 +102,12 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 
 	// 1. Geographic Scoring (Visibility & Ground)
 	// Pass lowestElev to geographic score for effective AGL calculation
-	geoScore, geoLogs, shouldReturn := s.calculateGeographicScore(poi, &state, bearing, distNM, sess.lowestElev)
+	// Ensure BoostFactor is at least 1.0
+	boost := input.BoostFactor
+	if boost < 1.0 {
+		boost = 1.0
+	}
+	geoScore, geoLogs, shouldReturn := s.calculateGeographicScore(poi, &state, bearing, distNM, sess.lowestElev, boost)
 	if shouldReturn {
 		return
 	}
@@ -121,7 +131,7 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 // OLD Calculate - kept for compatibility if needed, but should be removed or deprecated.
 // For now, removing it to force update in Manager.
 
-func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, bearing, distNM, lowestElevMeters float64) (score float64, logs []string, shouldReturn bool) {
+func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, bearing, distNM, lowestElevMeters float64, boostFactor float64) (score float64, logs []string, shouldReturn bool) {
 	// 1. Determine Size
 	poiSize := poi.Size
 	if poiSize == "" {
@@ -139,7 +149,7 @@ func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, 
 
 	// 3. Calculate Visibility Score
 	// Passes both RealAGL and EffectiveAGL. Calculator returns the better score.
-	visScore, visDetails := s.visCalc.CalculatePOIScore(state.Heading, state.AltitudeAGL, effectiveAGL, bearing, distNM, visibility.SizeType(poiSize), state.IsOnGround)
+	visScore, visDetails := s.visCalc.CalculatePOIScore(state.Heading, state.AltitudeAGL, effectiveAGL, bearing, distNM, visibility.SizeType(poiSize), state.IsOnGround, boostFactor)
 
 	if visScore <= 0 {
 		poi.IsVisible = false
@@ -150,6 +160,9 @@ func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, 
 
 	poi.IsVisible = true
 	logs = []string{visDetails}
+	if boostFactor > 1.0 {
+		logs = append(logs, fmt.Sprintf("Visibility Boost: x%.1f", boostFactor))
+	}
 	score = visScore
 
 	// 4. Apply Size Penalty (reduces advantage of distant large POIs)

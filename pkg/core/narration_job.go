@@ -144,6 +144,14 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		return true
 	}
 
+	// No candidates found? Boost visibility!
+	// Only boost if we were actually ready to narrate (passed all checks)
+	// and we are NOT in essay fallback mode (which might happen next).
+	// Actually, if we boost, we might find something next time.
+	// We increment boost, and return false (so we don't fire Narration yet, unless Essay triggers).
+	// Essay trigger is separate.
+	j.incrementVisibilityBoost(context.Background())
+
 	// 4. Essay fallback
 	// Don't pipeline essays for now (keeps it simple)
 	if j.narrator.IsPlaying() {
@@ -238,7 +246,18 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer))
 	j.calculateCooldown(1.0, strategy)
 
-	slog.Info("NarrationJob: Triggering narration", "name", best.DisplayName(), "score", fmt.Sprintf("%.2f", best.Score), "cooldown_after", j.nextFireDuration)
+	// Get current boost for logging
+	currentBoost := j.getBoostFactor()
+
+	slog.Info("NarrationJob: Triggering narration",
+		"name", best.DisplayName(),
+		"score", fmt.Sprintf("%.2f", best.Score),
+		"boost", fmt.Sprintf("x%.1f", currentBoost),
+		"cooldown_after", j.nextFireDuration,
+	)
+
+	// Successful narration selection -> Reset Boost
+	j.resetVisibilityBoost(ctx)
 
 	// Pipeline vs Direct Play
 	if j.narrator.IsPlaying() {
@@ -448,4 +467,60 @@ func (j *NarrationJob) getMinScore() float64 {
 		return fallback
 	}
 	return parsed
+}
+
+func (j *NarrationJob) getBoostFactor() float64 {
+	if j.store == nil {
+		return 1.0
+	}
+	val, ok := j.store.GetState(context.Background(), "visibility_boost")
+	if ok && val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f
+		}
+	}
+	return 1.0
+}
+
+func (j *NarrationJob) incrementVisibilityBoost(ctx context.Context) {
+	if j.store == nil {
+		return
+	}
+
+	current := 1.0
+	val, ok := j.store.GetState(ctx, "visibility_boost")
+	if ok && val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			current = f
+		}
+	}
+
+	if current >= 1.5 {
+		return // Max reached
+	}
+
+	newVal := current + 0.1
+	if newVal > 1.5 {
+		newVal = 1.5
+	}
+
+	_ = j.store.SetState(ctx, "visibility_boost", fmt.Sprintf("%.1f", newVal))
+	slog.Debug("NarrationJob: Increasing visibility boost", "new_factor", newVal)
+}
+
+func (j *NarrationJob) resetVisibilityBoost(ctx context.Context) {
+	if j.store == nil {
+		return
+	}
+	// Only write if not already 1.0 to save DB writes
+	val, ok := j.store.GetState(ctx, "visibility_boost")
+	if ok && val == "1.0" {
+		return
+	}
+
+	_ = j.store.SetState(ctx, "visibility_boost", "1.0")
+	// Only log reset if it was actually boosted (optimization: check val != 1.0)
+	if val != "1.0" && val != "" {
+		slog.Debug("NarrationJob: Reset visibility boost", "previous", val)
+	}
 }

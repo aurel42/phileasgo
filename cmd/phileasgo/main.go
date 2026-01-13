@@ -316,7 +316,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 		statsH,
 		api.NewCacheHandler(svcs.WikiSvc),
 		api.NewPOIHandler(svcs.PoiMgr, svcs.WikipediaClient, st),
-		api.NewVisibilityHandler(vis, simClient, elevGetter),
+		api.NewVisibilityHandler(vis, simClient, elevGetter, st),
 		api.NewAudioHandler(ns.AudioService(), ns, st),
 		api.NewNarratorHandler(ns.AudioService(), ns),
 		shutdownFunc,

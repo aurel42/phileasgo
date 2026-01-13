@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ import (
 type ManagerStore interface {
 	store.POIStore
 	store.MSFSPOIStore
+	store.StateStore
 }
 
 type Manager struct {
@@ -497,10 +499,20 @@ func (m *Manager) StartScoring(ctx context.Context, simClient sim.Client, sc *sc
 			// 3. Lock & Score
 			m.mu.Lock()
 
+			// Fetch Boost Factor
+			boostFactor := 1.0
+			val, ok := m.store.GetState(ctx, "visibility_boost")
+			if ok && val != "" {
+				if f, err := strconv.ParseFloat(val, 64); err == nil {
+					boostFactor = f
+				}
+			}
+
 			input := scorer.ScoringInput{
 				Telemetry:       telemetry,
 				CategoryHistory: history,
 				NarratorConfig:  &m.config.Narrator,
+				BoostFactor:     boostFactor,
 			}
 
 			// Create Scoring Session (Pre-calculates terrain/context once)
