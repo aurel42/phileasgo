@@ -40,11 +40,11 @@ func (m *MockNarratorService) IsActive() bool     { return m.active }
 func (m *MockNarratorService) IsGenerating() bool { return m.generating }
 func (m *MockNarratorService) PlayPOI(ctx context.Context, id string, manual bool, tel *sim.Telemetry, strategy string) {
 }
-func (m *MockNarratorService) CurrentPOI() *model.POI   { return m.currentPOI }
-func (m *MockNarratorService) PreparingPOI() *model.POI { return nil }
-func (m *MockNarratorService) CurrentTitle() string     { return m.currentTitle }
-func (m *MockNarratorService) NarratedCount() int       { return m.narrated }
-func (m *MockNarratorService) Stats() map[string]any    { return m.stats }
+func (m *MockNarratorService) CurrentPOI() *model.POI     { return m.currentPOI }
+func (m *MockNarratorService) GetPreparedPOI() *model.POI { return nil }
+func (m *MockNarratorService) CurrentTitle() string       { return m.currentTitle }
+func (m *MockNarratorService) NarratedCount() int         { return m.narrated }
+func (m *MockNarratorService) Stats() map[string]any      { return m.stats }
 
 func TestNarratorHandler_HandleStatus_Logging(t *testing.T) {
 	// Setup log capture

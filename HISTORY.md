@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.85 (2026-01-13)
+- **Fix**: **Jumping Beacons**: Exposed `GetPreparedPOI` to the scheduler to allow it to respect pre-calculated/staged narratives.
+    - Updated `NarratorJob` to check for staged content before selecting new candidates.
+    - Resolves the visual glitch where the beacon would jump to a new target just before the audio for the *previous* target started playing.
+
 ## v0.2.84 (2026-01-13)
 - **Cleanup**: **SimConnect Unification**: Unified SimConnect disconnect logic to be idempotent and thread-safe.
     - Updated `disconnect` to return early if already disconnected, eliminating redundant logs.
@@ -9,7 +14,7 @@
 - **Fix**: **Beacon Cleanup**: `ResetSession` (triggered by teleport or new flight) now explicitly clears any active beacons (balloons) from the simulator, preventing visual clutter.
 
 ## v0.2.82 (2026-01-13)
-- **Fix**: Resolved a regression where manual play requests repeated endlessly due to client-side timeouts. The API handler now processes requests asynchronously (`HandlePlay` returns immediately).
+- **Fix**: Resolved a regression where manual play requests repeated endlessly due to client-side timeouts. The API handler now processes requests asynchronously (`HandlePlay` returns immediately).N
 - **Cleanup**: Removed spammy "NarrationJob: Pipeline trigger" log from `pkg/core/narration_job.go`.
 
 ## v0.2.81 (2026-01-13)
@@ -17,7 +22,7 @@
 - **Frontend Sync**: updated the map visibility API to accurately reflect the boosted visibility radius in the UI.
 - **Narrator**: added logging for current visibility boost factor during narration triggers.
 
-## v0.2.80
+## v0.2.80 (2026-01-13)
 ### Bug Fixes
 - **Telemetry Loop Stall**: Fixed a regression where the main telemetry loop would stall after a SimConnect disconnection. Added a **Watchdog Timer** to the client that forces a reconnection if no data is received for 5 seconds.
 - **Narrator Continuity**: Updated script template to explicitly forbid the LLM from repeating the previous sentence's ending, reducing redundant narration.
@@ -27,22 +32,22 @@
 - **Content Expansion**: Added "myths" and "mysteries" to interest categories and essay topics.
 - **Flight Status**: Refined the flight status description prompt logic for better natural language generation.
 
-## v0.2.79
+## v0.2.79 (2026-01-13)
 *   **Fix: Filter Markdown Artifacts from TTS**: Asterisks (`*`) are now stripped from LLM-generated scripts before TTS synthesis. This prevents markdown formatting (like `**bold**`) from being read aloud.
 *   **UI: Reduced Cache Layer Opacity**: The map's cache layer circles are now 50% more transparent for better visibility of underlying terrain.
 
-## v0.2.78
+## v0.2.78 (2026-01-13)
 *   **Maintenance**: General stabilization and verification of the Headset Audio Effect and Pipelined Narration logic.
 *   **Testing**: Verified all audio and core tests pass in a clean state.
 
-## v0.2.77
+## v0.2.77 (2026-01-13)
 *   **Feature: Optional Headset Audio Effect**: Added a configurable digital bandpass filter to simulate the sound of an aviation headset or radio.
     *   Configurable frequency range (defaults to 400Hz - 3500Hz for speech intelligibility).
     *   Toggleable in `phileas.yaml`.
 *   **Refactor: Audio Pipeline**: Refactored `audio.Manager` to support real-time audio effects using a custom Biquad filter implementation.
 *   **Fix: Pipelined Narration**: Reduced cyclomatic complexity in audio playback logic to improve maintainability.
 
-## v0.2.76
+## v0.2.76 (2026-01-13)
 *   **Refactor: Enable Pipelined Narration Fix**: Previously, the cooldown logic doubled the wait time in some cases (Waiting Cooldown + Then Generating). The logic has been adjusted to subtract `AverageLatency` from the `Cooldown` wait time. This ensures playback initiates closer to the target cadence.
 *   **Feature: Narrator Plausibility Check**: To prevent infinite stalls caused by "reasoning leaks" (where the LLM generates thousands of words instead of the requested amount), the Narrator now validates the script length. Scripts exceeding the limit (Requested + 200 words) are rejected with a warning, unblocking the system immediately.
 *   **Fix: Pipelined Narration Tests**: Added specific test cases to verify script length validation and pipeline logic stability.

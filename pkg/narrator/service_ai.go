@@ -170,8 +170,8 @@ func (s *AIService) CurrentPOI() *model.POI {
 	return s.currentPOI
 }
 
-// PreparingPOI returns the POI being prepared for pipeline playback, if any.
-func (s *AIService) PreparingPOI() *model.POI {
+// GetPreparedPOI returns the POI being prepared for pipeline playback, if any.
+func (s *AIService) GetPreparedPOI() *model.POI {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.stagedNarrative != nil {

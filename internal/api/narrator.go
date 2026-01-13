@@ -28,7 +28,7 @@ type NarratorController interface {
 	IsGenerating() bool
 	PlayPOI(ctx context.Context, id string, manual bool, tel *sim.Telemetry, strategy string)
 	CurrentPOI() *model.POI
-	PreparingPOI() *model.POI
+	GetPreparedPOI() *model.POI
 	CurrentTitle() string
 	NarratedCount() int
 	Stats() map[string]any
@@ -126,7 +126,7 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		Active:         isActive,
 		PlaybackStatus: status,
 		CurrentPOI:     h.narrator.CurrentPOI(),
-		PreparingPOI:   h.narrator.PreparingPOI(),
+		PreparingPOI:   h.narrator.GetPreparedPOI(),
 		CurrentTitle:   h.narrator.CurrentTitle(),
 		NarratedCount:  h.narrator.NarratedCount(),
 		Stats:          h.narrator.Stats(),

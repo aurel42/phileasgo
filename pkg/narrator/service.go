@@ -30,6 +30,8 @@ type Service interface {
 	PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string)
 	// PrepareNextNarrative prepares a narrative for a POI and stages it for later playback.
 	PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error
+	// GetPreparedPOI returns the POI currently staged or generating, if any.
+	GetPreparedPOI() *model.POI
 	// GenerateNarrative prepares a narrative for a POI without playing it.
 	GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) (*Narrative, error)
 	// PlayNarrative plays a previously generated narrative.
@@ -156,6 +158,11 @@ func (s *StubService) PlayPOI(ctx context.Context, poiID string, manual bool, te
 // PrepareNextNarrative prepares a narrative (stub: just logs).
 func (s *StubService) PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error {
 	slog.Info("Narrator stub: preparing narrative for POI", "poi_id", poiID)
+	return nil
+}
+
+// GetPreparedPOI returns the POI being prepared (stub: nil).
+func (s *StubService) GetPreparedPOI() *model.POI {
 	return nil
 }
 

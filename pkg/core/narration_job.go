@@ -221,6 +221,18 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	}
 	defer j.Unlock()
 
+	// 0. Check for Staged/Prepared Narrative (Pipeline)
+	// If the narrator has a POI ready (or generating), we MUST play that one
+	// to avoid the "Jumping Beacon" issue (Scheduler calculating X while Narrator plays Y).
+	if staged := j.narrator.GetPreparedPOI(); staged != nil {
+		slog.Info("NarrationJob: Activating staged narrative", "poi", staged.DisplayName())
+		// We call PlayPOI with the STAGED ID.
+		// PlayPOI will see the ID, set the beacon correctly, and then (re)discover the staged content.
+		// Strategy is less relevant here as it's already baked into the narrative, but we pass "uniform" or reuse.
+		j.narrator.PlayPOI(ctx, staged.WikidataID, false, t, narrator.StrategyUniform)
+		return
+	}
+
 	best := j.getVisibleCandidate(t)
 	// If best is nil, try essay directly
 	if best == nil {
