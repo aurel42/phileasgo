@@ -53,9 +53,11 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 4. Edit `configs/phileas.yaml` and add your Gemini API key
 
 The install script will:
-- Download GeoNames city data
-- Prompt you to download MSFS POI data
-- Generate the default configuration file
+- Create necessary data and log directories
+- Download and extract GeoNames city data
+- Download and extract ETOPO1 global elevation data (for Line-of-Sight visibility)
+- Prompt you to manually download and place MSFS POI data (Master.csv)
+- Generate the default configuration file if missing
 
 ## Configuration
 

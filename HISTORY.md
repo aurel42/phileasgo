@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.88 (2026-01-14)
+- **Tuning**: **Restricted Visibility Boost**
+    - The dynamic visibility boost (expanding search radius in empty areas) is now strictly limited to **XL** POIs (e.g., Mountains, Large Cities).
+    - Prevents small local POIs from being detected at unrealistic distances.
+- **Documentation**: **Installation Guide**
+    - Updated `README.md` to accurately reflect the actions of `install.ps1`, including ETOPO1 and GeoNames download steps.
+- **Config**: **Updates**
+    - Added "Aviation" to default essay topics.
+    - Extended category mapping for `administrative territorial entity`.
+
 ## v0.2.87 (2026-01-14)
 - **Feature**: **Autopilot Status Display**
     - Integrated Autopilot telemetry (Master, FD, YD, Lateral/Vertical Modes) from SimConnect.

@@ -155,7 +155,14 @@ func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, 
 
 	// 3. Calculate Visibility Score
 	// Passes both RealAGL and EffectiveAGL. Calculator returns the better score.
-	visScore, visDetails := s.visCalc.CalculatePOIScore(state.Heading, state.AltitudeAGL, effectiveAGL, bearing, distNM, visibility.SizeType(poiSize), state.IsOnGround, boostFactor)
+	// POLICY: Restrict Dynamic Visibility Boost to XL POIs only.
+	// We don't want to drastically expand the search radius for small items effectively invisible at distance.
+	appliedBoost := 1.0
+	if poiSize == "XL" {
+		appliedBoost = boostFactor
+	}
+
+	visScore, visDetails := s.visCalc.CalculatePOIScore(state.Heading, state.AltitudeAGL, effectiveAGL, bearing, distNM, visibility.SizeType(poiSize), state.IsOnGround, appliedBoost)
 
 	if visScore <= 0 {
 		poi.IsVisible = false
@@ -166,8 +173,8 @@ func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, 
 
 	poi.IsVisible = true
 	logs = []string{visDetails}
-	if boostFactor > 1.0 {
-		logs = append(logs, fmt.Sprintf("Visibility Boost: x%.1f", boostFactor))
+	if appliedBoost > 1.0 {
+		logs = append(logs, fmt.Sprintf("Visibility Boost: x%.1f", appliedBoost))
 	}
 	score = visScore
 

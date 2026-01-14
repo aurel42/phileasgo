@@ -6,5 +6,6 @@ X place marker balloons for next POI as soon as the playback for the last POI ha
 - evaluate other strategies for picking geodate tiles in front of the aircraft
 - higher resolution elevation data
 - fix dynamic config (reprocess tiles on config change without hammering wikidata)
-- frontend: Altitude box: show "valley altitude"
-- frontend: show (optional?) AP status
+X frontend: Altitude box: show "valley altitude"
+X frontend: show (optional?) AP status
+- dynamic visibility boost: only for XL categories
