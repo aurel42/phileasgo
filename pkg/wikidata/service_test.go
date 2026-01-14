@@ -238,7 +238,11 @@ func TestFetchTile_CacheOptimization(t *testing.T) {
 		},
 	}
 
-	svc := NewService(st, &mockSim{}, tracker.New(), &MockClassifier{}, request.New(st, tracker.New(), request.ClientConfig{}), &geo.Service{}, poi.NewManager(&config.Config{}, st, nil), config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}, "en")
+	svc := NewService(st, &mockSim{}, tracker.New(), &MockClassifier{}, request.New(st, tracker.New(), request.ClientConfig{
+		Retries:   2,
+		BaseDelay: 10 * time.Millisecond,
+		MaxDelay:  50 * time.Millisecond,
+	}), &geo.Service{}, poi.NewManager(&config.Config{}, st, nil), config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}, "en")
 	svc.client = mockClient
 	svc.classifier = &MockClassifier{
 		ClassifyBatchFunc: func(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult {

@@ -83,21 +83,22 @@ func TestGetCandidates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			candidates := s.GetCandidates(tt.lat, tt.lon, tt.heading, tt.isAirborne)
+			// Pass empty recent map
+			candidates := s.GetCandidates(tt.lat, tt.lon, tt.heading, tt.isAirborne, map[string]bool{})
 
 			// 1. Minimum Count Check
 			if len(candidates) < tt.wantMin {
 				t.Errorf("Got %d candidates, want at least %d", len(candidates), tt.wantMin)
 			}
 
-			// 2. Sorting Check (Closest Separation)
+			// 2. Sorting Check (By Cost now, but with empty redundancy, Cost == Dist)
 			if tt.checkSorting {
-				prevDist := -1.0
+				prevCost := -1.0
 				for _, c := range candidates {
-					if c.Dist < prevDist {
-						t.Errorf("Sorting error: found dist %.2f after %.2f", c.Dist, prevDist)
+					if c.Cost < prevCost {
+						t.Errorf("Sorting error: found cost %.2f after %.2f", c.Cost, prevCost)
 					}
-					prevDist = c.Dist
+					prevCost = c.Cost
 				}
 			}
 
@@ -117,7 +118,8 @@ func TestGetCandidates(t *testing.T) {
 				startTile := g.TileAt(tt.lat, tt.lon)
 
 				for _, c := range candidates {
-					if c.Tile == startTile {
+					// Skip start tile and close tiles (<5km) which are safety inclusions
+					if c.Tile == startTile || c.Dist < 5.0 {
 						continue
 					}
 
@@ -127,11 +129,8 @@ func TestGetCandidates(t *testing.T) {
 						diff = 360 - diff
 					}
 
-					// We use 30 degrees half-arc in scheduler.go
-					if diff > 35.0 { // Allow margin for large tiles (bearing to center vs tile edge?)
-						// Actually scheduler filters on CENTER.
-						// So center bearing difference should be strict <= 30.
-						// BUT float math + projection might add error. Let's say 32.
+					// We use 60 degrees half-arc (Total 120) in scheduler.go
+					if diff > 60.1 { // Allow margin for float precision
 						t.Errorf("Candidate outside cone: bearing %.1f vs heading %.1f (diff %.1f)", bearing, tt.heading, diff)
 					}
 				}

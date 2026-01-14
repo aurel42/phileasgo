@@ -413,13 +413,11 @@ func (j *NarrationJob) checkCooldown() bool {
 }
 
 func (j *NarrationJob) tryEssay(ctx context.Context, t *sim.Telemetry) {
-	// Check if essays are enabled
-	if !j.cfg.Narrator.Essay.Enabled {
-		return
-	}
-
-	// Safety check: only above 2000ft AGL
-	if t != nil && t.AltitudeAGL < 2000 {
+	// Re-check eligibility (Silence, Cooldown, Altitude)
+	// This is critical because Run() can fall through here even if ShouldFire() triggered for a POI candidate
+	// (e.g. if the candidate turned out to be invisible). In that case, we MUST re-verify essay rules
+	// to prevent bypassing startup silence.
+	if !j.checkEssayEligible(t) {
 		return
 	}
 

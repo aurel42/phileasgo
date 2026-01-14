@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
@@ -50,7 +51,11 @@ func TestValidator_ValidateBatch(t *testing.T) {
 
 	// Setup Validator
 	trk := tracker.New()
-	reqClient := request.New(&mockCacher{}, trk, request.ClientConfig{}) // Reuse mockCacher from mapper_test (if exported) or redefine?
+	reqClient := request.New(&mockCacher{}, trk, request.ClientConfig{
+		Retries:   2,
+		BaseDelay: 1 * time.Millisecond,
+		MaxDelay:  5 * time.Millisecond,
+	}) // Reuse mockCacher from mapper_test (if exported) or redefine?
 	// mockCacher in mapper_test.go is not exported. I need to redefine it here or make it common.
 	// Redefining for speed.
 

@@ -165,13 +165,28 @@ func (s *Service) processTick(ctx context.Context) {
 		return
 	}
 
-	lat := telemetry.Latitude
-	lon := telemetry.Longitude
+	// Use Predicted Position to "pull" the search cone forward
+	lat := telemetry.PredictedLatitude
+	lon := telemetry.PredictedLongitude
+	// Fallback for stationary/start
+	if lat == 0 && lon == 0 {
+		lat = telemetry.Latitude
+		lon = telemetry.Longitude
+	}
+
 	hdg := telemetry.Heading
 	isAirborne := !telemetry.IsOnGround
 
+	// Prepare recent tiles map for scheduler consumption
+	s.recentMu.RLock()
+	recentKeys := make(map[string]bool, len(s.recentTiles))
+	for k := range s.recentTiles {
+		recentKeys[k] = true
+	}
+	s.recentMu.RUnlock()
+
 	// 3. Get Candidates
-	candidates := s.scheduler.GetCandidates(lat, lon, hdg, isAirborne)
+	candidates := s.scheduler.GetCandidates(lat, lon, hdg, isAirborne, recentKeys)
 
 	// 4. Find first uncached candidate
 	for _, c := range candidates {
@@ -189,7 +204,13 @@ func (s *Service) processTick(ctx context.Context) {
 		s.recentTiles[key] = time.Now() // Mark before fetch to prevent immediate retry logic overlap
 		s.recentMu.Unlock()
 
-		s.logger.Debug("Checking tile", "key", key, "dist_km", fmt.Sprintf("%.1f", c.Dist), "airborne", isAirborne, "hdg", int(hdg))
+		s.logger.Debug("Checking tile",
+			"key", key,
+			"dist_km", fmt.Sprintf("%.1f", c.Dist),
+			"cost", fmt.Sprintf("%.1f", c.Cost),
+			"redundant", c.IsRedundant,
+			"airborne", isAirborne,
+		)
 		s.fetchTile(ctx, c)
 		return // One fetch per tick
 	}

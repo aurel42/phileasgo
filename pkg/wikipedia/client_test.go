@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
@@ -87,7 +88,11 @@ func TestGetArticleLengths(t *testing.T) {
 	// 2. Setup Client
 	tr := tracker.New()
 	// Need a request client
-	reqClient := request.New(&mockCacher{}, tr, request.ClientConfig{})
+	reqClient := request.New(&mockCacher{}, tr, request.ClientConfig{
+		Retries:   2,
+		BaseDelay: 1 * time.Millisecond,
+		MaxDelay:  5 * time.Millisecond,
+	})
 
 	client := NewClient(reqClient)
 	client.APIEndpoint = ts.URL

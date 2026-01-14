@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
@@ -138,7 +139,11 @@ func TestFetchFallbackData(t *testing.T) {
 
 			trk := tracker.New()
 			mc := &mockCache{}
-			reqClient := request.New(mc, trk, request.ClientConfig{})
+			reqClient := request.New(mc, trk, request.ClientConfig{
+				Retries:   2,
+				BaseDelay: 10 * time.Millisecond,
+				MaxDelay:  50 * time.Millisecond,
+			})
 			client := NewClient(reqClient, slog.Default())
 			client.APIEndpoint = server.URL + "/w/api.php"
 
@@ -185,7 +190,11 @@ func TestGetEntityClaims(t *testing.T) {
 
 	trk := tracker.New()
 	mc := &mockCache{}
-	reqClient := request.New(mc, trk, request.ClientConfig{})
+	reqClient := request.New(mc, trk, request.ClientConfig{
+		Retries:   2,
+		BaseDelay: 10 * time.Millisecond,
+		MaxDelay:  50 * time.Millisecond,
+	})
 	client := NewClient(reqClient, slog.Default())
 	client.APIEndpoint = server.URL + "/w/api.php"
 
@@ -260,7 +269,11 @@ func TestQuerySPARQL(t *testing.T) {
 
 			trk := tracker.New()
 			mc := &mockCache{}
-			reqClient := request.New(mc, trk, request.ClientConfig{})
+			reqClient := request.New(mc, trk, request.ClientConfig{
+				Retries:   2,
+				BaseDelay: 10 * time.Millisecond,
+				MaxDelay:  50 * time.Millisecond,
+			})
 			client := NewClient(reqClient, slog.Default())
 			client.SPARQLEndpoint = server.URL + "/sparql"
 
@@ -351,7 +364,11 @@ func TestSearch(t *testing.T) {
 
 			trk := tracker.New()
 			mc := &mockCache{}
-			reqClient := request.New(mc, trk, request.ClientConfig{})
+			reqClient := request.New(mc, trk, request.ClientConfig{
+				Retries:   2,
+				BaseDelay: 10 * time.Millisecond,
+				MaxDelay:  50 * time.Millisecond,
+			})
 			client := NewClient(reqClient, slog.Default())
 			client.APIEndpoint = server.URL + "/w/api.php"
 

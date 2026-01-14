@@ -3,6 +3,7 @@ package narrator
 import (
 	"os"
 	"testing"
+	"time"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/request"
@@ -12,7 +13,11 @@ import (
 func TestNewLLMProvider(t *testing.T) {
 	// Create a dummy tracker instance
 	tracker := tracker.New()
-	rc := request.New(nil, tracker, request.ClientConfig{})
+	rc := request.New(nil, tracker, request.ClientConfig{
+		Retries:   2,
+		BaseDelay: 1 * time.Millisecond,
+		MaxDelay:  5 * time.Millisecond,
+	})
 	tmpLog := os.TempDir()
 
 	tests := []struct {

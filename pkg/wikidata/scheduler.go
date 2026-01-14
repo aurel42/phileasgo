@@ -23,15 +23,17 @@ func NewScheduler(maxDistKm float64) *Scheduler {
 
 // Candidate represents a potential tile to fetch.
 type Candidate struct {
-	Tile HexTile
-	Lat  float64
-	Lon  float64
-	Dist float64
+	Tile        HexTile
+	Lat         float64
+	Lon         float64
+	Dist        float64
+	Cost        float64
+	IsRedundant bool
 }
 
-// GetCandidates returns a list of tiles sorted by priority (distance/cone) to check for fetching.
-// Returns a list of candidates.
-func (s *Scheduler) GetCandidates(lat, lon, heading float64, isAirborne bool) []Candidate {
+// GetCandidates returns a list of tiles sorted by priority (Cost = Dist + RedundancyPenalty)
+// to check for fetching.
+func (s *Scheduler) GetCandidates(lat, lon, heading float64, isAirborne bool, recentTiles map[string]bool) []Candidate {
 	startTile := s.grid.TileAt(lat, lon)
 
 	// Spiral search to find candidates within maxRadius
@@ -74,36 +76,68 @@ func (s *Scheduler) GetCandidates(lat, lon, heading float64, isAirborne bool) []
 		if dist > s.maxDistKm {
 			isValid = false
 		} else if isAirborne {
-			// Cone Check: +/- 30 degrees (Total 60)
+			// Cone Check: +/- 60 degrees (Total 120)
+			// Origin: Current Position (lat, lon)
 			// Exception: Always include the tile we are currently ON
-			if curr != startTile {
+			// Exception: Always include very close tiles (< 5km) for safety
+			if curr != startTile && dist > 5.0 {
 				bearing := calculateBearing(lat, lon, cLat, cLon)
 				diff := math.Abs(bearing - heading)
 				if diff > 180 {
 					diff = 360 - diff
 				}
-				if diff > 30.0 { // 30 degrees half-arc for 60 degree cone
+				if diff > 60.0 { // 60 degrees half-arc for 120 degree cone
 					isValid = false
 				}
 			}
 		}
 
 		if isValid {
-			candidates = append(candidates, Candidate{
+			c := Candidate{
 				Tile: curr,
 				Lat:  cLat,
 				Lon:  cLon,
 				Dist: dist,
-			})
+			}
+
+			// 2. Redundancy Check (Proximity to Cache)
+			isCloseToCache := s.checkRedundancy(curr, recentTiles)
+
+			redundancy := 0.0
+			if isCloseToCache {
+				redundancy = 1.0
+				c.IsRedundant = true
+			}
+
+			// Formula: Cost = Dist + (Redundancy * (Dist * PenaltyFactor + BasePenalty))
+			// Tuned for ~2-3 rows sparse before filling.
+			// PenaltyFactor = 1.0
+			// BasePenalty = 5.0
+			c.Cost = c.Dist + (redundancy * (c.Dist*1.0 + 5.0))
+
+			candidates = append(candidates, c)
 		}
 	}
 
-	// Sort by Distance
+	// Sort by Cost (lowest first)
 	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].Dist < candidates[j].Dist
+		return candidates[i].Cost < candidates[j].Cost
 	})
 
 	return candidates
+}
+
+func (s *Scheduler) checkRedundancy(curr HexTile, recentTiles map[string]bool) bool {
+	if recentTiles[curr.Key()] {
+		return true
+	}
+	// Check Neighbors
+	for _, n := range s.grid.Neighbors(curr) {
+		if recentTiles[n.Key()] {
+			return true
+		}
+	}
+	return false
 }
 
 func calculateBearing(lat1, lon1, lat2, lon2 float64) float64 {
