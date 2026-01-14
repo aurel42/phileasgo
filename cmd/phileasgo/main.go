@@ -346,6 +346,11 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, ns
 			go narrationJob.Run(c, t)
 		}
 	})
+	svcs.PoiMgr.SetValleyAltitudeCallback(func(altMeters float64) {
+		if th, ok := sink.(*api.TelemetryHandler); ok {
+			th.SetValleyAltitude(altMeters)
+		}
+	})
 
 	dynamicJob := core.NewDynamicConfigJob(cfg, ns.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc)
 	sched.AddJob(dynamicJob)

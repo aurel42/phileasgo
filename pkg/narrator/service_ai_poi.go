@@ -156,7 +156,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 
 	// Plausibility Check: Script too long may indicate reasoning leak
 	wordCount := len(strings.Fields(script))
-	limit := promptData.MaxWords + 50
+	limit := promptData.MaxWords + 100
 	if wordCount > limit {
 		slog.Warn("Narrator: Script exceeded limit, attempting rescue",
 			"requested", promptData.MaxWords,

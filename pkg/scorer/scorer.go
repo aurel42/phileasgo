@@ -24,6 +24,7 @@ type ScoringInput struct {
 // Session represents a single scoring cycle context.
 type Session interface {
 	Calculate(poi *model.POI)
+	LowestElevation() float64
 }
 
 // Scorer calculates dynamic scores for POIs.
@@ -126,6 +127,11 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 
 	poi.Score = score
 	poi.ScoreDetails = strings.Join(logs, "\n")
+}
+
+// LowestElevation returns the calculated lowest elevation (valley floor) in meters for this session.
+func (sess *DefaultSession) LowestElevation() float64 {
+	return sess.lowestElev
 }
 
 // OLD Calculate - kept for compatibility if needed, but should be removed or deprecated.

@@ -8,5 +8,7 @@ export interface Telemetry {
     VerticalSpeed: number;
     IsOnGround: boolean;
     FlightStage?: string;
+    APStatus?: string;
+    ValleyAltitude?: number; // In Meters
     SimState: 'active' | 'inactive' | 'disconnected';
 }

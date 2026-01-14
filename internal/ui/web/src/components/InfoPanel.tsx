@@ -182,6 +182,11 @@ export const InfoPanel = ({
                     <div className="sub-value" style={{ fontSize: '11px', color: '#666' }}>
                         {msl} <span className="unit">MSL</span>
                     </div>
+                    {telemetry.ValleyAltitude !== undefined && (
+                        <div className="sub-value" style={{ fontSize: '10px', color: '#888', marginTop: '1px' }}>
+                            {Math.round(telemetry.AltitudeMSL - (telemetry.ValleyAltitude * 3.28084))} <span className="unit">VAL</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* 3. COORDS */}
@@ -190,6 +195,11 @@ export const InfoPanel = ({
                     <div className="value" style={{ fontSize: '14px', fontFamily: 'monospace' }}>
                         {telemetry.Latitude.toFixed(4)}, {telemetry.Longitude.toFixed(4)}
                     </div>
+                    {telemetry.APStatus && (
+                        <div className="sub-value" style={{ fontSize: '11px', fontFamily: 'monospace', color: '#4caf50', marginTop: '4px' }}>
+                            {telemetry.APStatus}
+                        </div>
+                    )}
                 </div>
 
 

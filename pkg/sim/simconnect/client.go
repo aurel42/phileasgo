@@ -285,6 +285,7 @@ func (c *Client) setupDataDefinitions() error {
 		unit     string
 		dataType uint32
 	}{
+		// Core telemetry
 		{"PLANE LATITUDE", "Degrees", DATATYPE_FLOAT64},
 		{"PLANE LONGITUDE", "Degrees", DATATYPE_FLOAT64},
 		{"PLANE ALTITUDE", "Feet", DATATYPE_FLOAT64},
@@ -294,6 +295,31 @@ func (c *Client) setupDataDefinitions() error {
 		{"SIM ON GROUND", "Bool", DATATYPE_INT32},
 		{"GENERAL ENG COMBUSTION:1", "Bool", DATATYPE_INT32},
 		{"CAMERA STATE", "Enum", DATATYPE_INT32},
+		{"SIM DISABLED", "Bool", DATATYPE_INT32}, // 4th int32 for alignment
+		// Autopilot Master/FD/YD
+		{"AUTOPILOT MASTER", "Bool", DATATYPE_FLOAT64},
+		{"AUTOPILOT FLIGHT DIRECTOR ACTIVE", "Bool", DATATYPE_FLOAT64},
+		{"AUTOPILOT YAW DAMPER", "Bool", DATATYPE_FLOAT64},
+		// Lateral Modes
+		{"AUTOPILOT HEADING LOCK", "Bool", DATATYPE_FLOAT64},
+		{"AUTOPILOT NAV1 LOCK", "Bool", DATATYPE_FLOAT64},
+		{"AUTOPILOT APPROACH HOLD", "Bool", DATATYPE_FLOAT64},
+		{"AUTOPILOT BANK HOLD", "Bool", DATATYPE_FLOAT64},
+		{"AUTOPILOT BACKCOURSE HOLD", "Bool", DATATYPE_FLOAT64},
+		{"GPS DRIVES NAV1", "Bool", DATATYPE_FLOAT64},
+		// Vertical Modes
+		{"AUTOPILOT ALTITUDE LOCK", "Bool", DATATYPE_FLOAT64},
+		{"AUTOPILOT VERTICAL HOLD", "Bool", DATATYPE_FLOAT64},
+		{"AUTOPILOT FLIGHT LEVEL CHANGE", "Bool", DATATYPE_FLOAT64},
+		{"AUTOPILOT GLIDESLOPE HOLD", "Bool", DATATYPE_FLOAT64},
+		{"AUTOPILOT PITCH HOLD", "Bool", DATATYPE_FLOAT64},
+		// Reference Values
+		{"AUTOPILOT VERTICAL HOLD VAR", "Feet/minute", DATATYPE_FLOAT64},
+		{"AUTOPILOT AIRSPEED HOLD VAR", "Knots", DATATYPE_FLOAT64},
+		{"AUTOPILOT ALTITUDE LOCK VAR", "Feet", DATATYPE_FLOAT64},
+		// For display: HDG bug and DTK
+		{"AUTOPILOT HEADING LOCK DIR", "Degrees", DATATYPE_FLOAT64},
+		{"GPS WP DESIRED TRACK", "Degrees", DATATYPE_FLOAT64},
 	}
 
 	for _, d := range defs {
@@ -478,6 +504,7 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 				PredictedLatitude:  predLat,
 				PredictedLongitude: predLon,
 				IsOnGround:         data.OnGround != 0 || data.AltitudeAGL < 50,
+				APStatus:           formatAPStatus(data),
 			}
 			c.telemetry.FlightStage = sim.DetermineFlightStage(&c.telemetry)
 		}
@@ -506,4 +533,71 @@ func (c *Client) validateTelemetry(data *TelemetryData) bool {
 	}
 
 	return true
+}
+
+// formatAPStatus returns a G1000-style autopilot status string.
+func formatAPStatus(d *TelemetryData) string {
+	// Determine center status (AP/YD/FD)
+	center := ""
+	if d.APMaster > 0.5 {
+		center = "AP"
+	}
+	if d.YDActive > 0.5 {
+		if center != "" {
+			center += " YD"
+		} else {
+			center = "YD"
+		}
+	}
+	if center == "" && d.FDActive > 0.5 {
+		center = "FD"
+	}
+	if center == "" {
+		return ""
+	}
+
+	// Determine lateral mode
+	lat := ""
+	switch {
+	case d.APRHold > 0.5 && d.GSHold > 0.5:
+		lat = fmt.Sprintf("LOC→%03.0f", d.DTK)
+	case d.BCHold > 0.5:
+		lat = "BC"
+	case d.HDGLock > 0.5:
+		lat = fmt.Sprintf("HDG %03.0f", d.HDGBug)
+	case d.NAV1Lock > 0.5:
+		if d.GPSDrivesNAV1 > 0.5 {
+			lat = fmt.Sprintf("GPS→%03.0f", d.DTK)
+		} else {
+			lat = fmt.Sprintf("VOR→%03.0f", d.DTK)
+		}
+	case d.BankHold > 0.5:
+		lat = "ROL"
+	default:
+		lat = "ROL"
+	}
+
+	// Determine vertical mode
+	vert := ""
+	switch {
+	case d.GSHold > 0.5:
+		vert = "GS"
+	case d.FLCHold > 0.5:
+		vert = fmt.Sprintf("FLC %dkt", int(math.Round(d.IASVar)))
+	case d.VSHold > 0.5:
+		vs := int(math.Round(d.VSVar))
+		if vs >= 0 {
+			vert = fmt.Sprintf("VS +%dfpm", vs)
+		} else {
+			vert = fmt.Sprintf("VS %dfpm", vs)
+		}
+	case d.ALTLock > 0.5:
+		vert = fmt.Sprintf("ALT %dft", int(math.Round(d.ALTVar)))
+	case d.PitchHold > 0.5:
+		vert = "PIT"
+	default:
+		vert = "PIT"
+	}
+
+	return fmt.Sprintf("%-9s  %-5s  %s", lat, center, vert)
 }

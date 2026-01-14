@@ -45,6 +45,7 @@ type Manager struct {
 
 	// Callbacks
 	onScoringComplete func(ctx context.Context, t *sim.Telemetry)
+	onValleyAltitude  func(altMeters float64)
 }
 
 // NewManager creates a new POI Manager.
@@ -61,6 +62,11 @@ func NewManager(cfg *config.Config, s ManagerStore, catCfg *config.CategoriesCon
 // SetScoringCallback sets the function to be called after each scoring pass.
 func (m *Manager) SetScoringCallback(fn func(ctx context.Context, t *sim.Telemetry)) {
 	m.onScoringComplete = fn
+}
+
+// SetValleyAltitudeCallback sets the function to be called with the calculated valley floor altitude.
+func (m *Manager) SetValleyAltitudeCallback(fn func(altMeters float64)) {
+	m.onValleyAltitude = fn
 }
 
 // UpsertPOI saves a POI to the database and adds it to the active tracking list.
@@ -530,12 +536,17 @@ func (m *Manager) StartScoring(ctx context.Context, simClient sim.Client, sc *sc
 			// 5. Trigger Callback (if set) - BEFORE unlocking to ensure consistency?
 			// Actually, better AFTER unlocking to avoid blocking the manager lock for the callback duration.
 			callback := m.onScoringComplete
+			valleyCallback := m.onValleyAltitude
+			lowestElev := session.LowestElevation()
 
 			m.mu.Unlock()
 
 			if callback != nil {
 				// Execute callback outside the lock
 				callback(ctx, &telemetry)
+			}
+			if valleyCallback != nil {
+				valleyCallback(lowestElev)
 			}
 		}
 	}

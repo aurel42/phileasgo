@@ -72,7 +72,14 @@ type InitPosition struct {
 }
 
 // TelemetryData is the struct for reading user aircraft telemetry.
-// Order must match the AddToDataDefinition calls.
+// Order must match the AddToDataDefinition calls EXACTLY.
+// WARNING: SimConnect data is packed (no padding). This struct must be
+// carefully aligned to avoid Go's implicit padding breaking the layout.
+// Current layout: 6x float64 (48 bytes) + 3x int32 (12 bytes) = 60 bytes
+// Go will pad to 64 bytes before next float64, but SimConnect sends 60 bytes
+// followed immediately by AP float64s. We work around this by reading into
+// a byte buffer and manually parsing, OR by reordering fields.
+// WORKAROUND: Add a 4th int32 simvar to maintain alignment.
 type TelemetryData struct {
 	Latitude    float64
 	Longitude   float64
@@ -83,7 +90,28 @@ type TelemetryData struct {
 	OnGround    int32
 	Engine      int32
 	Camera      int32
-	_           int32 // Padding for 8-byte alignment
+	SimDisabled int32 // Added to maintain 8-byte alignment (SIM DISABLED)
+
+	// Autopilot State (all float64 for SimConnect Bool compatibility)
+	APMaster      float64 // AUTOPILOT MASTER
+	FDActive      float64 // AUTOPILOT FLIGHT DIRECTOR ACTIVE
+	YDActive      float64 // AUTOPILOT YAW DAMPER
+	HDGLock       float64 // AUTOPILOT HEADING LOCK
+	NAV1Lock      float64 // AUTOPILOT NAV1 LOCK
+	APRHold       float64 // AUTOPILOT APPROACH HOLD
+	BankHold      float64 // AUTOPILOT BANK HOLD
+	BCHold        float64 // AUTOPILOT BACKCOURSE HOLD
+	GPSDrivesNAV1 float64 // GPS DRIVES NAV1
+	ALTLock       float64 // AUTOPILOT ALTITUDE LOCK
+	VSHold        float64 // AUTOPILOT VERTICAL HOLD
+	FLCHold       float64 // AUTOPILOT FLIGHT LEVEL CHANGE
+	GSHold        float64 // AUTOPILOT GLIDESLOPE HOLD
+	PitchHold     float64 // AUTOPILOT PITCH HOLD
+	VSVar         float64 // AUTOPILOT VERTICAL HOLD VAR (ft/min)
+	IASVar        float64 // AUTOPILOT AIRSPEED HOLD VAR (kts)
+	ALTVar        float64 // AUTOPILOT ALTITUDE LOCK VAR (ft)
+	HDGBug        float64 // AUTOPILOT HEADING LOCK DIR (degrees)
+	DTK           float64 // GPS WP DESIRED TRACK (degrees)
 }
 
 // MarkerUpdateData is the struct for updating marker positions.

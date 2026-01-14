@@ -1,5 +1,16 @@
 ﻿# Release History
 
+## v0.2.87 (2026-01-14)
+- **Feature**: **Autopilot Status Display**
+    - Integrated Autopilot telemetry (Master, FD, YD, Lateral/Vertical Modes) from SimConnect.
+    - Updated the Frontend Info Panel to display AP status (e.g., "HDG 270 AP ALT 5000ft") below GPS coordinates.
+    - Fixed struct alignment issues in `TelemetryData` to ensure accurate data readings from SimConnect.
+- **Feature**: **Valley Altitude (Effective AGL)**
+    - Exposed the calculated "Valley Floor" elevation (Lowest Elevation in visibility radius) to the frontend API.
+    - Added "VAL" (Valley AGL) readout to the Altitude card in the Info Panel, showing the aircraft's height above the valley floor.
+- **Tweak**: **Narrator Rescue Logic**
+    - Increased the script length tolerance buffer from 50 to 100 words. This allows narratives to slightly exceed the target word count without triggering an expensive LLM rescue/rewrite pass.
+
 ## v0.2.86 (2026-01-14)
 - **Fix**: **Beacon Lag**: Beacons now move to the *next* POI immediately after playback ends, even if the next narrative is still generating. Previously, the beacon would stay on the last POI until the new one was fully synthesized.
 - **Fix**: **Beacon Flicker**: `SetTarget` now ignores redundant calls for the same location (~11m threshold), preventing the despawn/respawn blink caused by consecutive calls from the pipeline and `PlayPOI`.

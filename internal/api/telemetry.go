@@ -12,13 +12,15 @@ import (
 // TelemetryResponse is the API response structure.
 type TelemetryResponse struct {
 	sim.Telemetry
-	SimState string `json:"SimState"`
+	SimState       string  `json:"SimState"`
+	ValleyAltitude float64 `json:"ValleyAltitude,omitempty"`
 }
 
 type TelemetryHandler struct {
-	mu        sync.RWMutex
-	telemetry sim.Telemetry
-	simState  sim.State
+	mu             sync.RWMutex
+	telemetry      sim.Telemetry
+	simState       sim.State
+	valleyAltitude float64
 }
 
 func NewTelemetryHandler() *TelemetryHandler {
@@ -39,11 +41,19 @@ func (h *TelemetryHandler) UpdateState(s sim.State) {
 	h.simState = s
 }
 
+// SetValleyAltitude updates the cached valley altitude.
+func (h *TelemetryHandler) SetValleyAltitude(altMeters float64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.valleyAltitude = altMeters
+}
+
 func (h *TelemetryHandler) handleTelemetry(w http.ResponseWriter, r *http.Request) {
 	h.mu.RLock()
 	resp := TelemetryResponse{
-		Telemetry: h.telemetry,
-		SimState:  string(h.simState),
+		Telemetry:      h.telemetry,
+		SimState:       string(h.simState),
+		ValleyAltitude: h.valleyAltitude,
 	}
 	h.mu.RUnlock()
 
