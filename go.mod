@@ -7,7 +7,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gopxl/beep/v2 v2.1.1
 	github.com/gorilla/websocket v1.5.3
-	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/stretchr/testify v1.11.1
 	github.com/uber/h3-go/v4 v4.4.0
 	google.golang.org/api v0.258.0

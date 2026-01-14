@@ -52,7 +52,6 @@ This line ...
 
 <start of Wikipedia article>
 Valid line
-
 Way too long line here
 <end of Wikipedia article>
 
@@ -66,6 +65,18 @@ Way too lo...
 <end of Wikipedia article>
 
 Back to instructions.`,
+		},
+		{
+			name: "unicode truncation - should count characters not bytes",
+			input: `<start of Wikipedia article>
+aé
+こんにちは
+<end of Wikipedia article>`,
+			maxLen: 2,
+			want: `<start of Wikipedia article>
+aé
+こん...
+<end of Wikipedia article>`,
 		},
 	}
 

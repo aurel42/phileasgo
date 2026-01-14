@@ -324,8 +324,9 @@ func truncateParagraphs(text string, maxLen int) string {
 			if trimmed == "" {
 				continue // Filter empty lines inside wiki block
 			}
-			if len(trimmed) > maxLen {
-				trimmed = trimmed[:maxLen] + "..."
+			runes := []rune(trimmed)
+			if len(runes) > maxLen {
+				trimmed = string(runes[:maxLen]) + "..."
 			}
 			result = append(result, trimmed)
 		} else {

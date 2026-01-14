@@ -107,6 +107,17 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Optimization: If target is essentially the same, do nothing (prevents flicker)
+	if s.active {
+		const threshold = 0.0001 // Approx 11m
+		dLat := math.Abs(s.targetLat - lat)
+		dLon := math.Abs(s.targetLon - lon)
+		if dLat < threshold && dLon < threshold {
+			s.logger.Debug("Ignoring redundant SetTarget call", "lat", lat, "lon", lon)
+			return nil
+		}
+	}
+
 	// 1. Clear existing if any
 	if s.active {
 		s.clearLocked()

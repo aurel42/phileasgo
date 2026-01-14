@@ -33,18 +33,32 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 	// 0. Check Staging (Pipeline Optimization)
 	s.mu.Lock()
 	if s.stagedNarrative != nil {
-		// Use staged narrative unconditionally if available
-		slog.Info("Narrator: Using staged narrative (Zero Latency)", "poi_id", s.stagedNarrative.POI.WikidataID)
-
-		if s.stagedNarrative.POI.WikidataID != poiID {
-			slog.Warn("Narrator: Priority Override - Playing prepared POI instead of requested",
+		if manual && s.stagedNarrative.POI.WikidataID != poiID {
+			// MANUAL OVERRIDE:
+			// If user clicked something else, we ignore the staged content.
+			slog.Warn("Narrator: Manual Override - Discarding staged narrative",
 				"staged", s.stagedNarrative.POI.WikidataID,
 				"requested", poiID)
+			s.stagedNarrative = nil
+			// narrative remains nil -> will trigger generation below
+		} else {
+			// Use staged narrative
+			slog.Info("Narrator: Using staged narrative (Zero Latency)", "poi_id", s.stagedNarrative.POI.WikidataID)
+
+			if s.stagedNarrative.POI.WikidataID != poiID {
+				// This case happens if automated system called PlayPOI with ID X,
+				// but we had Y prepaid. This logic assumes we prefer Y for automated flow?
+				// Original logic: "Priority Override - Playing prepared POI instead of requested"
+				// If automated request comes in (scheduler), and we have staged content, we surely
+				// want the staged content because that's what the scheduler *likely* staged previously
+				// or we are just following the pipeline.
+				slog.Warn("Narrator: Priority Override - Playing prepared POI instead of requested",
+					"staged", s.stagedNarrative.POI.WikidataID,
+					"requested", poiID)
+			}
+			narrative = s.stagedNarrative
+			s.stagedNarrative = nil
 		}
-
-		narrative = s.stagedNarrative
-		s.stagedNarrative = nil
-
 	}
 	s.mu.Unlock()
 
@@ -262,12 +276,18 @@ func (s *AIService) monitorPlayback(n *Narrative) {
 	if s.beaconSvc != nil {
 		s.mu.RLock()
 		next := s.stagedNarrative
+		generating := s.generatingPOI
 		s.mu.RUnlock()
 
 		if next != nil {
 			slog.Info("Narrator: Switching marker to next staged POI", "qid", next.POI.WikidataID)
 			// Use background context as the original ctx might be cancelled
 			_ = s.beaconSvc.SetTarget(context.Background(), next.POI.Lat, next.POI.Lon)
+		} else if generating != nil {
+			// BEACON LAG FIX:
+			// If we are actively generating the next one, show its marker usage NOW.
+			slog.Info("Narrator: Switching marker to currently generating POI", "qid", generating.WikidataID)
+			_ = s.beaconSvc.SetTarget(context.Background(), generating.Lat, generating.Lon)
 		}
 		// Else: Do nothing. Keep marker on the last played POI.
 	}

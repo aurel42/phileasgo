@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.86 (2026-01-14)
+- **Fix**: **Beacon Lag**: Beacons now move to the *next* POI immediately after playback ends, even if the next narrative is still generating. Previously, the beacon would stay on the last POI until the new one was fully synthesized.
+- **Fix**: **Beacon Flicker**: `SetTarget` now ignores redundant calls for the same location (~11m threshold), preventing the despawn/respawn blink caused by consecutive calls from the pipeline and `PlayPOI`.
+- **Fix**: **Manual Override**: Clicking a POI manually now correctly discards any staged (pipelined) narrative, ensuring the requested POI is always played instead of the pre-prepared one.
+
 ## v0.2.85 (2026-01-13)
 - **Fix**: **Jumping Beacons**: Exposed `GetPreparedPOI` to the scheduler to allow it to respect pre-calculated/staged narratives.
     - Updated `NarratorJob` to check for staged content before selecting new candidates.

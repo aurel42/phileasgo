@@ -80,7 +80,12 @@ func TestGet_Retry(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{})
+	// Use tiny backoff for test speed
+	client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{
+		BaseDelay: 10 * time.Millisecond,
+		MaxDelay:  50 * time.Millisecond,
+		Retries:   5,
+	})
 
 	body, err := client.Get(context.Background(), svr.URL, "")
 	if err != nil {
@@ -140,7 +145,12 @@ func TestPostWithCache(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer d.Close()
-			client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{})
+			// Use tiny backoff for test speed
+			client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{
+				BaseDelay: 10 * time.Millisecond,
+				MaxDelay:  50 * time.Millisecond,
+				Retries:   5,
+			})
 
 			got, err := client.PostWithCache(context.Background(), svr.URL, []byte("data"), nil, "cache_key")
 
@@ -219,7 +229,12 @@ func TestClient_Integration(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer d.Close()
-			client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{})
+			// Use tiny backoff for test speed
+			client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{
+				BaseDelay: 10 * time.Millisecond,
+				MaxDelay:  50 * time.Millisecond,
+				Retries:   5,
+			})
 
 			var got []byte
 			var reqErr error
