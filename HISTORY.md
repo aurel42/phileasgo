@@ -1,5 +1,13 @@
 ﻿# Release History
 
+## v0.2.89 (2026-01-14)
+- **Refactor**: **Linting & Complexity**:
+    - Reduced cyclomatic complexity in `pkg/sim/simconnect/client.go` (`formatAPStatus`) and `pkg/poi/manager.go` (`StartScoring`).
+    - Resolved `gocyclo` linting errors to maintain code quality standards.
+- **Fix**: **Thumbnail Quality Filter**:
+    - Enhanced filtering in `pkg/wikipedia/client.go` to reject unsuitable images (SVGs, maps, logos, flags, diagrams).
+    - Added aspect ratio check to avoid vertical portrait images (Height > 1.3x Width), prioritizing landscape photos for the UI.
+
 ## v0.2.88 (2026-01-14)
 - **Tuning**: **Restricted Visibility Boost**
     - The dynamic visibility boost (expanding search radius in empty areas) is now strictly limited to **XL** POIs (e.g., Mountains, Large Cities).

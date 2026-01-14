@@ -464,91 +464,95 @@ func (m *Manager) StartScoring(ctx context.Context, simClient sim.Client, sc *sc
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// Skip scoring if sim is not active
-			if simClient.GetState() != sim.StateActive {
-				continue
-			}
-
-			// 1. Get Telemetry
-			telemetry, err := simClient.GetTelemetry(ctx)
-			if err != nil {
-				m.logger.Warn("Failed to get telemetry for scoring", "error", err)
-				continue
-			}
-
-			// Instrumentation: Log prediction offset distance
-			if telemetry.PredictedLatitude != 0 || telemetry.PredictedLongitude != 0 {
-				currentPos := geo.Point{Lat: telemetry.Latitude, Lon: telemetry.Longitude}
-				predictedPos := geo.Point{Lat: telemetry.PredictedLatitude, Lon: telemetry.PredictedLongitude}
-				predDistMeters := geo.Distance(currentPos, predictedPos)
-				predDistNM := predDistMeters / 1852.0
-				m.logger.Debug("Scoring: Prediction offset",
-					"dist_nm", fmt.Sprintf("%.2f", predDistNM),
-					"groundspeed_kts", fmt.Sprintf("%.0f", telemetry.GroundSpeed),
-				)
-			}
-
-			// 2. Fetch History for Variety Scoring
-			// We fetch last 1 hour, which is plenty for variety (usually < 10 items)
-			since := time.Now().Add(-1 * time.Hour)
-			recent, err := m.store.GetRecentlyPlayedPOIs(ctx, since)
-			var history []string
-			if err == nil {
-				// recent is DESC (newest first). Scorer expects Oldest -> Newest.
-				for i := len(recent) - 1; i >= 0; i-- {
-					history = append(history, recent[i].Category)
-				}
-			} else {
-				m.logger.Warn("Failed to fetch recent history for scoring", "error", err)
-			}
-
-			// 3. Lock & Score
-			m.mu.Lock()
-
-			// Fetch Boost Factor
-			boostFactor := 1.0
-			val, ok := m.store.GetState(ctx, "visibility_boost")
-			if ok && val != "" {
-				if f, err := strconv.ParseFloat(val, 64); err == nil {
-					boostFactor = f
-				}
-			}
-
-			input := scorer.ScoringInput{
-				Telemetry:       telemetry,
-				CategoryHistory: history,
-				NarratorConfig:  &m.config.Narrator,
-				BoostFactor:     boostFactor,
-			}
-
-			// Create Scoring Session (Pre-calculates terrain/context once)
-			session := sc.NewSession(&input)
-
-			for _, p := range m.trackedPOIs {
-				session.Calculate(p)
-			}
-
-			// 4. Update Last Scored Location
-			// This allows consumers (Scheduler) to verify consistency
-			m.lastScoredLat = telemetry.Latitude
-			m.lastScoredLon = telemetry.Longitude
-
-			// 5. Trigger Callback (if set) - BEFORE unlocking to ensure consistency?
-			// Actually, better AFTER unlocking to avoid blocking the manager lock for the callback duration.
-			callback := m.onScoringComplete
-			valleyCallback := m.onValleyAltitude
-			lowestElev := session.LowestElevation()
-
-			m.mu.Unlock()
-
-			if callback != nil {
-				// Execute callback outside the lock
-				callback(ctx, &telemetry)
-			}
-			if valleyCallback != nil {
-				valleyCallback(lowestElev)
-			}
+			m.performScoringPass(ctx, simClient, sc)
 		}
+	}
+}
+
+func (m *Manager) performScoringPass(ctx context.Context, simClient sim.Client, sc *scorer.Scorer) {
+	// Skip scoring if sim is not active
+	if simClient.GetState() != sim.StateActive {
+		return
+	}
+
+	// 1. Get Telemetry
+	telemetry, err := simClient.GetTelemetry(ctx)
+	if err != nil {
+		m.logger.Warn("Failed to get telemetry for scoring", "error", err)
+		return
+	}
+
+	// Instrumentation: Log prediction offset distance
+	if telemetry.PredictedLatitude != 0 || telemetry.PredictedLongitude != 0 {
+		currentPos := geo.Point{Lat: telemetry.Latitude, Lon: telemetry.Longitude}
+		predictedPos := geo.Point{Lat: telemetry.PredictedLatitude, Lon: telemetry.PredictedLongitude}
+		predDistMeters := geo.Distance(currentPos, predictedPos)
+		predDistNM := predDistMeters / 1852.0
+		m.logger.Debug("Scoring: Prediction offset",
+			"dist_nm", fmt.Sprintf("%.2f", predDistNM),
+			"groundspeed_kts", fmt.Sprintf("%.0f", telemetry.GroundSpeed),
+		)
+	}
+
+	// 2. Fetch History for Variety Scoring
+	// We fetch last 1 hour, which is plenty for variety (usually < 10 items)
+	since := time.Now().Add(-1 * time.Hour)
+	recent, err := m.store.GetRecentlyPlayedPOIs(ctx, since)
+	var history []string
+	if err == nil {
+		// recent is DESC (newest first). Scorer expects Oldest -> Newest.
+		for i := len(recent) - 1; i >= 0; i-- {
+			history = append(history, recent[i].Category)
+		}
+	} else {
+		m.logger.Warn("Failed to fetch recent history for scoring", "error", err)
+	}
+
+	// 3. Lock & Score
+	m.mu.Lock()
+
+	// Fetch Boost Factor
+	boostFactor := 1.0
+	val, ok := m.store.GetState(ctx, "visibility_boost")
+	if ok && val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			boostFactor = f
+		}
+	}
+
+	input := scorer.ScoringInput{
+		Telemetry:       telemetry,
+		CategoryHistory: history,
+		NarratorConfig:  &m.config.Narrator,
+		BoostFactor:     boostFactor,
+	}
+
+	// Create Scoring Session (Pre-calculates terrain/context once)
+	session := sc.NewSession(&input)
+
+	for _, p := range m.trackedPOIs {
+		session.Calculate(p)
+	}
+
+	// 4. Update Last Scored Location
+	// This allows consumers (Scheduler) to verify consistency
+	m.lastScoredLat = telemetry.Latitude
+	m.lastScoredLon = telemetry.Longitude
+
+	// 5. Trigger Callback (if set) - BEFORE unlocking to ensure consistency?
+	// Actually, better AFTER unlocking to avoid blocking the manager lock for the callback duration.
+	callback := m.onScoringComplete
+	valleyCallback := m.onValleyAltitude
+	lowestElev := session.LowestElevation()
+
+	m.mu.Unlock()
+
+	if callback != nil {
+		// Execute callback outside the lock
+		callback(ctx, &telemetry)
+	}
+	if valleyCallback != nil {
+		valleyCallback(lowestElev)
 	}
 }
 

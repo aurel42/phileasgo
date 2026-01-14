@@ -188,6 +188,8 @@ func (c *Client) GetThumbnail(ctx context.Context, title, lang string) (string, 
 			Pages map[string]struct {
 				Thumbnail struct {
 					Source string `json:"source"`
+					Width  int    `json:"width"`
+					Height int    `json:"height"`
 				} `json:"thumbnail"`
 			} `json:"pages"`
 		} `json:"query"`
@@ -198,14 +200,24 @@ func (c *Client) GetThumbnail(ctx context.Context, title, lang string) (string, 
 
 	for _, page := range apiResp.Query.Pages {
 		if page.Thumbnail.Source != "" {
-			// Skip if page thumbnail is a vector graphic
-			if !isVectorGraphic(page.Thumbnail.Source) {
-				return page.Thumbnail.Source, nil
+			// 1. Check filename/extension patterns
+			if isUnwantedImage(page.Thumbnail.Source) {
+				continue
 			}
+			// 2. Check Aspect Ratio (Reject vertical portraits if Height > 1.2 * Width)
+			// Landmarks are rarely vertical portraits (except towers, but usually they are 1:2 not 3:4 or taller like portraits?)
+			// Actually 1.2 is reasonable for a portrait photo. A tower might be taller.
+			// However, most "Portrait of a Mayor" images are vertical.
+			// Let's stick to the plan: Height > Width * 1.3 to be safe against towers.
+			if page.Thumbnail.Width > 0 && float64(page.Thumbnail.Height) > float64(page.Thumbnail.Width)*1.3 {
+				continue
+			}
+
+			return page.Thumbnail.Source, nil
 		}
 	}
 
-	// Fallback: Get first content image that isn't a vector graphic
+	// Fallback: Get first content image that isn't unwanted
 	return c.getFirstContentImage(ctx, title, lang, endpoint)
 }
 
@@ -216,7 +228,7 @@ func (c *Client) getFirstContentImage(ctx context.Context, title, lang, endpoint
 	q := u.Query()
 	q.Add("action", "query")
 	q.Add("prop", "images")
-	q.Add("imlimit", "10") // Limit to first 10 images
+	q.Add("imlimit", "15") // Increased limit to find a good one
 	q.Add("titles", title)
 	q.Add("format", "json")
 	q.Add("redirects", "1")
@@ -240,12 +252,11 @@ func (c *Client) getFirstContentImage(ctx context.Context, title, lang, endpoint
 		return "", fmt.Errorf("failed to decode images json: %w", err)
 	}
 
-	// Find first non-SVG image
+	// Find first valid image
 	var imageTitle string
 	for _, page := range imgResp.Query.Pages {
 		for _, img := range page.Images {
-			// Skip vector graphics and icons
-			if isVectorGraphic(img.Title) {
+			if isUnwantedImage(img.Title) {
 				continue
 			}
 			imageTitle = img.Title
@@ -270,8 +281,8 @@ func (c *Client) getImageURL(ctx context.Context, imageTitle, lang, endpoint str
 	q := u.Query()
 	q.Add("action", "query")
 	q.Add("prop", "imageinfo")
-	q.Add("iiprop", "url")
-	q.Add("iiurlwidth", "800") // Request thumbnail at 800px width
+	q.Add("iiprop", "url|size") // Request size too
+	q.Add("iiurlwidth", "800")  // Request thumbnail at 800px width
 	q.Add("titles", imageTitle)
 	q.Add("format", "json")
 	u.RawQuery = q.Encode()
@@ -287,6 +298,8 @@ func (c *Client) getImageURL(ctx context.Context, imageTitle, lang, endpoint str
 				ImageInfo []struct {
 					ThumbURL string `json:"thumburl"`
 					URL      string `json:"url"`
+					Width    int    `json:"width"`
+					Height   int    `json:"height"`
 				} `json:"imageinfo"`
 			} `json:"pages"`
 		} `json:"query"`
@@ -297,30 +310,57 @@ func (c *Client) getImageURL(ctx context.Context, imageTitle, lang, endpoint str
 
 	for _, page := range infoResp.Query.Pages {
 		if len(page.ImageInfo) > 0 {
-			// Prefer thumbnail URL if available
-			if page.ImageInfo[0].ThumbURL != "" {
-				return page.ImageInfo[0].ThumbURL, nil
+			info := page.ImageInfo[0]
+			// Check aspect ratio regarding original dimensions
+			if info.Width > 0 && float64(info.Height) > float64(info.Width)*1.3 {
+				return "", nil // Reject portrait aspect ratio
 			}
-			return page.ImageInfo[0].URL, nil
+
+			// Prefer thumbnail URL if available
+			if info.ThumbURL != "" {
+				return info.ThumbURL, nil
+			}
+			return info.URL, nil
 		}
 	}
 
 	return "", nil
 }
 
-// isVectorGraphic checks if a filename or URL represents a vector graphic, icon, or map.
-func isVectorGraphic(name string) bool {
+// isUnwantedImage checks if a filename or URL represents a vector graphic, icon, map, or other unwanted type.
+func isUnwantedImage(name string) bool {
 	lower := strings.ToLower(name)
-	// Common vector graphic patterns
-	vectorPatterns := []string{".svg", ".svg.png", ".gif"}
-	for _, pattern := range vectorPatterns {
-		if strings.HasSuffix(lower, pattern) || strings.Contains(lower, pattern) {
+
+	// 1. Unwanted Extensions
+	badExtensions := []string{".svg", ".svg.png", ".gif", ".tif", ".ogv", ".webm"}
+	for _, ext := range badExtensions {
+		if strings.HasSuffix(lower, ext) || strings.Contains(lower, ext) {
 			return true
 		}
 	}
-	// Skip map images (e.g., "foo_map.png" or "foo_map_of_bar.png")
-	if strings.Contains(lower, "_map.") || strings.Contains(lower, "_map_") {
-		return true
+
+	// 2. Unwanted Keywords in Filename
+	badKeywords := []string{
+		"logo", "icon", "flag", "coat of arms", "wappen", "insignia",
+		"map", "locator", "plan", "diagram", "chart", "graph",
+		"stub", "placeholder", "missing",
+		"collage", "montage", // often composite images that look bad as thumb
+		"signature", "restored", // historically restored documents?
 	}
+	for _, kw := range badKeywords {
+		// Check for word boundaries roughly (simple contains is safer for now)
+		// e.g. "Flag_of_..."
+		if strings.Contains(lower, kw) {
+
+			// Exception: "map" might trigger on "maple" (rare but possible).
+			// But usually filenames are "Map_of_X".
+			// Let's be slightly more specific for "map" if needed, but "locator" covers many maps.
+			if kw == "map" && strings.Contains(lower, "maple") {
+				continue
+			}
+			return true
+		}
+	}
+
 	return false
 }

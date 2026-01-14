@@ -537,67 +537,70 @@ func (c *Client) validateTelemetry(data *TelemetryData) bool {
 
 // formatAPStatus returns a G1000-style autopilot status string.
 func formatAPStatus(d *TelemetryData) string {
-	// Determine center status (AP/YD/FD)
-	center := ""
-	if d.APMaster > 0.5 {
-		center = "AP"
-	}
-	if d.YDActive > 0.5 {
-		if center != "" {
-			center += " YD"
-		} else {
-			center = "YD"
-		}
-	}
-	if center == "" && d.FDActive > 0.5 {
-		center = "FD"
-	}
+	center := formatCenterStatus(d)
 	if center == "" {
 		return ""
 	}
 
-	// Determine lateral mode
-	lat := ""
+	lat := formatLateralMode(d)
+	vert := formatVerticalMode(d)
+
+	return fmt.Sprintf("%-9s  %-5s  %s", lat, center, vert)
+}
+
+func formatCenterStatus(d *TelemetryData) string {
+	if d.APMaster > 0.5 {
+		if d.YDActive > 0.5 {
+			return "AP YD"
+		}
+		return "AP"
+	}
+	if d.YDActive > 0.5 {
+		return "YD"
+	}
+	if d.FDActive > 0.5 {
+		return "FD"
+	}
+	return ""
+}
+
+func formatLateralMode(d *TelemetryData) string {
 	switch {
 	case d.APRHold > 0.5 && d.GSHold > 0.5:
-		lat = fmt.Sprintf("LOC→%03.0f", d.DTK)
+		return fmt.Sprintf("LOC→%03.0f", d.DTK)
 	case d.BCHold > 0.5:
-		lat = "BC"
+		return "BC"
 	case d.HDGLock > 0.5:
-		lat = fmt.Sprintf("HDG %03.0f", d.HDGBug)
+		return fmt.Sprintf("HDG %03.0f", d.HDGBug)
 	case d.NAV1Lock > 0.5:
 		if d.GPSDrivesNAV1 > 0.5 {
-			lat = fmt.Sprintf("GPS→%03.0f", d.DTK)
-		} else {
-			lat = fmt.Sprintf("VOR→%03.0f", d.DTK)
+			return fmt.Sprintf("GPS→%03.0f", d.DTK)
 		}
+		return fmt.Sprintf("VOR→%03.0f", d.DTK)
 	case d.BankHold > 0.5:
-		lat = "ROL"
+		return "ROL"
 	default:
-		lat = "ROL"
+		return "ROL"
 	}
+}
 
-	// Determine vertical mode
-	vert := ""
+func formatVerticalMode(d *TelemetryData) string {
 	switch {
 	case d.GSHold > 0.5:
-		vert = "GS"
+		return "GS"
 	case d.FLCHold > 0.5:
-		vert = fmt.Sprintf("FLC %dkt", int(math.Round(d.IASVar)))
+		return fmt.Sprintf("FLC %dkt", int(math.Round(d.IASVar)))
 	case d.VSHold > 0.5:
 		vs := int(math.Round(d.VSVar))
 		if vs >= 0 {
-			vert = fmt.Sprintf("VS +%dfpm", vs)
-		} else {
-			vert = fmt.Sprintf("VS %dfpm", vs)
+			return fmt.Sprintf("VS +%dfpm", vs)
 		}
+		return fmt.Sprintf("VS %dfpm", vs)
 	case d.ALTLock > 0.5:
-		vert = fmt.Sprintf("ALT %dft", int(math.Round(d.ALTVar)))
+		return fmt.Sprintf("ALT %dft", int(math.Round(d.ALTVar)))
 	case d.PitchHold > 0.5:
-		vert = "PIT"
+		return "PIT"
 	default:
-		vert = "PIT"
+		return "PIT"
 	}
-
-	return fmt.Sprintf("%-9s  %-5s  %s", lat, center, vert)
 }
