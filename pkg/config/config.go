@@ -122,8 +122,8 @@ type AudioEffectsConfig struct {
 type NarratorConfig struct {
 	AutoNarrate        bool               `yaml:"auto_narrate"`
 	MinScoreThreshold  float64            `yaml:"min_score_threshold"`
-	CooldownMin        Duration           `yaml:"cooldown_min"`
-	CooldownMax        Duration           `yaml:"cooldown_max"`
+	Frequency          int                `yaml:"frequency"` // 1=Rarely...5=Constant
+	PauseDuration      Duration           `yaml:"pause_between_narrations"`
 	RepeatTTL          Duration           `yaml:"repeat_ttl"`
 	TargetLanguage     string             `yaml:"target_language"`
 	Units              string             `yaml:"units"`
@@ -278,8 +278,8 @@ func DefaultConfig() *Config {
 		Narrator: NarratorConfig{
 			AutoNarrate:        true,
 			MinScoreThreshold:  0.5,
-			CooldownMin:        Duration(30 * time.Second),
-			CooldownMax:        Duration(60 * time.Second),
+			Frequency:          3, // Active
+			PauseDuration:      Duration(4 * time.Second),
 			RepeatTTL:          Duration(30 * 24 * time.Hour), // 30d
 			TargetLanguage:     "en-US",
 			Units:              "hybrid",

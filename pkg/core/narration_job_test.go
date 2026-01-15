@@ -226,34 +226,12 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 	}
 }
 
-func TestNarrationJob_EssayCooldownMultiplier(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Narrator.CooldownMin = config.Duration(30 * time.Second)
-	cfg.Narrator.CooldownMax = config.Duration(30 * time.Second) // Force fixed cooldown
-
-	mockN := &mockNarratorService{}
-	pm := &mockPOIManager{best: nil} // Force essay
-	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
-
-	tel := &sim.Telemetry{AltitudeAGL: 3000}
-	job.Run(context.Background(), tel)
-
-	// Updated Logic: Essay logic now sets standard cooldown (1.0 multiplier)
-	// because the specific Essay Cooldown is handled by `job.lastEssayTime`.
-	expected := 30 * time.Second // 1 * 30
-	if job.nextFireDuration != expected {
-		t.Errorf("Expected essay cooldown of %v, got %v", expected, job.nextFireDuration)
-	}
-}
-
 func TestNarrationJob_EssayRules(t *testing.T) {
 	// Setup Config
 	cfg := config.DefaultConfig()
 	cfg.Narrator.AutoNarrate = true
 	cfg.Narrator.MinScoreThreshold = 0.5
-	cfg.Narrator.CooldownMin = config.Duration(10 * time.Second)
-	cfg.Narrator.CooldownMax = config.Duration(30 * time.Second)
+	cfg.Narrator.PauseDuration = config.Duration(30 * time.Second) // Acts as Max for silence rule check
 	cfg.Narrator.Essay.Enabled = true
 	cfg.Narrator.Essay.Cooldown = config.Duration(10 * time.Minute)
 
@@ -565,9 +543,8 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.AutoNarrate = true
 	cfg.Narrator.MinScoreThreshold = 5.0
-	// Base Config: Cooldown 10s
-	cfg.Narrator.CooldownMin = config.Duration(10 * time.Second)
-	cfg.Narrator.CooldownMax = config.Duration(10 * time.Second)
+	// Base Config: Cooldown 10s via PauseDuration
+	cfg.Narrator.PauseDuration = config.Duration(10 * time.Second)
 
 	tests := []struct {
 		name              string

@@ -20,6 +20,7 @@ function App() {
   const [minPoiScore, setMinPoiScore] = useState(0.5);
   const [filterMode, setFilterMode] = useState<string>('fixed');
   const [targetCount, setTargetCount] = useState(20);
+  const [narrationFrequency, setNarrationFrequency] = useState(3);
   const pois = useTrackedPOIs();
   const { status: narratorStatus } = useNarrator();
 
@@ -93,52 +94,44 @@ function App() {
     autoOpenedRef.current = false;
   }, [selectedPOI]);
 
+  // Helper to update config via API
+  const updateConfig = useCallback((key: string, value: any) => {
+    // Optimistic update
+    if (key === 'units') setUnits(value);
+    if (key === 'show_cache_layer') setShowCacheLayer(value);
+    if (key === 'show_visibility_layer') setShowVisibilityLayer(value);
+    if (key === 'min_poi_score') setMinPoiScore(value);
+    if (key === 'filter_mode') setFilterMode(value);
+    if (key === 'target_poi_count') setTargetCount(value);
+    if (key === 'narration_frequency') setNarrationFrequency(value);
+
+    fetch('/api/config', {
+      method: 'PUT', // Changed from POST to PUT for consistency with existing handlers
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [key]: value })
+    }).catch(e => {
+      console.error("Failed to save config", e);
+      // Revert on error would be ideal here
+    });
+  }, []);
+
   // Fetch config on mount
   useEffect(() => {
     fetch('/api/config')
       .then(r => r.json())
       .then(data => {
-        if (data.units === 'km' || data.units === 'nm') {
-          setUnits(data.units);
-        }
-        if (typeof data.show_cache_layer === 'boolean') {
-          setShowCacheLayer(data.show_cache_layer);
-        }
-        if (typeof data.show_visibility_layer === 'boolean') {
-          setShowVisibilityLayer(data.show_visibility_layer);
-        }
-        if (typeof data.min_poi_score === 'number') {
-          setMinPoiScore(data.min_poi_score);
-        }
-        if (data.filter_mode) {
-          setFilterMode(data.filter_mode);
-        }
-        if (typeof data.target_poi_count === 'number') {
-          setTargetCount(data.target_poi_count);
-        }
+        setUnits(data.units || 'km');
+        setShowCacheLayer(data.show_cache_layer || false);
+        setShowVisibilityLayer(data.show_visibility_layer || false);
+        setMinPoiScore(data.min_poi_score ?? 0.5);
+        setFilterMode(data.filter_mode || 'fixed');
+        setTargetCount(data.target_poi_count ?? 20);
+        setNarrationFrequency(data.narration_frequency ?? 3);
       })
       .catch(e => console.error("Failed to fetch config", e));
   }, []);
 
-  // Handler to update units via API
-  const handleUnitsChange = useCallback((newUnits: Units) => {
-    setUnits(newUnits);
-    fetch('/api/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ units: newUnits })
-    }).catch(e => console.error("Failed to update units", e));
-  }, []);
 
-  // Handler to update cache layer config
-  const handleCacheLayerChange = useCallback((show: boolean) => {
-    setShowCacheLayer(show);
-    fetch('/api/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ show_cache_layer: show })
-    }).catch(e => console.error("Failed to update cache layer config", e));
-  }, []);
 
   // Handler to update visibility layer config
   const handleVisibilityLayerChange = useCallback((show: boolean) => {
@@ -213,9 +206,9 @@ function App() {
             status={hasConnectionError ? 'error' : status}
             isRetrying={status === 'pending' && hasConnectionError}
             units={units}
-            onUnitsChange={handleUnitsChange}
+            onUnitsChange={(val) => updateConfig('units', val)}
             showCacheLayer={showCacheLayer}
-            onCacheLayerChange={handleCacheLayerChange}
+            onCacheLayerChange={(val) => updateConfig('show_cache_layer', val)}
             showVisibilityLayer={showVisibilityLayer}
             onVisibilityLayerChange={handleVisibilityLayerChange}
             displayedCount={displayedCount}
@@ -225,6 +218,8 @@ function App() {
             onFilterModeChange={handleFilterModeChange}
             targetPoiCount={targetCount}
             onTargetPoiCountChange={handleTargetCountChange}
+            narrationFrequency={narrationFrequency}
+            onNarrationFrequencyChange={(val) => updateConfig('narration_frequency', val)}
           />
         )}
       </div>

@@ -26,14 +26,14 @@ type POIProvider interface {
 // NarrationJob triggers AI narration for the best available POI.
 type NarrationJob struct {
 	BaseJob
-	cfg              *config.Config
-	narrator         narrator.Service
-	poiMgr           POIProvider
-	sim              sim.Client
-	store            store.Store
-	losChecker       *terrain.LOSChecker
-	lastTime         time.Time
-	nextFireDuration time.Duration
+	cfg        *config.Config
+	narrator   narrator.Service
+	poiMgr     POIProvider
+	sim        sim.Client
+	store      store.Store
+	losChecker *terrain.LOSChecker
+	lastTime   time.Time
+
 	wasBusy          bool
 	lastEssayTime    time.Time
 	lastCheckedCount int
@@ -54,7 +54,7 @@ func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, sim
 		losChecker: los,
 		lastTime:   time.Now(),
 	}
-	j.calculateCooldown(1.0, narrator.StrategyUniform)
+
 	return j
 }
 
@@ -84,7 +84,7 @@ func (j *NarrationJob) checkNarratorReady() bool {
 	if !j.narrator.IsPlaying() && j.wasBusy {
 		j.wasBusy = false
 		j.lastTime = time.Now()
-		slog.Debug("NarrationJob: Cooldown started", "duration", j.nextFireDuration)
+		slog.Debug("NarrationJob: Narration cycle finished (including pause)")
 		return false
 	}
 
@@ -129,30 +129,10 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		return false
 	}
 
-	// 2. Cooldown & Pipeline Check
-	if j.narrator.IsPlaying() {
-		j.wasBusy = true // Mark as busy so we detect falling edge later
-
-		// PIPELINE LOGIC
-		// Fire if: Remaining + Cooldown <= AvgLatency
-		remaining := j.narrator.Remaining()
-		avgLat := j.narrator.AverageLatency()
-		cooldown := j.nextFireDuration
-
-		// If cooldown is huge (e.g. 5 mins) and latency is small (10s),
-		// we don't want to generate 5 mins early.
-		// We want to generate when we are close to the target start time.
-		// Target Start Time = Now + Remaining + Cooldown
-		// We need generation to finish at Target Start Time.
-		// So we start when TimeToTarget <= Latency.
-		// TimeToTarget = Remaining + Cooldown.
-
-		if remaining+cooldown > avgLat {
-			// Too early
-			return false
-		}
-
-	} else if !j.checkCooldown() {
+	// 2. Frequency & Pipeline Logic
+	// Replaces legacy Cooldown logic.
+	// The inter-narration pause is now handled by the Audio Service holding IsPlaying=true.
+	if !j.checkFrequencyRules() {
 		return false
 	}
 
@@ -165,7 +145,28 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		minScore = &val
 	}
 
-	candidates := j.poiMgr.GetNarrationCandidates(1, minScore, t.IsOnGround)
+	candidates := j.poiMgr.GetNarrationCandidates(10, minScore, t.IsOnGround)
+
+	// Apply "Rarely" Strategy Filter (Local Hero / Lone Wolf)
+	// Only accept POIs that are dominant in their area.
+	if j.getNarrationFrequency() == 1 { // Rarely
+		filtered := make([]*model.POI, 0, len(candidates))
+		analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
+		if !ok {
+			slog.Error("NarrationJob: Failed to cast poiMgr to POIAnalyzer", "type", fmt.Sprintf("%T", j.poiMgr))
+		}
+		if ok {
+			for _, p := range candidates {
+				// We reuse DetermineSkewStrategy to find "Lone Wolf" candidates
+				// StrategyMaxSkew is returned when a POI has no strong competitors
+				if narrator.DetermineSkewStrategy(p, analyzer, t.IsOnGround) == narrator.StrategyMaxSkew {
+					filtered = append(filtered, p)
+				}
+			}
+			candidates = filtered
+		}
+	}
+
 	if len(candidates) > 0 {
 		return true
 	}
@@ -184,6 +185,73 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		return false
 	}
 	return j.checkEssayEligible(t)
+}
+
+// checkFrequencyRules determines if we can fire based on frequency settings (1-5).
+// Handles pipeline/overlap logic.
+func (j *NarrationJob) checkFrequencyRules() bool {
+	freq := j.getNarrationFrequency()
+	isPlaying := j.narrator.IsPlaying()
+
+	// Strategies 1 (Rarely) & 2 (Normal): No Overlap
+	if freq <= 2 {
+		if isPlaying {
+			return false
+		}
+		// If not playing, we are ready (pause is handled by IsPlaying hold)
+		return true
+	}
+
+	// Strategies 3 (Active), 4 (Busy), 5 (Constant): Allow Overlap (Pipeline)
+	// If not playing, we are obviously ready.
+	if !isPlaying {
+		return true
+	}
+
+	// Calculate Lead Time Multiplier based on Frequency
+	// Active (3) -> 1.0x
+	// Busy (4)   -> 1.5x
+	// Constant (5) -> 2.0x
+	var leadTimeMultiplier float64
+	switch freq {
+	case 3:
+		leadTimeMultiplier = 1.0
+	case 4:
+		leadTimeMultiplier = 1.5
+	case 5:
+		leadTimeMultiplier = 2.0
+	default:
+		leadTimeMultiplier = 1.0
+	}
+
+	// Pipeline Logic: Fire if remaining time is within the lead time window.
+	// Target Start Time = Now + Remaining.
+	// Prep Time = AvgLatency.
+	// We want (Target Start - Prep Time) <= Now.
+	// => Remaining <= AvgLatency.
+	//
+	// With Lead Time Multiplier (M):
+	// We allow starting earlier, effectively assuming latency is M times larger?
+	// OR we want to buffer M times latency?
+	// User said: "Lead Time = 1.5x AverageLatency"
+	// This usually means we start when Remaining <= 1.5 * AvgLatency.
+	// This creates a potential overlap if AvgLatency is accurate.
+
+	remaining := j.narrator.Remaining()
+	avgLatency := j.narrator.AverageLatency()
+
+	// Dynamic Lead Time Threshold
+	threshold := time.Duration(float64(avgLatency) * leadTimeMultiplier)
+
+	// If Remaining time is small enough (we are close to end), trigger next.
+	if remaining <= threshold {
+		// Prevent double-firing: if we already fired for this cycle?
+		// checkNarratorReady handles "Generating" state (returns false).
+		// So if we are "Playing" but NOT "Generating", we are eligible.
+		return true
+	}
+
+	return false
 }
 
 // checkPreConditions validates global switches, location consistency, sim state, and ground proximity.
@@ -227,8 +295,9 @@ func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 		}
 	}
 
-	// Silence rule: at least 2x CooldownMax
-	minSilence := time.Duration(j.cfg.Narrator.CooldownMax) * 2
+	// Silence rule: at least 2x PauseDuration
+	// We use PauseDuration as the base unit for silence
+	minSilence := time.Duration(j.cfg.Narrator.PauseDuration) * 2
 	if time.Since(j.lastTime) < minSilence {
 		return false
 	}
@@ -260,7 +329,45 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 		return
 	}
 
-	best := j.getVisibleCandidate(t)
+	// Determine Min Score dynamically (for Phase 2 fallback logic)
+	// Note: checking logic is mostly in ShouldFire, but we re-check here.
+	var minScore *float64
+	if j.getFilterMode() != "adaptive" {
+		val := j.getMinScore()
+		minScore = &val
+	}
+
+	candidates := j.poiMgr.GetNarrationCandidates(10, minScore, t.IsOnGround)
+
+	// Re-apply "Rarely" filter
+	if j.getNarrationFrequency() == 1 {
+		filtered := make([]*model.POI, 0, len(candidates))
+		analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
+		if ok {
+			for _, p := range candidates {
+				if narrator.DetermineSkewStrategy(p, analyzer, t.IsOnGround) == narrator.StrategyMaxSkew {
+					filtered = append(filtered, p)
+				}
+			}
+			candidates = filtered
+		}
+	}
+
+	// Pick best (first visible)
+	var best *model.POI
+	// Reuse logic from getVisibleCandidate if possible, but we need to pass candidates list
+	// Since getVisibleCandidate refetches, we might duplicate work or diverge.
+	// Let's rely on getVisibleCandidate but UPDATE it to support the list or just call it directly.
+	// Actually, getVisibleCandidate DOES re-fetch.
+	// To ensure consistency, we should use getVisibleCandidate's logic but applied to our pre-filtered criteria?
+	// Or just call getVisibleCandidate and assume it does the same thing?
+	// getVisibleCandidate checks 1000 items. ShouldFire checked 10.
+
+	// Correct approach:
+	// Use getVisibleCandidate but make it robust to Frequency logic.
+	// getVisibleCandidate needs to valid candidates.
+	best = j.getVisibleCandidate(t)
+
 	// If best is nil, try essay directly
 	if best == nil {
 		j.tryEssay(ctx, t)
@@ -274,15 +381,24 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 		return
 	}
 
-	if j.getFilterMode() != "adaptive" {
-		if best.Score < j.getMinScore() {
+	// Note: getVisibleCandidate already respects dynamic minScore from config
+	// But it does NOT respect the "Rarely" filter yet.
+	// We need to inject that into getVisibleCandidate or check it here.
+	if j.getNarrationFrequency() == 1 {
+		analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
+		if ok && narrator.DetermineSkewStrategy(best, analyzer, t.IsOnGround) != narrator.StrategyMaxSkew {
+			// Best visible candidate is NOT a Lone Wolf, so skip.
+			// Try Essay? Or just return?
+			// ShouldFire said "true", implying SOME candidate was valid.
+			// But getVisibleCandidate might have picked a different one (visible vs score).
+			// If the visible one isn't Lone Wolf, we shouldn't play it in "Rarely" mode.
 			j.tryEssay(ctx, t)
 			return
 		}
 	}
 
 	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer), t.IsOnGround)
-	j.calculateCooldown(1.0, strategy)
+	// No more cooldown calculation here!
 
 	// Get current boost for logging
 	currentBoost := j.getBoostFactor()
@@ -291,7 +407,7 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 		"name", best.DisplayName(),
 		"score", fmt.Sprintf("%.2f", best.Score),
 		"boost", fmt.Sprintf("x%.1f", currentBoost),
-		"cooldown_after", j.nextFireDuration,
+		"freq", j.getNarrationFrequency(),
 	)
 
 	// Successful narration selection -> Reset Boost
@@ -404,41 +520,6 @@ func (j *NarrationJob) isLocationConsistent(t *sim.Telemetry) bool {
 	return dist <= 10000 // 10km
 }
 
-func (j *NarrationJob) checkCooldown() bool {
-	if j.lastTime.IsZero() {
-		return true // No previous run, so ready
-	}
-
-	// If skip requested, bypass timer
-	if j.narrator.ShouldSkipCooldown() {
-		j.narrator.ResetSkipCooldown()
-		slog.Info("NarrationJob: Skipping cooldown check by user request")
-		return true
-	}
-
-	elapsed := time.Since(j.lastTime)
-
-	// Use the randomized duration
-	// If nextFireDuration is 0 (first run or not set), default to Min
-	required := j.nextFireDuration
-	if required == 0 {
-		required = time.Duration(j.cfg.Narrator.CooldownMin)
-	}
-
-	// PRE-FETCH COMPENSATION:
-	// We want the NEXT playback to START at (lastTime + required).
-	// Generation takes 'latency'.
-	// So we must trigger generation at (lastTime + required - latency).
-	latency := j.narrator.AverageLatency()
-	if latency < required {
-		required -= latency
-	} else {
-		required = 0 // Latency > Cooldown implies we should have pipelined (or fire immediately now)
-	}
-
-	return elapsed >= required
-}
-
 func (j *NarrationJob) tryEssay(ctx context.Context, t *sim.Telemetry) {
 	// Re-check eligibility (Silence, Cooldown, Altitude)
 	// This is critical because Run() can fall through here even if ShouldFire() triggered for a POI candidate
@@ -456,23 +537,38 @@ func (j *NarrationJob) tryEssay(ctx context.Context, t *sim.Telemetry) {
 
 		// We revert to standard cooldown/strategy for the *scheduler* to wake up.
 		// The essay cooldown is handled explicitly in ShouldFire via lastEssayTime.
-		j.calculateCooldown(1.0, narrator.StrategyUniform)
+		// j.calculateCooldown(1.0, narrator.StrategyUniform) // Removed in Phase 2
 	}
 }
 
-func (j *NarrationJob) calculateCooldown(multiplier float64, strategy string) {
-	cMin := int64(j.cfg.Narrator.CooldownMin)
-	cMax := int64(j.cfg.Narrator.CooldownMax)
-
-	var base int64
-	if cMax <= cMin {
-		base = cMin
-	} else {
-		delta := cMax - cMin
-		// Use simple random based on time to avoid seeding math/rand if not needed
-		base = cMin + (time.Now().UnixNano() % delta)
+func (j *NarrationJob) getNarrationFrequency() int {
+	fallback := j.cfg.Narrator.Frequency
+	if fallback < 1 {
+		fallback = 3 // Default to Active if not set
 	}
-	j.nextFireDuration = time.Duration(float64(base) * multiplier)
+
+	if j.store == nil {
+		return fallback
+	}
+
+	val, ok := j.store.GetState(context.Background(), "narration_frequency")
+	if !ok || val == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(val)
+	if err != nil {
+		return fallback
+	}
+
+	// Clamp to 1-5
+	if parsed < 1 {
+		return 1
+	}
+	if parsed > 5 {
+		return 5
+	}
+	return parsed
 }
 
 // Helpers for Dynamic Config Reading

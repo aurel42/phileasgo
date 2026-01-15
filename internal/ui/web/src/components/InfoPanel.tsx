@@ -19,6 +19,8 @@ interface InfoPanelProps {
     onFilterModeChange: (mode: string) => void;
     targetPoiCount: number;
     onTargetPoiCountChange: (count: number) => void;
+    narrationFrequency: number;
+    onNarrationFrequencyChange: (freq: number) => void;
 }
 
 export const InfoPanel = ({
@@ -31,7 +33,9 @@ export const InfoPanel = ({
     filterMode,
     onFilterModeChange,
     targetPoiCount,
-    onTargetPoiCountChange
+    onTargetPoiCountChange,
+    narrationFrequency,
+    onNarrationFrequencyChange
 }: InfoPanelProps) => {
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
@@ -429,6 +433,29 @@ export const InfoPanel = ({
                                 </div>
                             </>
                         )}
+
+                        <div className="config-label" style={{ marginTop: '16px' }}>NARRATION FREQUENCY</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <input
+                                    type="range"
+                                    min="1"
+                                    max="5"
+                                    step="1"
+                                    value={narrationFrequency}
+                                    onChange={(e) => onNarrationFrequencyChange(parseInt(e.target.value))}
+                                    style={{ flex: 1 }}
+                                />
+                                <span style={{ fontSize: '12px', minWidth: '12px', textAlign: 'right', fontWeight: 'bold' }}>{narrationFrequency}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.7 }}>
+                                <span>Rarely</span>
+                                <span>Normal</span>
+                                <span>Active</span>
+                                <span>Busy</span>
+                                <span>Constant</span>
+                            </div>
+                        </div>
 
                         <div className="config-label" style={{ marginTop: '16px', color: '#ff4444' }}>DANGER ZONE</div>
                         <button

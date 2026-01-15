@@ -147,11 +147,19 @@ func (m *Manager) Play(filepath string, startPaused bool) error {
 
 	// Play with callback to clean up when done
 	speaker.Play(beep.Seq(m.ctrl, beep.Callback(func() {
-		m.mu.Lock()
-		m.ctrl = nil
-		m.isPaused = false
-		m.mu.Unlock()
-		streamer.Close()
+		// Launch goroutine to handle pause and cleanup without blocking the speaker thread
+		go func() {
+			// Enforce pause_between_narrations if configured
+			if m.config != nil && m.config.PauseDuration > 0 {
+				time.Sleep(time.Duration(m.config.PauseDuration))
+			}
+
+			m.mu.Lock()
+			m.ctrl = nil
+			m.isPaused = false
+			m.mu.Unlock()
+			streamer.Close()
+		}()
 	})))
 
 	// Check if this is a new file or replay

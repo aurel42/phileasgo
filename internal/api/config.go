@@ -34,6 +34,7 @@ type ConfigResponse struct {
 	Volume              float64 `json:"volume"`
 	FilterMode          string  `json:"filter_mode"`
 	TargetPOICount      int     `json:"target_poi_count"`
+	NarrationFrequency  int     `json:"narration_frequency"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -45,6 +46,7 @@ type ConfigRequest struct {
 	MinPOIScore         *float64 `json:"min_poi_score,omitempty"`
 	FilterMode          string   `json:"filter_mode,omitempty"`
 	TargetPOICount      *int     `json:"target_poi_count,omitempty"`
+	NarrationFrequency  *int     `json:"narration_frequency,omitempty"`
 }
 
 // HandleGetConfig returns the current configuration.
@@ -100,6 +102,15 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	freqStr, _ := h.store.GetState(ctx, "narration_frequency")
+	frequency := 3 // Default (Active)
+	if freqStr != "" {
+		var val int
+		if _, err := fmt.Sscanf(freqStr, "%d", &val); err == nil {
+			frequency = val
+		}
+	}
+
 	resp := ConfigResponse{
 		SimSource:           simSource,
 		Units:               units,
@@ -110,6 +121,7 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 		Volume:              volume,
 		FilterMode:          filterMode,
 		TargetPOICount:      targetCount,
+		NarrationFrequency:  frequency,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -169,6 +181,9 @@ func (h *ConfigHandler) HandleSetConfig(w http.ResponseWriter, r *http.Request) 
 	}
 	if req.TargetPOICount != nil {
 		h.updateIntState(ctx, "target_poi_count", *req.TargetPOICount)
+	}
+	if req.NarrationFrequency != nil {
+		h.updateIntState(ctx, "narration_frequency", *req.NarrationFrequency)
 	}
 
 	// Return updated config
