@@ -30,7 +30,8 @@ func (s *AIService) synthesizeAudio(ctx context.Context, script, safeID string) 
 	outputPath := filepath.Join(cacheDir, fmt.Sprintf("phileas_narration_%s_%d", safeID, time.Now().UnixNano()))
 
 	ttsProvider := s.getTTSProvider()
-	format, err = ttsProvider.Synthesize(ctx, script, "", outputPath)
+	voiceID := s.getVoiceID()
+	format, err = ttsProvider.Synthesize(ctx, script, voiceID, outputPath)
 	if err != nil {
 		return "", "", err
 	}

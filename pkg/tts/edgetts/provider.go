@@ -37,7 +37,7 @@ func NewProvider(t *tracker.Tracker) *Provider {
 // Synthesize generates an .mp3 file using Edge TTS.
 func (p *Provider) Synthesize(ctx context.Context, text, voice, outputPath string) (string, error) {
 	if voice == "" {
-		voice = "en-US-AvaMultilingualNeural"
+		return "", fmt.Errorf("voice ID is required")
 	}
 
 	text = tts.StripSpeakerLabels(text)

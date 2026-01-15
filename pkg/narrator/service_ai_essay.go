@@ -133,7 +133,8 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	// Synthesis
 	cacheDir := os.TempDir()
 	outputPath := filepath.Join(cacheDir, fmt.Sprintf("phileas_essay_%s_%d", topic.ID, time.Now().UnixNano()))
-	format, err := s.tts.Synthesize(ctx, script, "", outputPath)
+	voiceID := s.getVoiceID()
+	format, err := s.tts.Synthesize(ctx, script, voiceID, outputPath)
 	if err != nil {
 		slog.Error("Narrator: TTS essay synthesis failed", "error", err)
 		return
