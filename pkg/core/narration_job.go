@@ -105,23 +105,8 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	j.lastAGL = t.AltitudeAGL
 
 	// Post-takeoff grace period logic
-	// TESTING: Hardcoded 500ft threshold - tune this value based on testing
-	const climbThresholdFt = 500.0
-
-	if t.IsOnGround {
-		// Reset climb flag when on ground
-		j.hasReachedClimbAlt = false
-	} else if !j.hasReachedClimbAlt {
-		// Just took off, check if we've reached the threshold
-		if t.AltitudeAGL >= climbThresholdFt {
-			j.hasReachedClimbAlt = true
-			slog.Debug("NarrationJob: Reached climb threshold, enabling in-flight POI selection", "agl", t.AltitudeAGL)
-		} else {
-			// Haven't reached threshold yet - skip non-airport POI selection
-			// Airport narration on ground is handled separately (ground candidates)
-			slog.Debug("NarrationJob: Post-takeoff grace period", "agl", t.AltitudeAGL, "threshold", climbThresholdFt)
-			return false
-		}
+	if !j.checkClimbStatus(t) {
+		return false
 	}
 
 	// 1. Narrator Activity Check
@@ -130,15 +115,57 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	}
 
 	// 2. Frequency & Pipeline Logic
-	// Replaces legacy Cooldown logic.
-	// The inter-narration pause is now handled by the Audio Service holding IsPlaying=true.
 	if !j.checkFrequencyRules() {
 		return false
 	}
 
 	// 3. POI Selection (Dynamic Check)
-	// We ask the Manager for *any* candidate that meets the criteria.
-	// We use limit=1 just to see if one exists.
+	if j.hasEligiblePOI(t) {
+		return true
+	}
+
+	// No candidates found? Boost visibility!
+	// Only boost if we were actually ready to narrate (passed all checks)
+	// and we are NOT in essay fallback mode (which might happen next).
+	j.incrementVisibilityBoost(context.Background())
+
+	// 4. Essay fallback
+	// Don't pipeline essays for now (keeps it simple)
+	if j.narrator.IsPlaying() {
+		return false
+	}
+	return j.checkEssayEligible(t)
+}
+
+// checkClimbStatus updates and checks the post-takeoff grace period.
+// Returns false if we should suppress narration due to climbing.
+func (j *NarrationJob) checkClimbStatus(t *sim.Telemetry) bool {
+	// TESTING: Hardcoded 500ft threshold - tune this value based on testing
+	const climbThresholdFt = 500.0
+
+	if t.IsOnGround {
+		// Reset climb flag when on ground
+		j.hasReachedClimbAlt = false
+		return true // Allowed on ground (for airport narration)
+	}
+
+	if !j.hasReachedClimbAlt {
+		// Just took off, check if we've reached the threshold
+		if t.AltitudeAGL >= climbThresholdFt {
+			j.hasReachedClimbAlt = true
+			slog.Debug("NarrationJob: Reached climb threshold, enabling in-flight POI selection", "agl", t.AltitudeAGL)
+			return true
+		}
+		// Haven't reached threshold yet - skip non-airport POI selection
+		slog.Debug("NarrationJob: Post-takeoff grace period", "agl", t.AltitudeAGL, "threshold", climbThresholdFt)
+		return false
+	}
+
+	return true
+}
+
+// hasEligiblePOI checks if there are any valid candidates given the current filters.
+func (j *NarrationJob) hasEligiblePOI(t *sim.Telemetry) bool {
 	var minScore *float64
 	if j.getFilterMode() != "adaptive" {
 		val := j.getMinScore()
@@ -148,7 +175,6 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	candidates := j.poiMgr.GetNarrationCandidates(10, minScore, t.IsOnGround)
 
 	// Apply "Rarely" Strategy Filter (Local Hero / Lone Wolf)
-	// Only accept POIs that are dominant in their area.
 	if j.getNarrationFrequency() == 1 { // Rarely
 		filtered := make([]*model.POI, 0, len(candidates))
 		analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
@@ -157,8 +183,6 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		}
 		if ok {
 			for _, p := range candidates {
-				// We reuse DetermineSkewStrategy to find "Lone Wolf" candidates
-				// StrategyMaxSkew is returned when a POI has no strong competitors
 				if narrator.DetermineSkewStrategy(p, analyzer, t.IsOnGround) == narrator.StrategyMaxSkew {
 					filtered = append(filtered, p)
 				}
@@ -167,24 +191,7 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		}
 	}
 
-	if len(candidates) > 0 {
-		return true
-	}
-
-	// No candidates found? Boost visibility!
-	// Only boost if we were actually ready to narrate (passed all checks)
-	// and we are NOT in essay fallback mode (which might happen next).
-	// Actually, if we boost, we might find something next time.
-	// We increment boost, and return false (so we don't fire Narration yet, unless Essay triggers).
-	// Essay trigger is separate.
-	j.incrementVisibilityBoost(context.Background())
-
-	// 4. Essay fallback
-	// Don't pipeline essays for now (keeps it simple)
-	if j.narrator.IsPlaying() {
-		return false
-	}
-	return j.checkEssayEligible(t)
+	return len(candidates) > 0
 }
 
 // checkFrequencyRules determines if we can fire based on frequency settings (1-5).
@@ -327,30 +334,6 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 		// Strategy is less relevant here as it's already baked into the narrative, but we pass "uniform" or reuse.
 		j.narrator.PlayPOI(ctx, staged.WikidataID, false, t, narrator.StrategyUniform)
 		return
-	}
-
-	// Determine Min Score dynamically (for Phase 2 fallback logic)
-	// Note: checking logic is mostly in ShouldFire, but we re-check here.
-	var minScore *float64
-	if j.getFilterMode() != "adaptive" {
-		val := j.getMinScore()
-		minScore = &val
-	}
-
-	candidates := j.poiMgr.GetNarrationCandidates(10, minScore, t.IsOnGround)
-
-	// Re-apply "Rarely" filter
-	if j.getNarrationFrequency() == 1 {
-		filtered := make([]*model.POI, 0, len(candidates))
-		analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
-		if ok {
-			for _, p := range candidates {
-				if narrator.DetermineSkewStrategy(p, analyzer, t.IsOnGround) == narrator.StrategyMaxSkew {
-					filtered = append(filtered, p)
-				}
-			}
-			candidates = filtered
-		}
 	}
 
 	// Pick best (first visible)
