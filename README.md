@@ -25,7 +25,7 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 - **Highly Configurable**: Nearly every aspect of the logic—from prompt macros to scoring weights—can be tweaked via YAML configuration or prompt templates.
 - **Resilient**: Designed to handle real-world conditions: high/low density areas, slow API responses, and long-haul flights without crashing or leaking memory.
 - **Contextual Essays**: When no specific landmark is in sight, Phileas generates engaging essays about the history, geography, or culture of the region you are flying over, ensuring the silence is always filled with interesting content.
-- **Terrain Awareness**: Uses global elevation data to perform Line-of-Sight checks. Phileas won't point out a landmark that is hidden behind a mountain range.
+- **Terrain Awareness**: Uses global elevation data to perform Line-of-Sight checks. Phileas won't point out a landmark that is hidden behind a mountain range. Well, sometimes it will. We use a low-res set of data (<500 MB unpackend)
 - **Zero-Latency Playback**: A staging pipeline prepares the next narration while the current one is playing.
 - **Interactive Web Companion**: A Web UI to track your flight, view nearby POIs, manual trigger narrations, and visualize the current visibility radius.
 
