@@ -207,6 +207,7 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 
 			// Force cooldown to expired for test
 			job.lastTime = time.Time{}
+			job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
 			// Test ShouldFire
 			if job.ShouldFire(tel) != tt.expectShouldFire {
@@ -303,6 +304,7 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 
 			// Set State
 			job.lastTime = time.Now().Add(-tt.lastNarrationAgo)
+			job.takeoffTime = time.Now().Add(-10 * time.Minute)
 			if tt.lastEssayAgo > 0 {
 				job.lastEssayTime = time.Now().Add(-tt.lastEssayAgo)
 			}
@@ -483,6 +485,7 @@ func TestNarrationJob_AdaptiveMode(t *testing.T) {
 		Longitude:   -123.0,
 	}
 	job.lastTime = time.Time{} // Force ready
+	job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
 	// 1. ShouldFire should be TRUE because adaptive mode ignores the 10.0 threshold
 	if !job.ShouldFire(tel) {
@@ -518,6 +521,7 @@ func TestNarrationJob_DynamicMinScore(t *testing.T) {
 		Longitude:   -123.0,
 	}
 	job.lastTime = time.Time{}
+	job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
 	// 1. ShouldFire should be FALSE (5.0 < 6.0)
 	// (Even though default was 10.0, we override to 6.0. 5.0 is still < 6.0)
@@ -609,6 +613,7 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 
 			// Force cooldown ready for non-playing case
 			job.lastTime = time.Time{}
+			job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: 3000,
@@ -644,58 +649,32 @@ func TestNarrationJob_PostTakeoffGracePeriod(t *testing.T) {
 	tests := []struct {
 		name             string
 		isOnGround       bool
-		altitudeAGL      float64
-		hasReachedClimb  bool // Pre-set flag state
+		takeoffTimeAgo   time.Duration // 0 means not set (or just set now)
 		expectShouldFire bool
-		expectFlagAfter  bool // Expected hasReachedClimbAlt after ShouldFire
 	}{
 		{
-			name:             "On ground - flag reset, allow ground candidates",
+			name:             "On ground - allow ground candidates",
 			isOnGround:       true,
-			altitudeAGL:      0,
-			hasReachedClimb:  true, // Was true, should reset
-			expectShouldFire: true, // Ground airports allowed
-			expectFlagAfter:  false,
+			takeoffTimeAgo:   10 * time.Minute, // Should be reset
+			expectShouldFire: true,
 		},
 		{
-			name:             "Just took off (100ft) - grace period active",
+			name:             "Just took off (0s ago) - grace period active",
 			isOnGround:       false,
-			altitudeAGL:      100,
-			hasReachedClimb:  false,
-			expectShouldFire: false, // Blocked by grace period
-			expectFlagAfter:  false,
-		},
-		{
-			name:             "Climbing (400ft) - still in grace period",
-			isOnGround:       false,
-			altitudeAGL:      400,
-			hasReachedClimb:  false,
+			takeoffTimeAgo:   0,
 			expectShouldFire: false,
-			expectFlagAfter:  false,
 		},
 		{
-			name:             "Reached threshold (500ft) - grace period ends",
+			name:             "In grace period (30s ago) - still blocked",
 			isOnGround:       false,
-			altitudeAGL:      500,
-			hasReachedClimb:  false,
-			expectShouldFire: true,
-			expectFlagAfter:  true,
+			takeoffTimeAgo:   30 * time.Second,
+			expectShouldFire: false,
 		},
 		{
-			name:             "Above threshold (1000ft) - normal flight",
+			name:             "Grace period expired (61s ago) - allow narration",
 			isOnGround:       false,
-			altitudeAGL:      1000,
-			hasReachedClimb:  true,
+			takeoffTimeAgo:   61 * time.Second,
 			expectShouldFire: true,
-			expectFlagAfter:  true,
-		},
-		{
-			name:             "Descending (300ft) but flag already set - continues",
-			isOnGround:       false,
-			altitudeAGL:      300,
-			hasReachedClimb:  true, // Already reached before
-			expectShouldFire: true,
-			expectFlagAfter:  true,
 		},
 	}
 
@@ -711,10 +690,20 @@ func TestNarrationJob_PostTakeoffGracePeriod(t *testing.T) {
 			simC := &mockJobSimClient{state: sim.StateActive}
 			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 			job.lastTime = time.Time{} // Force cooldown ready
-			job.hasReachedClimbAlt = tt.hasReachedClimb
+
+			// Setup Takeoff Time
+			if tt.takeoffTimeAgo > 0 {
+				job.takeoffTime = time.Now().Add(-tt.takeoffTimeAgo)
+			} else {
+				// If 0 and not on ground, we simulate "just started" or "not set yet"
+				// But checkPostTakeoffGrace will set it if zero.
+				// To test "just started", we can leave it zero, or set it to Now.
+				// If we leave it zero, checkPostTakeoffGrace sets it to Now and returns false (since < 1m).
+				job.takeoffTime = time.Time{}
+			}
 
 			tel := &sim.Telemetry{
-				AltitudeAGL: tt.altitudeAGL,
+				AltitudeAGL: 1000,
 				IsOnGround:  tt.isOnGround,
 				Latitude:    48.0,
 				Longitude:   -123.0,
@@ -723,10 +712,6 @@ func TestNarrationJob_PostTakeoffGracePeriod(t *testing.T) {
 			fired := job.ShouldFire(tel)
 			if fired != tt.expectShouldFire {
 				t.Errorf("ShouldFire() = %v, want %v", fired, tt.expectShouldFire)
-			}
-
-			if job.hasReachedClimbAlt != tt.expectFlagAfter {
-				t.Errorf("hasReachedClimbAlt = %v, want %v", job.hasReachedClimbAlt, tt.expectFlagAfter)
 			}
 		})
 	}

@@ -39,8 +39,8 @@ type NarrationJob struct {
 	lastCheckedCount int
 
 	// Post-takeoff grace period tracking
-	hasReachedClimbAlt bool    // True once we've reached climb threshold after takeoff
-	lastAGL            float64 // Last known AGL for visibility boost check
+	takeoffTime time.Time // Track when we left the ground
+	lastAGL     float64   // Last known AGL for visibility boost check
 }
 
 func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker) *NarrationJob {
@@ -105,7 +105,8 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	j.lastAGL = t.AltitudeAGL
 
 	// Post-takeoff grace period logic
-	if !j.checkClimbStatus(t) {
+	// Post-takeoff grace period logic
+	if !j.checkPostTakeoffGrace(t) {
 		return false
 	}
 
@@ -137,27 +138,21 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	return j.checkEssayEligible(t)
 }
 
-// checkClimbStatus updates and checks the post-takeoff grace period.
-// Returns false if we should suppress narration due to climbing.
-func (j *NarrationJob) checkClimbStatus(t *sim.Telemetry) bool {
-	// TESTING: Hardcoded 500ft threshold - tune this value based on testing
-	const climbThresholdFt = 500.0
-
+// checkPostTakeoffGrace enforces a 1-minute silence after takeoff.
+func (j *NarrationJob) checkPostTakeoffGrace(t *sim.Telemetry) bool {
 	if t.IsOnGround {
-		// Reset climb flag when on ground
-		j.hasReachedClimbAlt = false
-		return true // Allowed on ground (for airport narration)
+		j.takeoffTime = time.Time{} // Reset
+		return true                 // Allowed on ground (for airport narration)
 	}
 
-	if !j.hasReachedClimbAlt {
-		// Just took off, check if we've reached the threshold
-		if t.AltitudeAGL >= climbThresholdFt {
-			j.hasReachedClimbAlt = true
-			slog.Debug("NarrationJob: Reached climb threshold, enabling in-flight POI selection", "agl", t.AltitudeAGL)
-			return true
-		}
-		// Haven't reached threshold yet - skip non-airport POI selection
-		slog.Debug("NarrationJob: Post-takeoff grace period", "agl", t.AltitudeAGL, "threshold", climbThresholdFt)
+	if j.takeoffTime.IsZero() {
+		j.takeoffTime = time.Now()
+		slog.Debug("NarrationJob: Takeoff detected", "time", j.takeoffTime)
+	}
+
+	if time.Since(j.takeoffTime) < 1*time.Minute {
+		// Log periodically (every 10s) to avoid spam? relying on debug level.
+		slog.Debug("NarrationJob: In post-takeoff grace period", "elapsed", time.Since(j.takeoffTime))
 		return false
 	}
 
@@ -327,7 +322,16 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	// 0. Check for Staged/Prepared Narrative (Pipeline)
 	// If the narrator has a POI ready (or generating), we MUST play that one
 	// to avoid the "Jumping Beacon" issue (Scheduler calculating X while Narrator plays Y).
+	// 0. Check for Staged/Prepared Narrative (Pipeline)
+	// If the narrator has a POI ready (or generating), we MUST play that one
+	// to avoid the "Jumping Beacon" issue (Scheduler calculating X while Narrator plays Y).
 	if staged := j.narrator.GetPreparedPOI(); staged != nil {
+		// DUPLICATION FIX: If pipeline is backed up (Playing OR Active/Cooling down), don't force a play attempt.
+		// We simply return and let the scheduler tick again later.
+		if j.narrator.IsActive() {
+			return
+		}
+
 		slog.Info("NarrationJob: Activating staged narrative", "poi", staged.DisplayName())
 		// We call PlayPOI with the STAGED ID.
 		// PlayPOI will see the ID, set the beacon correctly, and then (re)discover the staged content.

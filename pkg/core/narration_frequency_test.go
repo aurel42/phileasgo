@@ -173,6 +173,7 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 
 			// Ensure ready state
 			job.lastTime = time.Time{}
+			job.takeoffTime = time.Now().Add(-10 * time.Minute) // Grace period over
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: 3000,

@@ -57,6 +57,7 @@ func TestNarrationJob_EssayConfig(t *testing.T) {
 				Longitude:   -123.0,
 			}
 			job.lastTime = time.Time{} // expired cooldown
+			job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
 			if got := job.ShouldFire(tel); got != tt.expectFire {
 				t.Errorf("ShouldFire() = %v, want %v", got, tt.expectFire)
