@@ -188,6 +188,15 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 		return nil, fmt.Errorf("TTS synthesis failed: %w", err)
 	}
 
+	// Log generation complete (before queue wait for playback)
+	genWords := len(strings.Fields(script))
+	slog.Debug("Narrator: Generation complete",
+		"name", p.DisplayName(),
+		"qid", p.WikidataID,
+		"requested_len", promptData.MaxWords,
+		"words", genWords,
+	)
+
 	// If synthesis successful, return Narrative
 	return &Narrative{
 		POI:            p,

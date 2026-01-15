@@ -37,6 +37,10 @@ type NarrationJob struct {
 	wasBusy          bool
 	lastEssayTime    time.Time
 	lastCheckedCount int
+
+	// Post-takeoff grace period tracking
+	hasReachedClimbAlt bool    // True once we've reached climb threshold after takeoff
+	lastAGL            float64 // Last known AGL for visibility boost check
 }
 
 func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker) *NarrationJob {
@@ -95,6 +99,29 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	// 0. Pre-flight checks
 	if !j.checkPreConditions(t) {
 		return false
+	}
+
+	// Track AGL for visibility boost decisions
+	j.lastAGL = t.AltitudeAGL
+
+	// Post-takeoff grace period logic
+	// TESTING: Hardcoded 500ft threshold - tune this value based on testing
+	const climbThresholdFt = 500.0
+
+	if t.IsOnGround {
+		// Reset climb flag when on ground
+		j.hasReachedClimbAlt = false
+	} else if !j.hasReachedClimbAlt {
+		// Just took off, check if we've reached the threshold
+		if t.AltitudeAGL >= climbThresholdFt {
+			j.hasReachedClimbAlt = true
+			slog.Debug("NarrationJob: Reached climb threshold, enabling in-flight POI selection", "agl", t.AltitudeAGL)
+		} else {
+			// Haven't reached threshold yet - skip non-airport POI selection
+			// Airport narration on ground is handled separately (ground candidates)
+			slog.Debug("NarrationJob: Post-takeoff grace period", "agl", t.AltitudeAGL, "threshold", climbThresholdFt)
+			return false
+		}
 	}
 
 	// 1. Narrator Activity Check
@@ -254,7 +281,7 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 		}
 	}
 
-	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer))
+	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer), t.IsOnGround)
 	j.calculateCooldown(1.0, strategy)
 
 	// Get current boost for logging
@@ -493,6 +520,15 @@ func (j *NarrationJob) getBoostFactor() float64 {
 
 func (j *NarrationJob) incrementVisibilityBoost(ctx context.Context) {
 	if j.store == nil {
+		return
+	}
+
+	// Don't boost visibility while on ground or below 500ft AGL
+	// At low altitudes, visibility is naturally limited; boosting would select inappropriate POIs
+	// TESTING: Hardcoded 500ft threshold - tune this value based on testing
+	const boostThresholdFt = 500.0
+	if j.lastAGL < boostThresholdFt {
+		slog.Debug("NarrationJob: Skipping visibility boost (low altitude)", "agl", j.lastAGL, "threshold", boostThresholdFt)
 		return
 	}
 

@@ -20,9 +20,16 @@ type POIAnalyzer interface {
 }
 
 // DetermineSkewStrategy determines the skew strategy based on POI competition (density).
-func DetermineSkewStrategy(p *model.POI, analyzer POIAnalyzer) string {
+// When isOnGround is true, always returns StrategyMaxSkew since the airport is the only
+// viable POI and deserves full narration.
+func DetermineSkewStrategy(p *model.POI, analyzer POIAnalyzer, isOnGround bool) string {
 	if p == nil {
 		return StrategyUniform // Default if no POI context
+	}
+
+	// On ground, force max_skew - airport is the only viable POI
+	if isOnGround {
+		return StrategyMaxSkew
 	}
 
 	// Dynamic Length Logic: Relative Dominance

@@ -1,12 +1,19 @@
 ﻿# Release History
 
+## v0.2.91 (2026-01-15)
+- **Feature**: **Improved Takeoff Behavior**:
+    - **Grace Period**: Narrations for non-airport POIs are now suppressed immediately after takeoff until the aircraft reaches 500ft AGL, preventing premature selection of nearby ground POIs when visibility is still limited.
+    - **Visibility Boost Threshold**: The visibility boost mechanism (which helps find POIs in empty areas) is now disabled below 500ft AGL to avoid selecting distant/hidden POIs while taxiing or on initial climb.
+    - **Ground Narration**: Fixed logic to ensure airport narrations triggered while on the ground always use the "max_skew" strategy (longer content), as the airport is the only viable subject.
+- **Tools**: **Log Analysis Improvement**:
+    - Refactored `cmd/experiments/log_analysis` script to fix linting errors and improve maintainability.
+    - Updated latency tracking logic in analysis tools.
+
 ## v0.2.90 (2026-01-14)
 - **Feature**: **Sparse Tile Retrieval (Continuous Adaptive Density)**:
     - Implemented a proximity-based redundancy check in the Wikidata Scheduler.
     - Tuning: Fetches are now prioritized to sparsely fill ~2-3 rings (approx. 17km coverage) before backfilling gaps, reducing initial load and improving broad coverage.
     - Updated `pkg/wikidata/service.go` to strictly use predicted coordinates for tile candidates.
-- **Fix**: **Valley Altitude API**:
-    - Restored `omitempty` for `ValleyAltitude` in telemetry responses, ensuring it is hidden when valid but 0 (Sea Level).
 - **Fix**: **Narrator Regression**:
     - Resolved an issue where essays triggered immediately on startup or teleport by strictly enforcing eligibility checks in the `NarrationJob` flow.
 - **Refactor**: **Test Performance**:

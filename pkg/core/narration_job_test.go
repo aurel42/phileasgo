@@ -658,3 +658,162 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 		})
 	}
 }
+
+func TestNarrationJob_PostTakeoffGracePeriod(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Narrator.AutoNarrate = true
+	cfg.Narrator.MinScoreThreshold = 5.0
+
+	tests := []struct {
+		name             string
+		isOnGround       bool
+		altitudeAGL      float64
+		hasReachedClimb  bool // Pre-set flag state
+		expectShouldFire bool
+		expectFlagAfter  bool // Expected hasReachedClimbAlt after ShouldFire
+	}{
+		{
+			name:             "On ground - flag reset, allow ground candidates",
+			isOnGround:       true,
+			altitudeAGL:      0,
+			hasReachedClimb:  true, // Was true, should reset
+			expectShouldFire: true, // Ground airports allowed
+			expectFlagAfter:  false,
+		},
+		{
+			name:             "Just took off (100ft) - grace period active",
+			isOnGround:       false,
+			altitudeAGL:      100,
+			hasReachedClimb:  false,
+			expectShouldFire: false, // Blocked by grace period
+			expectFlagAfter:  false,
+		},
+		{
+			name:             "Climbing (400ft) - still in grace period",
+			isOnGround:       false,
+			altitudeAGL:      400,
+			hasReachedClimb:  false,
+			expectShouldFire: false,
+			expectFlagAfter:  false,
+		},
+		{
+			name:             "Reached threshold (500ft) - grace period ends",
+			isOnGround:       false,
+			altitudeAGL:      500,
+			hasReachedClimb:  false,
+			expectShouldFire: true,
+			expectFlagAfter:  true,
+		},
+		{
+			name:             "Above threshold (1000ft) - normal flight",
+			isOnGround:       false,
+			altitudeAGL:      1000,
+			hasReachedClimb:  true,
+			expectShouldFire: true,
+			expectFlagAfter:  true,
+		},
+		{
+			name:             "Descending (300ft) but flag already set - continues",
+			isOnGround:       false,
+			altitudeAGL:      300,
+			hasReachedClimb:  true, // Already reached before
+			expectShouldFire: true,
+			expectFlagAfter:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockN := &mockNarratorService{}
+			// Use aerodrome for ground case, regular POI for airborne
+			poi := &model.POI{Score: 10.0, WikidataID: "Q1", Lat: 48.0, Lon: -123.0}
+			if tt.isOnGround {
+				poi.Category = "Aerodrome"
+			}
+			pm := &mockPOIManager{best: poi, lat: 48.0, lon: -123.0}
+			simC := &mockJobSimClient{state: sim.StateActive}
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			job.lastTime = time.Time{} // Force cooldown ready
+			job.hasReachedClimbAlt = tt.hasReachedClimb
+
+			tel := &sim.Telemetry{
+				AltitudeAGL: tt.altitudeAGL,
+				IsOnGround:  tt.isOnGround,
+				Latitude:    48.0,
+				Longitude:   -123.0,
+			}
+
+			fired := job.ShouldFire(tel)
+			if fired != tt.expectShouldFire {
+				t.Errorf("ShouldFire() = %v, want %v", fired, tt.expectShouldFire)
+			}
+
+			if job.hasReachedClimbAlt != tt.expectFlagAfter {
+				t.Errorf("hasReachedClimbAlt = %v, want %v", job.hasReachedClimbAlt, tt.expectFlagAfter)
+			}
+		})
+	}
+}
+
+func TestNarrationJob_VisibilityBoostAGLCheck(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Narrator.AutoNarrate = true
+
+	tests := []struct {
+		name         string
+		lastAGL      float64
+		initialBoost string
+		expectBoost  string // Expected boost value after increment attempt
+	}{
+		{
+			name:         "Low altitude (100ft) - no boost",
+			lastAGL:      100,
+			initialBoost: "1.0",
+			expectBoost:  "1.0", // Should NOT change
+		},
+		{
+			name:         "At threshold (500ft) - allows boost",
+			lastAGL:      500,
+			initialBoost: "1.0",
+			expectBoost:  "1.1",
+		},
+		{
+			name:         "Above threshold (1000ft) - allows boost",
+			lastAGL:      1000,
+			initialBoost: "1.0",
+			expectBoost:  "1.1",
+		},
+		{
+			name:         "On ground (0ft) - no boost",
+			lastAGL:      0,
+			initialBoost: "1.0",
+			expectBoost:  "1.0",
+		},
+		{
+			name:         "High altitude already at max - stays at max",
+			lastAGL:      2000,
+			initialBoost: "1.5",
+			expectBoost:  "1.5",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := NewMockStore()
+			store.SetState(context.Background(), "visibility_boost", tt.initialBoost)
+
+			job := &NarrationJob{
+				cfg:     cfg,
+				store:   store,
+				lastAGL: tt.lastAGL,
+			}
+
+			job.incrementVisibilityBoost(context.Background())
+
+			got, _ := store.GetState(context.Background(), "visibility_boost")
+			if got != tt.expectBoost {
+				t.Errorf("visibility_boost = %v, want %v", got, tt.expectBoost)
+			}
+		})
+	}
+}

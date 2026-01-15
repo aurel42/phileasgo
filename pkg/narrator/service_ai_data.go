@@ -264,8 +264,9 @@ func (s *AIService) sampleNarrationLength(p *model.POI, strategy string) (words 
 
 	// Strategy is already determined by scheduler and passed in.
 	// But if strategy is empty (e.g. manual play or legacy call logic?), fallback to calculating it.
+	// Note: isOnGround=false since ground context is handled at scheduler level
 	if strategy == "" {
-		strategy = DetermineSkewStrategy(p, s.poiMgr)
+		strategy = DetermineSkewStrategy(p, s.poiMgr, false)
 	}
 
 	slog.Debug("Narrator: Sampling Length", "strategy", strategy)
