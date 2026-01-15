@@ -120,20 +120,20 @@ type AudioEffectsConfig struct {
 
 // NarratorConfig holds settings for the AI narrator.
 type NarratorConfig struct {
-	AutoNarrate        bool               `yaml:"auto_narrate"`
-	MinScoreThreshold  float64            `yaml:"min_score_threshold"`
-	Frequency          int                `yaml:"frequency"` // 1=Rarely...5=Constant
-	PauseDuration      Duration           `yaml:"pause_between_narrations"`
-	RepeatTTL          Duration           `yaml:"repeat_ttl"`
-	TargetLanguage     string             `yaml:"target_language"`
-	Units              string             `yaml:"units"`
-	NarrationLengthMin int                `yaml:"narration_length_min"` // Random range min (default 400)
-	NarrationLengthMax int                `yaml:"narration_length_max"` // Random range max (default 600)
-	SummaryMaxWords    int                `yaml:"summary_max_words"`    // Max words for the trip summary (default 500)
-	TemperatureBase    float32            `yaml:"temperature_base"`     // Base temperature (default 1.0)
-	TemperatureJitter  float32            `yaml:"temperature_jitter"`   // Jitter range (bell curve distribution)
-	Essay              EssayConfig        `yaml:"essay"`
-	AudioEffects       AudioEffectsConfig `yaml:"audio_effects"`
+	AutoNarrate               bool               `yaml:"auto_narrate"`
+	MinScoreThreshold         float64            `yaml:"min_score_threshold"`
+	Frequency                 int                `yaml:"frequency"` // 1=Rarely...5=Constant
+	PauseDuration             Duration           `yaml:"pause_between_narrations"`
+	RepeatTTL                 Duration           `yaml:"repeat_ttl"`
+	TargetLanguage            string             `yaml:"target_language"`
+	Units                     string             `yaml:"units"`
+	NarrationLengthShortWords int                `yaml:"narration_length_short_words"` // Target for short narrations (default 50)
+	NarrationLengthLongWords  int                `yaml:"narration_length_long_words"`  // Target for long narrations (default 200)
+	SummaryMaxWords           int                `yaml:"summary_max_words"`            // Max words for the trip summary (default 500)
+	TemperatureBase           float32            `yaml:"temperature_base"`             // Base temperature (default 1.0)
+	TemperatureJitter         float32            `yaml:"temperature_jitter"`           // Jitter range (bell curve distribution)
+	Essay                     EssayConfig        `yaml:"essay"`
+	AudioEffects              AudioEffectsConfig `yaml:"audio_effects"`
 }
 
 // LogConfig holds logging settings.
@@ -276,18 +276,18 @@ func DefaultConfig() *Config {
 			},
 		},
 		Narrator: NarratorConfig{
-			AutoNarrate:        true,
-			MinScoreThreshold:  0.5,
-			Frequency:          3, // Active
-			PauseDuration:      Duration(4 * time.Second),
-			RepeatTTL:          Duration(30 * 24 * time.Hour), // 30d
-			TargetLanguage:     "en-US",
-			Units:              "hybrid",
-			NarrationLengthMin: 150,
-			NarrationLengthMax: 400,
-			SummaryMaxWords:    500,
-			TemperatureBase:    1.0,
-			TemperatureJitter:  0.3,
+			AutoNarrate:               true,
+			MinScoreThreshold:         0.5,
+			Frequency:                 3, // Active
+			PauseDuration:             Duration(4 * time.Second),
+			RepeatTTL:                 Duration(30 * 24 * time.Hour), // 30d
+			TargetLanguage:            "en-US",
+			Units:                     "hybrid",
+			NarrationLengthShortWords: 50,
+			NarrationLengthLongWords:  200,
+			SummaryMaxWords:           500,
+			TemperatureBase:           1.0,
+			TemperatureJitter:         0.3,
 			Essay: EssayConfig{
 				Enabled:        true,
 				Cooldown:       Duration(10 * time.Minute),

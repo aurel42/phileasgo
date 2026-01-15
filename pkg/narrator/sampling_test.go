@@ -8,13 +8,15 @@ import (
 // TestSampleNarrationLength verifies that the sampled length respects min/max and the step size of 10.
 func TestSampleNarrationLength(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.Narrator.NarrationLengthMin = 100
-	cfg.Narrator.NarrationLengthMax = 200
+	// Default config
+	cfg.Narrator.NarrationLengthShortWords = 100
+	cfg.Narrator.NarrationLengthLongWords = 200
 
 	// Use a nil-heavy service since we only test the pure function
 	s := &AIService{
 		cfg:    cfg,
 		poiMgr: &MockPOIProvider{},
+		st:     &MockStore{},
 	}
 
 	for i := 0; i < 1000; i++ {
@@ -35,22 +37,16 @@ func TestSampleNarrationLength(t *testing.T) {
 // TestSampleNarrationLength_EdgeCases verifies behavior with weird config values.
 func TestSampleNarrationLength_EdgeCases(t *testing.T) {
 	cfg := config.DefaultConfig()
-	s := &AIService{cfg: cfg, poiMgr: &MockPOIProvider{}}
+	s := &AIService{cfg: cfg, poiMgr: &MockPOIProvider{}, st: &MockStore{}}
 
-	// Case 1: Max <= Min -> returns Min
-	cfg.Narrator.NarrationLengthMin = 500
-	cfg.Narrator.NarrationLengthMax = 400
-	val, _ := s.sampleNarrationLength(nil, "")
-	if val != 500 {
-		t.Errorf("Expected 500 for inverted range, got %d", val)
-	}
-
-	// Case 2: Zero values -> defaults (Min 400)
-	cfg.Narrator.NarrationLengthMin = 0
-	cfg.Narrator.NarrationLengthMax = 0
+	// Case 2: Zero values -> defaults (Short 50, Long 200)
+	cfg.Narrator.NarrationLengthShortWords = 0
+	cfg.Narrator.NarrationLengthLongWords = 0
 	val2, _ := s.sampleNarrationLength(nil, "")
-	// Default logic: defaults min=400, max=600 if 0
-	if val2 < 400 || val2 > 600 {
-		t.Errorf("Expected default range 400-600, got %d", val2)
+	// Default logic: defaults Short=50, Long=200
+	// Multiplier 1.0 (default)
+	// Strategy will determine which one.
+	if val2 < 50 || val2 > 200 {
+		t.Errorf("Expected default range 50-200, got %d", val2)
 	}
 }

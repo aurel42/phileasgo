@@ -207,6 +207,7 @@ func TestSampleNarrationLength_Logic(t *testing.T) {
 	svc := &AIService{
 		cfg:    &config.Config{Narrator: config.NarratorConfig{}},
 		poiMgr: mockPOI,
+		st:     &MockStore{},
 	}
 
 	tests := []struct {

@@ -25,6 +25,9 @@ func TestLoad(t *testing.T) {
 				if cfg.TTS.Engine != "windows-sapi" {
 					t.Errorf("expected default TTS engine 'windows-sapi', got '%s'", cfg.TTS.Engine)
 				}
+				if cfg.Narrator.NarrationLengthShortWords != 50 {
+					t.Errorf("expected ShortWords default 50, got %d", cfg.Narrator.NarrationLengthShortWords)
+				}
 			},
 			checkFile: func(t *testing.T) {
 				content, err := os.ReadFile(configPath)
@@ -34,13 +37,16 @@ func TestLoad(t *testing.T) {
 				if !strings.Contains(string(content), "engine: windows-sapi") {
 					t.Error("config file missing default values")
 				}
+				if !strings.Contains(string(content), "narration_length_short_words: 50") {
+					t.Error("config file missing narration_length_short_words default")
+				}
 			},
 		},
 		{
 			name: "ExistingFile_Override",
 			setup: func() {
 				// Pre-create file with custom value
-				err := os.WriteFile(configPath, []byte("tts:\n  engine: google\nnarrator:\n  summary_max_words: 300\n"), 0o644)
+				err := os.WriteFile(configPath, []byte("tts:\n  engine: google\nnarrator:\n  summary_max_words: 300\n  narration_length_long_words: 999\n"), 0o644)
 				if err != nil {
 					t.Fatalf("failed to setup test file: %v", err)
 				}
@@ -51,6 +57,9 @@ func TestLoad(t *testing.T) {
 				}
 				if cfg.Narrator.SummaryMaxWords != 300 {
 					t.Errorf("expected SummaryMaxWords 300, got %d", cfg.Narrator.SummaryMaxWords)
+				}
+				if cfg.Narrator.NarrationLengthLongWords != 999 {
+					t.Errorf("expected LongWords 999, got %d", cfg.Narrator.NarrationLengthLongWords)
 				}
 			},
 			checkFile: func(t *testing.T) {

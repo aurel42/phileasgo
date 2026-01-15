@@ -1,13 +1,21 @@
 ﻿# Release History
 
 ## v0.2.91 (2026-01-15)
+- **Feature**: **Manual Text Length Controls**
+    - Implemented a segmented length selector (1-5) in the Config Panel to scale narration length.
+    - **Logic**: Applies a multiplier (1.0x to 2.0x) to the base target words (Short: 50, Long: 200).
+    - **Refactor**: Replaced legacy "Skew Strategy" sampling with a deterministic multiplier system.
+    - **Cleanup**: Removed dead code (`SampleSkewedValue`) and associated legacy tests.
 - **Feature**: **Improved Takeoff Behavior**:
-    - **Grace Period**: Narrations for non-airport POIs are now suppressed immediately after takeoff until the aircraft reaches 500ft AGL, preventing premature selection of nearby ground POIs when visibility is still limited.
-    - **Visibility Boost Threshold**: The visibility boost mechanism (which helps find POIs in empty areas) is now disabled below 500ft AGL to avoid selecting distant/hidden POIs while taxiing or on initial climb.
-    - **Ground Narration**: Fixed logic to ensure airport narrations triggered while on the ground always use the "max_skew" strategy (longer content), as the airport is the only viable subject.
+    - **Grace Period**: Narrations for non-airport POIs are now suppressed immediately after takeoff until the aircraft reaches 500ft AGL.
+    - **Visibility Boost Threshold**: The visibility boost mechanism is now disabled below 500ft AGL.
+    - **Ground Narration**: Fixed logic to ensure airport narrations triggered while on the ground always use the "max_skew" strategy.
 - **Tools**: **Log Analysis Improvement**:
     - Refactored `cmd/experiments/log_analysis` script to fix linting errors and improve maintainability.
     - Updated latency tracking logic in analysis tools.
+- **Tests**: **Coverage**
+    - Added comprehensive table-driven tests for the new Multiplier logic in `pkg/narrator/multiplier_test.go`.
+    - Verified proper state persistence for text length settings.
 
 ## v0.2.90 (2026-01-14)
 - **Feature**: **Sparse Tile Retrieval (Continuous Adaptive Density)**:

@@ -49,8 +49,8 @@ func TestSampleNarrationLength_RelativeDominance(t *testing.T) {
 	// Setup
 	cfg := &config.Config{
 		Narrator: config.NarratorConfig{
-			NarrationLengthMin: 100,
-			NarrationLengthMax: 200,
+			NarrationLengthShortWords: 100,
+			NarrationLengthLongWords:  200,
 		},
 	}
 
@@ -66,6 +66,7 @@ func TestSampleNarrationLength_RelativeDominance(t *testing.T) {
 	svcHigh := &AIService{
 		cfg:    cfg,
 		poiMgr: &TestPOIProvider{CountVal: 5},
+		st:     &MockStore{},
 	}
 
 	sumHigh := 0
@@ -83,6 +84,7 @@ func TestSampleNarrationLength_RelativeDominance(t *testing.T) {
 	svcLow := &AIService{
 		cfg:    cfg,
 		poiMgr: &TestPOIProvider{CountVal: 1}, // Just me
+		st:     &MockStore{},
 	}
 
 	sumLow := 0

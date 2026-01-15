@@ -650,7 +650,7 @@ func TestAIService_ScriptValidation(t *testing.T) {
 
 	cfg := &config.Config{
 		Narrator: config.NarratorConfig{
-			NarrationLengthMax: 200, // Explicitly set low max
+			NarrationLengthLongWords: 200, // Explicitly set low max
 		},
 	}
 

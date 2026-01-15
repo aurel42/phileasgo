@@ -21,6 +21,8 @@ interface InfoPanelProps {
     onTargetPoiCountChange: (count: number) => void;
     narrationFrequency: number;
     onNarrationFrequencyChange: (freq: number) => void;
+    textLength: number;
+    onTextLengthChange: (length: number) => void;
 }
 
 export const InfoPanel = ({
@@ -35,7 +37,9 @@ export const InfoPanel = ({
     targetPoiCount,
     onTargetPoiCountChange,
     narrationFrequency,
-    onNarrationFrequencyChange
+    onNarrationFrequencyChange,
+    textLength,
+    onTextLengthChange
 }: InfoPanelProps) => {
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
@@ -187,7 +191,7 @@ export const InfoPanel = ({
                         {msl} <span className="unit">MSL</span>
                     </div>
                     {telemetry.ValleyAltitude !== undefined && (
-                        <div className="sub-value" style={{ fontSize: '10px', color: '#888', marginTop: '1px' }}>
+                        <div className="sub-value" style={{ fontSize: '11px', color: '#888', marginTop: '1px' }}>
                             {Math.round(telemetry.AltitudeMSL - (telemetry.ValleyAltitude * 3.28084))} <span className="unit">VAL</span>
                         </div>
                     )}
@@ -454,6 +458,29 @@ export const InfoPanel = ({
                                 <span>Active</span>
                                 <span>Busy</span>
                                 <span>Constant</span>
+                            </div>
+                        </div>
+
+                        <div className="config-label" style={{ marginTop: '16px' }}>TEXT LENGTH</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <input
+                                    type="range"
+                                    min="1"
+                                    max="5"
+                                    step="1"
+                                    value={textLength}
+                                    onChange={(e) => onTextLengthChange(parseInt(e.target.value))}
+                                    style={{ flex: 1 }}
+                                />
+                                <span style={{ fontSize: '12px', minWidth: '12px', textAlign: 'right', fontWeight: 'bold' }}>{textLength}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.7 }}>
+                                <span>Shortest</span>
+                                <span>Shorter</span>
+                                <span>Normal</span>
+                                <span>Longer</span>
+                                <span>Longest</span>
                             </div>
                         </div>
 

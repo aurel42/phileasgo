@@ -250,27 +250,61 @@ type NarrationPromptData struct {
 }
 
 func (s *AIService) sampleNarrationLength(p *model.POI, strategy string) (words int, strategyUsed string) {
-	minL := s.cfg.Narrator.NarrationLengthMin
-	maxL := s.cfg.Narrator.NarrationLengthMax
-	if minL == 0 {
-		minL = 400
+	// Base targets from config (default 50/200)
+	shortTarget := s.cfg.Narrator.NarrationLengthShortWords
+	longTarget := s.cfg.Narrator.NarrationLengthLongWords
+	if shortTarget == 0 {
+		shortTarget = 50
 	}
-	if maxL == 0 {
-		maxL = 600
-	}
-	if maxL <= minL {
-		return minL, "fixed"
+	if longTarget == 0 {
+		longTarget = 200
 	}
 
-	// Strategy is already determined by scheduler and passed in.
-	// But if strategy is empty (e.g. manual play or legacy call logic?), fallback to calculating it.
-	// Note: isOnGround=false since ground context is handled at scheduler level
+	// 1. Get User Preference for Text Length (1..5)
+	// We read directly from store to get the latest value
+	// Default to 1 (Shortest i.e. x1.0) if not set
+	textLengthVal, _ := s.st.GetState(context.Background(), "text_length")
+	textLength := 1
+	if textLengthVal != "" {
+		_, _ = fmt.Sscanf(textLengthVal, "%d", &textLength)
+	}
+
+	// 2. Calculate Multiplier
+	// Range 1..5 -> Multiplier 1.0 .. 2.0 (Steps of 0.25)
+	// 1 -> 1.0 (Shortest)
+	// 2 -> 1.25
+	// 3 -> 1.50
+	// 4 -> 1.75
+	// 5 -> 2.00 (Longest)
+	multiplier := 1.0
+	if textLength > 1 {
+		// Clamp to 5 max just in case
+		if textLength > 5 {
+			textLength = 5
+		}
+		multiplier = 1.0 + float64(textLength-1)*0.25
+	}
+
+	// 3. Determine Base Target based on Strategy
 	if strategy == "" {
 		strategy = DetermineSkewStrategy(p, s.poiMgr, false)
 	}
 
-	slog.Debug("Narrator: Sampling Length", "strategy", strategy)
+	baseTarget := longTarget
+	if strategy == StrategyMinSkew {
+		baseTarget = shortTarget
+	}
 
-	result := SampleSkewedValue(minL, maxL, strategy)
-	return result, strategy
+	// 4. Apply Multiplier
+	targetWords := int(float64(baseTarget) * multiplier)
+
+	slog.Debug("Narrator: Sampling Length",
+		"strategy", strategy,
+		"user_setting", textLength,
+		"multiplier", multiplier,
+		"base_target", baseTarget,
+		"final_target", targetWords,
+	)
+
+	return targetWords, strategy
 }

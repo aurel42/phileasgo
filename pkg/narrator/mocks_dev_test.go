@@ -195,6 +195,7 @@ type MockStore struct {
 	SavedPOIs  []*model.POI
 	Articles   map[string]*model.Article
 	RecentPOIs []*model.POI
+	State      map[string]string
 }
 
 func (m *MockStore) SavePOI(ctx context.Context, p *model.POI) error {
@@ -236,8 +237,21 @@ func (m *MockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]
 	return nil, nil
 }
 
-func (m *MockStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
-func (m *MockStore) SetState(ctx context.Context, key, val string) error     { return nil }
+func (m *MockStore) GetState(ctx context.Context, key string) (string, bool) {
+	if m.State == nil {
+		return "", false
+	}
+	val, ok := m.State[key]
+	return val, ok
+}
+
+func (m *MockStore) SetState(ctx context.Context, key, val string) error {
+	if m.State == nil {
+		m.State = make(map[string]string)
+	}
+	m.State[key] = val
+	return nil
+}
 
 func (m *MockStore) GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error) {
 	return nil, nil

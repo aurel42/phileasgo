@@ -21,6 +21,7 @@ function App() {
   const [filterMode, setFilterMode] = useState<string>('fixed');
   const [targetCount, setTargetCount] = useState(20);
   const [narrationFrequency, setNarrationFrequency] = useState(3);
+  const [textLength, setTextLength] = useState(1);
   const pois = useTrackedPOIs();
   const { status: narratorStatus } = useNarrator();
 
@@ -104,6 +105,7 @@ function App() {
     if (key === 'filter_mode') setFilterMode(value);
     if (key === 'target_poi_count') setTargetCount(value);
     if (key === 'narration_frequency') setNarrationFrequency(value);
+    if (key === 'text_length') setTextLength(value);
 
     fetch('/api/config', {
       method: 'PUT', // Changed from POST to PUT for consistency with existing handlers
@@ -220,6 +222,8 @@ function App() {
             onTargetPoiCountChange={handleTargetCountChange}
             narrationFrequency={narrationFrequency}
             onNarrationFrequencyChange={(val) => updateConfig('narration_frequency', val)}
+            textLength={textLength}
+            onTextLengthChange={(val) => updateConfig('text_length', val)}
           />
         )}
       </div>

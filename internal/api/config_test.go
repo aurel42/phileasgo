@@ -40,6 +40,7 @@ func TestHandleGetConfig(t *testing.T) {
 		wantCacheLayer  bool
 		wantFilterMode  string
 		wantTargetCount int
+		wantTextLength  int
 	}{
 		{
 			name: "Default Config",
@@ -52,6 +53,7 @@ func TestHandleGetConfig(t *testing.T) {
 			wantCacheLayer:  false,
 			wantFilterMode:  "fixed",
 			wantTargetCount: 20,
+			wantTextLength:  1, // Default from store (missing = 1)
 		},
 		{
 			name: "Azure Config with Store Overrides",
@@ -63,12 +65,14 @@ func TestHandleGetConfig(t *testing.T) {
 				"show_cache_layer": "true",
 				"filter_mode":      "adaptive",
 				"target_poi_count": "15",
+				"text_length":      "4",
 			},
 			wantTTSEngine:   "azure-speech",
 			wantSimSource:   "mock",
 			wantCacheLayer:  true,
 			wantFilterMode:  "adaptive",
 			wantTargetCount: 15,
+			wantTextLength:  4,
 		},
 		{
 			name: "Custom Adaptive Config",
@@ -120,6 +124,9 @@ func TestHandleGetConfig(t *testing.T) {
 			if got.TargetPOICount != tt.wantTargetCount && tt.wantTargetCount != 0 {
 				t.Errorf("TargetPOICount = %d, want %d", got.TargetPOICount, tt.wantTargetCount)
 			}
+			if got.TextLength != tt.wantTextLength && tt.wantTextLength != 0 {
+				t.Errorf("TextLength = %d, want %d", got.TextLength, tt.wantTextLength)
+			}
 		})
 	}
 }
@@ -154,6 +161,12 @@ func TestHandleSetConfig(t *testing.T) {
 			req:     ConfigRequest{TargetPOICount: ptrInt(25)},
 			wantKey: "target_poi_count",
 			wantVal: "25",
+		},
+		{
+			name:    "Update Text Length",
+			req:     ConfigRequest{TextLength: ptrInt(5)},
+			wantKey: "text_length",
+			wantVal: "5",
 		},
 	}
 
