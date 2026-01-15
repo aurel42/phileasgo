@@ -243,7 +243,7 @@ func (s *AIService) updateLatency(d time.Duration) {
 	s.mu.Unlock()
 
 	// Update the sim's prediction window with the observed latency (minimum 60s)
-	predWindow := max(avg, 60*time.Second)
+	predWindow := max(avg*2, 60*time.Second)
 	s.sim.SetPredictionWindow(predWindow)
 	slog.Debug("Narrator: Updated latency stats", "new_latency", d, "rolling_window_size", len(s.latencies), "new_prediction_window", predWindow)
 }
