@@ -172,57 +172,38 @@ func (h *POIHandler) fetchAndCacheThumbnail(ctx context.Context, p *model.POI) (
 	return thumbURL, nil
 }
 
-// findBestFilenameMatch attempts to match the LLM's selection against the valid filenames list.
-// It handles exact matches, case-insensitive matches, and "File:" prefix variations.
-func findBestFilenameMatch(selected string, filenames []string) string {
-	// Verify the LLM returned one of the valid filenames (hallucination check)
-	// Also clean up any quotes or markdown
-	selected = strings.Trim(selected, "\"`'")
-
-	// Find exact match in original list to ensure valid filename handling
-	for _, f := range filenames {
-		// Loose match to handle potential LLM formatting differences
-		if strings.EqualFold(f, selected) || strings.HasSuffix(f, selected) {
-			return f
-		}
-	}
-
-	// If LLM returned "File:Foo.jpg" but list had "Foo.jpg", try stripping "File:"
-	cleanSelected := strings.TrimPrefix(selected, "File:")
-	for _, f := range filenames {
-		cleanF := strings.TrimPrefix(f, "File:")
-		if strings.EqualFold(cleanF, cleanSelected) {
-			return f
-		}
-	}
-
-	return ""
-}
-
 func (h *POIHandler) selectThumbnailWithLLM(ctx context.Context, title, lang string, p *model.POI) string {
-	filenames, err := h.wp.GetImageFilenames(ctx, title, lang)
+	images, err := h.wp.GetImagesWithURLs(ctx, title, lang)
 	if err != nil {
-		slog.Warn("Thumbnail: Failed to fetch filenames for LLM selection", "error", err)
+		slog.Warn("Thumbnail: Failed to fetch images for LLM selection", "error", err)
 		return ""
 	}
 
-	if len(filenames) == 0 {
+	if len(images) == 0 {
 		return ""
 	}
 
-	// Constrain list size to avoid context headers/costs? 50 is fine usually.
-	if len(filenames) > 50 {
-		filenames = filenames[:50]
+	// Constrain list size (though GetImagesWithURLs already limits to 50)
+	if len(images) > 50 {
+		images = images[:50]
+	}
+
+	// Construct Article URL if missing
+	articleURL := p.WPURL
+	if articleURL == "" {
+		articleURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", lang, title)
 	}
 
 	data := struct {
-		Name     string
-		Category string
-		Images   []string
+		Name       string
+		Category   string
+		ArticleURL string
+		Images     []wikipedia.ImageResult
 	}{
-		Name:     p.NameEn,
-		Category: p.Category,
-		Images:   filenames,
+		Name:       p.NameEn,
+		Category:   p.Category,
+		ArticleURL: articleURL,
+		Images:     images,
 	}
 
 	var prompt string
@@ -248,21 +229,22 @@ func (h *POIHandler) selectThumbnailWithLLM(ctx context.Context, title, lang str
 	if selected == "" {
 		return ""
 	}
+	selected = strings.Trim(selected, "\"`'")
 
-	bestMatch := findBestFilenameMatch(selected, filenames)
-
-	if bestMatch != "" {
-		// Resolve URL
-		slog.Info("Thumbnail: LLM selected image", "poi", p.NameEn, "selected", bestMatch)
-		url, err := h.wp.GetImageURL(ctx, bestMatch, lang)
-		if err != nil {
-			slog.Warn("Thumbnail: Failed to resolve URL for selected image", "image", bestMatch, "error", err)
-			return ""
+	// Find match in our list (LLM returns the URL)
+	for _, img := range images {
+		if strings.EqualFold(img.URL, selected) {
+			slog.Info("Thumbnail: LLM selected image", "poi", p.NameEn, "url", img.URL)
+			return img.URL
 		}
-		return url
+		// Fallback: Check if it returned the filename
+		if strings.EqualFold(img.Title, selected) || strings.EqualFold(strings.TrimPrefix(img.Title, "File:"), selected) {
+			slog.Info("Thumbnail: LLM selected image by filename", "poi", p.NameEn, "url", img.URL)
+			return img.URL
+		}
 	}
 
-	slog.Debug("Thumbnail: LLM returned invalid filename", "response", selected)
+	slog.Debug("Thumbnail: LLM returned invalid selection", "response", selected)
 	return ""
 }
 

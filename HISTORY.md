@@ -7,6 +7,7 @@
     - Prioritizes wide-angle shots and clear photography over maps, diagrams, or portraits.
     - **Config**: Externalized the selection prompt to `configs/prompts/context/thumbnail_selector.tmpl` for easy tuning.
     - **Config**: Added `llm.profiles.thumbnails` (default `gemini-2.5-flash-lite`) to allow using a cheaper model for image selection.
+    - **Fix**: Switched thumbnail selection to use **Image URLs** instead of filenames to drastically improve LLM accuracy, and applied a filter to remove unwanted SVGs/Icons before the prompt.
 - **Refactor**: **Clean API Logic**
     - Reduced cyclomatic complexity in `internal/api/pois.go` by extracting helper functions for filename matching.
 

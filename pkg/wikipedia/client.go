@@ -201,7 +201,7 @@ func (c *Client) GetThumbnail(ctx context.Context, title, lang string) (string, 
 	for _, page := range apiResp.Query.Pages {
 		if page.Thumbnail.Source != "" {
 			// 1. Check filename/extension patterns
-			if isUnwantedImage(page.Thumbnail.Source) {
+			if IsUnwantedImage(page.Thumbnail.Source) {
 				continue
 			}
 			// 2. Check Aspect Ratio (Reject vertical portraits if Height > 1.2 * Width)
@@ -256,7 +256,7 @@ func (c *Client) getFirstContentImage(ctx context.Context, title, lang, endpoint
 	var imageTitle string
 	for _, page := range imgResp.Query.Pages {
 		for _, img := range page.Images {
-			if isUnwantedImage(img.Title) {
+			if IsUnwantedImage(img.Title) {
 				continue
 			}
 			imageTitle = img.Title
@@ -387,8 +387,8 @@ func (c *Client) GetImageURL(ctx context.Context, imageTitle, lang string) (stri
 	return c.getImageURL(ctx, imageTitle, lang, endpoint)
 }
 
-// isUnwantedImage checks if a filename or URL represents a vector graphic, icon, map, or other unwanted type.
-func isUnwantedImage(name string) bool {
+// IsUnwantedImage checks if a filename or URL represents a vector graphic, icon, map, or other unwanted type.
+func IsUnwantedImage(name string) bool {
 	lower := strings.ToLower(name)
 
 	// 1. Unwanted Extensions
@@ -423,4 +423,76 @@ func isUnwantedImage(name string) bool {
 	}
 
 	return false
+}
+
+// ImageResult holds a filename and its resolved URL.
+type ImageResult struct {
+	Title string
+	URL   string
+}
+
+// GetImagesWithURLs fetches all images for an article along with their URLs.
+// It uses a generator query to efficiently fetch image info in batch.
+func (c *Client) GetImagesWithURLs(ctx context.Context, title, lang string) ([]ImageResult, error) {
+	if lang == "" {
+		lang = "en"
+	}
+	endpoint := c.APIEndpoint
+	if endpoint == "" {
+		endpoint = fmt.Sprintf("https://%s.wikipedia.org/w/api.php", lang)
+	}
+
+	u, _ := url.Parse(endpoint)
+	q := u.Query()
+	q.Add("action", "query")
+	q.Add("generator", "images")
+	q.Add("titles", title)
+	q.Add("gimlimit", "50") // Fetch up to 50 images linked on the page
+	q.Add("prop", "imageinfo")
+	q.Add("iiprop", "url")
+	q.Add("format", "json")
+	q.Add("redirects", "1")
+	u.RawQuery = q.Encode()
+
+	body, err := c.request.Get(ctx, u.String(), "")
+	if err != nil {
+		return nil, err
+	}
+
+	var apiResp struct {
+		Query struct {
+			Pages map[string]struct {
+				Title     string `json:"title"`
+				ImageInfo []struct {
+					URL string `json:"url"`
+				} `json:"imageinfo"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode json: %w", err)
+	}
+
+	var results []ImageResult
+	for _, page := range apiResp.Query.Pages {
+		// page.Title is "File:..."
+		if IsUnwantedImage(page.Title) {
+			continue
+		}
+
+		url := ""
+		if len(page.ImageInfo) > 0 {
+			url = page.ImageInfo[0].URL
+		}
+
+		if url != "" {
+			results = append(results, ImageResult{
+				Title: page.Title,
+				URL:   url,
+			})
+		}
+	}
+
+	return results, nil
 }
