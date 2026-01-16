@@ -398,8 +398,8 @@ func (c *Classifier) resultFor(catName string) *model.ClassificationResult {
 
 // finalizeIgnored saves empty category to DB (marking as ignored) and returns ignored result.
 func (c *Classifier) finalizeIgnored(ctx context.Context, qid string, parents []string, label string) (*model.ClassificationResult, error) {
-	// Save with empty category to mark as ignored in cache
-	if err := c.store.SaveClassification(ctx, qid, "", parents, label); err != nil {
+	// Save with regular sentinel to mark as ignored in cache
+	if err := c.store.SaveClassification(ctx, qid, "__IGNORED__", parents, label); err != nil {
 		return nil, fmt.Errorf("failed to save ignored classification: %w", err)
 	}
 	return &model.ClassificationResult{Ignored: true}, nil

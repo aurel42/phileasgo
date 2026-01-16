@@ -14,3 +14,5 @@ X dynamic visibility boost: only for XL categories
 - make Phileas a male person (or make it configurable), give him a better and more intense default personality
 X add a streaming switch to the UI so it keeps updating in the background
 X expand blind spot to 360°
+- OBS overlay
+- add info about next city or town to script prompt, and find a good way to make use of it

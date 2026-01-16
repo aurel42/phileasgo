@@ -188,6 +188,9 @@ export const SmartMarkerLayer = ({ pois, minPoiScore, selectedPOI, currentNarrat
     // and can use stable LayerPoints for simulation.
     const overlayPane = map.getPanes().overlayPane;
 
+    // Guard: If overlayPane isn't ready (e.g., during initial render), don't render
+    if (!overlayPane) return null;
+
     return createPortal(
         <div className="smart-marker-layer" style={{
             position: 'absolute',

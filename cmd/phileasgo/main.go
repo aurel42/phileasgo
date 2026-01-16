@@ -309,6 +309,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 
 	statsH := api.NewStatsHandler(tr, svcs.PoiMgr)
 	configH := api.NewConfigHandler(st, cfg)
+	geoH := api.NewGeographyHandler(svcs.WikiSvc.GeoService())
 
 	srv := api.NewServer(cfg.Server.Address,
 		telH,
@@ -319,6 +320,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 		api.NewVisibilityHandler(vis, simClient, elevGetter, st, svcs.WikiSvc),
 		api.NewAudioHandler(ns.AudioService(), ns, st),
 		api.NewNarratorHandler(ns.AudioService(), ns),
+		geoH,
 		shutdownFunc,
 	)
 

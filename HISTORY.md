@@ -1,5 +1,20 @@
 ﻿# Release History
 
+## v0.2.98 (2026-01-16)
+- **Feature**: **OBS Overlay (Streamer Mode)**
+    - Added a dedicated, transparent overlay view (`/overlay`) designed for OBS/Streamlabs integration.
+    - **Components**: Includes a transparent "Look-Ahead" Mini-Map, compact Telemetry Bar (Alt/HDG/Speed/Location), and an animated POI Info Card.
+    - **Optimization**: Optimized for compositing with a fully transparent background and high-contrast, readable typography.
+- **Fix**: **Map Visibility & Overlay Polish**
+    - **Map Tiles**: Restored visibility of mini-map tiles in the OBS overlay by removing aggressive CSS opacity masks and switching to `dark_all` provider.
+    - **Sync**: Synchronized POI filtering (score thresholds) between Overlay and Main App to ensure consistent content.
+    - **Look-Ahead**: Implemented "Look-Ahead" camera offset for the overlay map, matching the main application's perspective.
+    - **Telemetry**: Refined telemetry bar typography, merged location data, and added "Next Town/Country" readout.
+- **Fix**: **Classifier Cache Poisoning**
+    - Resolved a critical bug where "ignored" categories were saved as empty strings (`""`) in the database, causing them to be treated as "Unknown" on subsequent runs.
+    - **Logic**: The system now explicitly persists an `__IGNORED__` sentinel value.
+    - **Impact**: Permanently suppresses unwanted category branches (e.g., "Census-designated places") that were previously slipping through as "Rescued" landmarks after cache eviction/reload.
+
 ## v0.2.97 (2026-01-16)
 - **Feature**: **Streaming Mode Toggle**
     - New checkbox in Configuration panel: "Keep updating in background".
