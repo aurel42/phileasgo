@@ -63,7 +63,7 @@ export const POIInfoPanel = ({ poi, pois, onClose }: POIInfoPanelProps) => {
 
         // Sync narration strategy if available in fresh data
         if (freshPoi?.narration_strategy) {
-            setStrategy(freshPoi.narration_strategy as any);
+            setStrategy(freshPoi.narration_strategy as 'min_skew' | 'uniform' | 'max_skew');
         }
 
         // 1. Use thumbnail from fresh data if available
@@ -88,7 +88,7 @@ export const POIInfoPanel = ({ poi, pois, onClose }: POIInfoPanelProps) => {
         };
 
         fetchThumbnail();
-    }, [poi, thumbnailFromData]);
+    }, [poi, thumbnailFromData, freshPoi?.narration_strategy]);
 
     if (!poi) return null;
 

@@ -13,7 +13,12 @@ type Units = 'km' | 'nm';
 
 
 function App() {
-  const { data: telemetry, status } = useTelemetry();
+  // Streaming mode state (persisted to localStorage)
+  const [streamingMode, setStreamingMode] = useState(() => {
+    const saved = localStorage.getItem('streamingMode');
+    return saved === 'true';
+  });
+  const { data: telemetry, status } = useTelemetry(streamingMode);
   const [units, setUnits] = useState<Units>('km');
   const [showCacheLayer, setShowCacheLayer] = useState(false);
   const [showVisibilityLayer, setShowVisibilityLayer] = useState(false);
@@ -107,16 +112,16 @@ function App() {
   }, [selectedPOI]);
 
   // Helper to update config via API
-  const updateConfig = useCallback((key: string, value: any) => {
+  const updateConfig = useCallback((key: string, value: string | number | boolean) => {
     // Optimistic update
-    if (key === 'units') setUnits(value);
-    if (key === 'show_cache_layer') setShowCacheLayer(value);
-    if (key === 'show_visibility_layer') setShowVisibilityLayer(value);
-    if (key === 'min_poi_score') setMinPoiScore(value);
-    if (key === 'filter_mode') setFilterMode(value);
-    if (key === 'target_poi_count') setTargetCount(value);
-    if (key === 'narration_frequency') setNarrationFrequency(value);
-    if (key === 'text_length') setTextLength(value);
+    if (key === 'units') setUnits(value as Units);
+    if (key === 'show_cache_layer') setShowCacheLayer(value as boolean);
+    if (key === 'show_visibility_layer') setShowVisibilityLayer(value as boolean);
+    if (key === 'min_poi_score') setMinPoiScore(value as number);
+    if (key === 'filter_mode') setFilterMode(value as string);
+    if (key === 'target_poi_count') setTargetCount(value as number);
+    if (key === 'narration_frequency') setNarrationFrequency(value as number);
+    if (key === 'text_length') setTextLength(value as number);
 
     fetch('/api/config', {
       method: 'PUT', // Changed from POST to PUT for consistency with existing handlers
@@ -236,6 +241,11 @@ function App() {
             onNarrationFrequencyChange={(val) => updateConfig('narration_frequency', val)}
             textLength={textLength}
             onTextLengthChange={(val) => updateConfig('text_length', val)}
+            streamingMode={streamingMode}
+            onStreamingModeChange={(val) => {
+              setStreamingMode(val);
+              localStorage.setItem('streamingMode', String(val));
+            }}
             isConfigOpen={isConfigOpen}
             onConfigOpenChange={setIsConfigOpen}
           />

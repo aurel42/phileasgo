@@ -1,5 +1,5 @@
 
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useMap, useMapEvents } from 'react-leaflet';
 import * as d3 from 'd3-force';
@@ -96,6 +96,7 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
                 height: MARKER_SIZE,
                 zIndex: zIndex,
                 cursor: 'pointer',
+                pointerEvents: 'auto', // Re-enable clicks
                 transition: 'transform 0.1s linear, background-color 0.3s ease', // Smooth out frame jitters
             }}
         >
@@ -120,122 +121,63 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
 
 export const SmartMarkerLayer = ({ pois, minPoiScore, selectedPOI, currentNarratedId, preparingId, onPOISelect }: SmartMarkerLayerProps) => {
     const map = useMap();
-    const [nodes, setNodes] = useState<SimulationNode[]>([]);
     const [isZooming, setIsZooming] = useState(false);
+    const [mapVersion, setMapVersion] = useState(0); // Force recalc on map move
 
-    // Safe ref to track simulation instance
-    const simRef = useRef<d3.Simulation<SimulationNode, undefined>>(null);
+    useMapEvents({
+        zoomstart: () => setIsZooming(true),
+        zoomend: () => {
+            setIsZooming(false);
+            setMapVersion(v => v + 1); // Trigger recalc after zoom
+        },
+        moveend: () => setMapVersion(v => v + 1), // Trigger recalc after pan
+    });
 
-    // Filter visible POIs (Logic copied/adapted from Map.tsx)
+    // Filter visible POIs
     const visiblePOIs = useMemo(() => {
         return pois.filter(p => isPOIVisible(p, minPoiScore) || p.wikidata_id === currentNarratedId || p.wikidata_id === preparingId);
     }, [pois, minPoiScore, currentNarratedId, preparingId]);
 
-    // Handle Map Events
-    useMapEvents({
-        zoomstart: () => setIsZooming(true),
-        zoomend: () => setIsZooming(false),
-        moveend: () => {
-            // Re-project everyone on move end if needed
-            // With Leaflet L.DomUtil.setPosition style, we might need to rely on the parent pane moving.
-            // But we are rendering absolute divs. We need to update anchors.
-            if (simRef.current) simRef.current.alpha(0.3).restart();
-        }
-    });
-
-    // 1. Initialize Simulation & Nodes
-    useEffect(() => {
-        // Project POIs to Nodes
-        // Only run this when POI list changes significantly or map state settles?
-        // Actually we need to run this on every render if we want reactive updates.
-        // But we want to preserve node positions for stability.
-
-        const currentNodes = simRef.current ? simRef.current.nodes() : [];
-        const nodeMap = new Map(currentNodes.map(n => [n.id, n]));
-
+    // Compute layout SYNCHRONOUSLY using D3 force simulation (no animation)
+    const nodes = useMemo(() => {
+        // Create nodes with projected positions
         const newNodes: SimulationNode[] = visiblePOIs.map(p => {
             const projected = map.latLngToLayerPoint([p.lat, p.lon]);
-            const existing = nodeMap.get(p.wikidata_id);
 
             // Priority Check
             let priority = 0;
             if (p.wikidata_id === currentNarratedId || p.wikidata_id === selectedPOI?.wikidata_id) priority = 2000;
             else if (p.is_msfs_poi) priority = 1000;
 
-            if (existing) {
-                // Update anchor, preserve x/y (momentum)
-                existing.anchorX = projected.x;
-                existing.anchorY = projected.y;
-                existing.priority = priority;
-                existing.poi = p; // Update data
-                return existing;
-            }
-
             return {
                 id: p.wikidata_id,
                 poi: p,
                 anchorX: projected.x,
                 anchorY: projected.y,
-                x: projected.x, // Start at anchor
+                x: projected.x,
                 y: projected.y,
-                r: MARKER_RADIUS, // + Padding handled in force
+                r: MARKER_RADIUS,
                 priority: priority,
             };
         });
 
-        // Setup Simulation
-        if (!simRef.current) {
-            simRef.current = d3.forceSimulation<SimulationNode>(newNodes)
-                .force('collide', d3.forceCollide<SimulationNode>().radius(d => d.r + COLLISION_PADDING).strength(0.8))
-                .force('x', d3.forceX<SimulationNode>(d => d.anchorX).strength(0.2)) // Pull to anchor
-                .force('y', d3.forceY<SimulationNode>(d => d.anchorY).strength(0.2))
-                .alphaDecay(0.05) // Stop relatively quickly
-                .on('tick', () => {
-                    // Update state to trigger render
-                    if (simRef.current) {
-                        setNodes([...simRef.current.nodes()]);
-                    }
-                });
-        } else {
-            // Hot update
-            simRef.current.nodes(newNodes);
-            simRef.current.alpha(0.3).restart(); // Re-heat slightly
+        if (newNodes.length === 0) return [];
+
+        // Create a fresh simulation and run it to completion synchronously
+        const simulation = d3.forceSimulation<SimulationNode>(newNodes)
+            .force('collide', d3.forceCollide<SimulationNode>().radius(d => d.r + COLLISION_PADDING).strength(0.8))
+            .force('x', d3.forceX<SimulationNode>(d => d.anchorX).strength(0.3))
+            .force('y', d3.forceY<SimulationNode>(d => d.anchorY).strength(0.3))
+            .stop(); // Don't auto-start
+
+        // Run simulation to completion (typically ~300 iterations is enough)
+        for (let i = 0; i < 120; ++i) {
+            simulation.tick();
         }
 
-        // Ensure manual tick triggers initial render
-
-
-        return () => {
-            // Cleanup? Usually d3 sim stops itself via alpha decay.
-            // simRef.current?.stop();
-        };
-
-    }, [visiblePOIs, map, currentNarratedId, selectedPOI]); // Re-run when list changes OR map reference changes (rare) AND relies on periodic updates for position? 
-    // Need to handle Map Move! The anchors change when map moves!
-
-    // Move Handler Update
-    useEffect(() => {
-        if (!simRef.current) return;
-
-        const updateAnchors = () => {
-            const activeNodes = simRef.current!.nodes();
-            activeNodes.forEach(n => {
-                const p = map.latLngToLayerPoint([n.poi.lat, n.poi.lon]);
-                n.anchorX = p.x;
-                n.anchorY = p.y;
-                // Ideally valid, but if we pan far, x/y become huge.
-            });
-            simRef.current?.alpha(0.3).restart();
-        };
-
-        map.on('move', updateAnchors); // update on drag? Might be expensive. 
-        // 'moveend' is safer for performance, but markers will 'drift' visually during drag.
-        // If we render inside the Overlay Pane, Leaflet moves the pane. We only need to re-project on Zoom.
-
-        return () => {
-            map.off('move', updateAnchors);
-        };
-    }, [map]);
+        return newNodes;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [visiblePOIs, currentNarratedId, selectedPOI?.wikidata_id, mapVersion]); // mapVersion forces recalc on map move
 
 
 

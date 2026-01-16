@@ -12,5 +12,5 @@ X dynamic visibility boost: only for XL categories
 - pick better thumbnails
 - better prediction of how long it takes to generate a narrative
 - make Phileas a male person (or make it configurable), give him a better and more intense default personality
-- add a streaming switch to the UI so it keeps updating in the background
-- expand blind spot to 360°
+X add a streaming switch to the UI so it keeps updating in the background
+X expand blind spot to 360°

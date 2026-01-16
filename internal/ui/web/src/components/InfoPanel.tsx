@@ -23,6 +23,8 @@ interface InfoPanelProps {
     onNarrationFrequencyChange: (freq: number) => void;
     textLength: number;
     onTextLengthChange: (length: number) => void;
+    streamingMode: boolean;
+    onStreamingModeChange: (streaming: boolean) => void;
     isConfigOpen: boolean;
     onConfigOpenChange: (isOpen: boolean) => void;
 }
@@ -42,6 +44,8 @@ export const InfoPanel = ({
     onNarrationFrequencyChange,
     textLength,
     onTextLengthChange,
+    streamingMode,
+    onStreamingModeChange,
     isConfigOpen,
     onConfigOpenChange
 }: InfoPanelProps) => {
@@ -485,6 +489,20 @@ export const InfoPanel = ({
                                 <span>Longer</span>
                                 <span>Longest</span>
                             </div>
+                        </div>
+
+                        <div className="config-label" style={{ marginTop: '16px' }}>STREAMING MODE</div>
+                        <div className="radio-group">
+                            <label className="radio-label">
+                                <input
+                                    type="checkbox"
+                                    checked={streamingMode}
+                                    onChange={(e) => onStreamingModeChange(e.target.checked)}
+                                /> Keep updating in background
+                            </label>
+                        </div>
+                        <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
+                            Enable for OBS/streaming to prevent UI pause when alt-tabbing
                         </div>
 
                         <div className="config-label" style={{ marginTop: '16px', color: '#ff4444' }}>DANGER ZONE</div>

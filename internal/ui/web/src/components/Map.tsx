@@ -177,7 +177,7 @@ interface MapProps {
 export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiScore, selectedPOI, onPOISelect, onMapClick }: MapProps) => {
 
     const { data: telemetry, isLoading: isConnecting } = useTelemetry();
-    const isConnected = !!telemetry;
+    const isConnected = telemetry?.SimState === 'active';
 
     // Prevent rendering fallback map until we are sure we are disconnected
     const showFallbackMap = !isConnecting && !isConnected;
@@ -227,8 +227,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
             {showFallbackMap && <CoverageLayer />}
             {showCacheLayer && <CacheLayer />}
             <VisibilityLayer enabled={showVisibilityLayer} />
-            {telemetry && (
-
+            {isConnected && telemetry && (
                 <>
                     <RangeRings lat={telemetry.Latitude} lon={telemetry.Longitude} units={units} />
                     <Recenter mapCenter={[telemetry.Latitude, telemetry.Longitude]} heading={telemetry.Heading} />

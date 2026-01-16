@@ -1,5 +1,20 @@
 ﻿# Release History
 
+## v0.2.97 (2026-01-16)
+- **Feature**: **Streaming Mode Toggle**
+    - New checkbox in Configuration panel: "Keep updating in background".
+    - When enabled, the UI continues polling the backend even when the browser tab is backgrounded.
+    - Ideal for OBS capture and streaming setups.
+- **Fix**: **Smart Markers Stabilization**
+    - Replaced animated D3 force simulation with a synchronous one-shot layout.
+    - Markers no longer wiggle endlessly; they compute their collision-free positions once and stay put.
+- **Fix**: **Clickable Smart Markers**
+    - Added `pointer-events: auto` to marker elements so they respond to clicks.
+- **Fix**: **World Map Disconnected Mode**
+    - Aircraft icon, range rings, and auto-recentering now only appear when `SimState === 'active'`.
+    - Prevents spurious (0,0) map resets and phantom aircraft in disconnected/world map mode.
+    - `CoverageLayer` (consolidated hexagons) now correctly displays when disconnected.
+
 ## v0.2.96 (2026-01-16)
 - **Feature**: **Configurable Wikidata Fetch Interval**
     - The rate limit for Wikidata tile fetching is now configurable via `phileas.yaml` (`wikidata.fetch_interval`).

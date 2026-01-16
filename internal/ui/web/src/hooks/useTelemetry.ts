@@ -9,11 +9,12 @@ const fetchTelemetry = async (): Promise<Telemetry> => {
     return response.json();
 };
 
-export const useTelemetry = () => {
+export const useTelemetry = (streamingMode: boolean = false) => {
     return useQuery({
         queryKey: ['telemetry'],
         queryFn: fetchTelemetry,
         refetchInterval: 500, // Poll every 500ms
+        refetchIntervalInBackground: streamingMode, // Keep polling when tab is backgrounded
         retry: false,
     });
 };
