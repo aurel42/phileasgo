@@ -33,10 +33,9 @@ func TestStubService_Lifecycle(t *testing.T) {
 
 func TestStubService_PlayPOI(t *testing.T) {
 	s := NewStubService()
-	ctx := context.Background()
 
 	// Play
-	s.PlayPOI(ctx, "test-poi", true, nil, "uniform")
+	s.PlayPOI(context.Background(), "Q1", true, false, nil, "uniform")
 
 	if s.NarratedCount() != 1 {
 		t.Errorf("NarratedCount() = %d, want 1", s.NarratedCount())

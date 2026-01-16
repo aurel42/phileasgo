@@ -38,9 +38,13 @@ func (m *mockNarratorService) PlayEssay(ctx context.Context, tel *sim.Telemetry)
 	m.playEssayCalled = true
 	return true
 }
-func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string) {
+func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
 	m.playPOICalled = true
 }
+
+// Wait, I messed up the signature in thought. It should be:
+// func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
+
 func (m *mockNarratorService) PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error {
 	m.prepareNextCalled = true
 	return nil
@@ -234,7 +238,8 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 	cfg.Narrator.MinScoreThreshold = 0.5
 	cfg.Narrator.PauseDuration = config.Duration(30 * time.Second) // Acts as Max for silence rule check
 	cfg.Narrator.Essay.Enabled = true
-	cfg.Narrator.Essay.Cooldown = config.Duration(10 * time.Minute)
+	cfg.Narrator.Essay.DelayBetweenEssays = config.Duration(10 * time.Minute)
+	cfg.Narrator.Essay.DelayBeforeEssay = config.Duration(1 * time.Second)
 
 	tests := []struct {
 		name              string
@@ -689,6 +694,14 @@ func TestNarrationJob_PostTakeoffGracePeriod(t *testing.T) {
 			pm := &mockPOIManager{best: poi, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
 			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+
+			// Prime the job with ground telemetry to avoid "Started Airborne" bypass logic
+			// This simulates that the application started while on the ground.
+			job.ShouldFire(&sim.Telemetry{
+				IsOnGround: true,
+				Latitude:   48.0,
+				Longitude:  -123.0,
+			})
 			job.lastTime = time.Time{} // Force cooldown ready
 
 			// Setup Takeoff Time
@@ -777,5 +790,31 @@ func TestNarrationJob_VisibilityBoostAGLCheck(t *testing.T) {
 				t.Errorf("visibility_boost = %v, want %v", got, tt.expectBoost)
 			}
 		})
+	}
+}
+
+func TestNarrationJob_StartAirborne_NoDelay(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Narrator.AutoNarrate = true
+	cfg.Narrator.MinScoreThreshold = 5.0
+
+	mockN := &mockNarratorService{}
+	pm := &mockPOIManager{best: &model.POI{Score: 10.0, WikidataID: "Q_AIR"}, lat: 48.0, lon: -123.0}
+	simC := &mockJobSimClient{state: sim.StateActive}
+	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+	// Important: We do NOT set job.takeoffTime manually. We test the startup logic.
+	job.lastTime = time.Time{} // Force ready for narration (silence wise)
+
+	// Simulate starting airborne (1000m AGL)
+	tel := &sim.Telemetry{
+		AltitudeAGL: 1000,
+		IsOnGround:  false,
+		Latitude:    48.0,
+		Longitude:   -123.0,
+	}
+
+	// Should fire IMMEDIATELY (no grace period) because we started in the air
+	if !job.ShouldFire(tel) {
+		t.Error("Started airborne but ShouldFire returned false (Grace period incorrectly applied?)")
 	}
 }

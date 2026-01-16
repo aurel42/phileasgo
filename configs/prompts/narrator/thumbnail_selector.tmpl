@@ -1,0 +1,19 @@
+Select the best thumbnail image for the Point of Interest: '{{.Name}}' (Category: {{.Category}}).
+The image will be displayed as a a small thumbnail in a UI.
+
+Prioritize in this order:
+1. Aerial photography, drone shots, or view from above (best for recognition).
+2. Clear, representative photography of the landmark/place.
+
+STRICTLY AVOID:
+- Maps, locator maps, diagrams.
+- Logos, coats of arms, flags, insignias.
+- Portraits of people (unless the POI IS a person, but assume landmarks).
+- Blurry images or scans of text.
+
+Available images:
+{{range .Images}}
+- {{.}}
+{{end}}
+
+Return ONLY the exact filename of the best image from the list. If no image is suitable, return nothing.

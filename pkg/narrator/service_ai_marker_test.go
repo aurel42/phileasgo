@@ -47,7 +47,7 @@ func TestAIService_NextPOIMarker(t *testing.T) {
 	// 1. Test Immediate Marker on PlayPOI
 	// This will start audio playback (MockAudio.IsPlayingVal = true)
 	// And launch monitorPlayback in background
-	svc.PlayPOI(ctx, "Q1", true, &sim.Telemetry{}, "uniform")
+	svc.PlayPOI(context.Background(), "Q_MARKER_TEST", true, false, &sim.Telemetry{}, "uniform")
 
 	if !mockBeacon.TargetSet {
 		t.Error("Expected Beacon to be set immediately upon PlayPOI call")

@@ -56,6 +56,7 @@ type MockClient struct {
 	stepStart        time.Time
 	lastTurnTime     time.Time
 	groundAlt        float64
+	safeAltReached   bool
 	elevation        *terrain.ElevationProvider
 }
 
@@ -194,33 +195,7 @@ func (m *MockClient) update() {
 		}
 
 	case StageAirborne:
-		m.tel.IsOnGround = false
-		m.tel.GroundSpeed = 120.0
-		// Wander logic
-		if now.Sub(m.lastTurnTime) > 60*time.Second {
-			change := (rand.Float64() * 20) - 10 // -10 to +10 degrees
-			m.tel.Heading = math.Mod(m.tel.Heading+change, 360.0)
-			if m.tel.Heading < 0 {
-				m.tel.Heading += 360.0
-			}
-			m.lastTurnTime = now
-		}
-
-		m.updateScenario(dt, now)
-
-		// Move
-		distNm := m.tel.GroundSpeed * (dt / 3600.0)
-		distDeg := distNm / 60.0
-		radHeading := m.tel.Heading * (math.Pi / 180.0)
-		m.tel.Latitude += distDeg * math.Cos(radHeading)
-		m.tel.Longitude += distDeg * math.Sin(radHeading)
-
-		// TERRAIN FOLLOWING: Ensure we don't crash into mountains.
-		// Enforce min 500ft AGL if airborne.
-		minAlt := m.groundAlt + 500.0
-		if m.tel.AltitudeMSL < minAlt {
-			m.tel.AltitudeMSL = minAlt
-		}
+		m.updateAirborne(dt, now)
 	}
 
 	// Update Prediction for ALL stages

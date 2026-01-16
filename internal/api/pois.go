@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"phileasgo/pkg/llm"
+	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/poi"
 	"phileasgo/pkg/store"
@@ -18,15 +20,19 @@ import (
 
 // POIHandler exposes POI data to the frontend.
 type POIHandler struct {
-	mgr   *poi.Manager
-	wp    *wikipedia.Client
-	store store.Store
+	mgr       *poi.Manager
+	wp        *wikipedia.Client
+	store     store.Store
+	llm       llm.Provider
+	promptMgr *prompts.Manager
 }
 
 // NewPOIHandler creates a new POI handler.
-func NewPOIHandler(mgr *poi.Manager, wp *wikipedia.Client, st store.Store) *POIHandler {
-	return &POIHandler{mgr: mgr, wp: wp, store: st}
+func NewPOIHandler(mgr *poi.Manager, wp *wikipedia.Client, st store.Store, llmProv llm.Provider, promptMgr *prompts.Manager) *POIHandler {
+	return &POIHandler{mgr: mgr, wp: wp, store: st, llm: llmProv, promptMgr: promptMgr}
 }
+
+// ... existing handler methods ...
 
 // HandleTracked handles GET /api/pois/tracked.
 func (h *POIHandler) HandleTracked(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +132,7 @@ func (h *POIHandler) fetchAndCacheThumbnail(ctx context.Context, p *model.POI) (
 		return "", nil
 	}
 
-	// Parse title and lang from WPURL (e.g., https://en.wikipedia.org/wiki/Title)
+	// Parse title and lang from WPURL
 	parsed, err := url.Parse(p.WPURL)
 	if err != nil {
 		return "", err
@@ -136,11 +142,22 @@ func (h *POIHandler) fetchAndCacheThumbnail(ctx context.Context, p *model.POI) (
 	title := strings.TrimPrefix(parsed.Path, "/wiki/")
 	title, _ = url.PathUnescape(title)
 
-	// Fetch thumbnail from Wikipedia
-	thumbURL, err := h.wp.GetThumbnail(ctx, title, lang)
-	if err != nil {
-		return "", err
+	var thumbURL string
+
+	// Option A: LLM-based Smart Selection (if provider available)
+	if h.llm != nil {
+		thumbURL = h.selectThumbnailWithLLM(ctx, title, lang, p)
 	}
+
+	// Option B: Fallback to Heuristic (if LLM failed or not available)
+	if thumbURL == "" {
+		slog.Debug("Thumbnail: LLM selection failed or unavailable, falling back to heuristics", "poi", p.NameEn)
+		thumbURL, err = h.wp.GetThumbnail(ctx, title, lang)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	if thumbURL == "" {
 		return "", nil
 	}
@@ -153,6 +170,100 @@ func (h *POIHandler) fetchAndCacheThumbnail(ctx context.Context, p *model.POI) (
 		}
 	}
 	return thumbURL, nil
+}
+
+// findBestFilenameMatch attempts to match the LLM's selection against the valid filenames list.
+// It handles exact matches, case-insensitive matches, and "File:" prefix variations.
+func findBestFilenameMatch(selected string, filenames []string) string {
+	// Verify the LLM returned one of the valid filenames (hallucination check)
+	// Also clean up any quotes or markdown
+	selected = strings.Trim(selected, "\"`'")
+
+	// Find exact match in original list to ensure valid filename handling
+	for _, f := range filenames {
+		// Loose match to handle potential LLM formatting differences
+		if strings.EqualFold(f, selected) || strings.HasSuffix(f, selected) {
+			return f
+		}
+	}
+
+	// If LLM returned "File:Foo.jpg" but list had "Foo.jpg", try stripping "File:"
+	cleanSelected := strings.TrimPrefix(selected, "File:")
+	for _, f := range filenames {
+		cleanF := strings.TrimPrefix(f, "File:")
+		if strings.EqualFold(cleanF, cleanSelected) {
+			return f
+		}
+	}
+
+	return ""
+}
+
+func (h *POIHandler) selectThumbnailWithLLM(ctx context.Context, title, lang string, p *model.POI) string {
+	filenames, err := h.wp.GetImageFilenames(ctx, title, lang)
+	if err != nil {
+		slog.Warn("Thumbnail: Failed to fetch filenames for LLM selection", "error", err)
+		return ""
+	}
+
+	if len(filenames) == 0 {
+		return ""
+	}
+
+	// Constrain list size to avoid context headers/costs? 50 is fine usually.
+	if len(filenames) > 50 {
+		filenames = filenames[:50]
+	}
+
+	data := struct {
+		Name     string
+		Category string
+		Images   []string
+	}{
+		Name:     p.NameEn,
+		Category: p.Category,
+		Images:   filenames,
+	}
+
+	var prompt string
+	var errPrompt error
+	if h.promptMgr != nil {
+		prompt, errPrompt = h.promptMgr.Render("narrator/thumbnail_selector.tmpl", data)
+		if errPrompt != nil {
+			slog.Error("Thumbnail: Failed to execute prompt template", "error", errPrompt)
+			return ""
+		}
+	} else {
+		slog.Warn("Thumbnail: Prompt manager missing")
+		return ""
+	}
+
+	resp, err := h.llm.GenerateText(ctx, "ThumbnailSelector", prompt)
+	if err != nil {
+		slog.Warn("Thumbnail: LLM generation failed", "error", err)
+		return ""
+	}
+
+	selected := strings.TrimSpace(resp)
+	if selected == "" {
+		return ""
+	}
+
+	bestMatch := findBestFilenameMatch(selected, filenames)
+
+	if bestMatch != "" {
+		// Resolve URL
+		slog.Info("Thumbnail: LLM selected image", "poi", p.NameEn, "selected", bestMatch)
+		url, err := h.wp.GetImageURL(ctx, bestMatch, lang)
+		if err != nil {
+			slog.Warn("Thumbnail: Failed to resolve URL for selected image", "image", bestMatch, "error", err)
+			return ""
+		}
+		return url
+	}
+
+	slog.Debug("Thumbnail: LLM returned invalid filename", "response", selected)
+	return ""
 }
 
 // HandleResetLastPlayed handles POST /api/pois/reset-last-played

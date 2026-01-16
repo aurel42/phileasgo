@@ -26,7 +26,7 @@ type AudioController interface {
 type NarratorController interface {
 	IsActive() bool
 	IsGenerating() bool
-	PlayPOI(ctx context.Context, id string, manual bool, tel *sim.Telemetry, strategy string)
+	PlayPOI(ctx context.Context, id string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string)
 	CurrentPOI() *model.POI
 	GetPreparedPOI() *model.POI
 	CurrentTitle() string
@@ -89,7 +89,8 @@ func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
 
 	// Trigger narration asynchronously (Manual play -> uniform strategy, or pass explicitly if needed)
 	// We use background context because the HTTP request context will be canceled when this handler returns.
-	go h.narrator.PlayPOI(context.Background(), req.POIID, true, nil, req.Strategy)
+	// enqueueIfBusy = true to support queuing user requests if narration is ongoing
+	go h.narrator.PlayPOI(context.Background(), req.POIID, true, true, nil, req.Strategy)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]string{

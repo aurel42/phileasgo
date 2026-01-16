@@ -23,6 +23,8 @@ interface InfoPanelProps {
     onNarrationFrequencyChange: (freq: number) => void;
     textLength: number;
     onTextLengthChange: (length: number) => void;
+    isConfigOpen: boolean;
+    onConfigOpenChange: (isOpen: boolean) => void;
 }
 
 export const InfoPanel = ({
@@ -39,11 +41,12 @@ export const InfoPanel = ({
     narrationFrequency,
     onNarrationFrequencyChange,
     textLength,
-    onTextLengthChange
+    onTextLengthChange,
+    isConfigOpen,
+    onConfigOpenChange
 }: InfoPanelProps) => {
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
-    const [configOpen, setConfigOpen] = useState(false);
     const [simSource, setSimSource] = useState<string>('mock');
     const [ttsEngine, setTtsEngine] = useState<string>('edge-tts');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -305,17 +308,17 @@ export const InfoPanel = ({
 
 
             {/* CONFIGURATION */}
-            <div className="hud-card col-layout" style={{ gap: configOpen ? '12px' : '0' }}>
+            <div className="hud-card col-layout" style={{ gap: isConfigOpen ? '12px' : '0' }}>
                 <div
                     className="label interactive"
-                    onClick={() => setConfigOpen(!configOpen)}
+                    onClick={() => onConfigOpenChange(!isConfigOpen)}
                     style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', width: '100%', userSelect: 'none' }}
                 >
                     <span style={{ marginRight: 'auto' }}>CONFIGURATION</span>
-                    <span style={{ transform: configOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+                    <span style={{ transform: isConfigOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
                 </div>
 
-                {configOpen && (
+                {isConfigOpen && (
                     <div className="config-group">
                         <div className="config-label">SIMULATION SOURCE</div>
                         <div className="radio-group">

@@ -21,7 +21,8 @@ function App() {
   const [filterMode, setFilterMode] = useState<string>('fixed');
   const [targetCount, setTargetCount] = useState(20);
   const [narrationFrequency, setNarrationFrequency] = useState(3);
-  const [textLength, setTextLength] = useState(1);
+  const [textLength, setTextLength] = useState(3);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const pois = useTrackedPOIs();
   const { status: narratorStatus } = useNarrator();
 
@@ -57,6 +58,16 @@ function App() {
 
       // Check if we already auto-opened this specific POI
       if (lastAutoOpenedIdRef.current === poiId) {
+        return;
+      }
+
+      // DO NOT auto-open if the configuration panel is open
+      if (isConfigOpen) {
+        return;
+      }
+
+      // DO NOT auto-open if the user has manually selected a POI
+      if (selectedPOI && !autoOpenedRef.current) {
         return;
       }
 
@@ -129,6 +140,7 @@ function App() {
         setFilterMode(data.filter_mode || 'fixed');
         setTargetCount(data.target_poi_count ?? 20);
         setNarrationFrequency(data.narration_frequency ?? 3);
+        setTextLength(data.text_length ?? 3);
       })
       .catch(e => console.error("Failed to fetch config", e));
   }, []);
@@ -224,6 +236,8 @@ function App() {
             onNarrationFrequencyChange={(val) => updateConfig('narration_frequency', val)}
             textLength={textLength}
             onTextLengthChange={(val) => updateConfig('text_length', val)}
+            isConfigOpen={isConfigOpen}
+            onConfigOpenChange={setIsConfigOpen}
           />
         )}
       </div>

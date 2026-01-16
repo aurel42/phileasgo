@@ -327,6 +327,66 @@ func (c *Client) getImageURL(ctx context.Context, imageTitle, lang, endpoint str
 	return "", nil
 }
 
+// GetImageFilenames fetches a list of all images associated with the article.
+// Returns a slice of filenames (e.g., "File:Example.jpg").
+func (c *Client) GetImageFilenames(ctx context.Context, title, lang string) ([]string, error) {
+	if lang == "" {
+		lang = "en"
+	}
+	endpoint := c.APIEndpoint
+	if endpoint == "" {
+		endpoint = fmt.Sprintf("https://%s.wikipedia.org/w/api.php", lang)
+	}
+
+	u, _ := url.Parse(endpoint)
+	q := u.Query()
+	q.Add("action", "query")
+	q.Add("prop", "images")
+	q.Add("imlimit", "50") // Fetch enough candidates
+	q.Add("titles", title)
+	q.Add("format", "json")
+	q.Add("redirects", "1")
+	u.RawQuery = q.Encode()
+
+	body, err := c.request.Get(ctx, u.String(), "")
+	if err != nil {
+		return nil, err
+	}
+
+	var imgResp struct {
+		Query struct {
+			Pages map[string]struct {
+				Images []struct {
+					Title string `json:"title"`
+				} `json:"images"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+	if err := json.Unmarshal(body, &imgResp); err != nil {
+		return nil, fmt.Errorf("failed to decode images json: %w", err)
+	}
+
+	var filenames []string
+	for _, page := range imgResp.Query.Pages {
+		for _, img := range page.Images {
+			filenames = append(filenames, img.Title)
+		}
+	}
+	return filenames, nil
+}
+
+// GetImageURL public wrapper for fetching URL of a specific file.
+func (c *Client) GetImageURL(ctx context.Context, imageTitle, lang string) (string, error) {
+	if lang == "" {
+		lang = "en"
+	}
+	endpoint := c.APIEndpoint
+	if endpoint == "" {
+		endpoint = fmt.Sprintf("https://%s.wikipedia.org/w/api.php", lang)
+	}
+	return c.getImageURL(ctx, imageTitle, lang, endpoint)
+}
+
 // isUnwantedImage checks if a filename or URL represents a vector graphic, icon, map, or other unwanted type.
 func isUnwantedImage(name string) bool {
 	lower := strings.ToLower(name)

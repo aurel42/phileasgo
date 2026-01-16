@@ -242,6 +242,11 @@ func (c *Client) connect() {
 
 	c.handle = handle
 	c.connected = true
+
+	c.telemetryMu.Lock()
+	c.simState = sim.StateInactive
+	c.telemetryMu.Unlock()
+
 	c.lastMessageTime = time.Now() // Initialize watchdog
 	c.logger.Info("SimConnect Connected")
 

@@ -94,7 +94,7 @@ func (m *apiMockStore) Close() error { return nil }
 func TestHandleResetLastPlayed(t *testing.T) {
 	mockStore := &apiMockStore{}
 	mgr := poi.NewManager(&config.Config{}, mockStore, nil)
-	handler := NewPOIHandler(mgr, nil, mockStore) // WP Client nil is fine here
+	handler := NewPOIHandler(mgr, nil, mockStore, nil, nil) // WP Client nil is fine here
 
 	t.Run("Success", func(t *testing.T) {
 		reqBody := map[string]float64{
@@ -148,7 +148,7 @@ func TestHandleTracked(t *testing.T) {
 	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P1", NameEn: "POI 1", Score: 10.0, IsVisible: true})
 	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P2", NameEn: "POI 2", Score: 8.0, IsVisible: true})
 
-	handler := NewPOIHandler(mgr, nil, mockStore)
+	handler := NewPOIHandler(mgr, nil, mockStore, nil, nil)
 
 	t.Run("Success", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/pois/tracked", nil)

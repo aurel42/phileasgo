@@ -181,7 +181,7 @@ func run(ctx context.Context, configPath string) error {
 	}
 
 	// Server
-	return runServer(ctx, appCfg, svcs, narratorSvc, simClient, visCalc, tr, st, telH, elevGetter)
+	return runServer(ctx, appCfg, svcs, narratorSvc, simClient, visCalc, tr, st, telH, elevGetter, promptMgr)
 }
 
 func initDB(appCfg *config.Config) (*db.DB, store.Store, error) {
@@ -302,7 +302,7 @@ func initLOS(cfg *config.Config) (*terrain.ElevationProvider, *terrain.LOSChecke
 	return provider, terrain.NewLOSChecker(provider)
 }
 
-func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *narrator.AIService, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler, elevGetter terrain.ElevationGetter) error {
+func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *narrator.AIService, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler, elevGetter terrain.ElevationGetter, promptMgr *prompts.Manager) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	shutdownFunc := func() { quit <- syscall.SIGTERM }
@@ -315,7 +315,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 		configH,
 		statsH,
 		api.NewCacheHandler(svcs.WikiSvc),
-		api.NewPOIHandler(svcs.PoiMgr, svcs.WikipediaClient, st),
+		api.NewPOIHandler(svcs.PoiMgr, svcs.WikipediaClient, st, ns.LLMProvider(), promptMgr),
 		api.NewVisibilityHandler(vis, simClient, elevGetter, st),
 		api.NewAudioHandler(ns.AudioService(), ns, st),
 		api.NewNarratorHandler(ns.AudioService(), ns),

@@ -106,9 +106,10 @@ type TTSConfig struct {
 
 // EssayConfig holds settings for essay narration.
 type EssayConfig struct {
-	Enabled        bool     `yaml:"enabled"`
-	Cooldown       Duration `yaml:"cooldown"`
-	ScoreThreshold float64  `yaml:"score_threshold"`
+	Enabled            bool     `yaml:"enabled"`
+	DelayBetweenEssays Duration `yaml:"delay_between_essays"`
+	DelayBeforeEssay   Duration `yaml:"delay_before_essay"`
+	ScoreThreshold     float64  `yaml:"score_threshold"`
 }
 
 // AudioEffectsConfig holds settings for audio post-processing.
@@ -289,9 +290,10 @@ func DefaultConfig() *Config {
 			TemperatureBase:           1.0,
 			TemperatureJitter:         0.3,
 			Essay: EssayConfig{
-				Enabled:        true,
-				Cooldown:       Duration(10 * time.Minute),
-				ScoreThreshold: 2.0,
+				Enabled:            true,
+				DelayBetweenEssays: Duration(10 * time.Minute),
+				DelayBeforeEssay:   Duration(2 * time.Minute),
+				ScoreThreshold:     2.0,
 			},
 			AudioEffects: AudioEffectsConfig{
 				Headset:    false,

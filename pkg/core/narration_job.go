@@ -39,8 +39,9 @@ type NarrationJob struct {
 	lastCheckedCount int
 
 	// Post-takeoff grace period tracking
-	takeoffTime time.Time // Track when we left the ground
-	lastAGL     float64   // Last known AGL for visibility boost check
+	takeoffTime    time.Time // Track when we left the ground
+	lastAGL        float64   // Last known AGL for visibility boost check
+	hasCheckedOnce bool      // Flag to handle startup state (e.g. starting mid-flight)
 }
 
 func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker) *NarrationJob {
@@ -79,6 +80,11 @@ func (j *NarrationJob) checkNarratorReady() bool {
 		}
 	}
 
+	// Track rising edge/steady state of playback
+	if j.narrator.IsPlaying() {
+		j.wasBusy = true
+	}
+
 	// Playback just finished - start cooldown
 	// This logic handles the "falling edge" of IsPlaying
 	if !j.narrator.IsPlaying() && j.wasBusy {
@@ -115,6 +121,11 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		return false
 	}
 
+	// PRIORITY: Check for pending manual override
+	if j.narrator.HasPendingManualOverride() {
+		return true
+	}
+
 	// 2. Frequency & Pipeline Logic
 	if !j.checkFrequencyRules() {
 		return false
@@ -142,7 +153,19 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 func (j *NarrationJob) checkPostTakeoffGrace(t *sim.Telemetry) bool {
 	if t.IsOnGround {
 		j.takeoffTime = time.Time{} // Reset
-		return true                 // Allowed on ground (for airport narration)
+		j.hasCheckedOnce = true
+		return true // Allowed on ground (for airport narration)
+	}
+
+	// Startup Logic: If first check and we are ALREADY airborne, assume mid-flight
+	if !j.hasCheckedOnce {
+		j.hasCheckedOnce = true
+		if !t.IsOnGround {
+			slog.Info("NarrationJob: Started airborne, bypassing takeoff grace period")
+			// Set takeoff time to distant past so check passes
+			j.takeoffTime = time.Now().Add(-24 * time.Hour)
+			return true
+		}
 	}
 
 	if j.takeoffTime.IsZero() {
@@ -290,15 +313,25 @@ func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 		return false
 	}
 
-	// Essay-specific cooldown
+	// Disable Essay in "Rarely" mode
+	if j.getNarrationFrequency() == 1 {
+		return false
+	}
+
+	// Essay-specific cooldown (DelayBetweenEssays)
 	if !j.lastEssayTime.IsZero() {
-		if time.Since(j.lastEssayTime) < time.Duration(j.cfg.Narrator.Essay.Cooldown) {
+		if time.Since(j.lastEssayTime) < time.Duration(j.cfg.Narrator.Essay.DelayBetweenEssays) {
 			return false
 		}
 	}
 
-	// Silence rule: at least 2x PauseDuration
-	// We use PauseDuration as the base unit for silence
+	// Global delay before essay (Time since last narration)
+	// Must be quiet for at least DelayBeforeEssay
+	if time.Since(j.lastTime) < time.Duration(j.cfg.Narrator.Essay.DelayBeforeEssay) {
+		return false
+	}
+
+	// Silence rule: at least 2x PauseDuration (Legacy check, maybe redundant now but safer to keep)
 	minSilence := time.Duration(j.cfg.Narrator.PauseDuration) * 2
 	if time.Since(j.lastTime) < minSilence {
 		return false
@@ -319,10 +352,15 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	}
 	defer j.Unlock()
 
-	// 0. Check for Staged/Prepared Narrative (Pipeline)
-	// If the narrator has a POI ready (or generating), we MUST play that one
-	// to avoid the "Jumping Beacon" issue (Scheduler calculating X while Narrator plays Y).
-	// 0. Check for Staged/Prepared Narrative (Pipeline)
+	// 0. Check for Pending Manual Override (Priority 1)
+	if id, strat, ok := j.narrator.GetPendingManualOverride(); ok {
+		slog.Info("NarrationJob: Executing queued manual override", "poi_id", id)
+		// Force play immediately (enqueue=false)
+		j.narrator.PlayPOI(ctx, id, true, false, t, strat)
+		return
+	}
+
+	// 1. Check for Staged/Prepared Narrative (Pipeline)
 	// If the narrator has a POI ready (or generating), we MUST play that one
 	// to avoid the "Jumping Beacon" issue (Scheduler calculating X while Narrator plays Y).
 	if staged := j.narrator.GetPreparedPOI(); staged != nil {
@@ -336,7 +374,7 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 		// We call PlayPOI with the STAGED ID.
 		// PlayPOI will see the ID, set the beacon correctly, and then (re)discover the staged content.
 		// Strategy is less relevant here as it's already baked into the narrative, but we pass "uniform" or reuse.
-		j.narrator.PlayPOI(ctx, staged.WikidataID, false, t, narrator.StrategyUniform)
+		j.narrator.PlayPOI(ctx, staged.WikidataID, false, false, t, narrator.StrategyUniform)
 		return
 	}
 
@@ -371,18 +409,6 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	// Note: getVisibleCandidate already respects dynamic minScore from config
 	// But it does NOT respect the "Rarely" filter yet.
 	// We need to inject that into getVisibleCandidate or check it here.
-	if j.getNarrationFrequency() == 1 {
-		analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
-		if ok && narrator.DetermineSkewStrategy(best, analyzer, t.IsOnGround) != narrator.StrategyMaxSkew {
-			// Best visible candidate is NOT a Lone Wolf, so skip.
-			// Try Essay? Or just return?
-			// ShouldFire said "true", implying SOME candidate was valid.
-			// But getVisibleCandidate might have picked a different one (visible vs score).
-			// If the visible one isn't Lone Wolf, we shouldn't play it in "Rarely" mode.
-			j.tryEssay(ctx, t)
-			return
-		}
-	}
 
 	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer), t.IsOnGround)
 	// No more cooldown calculation here!
@@ -406,7 +432,7 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 			slog.Error("NarrationJob: Pipeline preparation failed", "error", err)
 		}
 	} else {
-		j.narrator.PlayPOI(ctx, best.WikidataID, false, t, strategy)
+		j.narrator.PlayPOI(ctx, best.WikidataID, false, false, t, strategy)
 	}
 }
 
@@ -462,6 +488,16 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 		if !j.isPlayable(poi) {
 			continue
 		}
+
+		// RARELY FILTER (Frequency 1): Ensure we only pick "Lone Wolves"
+		if j.getNarrationFrequency() == 1 {
+			analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
+			if ok && narrator.DetermineSkewStrategy(poi, analyzer, t.IsOnGround) != narrator.StrategyMaxSkew {
+				// Skip this candidate as it doesn't meet the "Rarely" criteria
+				continue
+			}
+		}
+
 		checkedCount++
 
 		// Get POI ground elevation (meters -> feet)
@@ -486,7 +522,7 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 	}
 
 	if checkedCount != j.lastCheckedCount {
-		slog.Warn("NarrationJob: All POIs blocked by LOS", "checked", checkedCount, "total_candidates", len(candidates))
+		slog.Warn("NarrationJob: All POIs blocked by LOS or Filter", "checked", checkedCount, "total_candidates", len(candidates))
 		j.lastCheckedCount = checkedCount
 	}
 	return nil // All blocked

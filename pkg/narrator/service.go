@@ -27,13 +27,17 @@ type Service interface {
 	// IsPlaying returns true if narration audio is currently playing.
 	IsPlaying() bool
 	// PlayPOI triggers narration for a specific POI.
-	PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string)
+	PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string)
 	// PrepareNextNarrative prepares a narrative for a POI and stages it for later playback.
 	PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error
 	// GetPreparedPOI returns the POI currently staged or generating, if any.
 	GetPreparedPOI() *model.POI
+	// HasPendingManualOverride returns true if a user-requested POI is queued.
+	HasPendingManualOverride() bool
+	// GetPendingManualOverride returns and clears the pending manual override.
+	GetPendingManualOverride() (string, string, bool)
 	// GenerateNarrative prepares a narrative for a POI without playing it.
-	GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) (*Narrative, error)
+	GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry, force bool) (*Narrative, error)
 	// PlayNarrative plays a previously generated narrative.
 	PlayNarrative(ctx context.Context, n *Narrative) error
 	// PlayEssay triggers a regional essay narration.
@@ -144,7 +148,7 @@ func (s *StubService) Stats() map[string]any {
 }
 
 // PlayPOI triggers narration for a specific POI (stub: just logs).
-func (s *StubService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string) {
+func (s *StubService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if manual {
@@ -166,8 +170,18 @@ func (s *StubService) GetPreparedPOI() *model.POI {
 	return nil
 }
 
+// HasPendingManualOverride returns true if pending (stub: false).
+func (s *StubService) HasPendingManualOverride() bool {
+	return false
+}
+
+// GetPendingManualOverride returns pending override (stub: none).
+func (s *StubService) GetPendingManualOverride() (poiID, strategy string, ok bool) {
+	return "", "", false
+}
+
 // GenerateNarrative prepares a narrative (stub).
-func (s *StubService) GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) (*Narrative, error) {
+func (s *StubService) GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry, force bool) (*Narrative, error) {
 	slog.Info("Narrator stub: generated narrative for POI", "poi_id", poiID)
 	return &Narrative{
 		POI:      &model.POI{WikidataID: poiID},

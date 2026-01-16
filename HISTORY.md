@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.92 (2026-01-16)
+- **Feature**: **Intelligent Thumbnail Selection**
+    - Implemented LLM-based image selection for POI Thumbnails.
+    - Instead of randomly picking the first image, the system now asks Gemini to select the best visual representation of the POI from the available Wikipedia images.
+    - Prioritizes wide-angle shots and clear photography over maps, diagrams, or portraits.
+    - **Config**: Externalized the selection prompt to `configs/prompts/narrator/thumbnail_selector.tmpl` for easy tuning.
+- **Refactor**: **Clean API Logic**
+    - Reduced cyclomatic complexity in `internal/api/pois.go` by extracting helper functions for filename matching.
+
+
 ## v0.2.91 (2026-01-15)
 - **Feature**: **Manual Text Length Controls**
     - Implemented a segmented length selector (1-5) in the Config Panel to scale narration length.
@@ -16,6 +26,20 @@
 - **Tests**: **Coverage**
     - Added comprehensive table-driven tests for the new Multiplier logic in `pkg/narrator/multiplier_test.go`.
     - Verified proper state persistence for text length settings.
+- **Narrator**: **Manual Override Logic**:
+    - **Fix**: Clicking a POI manually now immediately cancels any pending or generating auto-narration to prioritize the user's request.
+    - Resolves the "Narrator already generating" error when intervening during background pipeline work.
+- **Narrator**: **Essay Logic Refinement**:
+    - **Frequency**: Essays are now completely disabled when Narrator Frequency is set to "Rarely".
+    - **Silence Rule**: Added `delay_before_essay` (default: 2m) to prevent essays from triggering too soon after a POI narration.
+    - **Config**: Renamed `cooldown` to `delay_between_essays` for clarity.
+- **Fix**: **Takeoff Delay**:
+    - The 1-minute takeoff suppression grace period is now bypassed if the server is started while the aircraft is already airborne (mid-flight start).
+- **Fix**: **SimConnect State**:
+    - Correctly transitions to `Inactive` state instead of `Disconnected` when SimConnect is connected but data is paused/invalid.
+- **Fix**: **Frontend Focus Stealing**:
+    - Resolved a regression where the Info Panel would automatically switch focus to the narrator's target even if the user had manually selected a different POI.
+    - The UI now respects manual selection state (`autoOpened` flag) to prevent interrupting user interaction.
 
 ## v0.2.90 (2026-01-14)
 - **Feature**: **Sparse Tile Retrieval (Continuous Adaptive Density)**:
@@ -1354,6 +1378,9 @@
 - **Fix**: Beacon formation despawn now uses the correct SimConnect connection handle. Previously, the formation beacons would stop updating but not actually despawn when reaching the 3km trigger distance.
 - **UI**: Thumbnail moved to the right side of the POI Info Panel with responsive sizing to fill available space.
 - **UI**: Increased thumbnail resolution from 300px to 800px for better VR readability.
+- **Thumbnail Logic**: Switched from heuristic filtering to LLM-based Smart Selection for POI thumbnails. This ensures better selection of aerial and representative photos while avoiding maps and logos (e.g., Lechtaler Alpen map issue).
+- **Backend**: `pkg/core` tests fixed for "Start Airborne" bypass logic.
+- **Frontend**: Fixed Info Panel focus stealing issues.
 - **Config**: Updated City category weight from 0.5 to 0.8.
 - **Prompt**: Fixed label for recent POIs context in script template (was "Description", now "Recent POIs").
 

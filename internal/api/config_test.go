@@ -53,7 +53,7 @@ func TestHandleGetConfig(t *testing.T) {
 			wantCacheLayer:  false,
 			wantFilterMode:  "fixed",
 			wantTargetCount: 20,
-			wantTextLength:  1, // Default from store (missing = 1)
+			wantTextLength:  3, // Default from store (missing = 3)
 		},
 		{
 			name: "Azure Config with Store Overrides",

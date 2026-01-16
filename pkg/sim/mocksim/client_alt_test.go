@@ -42,3 +42,38 @@ func TestAltitudeOffset(t *testing.T) {
 		t.Errorf("Expected positive climb rate, got %f", tel.VerticalSpeed)
 	}
 }
+
+func TestTakeoffSmoothness(t *testing.T) {
+	// Start at 0ft AGL (Ground).
+	cfg := Config{
+		DurationParked: 0,
+		DurationTaxi:   0,
+		DurationHold:   0,
+		StartAlt:       100.0, // 100ft MSL
+	}
+	client := NewClient(cfg)
+	defer client.Close()
+
+	// Wait for airborne
+	waitForReq(t, func() bool {
+		tel, _ := client.GetTelemetry(context.Background())
+		return !tel.IsOnGround
+	}, 10*time.Second, "Became Airborne")
+
+	// Sample shortly after airborne
+	time.Sleep(200 * time.Millisecond) // Wait 2 ticks
+	tel, _ := client.GetTelemetry(context.Background())
+
+	// We should be CLIMBING from 100ft.
+	// Rate is 500 fpm = 8.33 ft/sec.
+	// After ~0.2s, we should be at ~101.6 ft.
+	// IF the bug triggers, we would snap to 100 + 500 = 600ft instantly.
+
+	if tel.AltitudeMSL > 500.0 {
+		t.Errorf("Altitude snapped too high! Got %.1f, expected near 100", tel.AltitudeMSL)
+	}
+
+	if tel.AltitudeMSL < 100.0 {
+		t.Errorf("Altitude dropped below start! Got %.1f", tel.AltitudeMSL)
+	}
+}

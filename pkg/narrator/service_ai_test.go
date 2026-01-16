@@ -135,7 +135,7 @@ func TestAIService_PlayPOI(t *testing.T) {
 			// Hack: In `mocks_dev_test`, we can add a channel to signal completion in MockAudio if successful.
 
 			// For this test, I'll rely on a small sleep for simplicity as it's a unit test with mocks (fast).
-			svc.PlayPOI(context.Background(), tt.poiID, true, &sim.Telemetry{}, "uniform")
+			svc.PlayPOI(context.Background(), tt.poiID, true, false, &sim.Telemetry{}, "uniform")
 
 			// Wait a bit
 			time.Sleep(200 * time.Millisecond)
@@ -222,7 +222,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			svc := NewAIService(&config.Config{}, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil)
 			svc.Start()
 
-			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, &tt.telemetry, "uniform")
+			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, false, &tt.telemetry, "uniform")
 			time.Sleep(20 * time.Millisecond) // Wait for go routine
 
 			for _, expect := range tt.expectInPrompt {
@@ -338,7 +338,7 @@ func TestAIService_NavUnits(t *testing.T) {
 			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil)
 			svc.Start()
 
-			svc.PlayPOI(context.Background(), "QTest", true, &tt.telemetry, "uniform")
+			svc.PlayPOI(context.Background(), "Q8080", true, false, &tt.telemetry, "uniform")
 			time.Sleep(50 * time.Millisecond) // Wait for goroutine
 
 			if capturedPrompt == "" {
@@ -369,7 +369,7 @@ func TestAIService_BeaconCleanup(t *testing.T) {
 	}}, mockBeacon, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
 
 	svc.Start()
-	svc.PlayPOI(context.Background(), "Q1", true, &sim.Telemetry{}, "uniform")
+	svc.PlayPOI(context.Background(), "Q12345", true, false, &sim.Telemetry{}, "uniform")
 	time.Sleep(50 * time.Millisecond) // Wait for go routine
 
 	if !mockBeacon.Cleared {
@@ -399,7 +399,7 @@ func TestAIService_GeneratePlay(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Generate
-	narrative, err := svc.GenerateNarrative(ctx, "QGen", "uniform", &sim.Telemetry{})
+	narrative, err := svc.GenerateNarrative(ctx, "QGen", "uniform", &sim.Telemetry{}, false)
 	if err != nil {
 		t.Fatalf("GenerateNarrative failed: %v", err)
 	}
@@ -516,7 +516,7 @@ func TestAIService_LatencyTracking(t *testing.T) {
 	}
 
 	// 2. GenerateNarrative (should take ~50ms)
-	_, err := svc.GenerateNarrative(context.Background(), "QLatency", "uniform", &sim.Telemetry{})
+	_, err := svc.GenerateNarrative(context.Background(), "QLatency", "uniform", &sim.Telemetry{}, false)
 	if err != nil {
 		t.Fatalf("GenerateNarrative failed: %v", err)
 	}
@@ -612,7 +612,7 @@ func TestAIService_PipelineFlow(t *testing.T) {
 			}
 
 			// 2. Play
-			svc.PlayPOI(ctx, tt.requestPOIID, false, &sim.Telemetry{}, "uniform")
+			svc.PlayPOI(ctx, tt.requestPOIID, false, false, &sim.Telemetry{}, "uniform")
 
 			// 3. Verify
 			func() {
@@ -663,7 +663,7 @@ func TestAIService_ScriptValidation(t *testing.T) {
 		&MockBeacon{},
 		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
 
-	_, err := svc.GenerateNarrative(context.Background(), "QLong", "uniform", &sim.Telemetry{})
+	_, err := svc.GenerateNarrative(context.Background(), "QLong", "uniform", &sim.Telemetry{}, false)
 	if err == nil {
 		t.Fatal("Expected error for excessively long script, got nil")
 	}

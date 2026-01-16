@@ -57,6 +57,13 @@ type AIService struct {
 	currentTopic      *EssayTopic
 	currentEssayTitle string
 
+	// Generation State
+	genCancelFunc context.CancelFunc
+
+	// Pending Manual Override (Queued)
+	pendingManualID       string
+	pendingManualStrategy string
+
 	// Replay State
 	lastPOI        *model.POI
 	lastEssayTopic *EssayTopic
@@ -143,6 +150,27 @@ func (s *AIService) IsActive() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.active
+}
+
+// HasPendingManualOverride returns true if a user-requested POI is queued.
+func (s *AIService) HasPendingManualOverride() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pendingManualID != ""
+}
+
+// GetPendingManualOverride returns and clears the pending manual override.
+func (s *AIService) GetPendingManualOverride() (poiID, strategy string, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pendingManualID != "" {
+		id := s.pendingManualID
+		strat := s.pendingManualStrategy
+		s.pendingManualID = ""
+		s.pendingManualStrategy = ""
+		return id, strat, true
+	}
+	return "", "", false
 }
 
 // IsGenerating returns true if narrator is currently generating script/audio.

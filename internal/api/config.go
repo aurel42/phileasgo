@@ -114,7 +114,7 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 	}
 
 	textLenStr, _ := h.store.GetState(ctx, "text_length")
-	textLength := 1 // Default (Shortest = x1.0)
+	textLength := 3 // Default (Normal = x1.5)
 	if textLenStr != "" {
 		var val int
 		if _, err := fmt.Sscanf(textLenStr, "%d", &val); err == nil {

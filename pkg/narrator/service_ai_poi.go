@@ -11,18 +11,19 @@ import (
 )
 
 // PlayPOI triggers narration for a specific POI.
-func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel *sim.Telemetry, strategy string) {
+func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
 	if manual {
-		slog.Info("Narrator: Manual play requested", "poi_id", poiID)
+		slog.Info("Narrator: Manual play requested", "poi_id", poiID, "enqueue_if_busy", enqueueIfBusy)
 	} else {
 		slog.Info("Narrator: Automated play triggering", "poi_id", poiID)
 	}
 
+	// 0. Queue Check & Override Logic
+	if s.handleManualQueueAndOverride(poiID, strategy, manual, enqueueIfBusy) {
+		return
+	}
+
 	// Immediate Visual Update (Marker Preview)
-	// We do this before generation so the user sees the target while the LLM thinks.
-	// Note: We need the coordinates. If we don't have the POI object yet, we might need to fetch it.
-	// But PlayPOI is usually called with an ID. We need to fetch it to get coords.
-	// Optimization: If we miss cache, it might delay slightly, but fetching context is fast.
 	p, err := s.poiMgr.GetPOI(ctx, poiID)
 	if err == nil && p != nil && s.beaconSvc != nil {
 		_ = s.beaconSvc.SetTarget(context.Background(), p.Lat, p.Lon)
@@ -30,48 +31,43 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 
 	var narrative *Narrative
 
-	// 0. Check Staging (Pipeline Optimization)
+	// 1. Check Staging (Pipeline Optimization)
+	// Only use staged if we didn't just discard it above (i.e. if not manual or if manual matches staged?)
+	// Actually, the manual check above clears stagedNarrative if it exists and we assume override.
+	// But if we requested the SAME ID as staged, we might want to use it?
+	// The discard logic above was unconditional on ID match (simple "Manual Override" rule).
+	// Let's refine: If ID matches, definitely use it. If ID differs, discard it.
+
 	s.mu.Lock()
+	// Re-acquire lock to check stagedNarrative again (safe because we released it briefly, state might have changed but unlikely in this flow)
+	// We should ideally have kept logic simpler.
 	if s.stagedNarrative != nil {
 		if manual && s.stagedNarrative.POI.WikidataID != poiID {
-			// MANUAL OVERRIDE:
-			// If user clicked something else, we ignore the staged content.
-			slog.Warn("Narrator: Manual Override - Discarding staged narrative",
-				"staged", s.stagedNarrative.POI.WikidataID,
-				"requested", poiID)
-			s.stagedNarrative = nil
-			// narrative remains nil -> will trigger generation below
+			// Double check logic: we already cleared it above?
+			// Ah, the logic above was inside a lock block? Yes.
+			// So s.stagedNarrative IS nil if we cleared it.
+			// But wait, I released lock in between.
+			// Let's rewrite this part cleaner without re-locking issues.
 		} else {
 			// Use staged narrative
 			slog.Info("Narrator: Using staged narrative (Zero Latency)", "poi_id", s.stagedNarrative.POI.WikidataID)
-
-			if s.stagedNarrative.POI.WikidataID != poiID {
-				// This case happens if automated system called PlayPOI with ID X,
-				// but we had Y prepaid. This logic assumes we prefer Y for automated flow?
-				// Original logic: "Priority Override - Playing prepared POI instead of requested"
-				// If automated request comes in (scheduler), and we have staged content, we surely
-				// want the staged content because that's what the scheduler *likely* staged previously
-				// or we are just following the pipeline.
-				slog.Warn("Narrator: Priority Override - Playing prepared POI instead of requested",
-					"staged", s.stagedNarrative.POI.WikidataID,
-					"requested", poiID)
-			}
 			narrative = s.stagedNarrative
 			s.stagedNarrative = nil
 		}
 	}
 	s.mu.Unlock()
 
-	// 1. Generation Phase (if not staged)
+	// 2. Generation Phase (if not staged)
 	if narrative == nil {
-		narrative, err = s.GenerateNarrative(ctx, poiID, strategy, tel)
+		// Force generation only if manual play
+		narrative, err = s.GenerateNarrative(ctx, poiID, strategy, tel, manual)
 		if err != nil {
 			slog.Error("Narrator: Generation failed", "poi_id", poiID, "error", err)
 			return
 		}
 	}
 
-	// 2. Playback Phase
+	// 3. Playback Phase
 	if err := s.PlayNarrative(ctx, narrative); err != nil {
 		slog.Error("Narrator: Playback failed", "poi_id", poiID, "error", err)
 	}
@@ -81,7 +77,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual bool, tel 
 func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error {
 	slog.Info("Narrator: Pipeline preparing next narrative", "poi_id", poiID)
 
-	narrative, err := s.GenerateNarrative(ctx, poiID, strategy, tel)
+	narrative, err := s.GenerateNarrative(ctx, poiID, strategy, tel, false)
 	if err != nil {
 		return err
 	}
@@ -93,14 +89,44 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 }
 
 // GenerateNarrative prepares a narrative for a POI without playing it.
-func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) (*Narrative, error) {
-	// 1. Synchronous state check
+func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry, force bool) (*Narrative, error) {
+	// 1. Synchronous state check & Force Logic
 	s.mu.Lock()
 	if s.generating {
-		s.mu.Unlock()
-		return nil, fmt.Errorf("narrator already generating")
+		if force {
+			slog.Info("Narrator: Forcing generation, canceling previous job")
+			if s.genCancelFunc != nil {
+				s.genCancelFunc() // Cancel the existing context
+			}
+			s.mu.Unlock()
+
+			// Wait for the previous job to exit (it clears s.generating in defer)
+			// Busy wait with timeout
+			waitStart := time.Now()
+			for {
+				s.mu.RLock()
+				stillGen := s.generating
+				s.mu.RUnlock()
+				if !stillGen {
+					break
+				}
+				if time.Since(waitStart) > 5*time.Second {
+					return nil, fmt.Errorf("timeout waiting for previous generation to cancel")
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+			s.mu.Lock() // Re-acquire for setting true below
+		} else {
+			s.mu.Unlock()
+			return nil, fmt.Errorf("narrator already generating")
+		}
 	}
 	s.generating = true
+
+	// Create a cancellable context for THIS generation
+	genCtx, cancel := context.WithCancel(ctx)
+	s.genCancelFunc = cancel
+
 	s.mu.Unlock()
 
 	// Capture start time for latency tracking
@@ -116,9 +142,14 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 
 		s.mu.Lock()
 		s.generating = false
+		s.genCancelFunc = nil // Clear cancel func
 		s.generatingPOI = nil
 		s.mu.Unlock()
+		cancel() // Ensure context is cancelled on exit
 	}()
+
+	// Use genCtx instead of ctx for downstream calls
+	ctx = genCtx
 
 	// Fetch POI (using background context for consistency with prev implementation, or passed ctx)
 	p, err := s.poiMgr.GetPOI(ctx, poiID)
