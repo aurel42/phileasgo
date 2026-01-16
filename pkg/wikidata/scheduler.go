@@ -71,51 +71,9 @@ func (s *Scheduler) GetCandidates(lat, lon, heading float64, isAirborne bool, re
 			}
 		}
 
-		// Filter Logic
-		isValid := true
-		if dist > s.maxDistKm {
-			isValid = false
-		} else if isAirborne {
-			// Cone Check: +/- 60 degrees (Total 120)
-			// Origin: Current Position (lat, lon)
-			// Exception: Always include the tile we are currently ON
-			// Exception: Always include very close tiles (< 5km) for safety
-			if curr != startTile && dist > 5.0 {
-				bearing := calculateBearing(lat, lon, cLat, cLon)
-				diff := math.Abs(bearing - heading)
-				if diff > 180 {
-					diff = 360 - diff
-				}
-				if diff > 60.0 { // 60 degrees half-arc for 120 degree cone
-					isValid = false
-				}
-			}
-		}
-
-		if isValid {
-			c := Candidate{
-				Tile: curr,
-				Lat:  cLat,
-				Lon:  cLon,
-				Dist: dist,
-			}
-
-			// 2. Redundancy Check (Proximity to Cache)
-			isCloseToCache := s.checkRedundancy(curr, recentTiles)
-
-			redundancy := 0.0
-			if isCloseToCache {
-				redundancy = 1.0
-				c.IsRedundant = true
-			}
-
-			// Formula: Cost = Dist + (Redundancy * (Dist * PenaltyFactor + BasePenalty))
-			// Tuned for ~2-3 rows sparse before filling.
-			// PenaltyFactor = 1.0
-			// BasePenalty = 5.0
-			c.Cost = c.Dist + (redundancy * (c.Dist*1.0 + 5.0))
-
-			candidates = append(candidates, c)
+		// Process Candidate
+		if cand, ok := s.processCandidate(curr, cLat, cLon, dist, lat, lon, heading, isAirborne, startTile, recentTiles); ok {
+			candidates = append(candidates, cand)
 		}
 	}
 
@@ -125,6 +83,55 @@ func (s *Scheduler) GetCandidates(lat, lon, heading float64, isAirborne bool, re
 	})
 
 	return candidates
+}
+
+func (s *Scheduler) processCandidate(curr HexTile, cLat, cLon, dist, lat, lon, heading float64, isAirborne bool, startTile HexTile, recentTiles map[string]bool) (Candidate, bool) {
+	// Filter Logic
+	if dist > s.maxDistKm {
+		return Candidate{}, false
+	}
+
+	deviation := 0.0
+	if isAirborne {
+		// Cone Check: +/- 60 degrees (Total 120)
+		if curr != startTile && dist > 5.0 {
+			bearing := calculateBearing(lat, lon, cLat, cLon)
+			diff := math.Abs(bearing - heading)
+			if diff > 180 {
+				diff = 360 - diff
+			}
+			if diff > 60.0 { // 60 degrees half-arc for 120 degree cone
+				return Candidate{}, false
+			}
+			deviation = diff
+		}
+	}
+
+	c := Candidate{
+		Tile: curr,
+		Lat:  cLat,
+		Lon:  cLon,
+		Dist: dist,
+	}
+
+	// 2. Redundancy Check (Proximity to Cache)
+	isCloseToCache := s.checkRedundancy(curr, recentTiles)
+
+	redundancy := 0.0
+	if isCloseToCache {
+		redundancy = 1.0
+		c.IsRedundant = true
+	}
+
+	// Cost Formula:
+	// Base: Distance
+	// Penalty 1: Redundancy (Dist + 5km penalty)
+	// Penalty 2: Heading Deviation (Bonus for being dead-ahead)
+	//            Factor 0.1 means 10 degrees off = +1km "virtual distance"
+	//            This prioritizes tiles in front over closer ones to the side.
+	c.Cost = c.Dist + (redundancy * (c.Dist*1.0 + 5.0)) + (deviation * 0.1)
+
+	return c, true
 }
 
 func (s *Scheduler) checkRedundancy(curr HexTile, recentTiles map[string]bool) bool {

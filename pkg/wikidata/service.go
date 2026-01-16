@@ -188,8 +188,15 @@ func (s *Service) processTick(ctx context.Context) {
 	// 3. Get Candidates
 	candidates := s.scheduler.GetCandidates(lat, lon, hdg, isAirborne, recentKeys)
 
-	// 4. Find first uncached candidate
+	// 4. Process candidates (fast-forward through cache)
+	processedCount := 0
+	const maxProcessedPerTick = 20
+
 	for _, c := range candidates {
+		if processedCount >= maxProcessedPerTick {
+			break
+		}
+
 		key := c.Tile.Key()
 
 		// Memory Cache Check
@@ -201,7 +208,7 @@ func (s *Service) processTick(ctx context.Context) {
 		}
 
 		s.recentMu.Lock()
-		s.recentTiles[key] = time.Now() // Mark before fetch to prevent immediate retry logic overlap
+		s.recentTiles[key] = time.Now() // Mark before fetch
 		s.recentMu.Unlock()
 
 		s.logger.Debug("Checking tile",
@@ -211,20 +218,27 @@ func (s *Service) processTick(ctx context.Context) {
 			"redundant", c.IsRedundant,
 			"airborne", isAirborne,
 		)
-		s.fetchTile(ctx, c)
-		return // One fetch per tick
-	}
 
+		// fetchTile now returns true if it was a cache hit (fast), false if network/slow/error
+		isCacheHit := s.fetchTile(ctx, c)
+		processedCount++
+
+		if !isCacheHit {
+			// If we did a network request (or tried validation), stop for this tick to respect rate limits
+			return
+		}
+		// If cache hit, continue to next candidate immediately
+	}
 }
 
-func (s *Service) fetchTile(ctx context.Context, c Candidate) {
+func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
 	// 1. In-flight check
 	key := c.Tile.Key()
 	s.inflightMu.Lock()
 	if s.inflightTiles[key] {
 		s.inflightMu.Unlock()
 		s.logger.Debug("Skipping in-flight tile", "key", key)
-		return
+		return true // Treat as "fast" / no-op to avoid blocking loop, or false? True is safer to keep loop going.
 	}
 	s.inflightTiles[key] = true
 	s.inflightMu.Unlock()
@@ -250,7 +264,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 		} else {
 			s.logger.Warn("Failed to process cached tile", "key", key, "error", err)
 		}
-		return
+		return true // Cache Hit = Fast
 	}
 
 	// 3. Construct Query (Network Path)
@@ -273,7 +287,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 	articles, rawJSON, err := s.client.QuerySPARQL(ctx, query, c.Tile.Key(), radiusMeters)
 	if err != nil {
 		s.logger.Error("SPARQL Failed", "error", err)
-		return
+		return false // Network attempt failed, but consumed quota/time
 	}
 	_ = rawJSON // rawJSON no longer needed here; caching is internal
 
@@ -286,6 +300,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) {
 			"saved", len(processed),
 			"rescued", rescued)
 	}
+	return false // Network request made = Slow
 }
 
 func (s *Service) gridCenter(t HexTile) (lat, lon float64) {

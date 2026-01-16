@@ -399,29 +399,6 @@ func IsUnwantedImage(name string) bool {
 		}
 	}
 
-	// 2. Unwanted Keywords in Filename
-	badKeywords := []string{
-		"logo", "icon", "flag", "coat of arms", "wappen", "insignia",
-		"map", "locator", "plan", "diagram", "chart", "graph",
-		"stub", "placeholder", "missing",
-		"collage", "montage", // often composite images that look bad as thumb
-		"signature", "restored", // historically restored documents?
-	}
-	for _, kw := range badKeywords {
-		// Check for word boundaries roughly (simple contains is safer for now)
-		// e.g. "Flag_of_..."
-		if strings.Contains(lower, kw) {
-
-			// Exception: "map" might trigger on "maple" (rare but possible).
-			// But usually filenames are "Map_of_X".
-			// Let's be slightly more specific for "map" if needed, but "locator" covers many maps.
-			if kw == "map" && strings.Contains(lower, "maple") {
-				continue
-			}
-			return true
-		}
-	}
-
 	return false
 }
 

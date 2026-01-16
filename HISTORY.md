@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.93 (2026-01-16)
+- **Feature**: **Smart Tile Prioritization (Heading Bias)**
+    - The Wikidata Scheduler now prioritizes tiles directly in front of the aircraft (`AngleDiff < 60°`).
+    - **Logic**: Adds a penalty to tiles at the edge of the scan cone, allowing the system to fetch "dead ahead" tiles 4-5km further away than peripheral tiles.
+    - **Impact**: Ensures the "Gap" in front of the aircraft is filled first during high-speed flight.
+- **Optimization**: **Geodata Cache Fast-Forward**
+    - Resolved a bottleneck where the scheduler was rate-limiting **Cache Hits** to the same speed as Network Requests (1 per 5s).
+    - **Logic**: The system now iterates through up to 20 cached tiles *per tick* (instant verification), drastically reducing the time required to "burn through" known areas and reach new data boundaries.
+    - **Fix**: Prevents the "4-minute stall" when flying through previously scanned regions.
+
 ## v0.2.92 (2026-01-16)
 - **Feature**: **Intelligent Thumbnail Selection**
     - Implemented LLM-based image selection for POI Thumbnails.
