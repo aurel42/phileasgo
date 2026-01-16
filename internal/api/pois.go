@@ -238,7 +238,7 @@ func (h *POIHandler) selectThumbnailWithLLM(ctx context.Context, title, lang str
 		return ""
 	}
 
-	resp, err := h.llm.GenerateText(ctx, "ThumbnailSelector", prompt)
+	resp, err := h.llm.GenerateText(ctx, "thumbnails", prompt)
 	if err != nil {
 		slog.Warn("Thumbnail: LLM generation failed", "error", err)
 		return ""

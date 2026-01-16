@@ -6,6 +6,7 @@
     - Instead of randomly picking the first image, the system now asks Gemini to select the best visual representation of the POI from the available Wikipedia images.
     - Prioritizes wide-angle shots and clear photography over maps, diagrams, or portraits.
     - **Config**: Externalized the selection prompt to `configs/prompts/context/thumbnail_selector.tmpl` for easy tuning.
+    - **Config**: Added `llm.profiles.thumbnails` (default `gemini-2.5-flash-lite`) to allow using a cheaper model for image selection.
 - **Refactor**: **Clean API Logic**
     - Reduced cyclomatic complexity in `internal/api/pois.go` by extracting helper functions for filename matching.
 
