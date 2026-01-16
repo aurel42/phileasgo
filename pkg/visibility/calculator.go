@@ -182,9 +182,24 @@ func (c *Calculator) calculateDistanceDecay(distNM, maxDist float64) float64 {
 }
 
 func isBlindSpot(altAGL, distNM, relBearing float64) bool {
-	blindRadius := 1.0 * math.Min((altAGL-50.0)/4950.0, 1.0)
-	if altAGL < 500 {
-		blindRadius = 0.1
+	// 0. No blind spot below 500ft
+	if altAGL <= 500.0 {
+		return false
+	}
+
+	// 1. Calculate Blind Radius
+	// Scale linearly from 0 NM at 500ft to 5.0 NM at 35,000ft
+	// Formula: (Alt - 500) / (34500) * 5.0
+	const ceiling = 35000.0
+	const floor = 500.0
+	const maxRadius = 5.0
+
+	var blindRadius float64
+	if altAGL >= ceiling {
+		blindRadius = maxRadius
+	} else {
+		ratio := (altAGL - floor) / (ceiling - floor)
+		blindRadius = ratio * maxRadius
 	}
 
 	// Blind spot is under nose (small radius) and Forward (+/- 90 deg)

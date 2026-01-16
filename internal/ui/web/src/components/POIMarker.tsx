@@ -81,7 +81,7 @@ export const POIMarker = React.memo(({ poi, highlighted, preparing, onClick }: P
         <Marker
             position={[poi.lat, poi.lon]}
             icon={icon}
-            zIndexOffset={highlighted ? 1000 : 0}
+            zIndexOffset={highlighted ? 2000 : (poi.is_msfs_poi ? 1000 : 0)}
             eventHandlers={{
                 click: () => onClick(poi)
             }}

@@ -186,7 +186,7 @@ func (s *Service) processTick(ctx context.Context) {
 	s.recentMu.RUnlock()
 
 	// 3. Get Candidates
-	candidates := s.scheduler.GetCandidates(lat, lon, hdg, isAirborne, recentKeys)
+	candidates := s.scheduler.GetCandidates(lat, lon, hdg, telemetry.GroundSpeed, isAirborne, recentKeys)
 
 	// 4. Process candidates (fast-forward through cache)
 	processedCount := 0
@@ -350,6 +350,49 @@ func (s *Service) GetCachedTiles(ctx context.Context, lat, lon, radiusKm float64
 		results = append(results, CachedTile{Lat: cLat, Lon: cLon, Radius: r})
 	}
 
+	return results, nil
+}
+
+// GetGlobalCoverage returns aggregated coverage data (Res 4 tiles) for the world map.
+func (s *Service) GetGlobalCoverage(ctx context.Context) ([]CachedTile, error) {
+	keys, err := s.store.ListGeodataCacheKeys(ctx, "wd_h3_")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list cache keys: %w", err)
+	}
+
+	// Deduplication Map for Res 4 parents
+	parents := make(map[string]bool)
+
+	for _, k := range keys {
+		if len(k) <= 6 {
+			continue
+		}
+		index := k[6:] // Strip "wd_h3_"
+		tile := HexTile{Index: index}
+
+		// Convert to Parent Res 4 (~22km edge)
+		parent := s.scheduler.grid.Parent(tile, 4)
+		if parent.Index != "" {
+			parents[parent.Index] = true
+		}
+	}
+
+	var results []CachedTile
+	for idx := range parents {
+		pTile := HexTile{Index: idx}
+		cLat, cLon := s.scheduler.grid.TileCenter(pTile)
+		radius := s.scheduler.grid.TileRadius(pTile) * 1000 // KM to Meters for API consistency
+
+		// Round to int for cleanliness
+		r := int(math.Ceil(radius))
+		results = append(results, CachedTile{
+			Lat:    cLat,
+			Lon:    cLon,
+			Radius: r,
+		})
+	}
+
+	s.logger.Info("Aggregated global coverage", "raw_tiles", len(keys), "aggregated_tiles", len(results))
 	return results, nil
 }
 

@@ -33,7 +33,7 @@ type Candidate struct {
 
 // GetCandidates returns a list of tiles sorted by priority (Cost = Dist + RedundancyPenalty)
 // to check for fetching.
-func (s *Scheduler) GetCandidates(lat, lon, heading float64, isAirborne bool, recentTiles map[string]bool) []Candidate {
+func (s *Scheduler) GetCandidates(lat, lon, heading, groundSpeedKts float64, isAirborne bool, recentTiles map[string]bool) []Candidate {
 	startTile := s.grid.TileAt(lat, lon)
 
 	// Spiral search to find candidates within maxRadius
@@ -72,7 +72,7 @@ func (s *Scheduler) GetCandidates(lat, lon, heading float64, isAirborne bool, re
 		}
 
 		// Process Candidate
-		if cand, ok := s.processCandidate(curr, cLat, cLon, dist, lat, lon, heading, isAirborne, startTile, recentTiles); ok {
+		if cand, ok := s.processCandidate(curr, cLat, cLon, dist, lat, lon, heading, groundSpeedKts, isAirborne, startTile, recentTiles); ok {
 			candidates = append(candidates, cand)
 		}
 	}
@@ -85,7 +85,7 @@ func (s *Scheduler) GetCandidates(lat, lon, heading float64, isAirborne bool, re
 	return candidates
 }
 
-func (s *Scheduler) processCandidate(curr HexTile, cLat, cLon, dist, lat, lon, heading float64, isAirborne bool, startTile HexTile, recentTiles map[string]bool) (Candidate, bool) {
+func (s *Scheduler) processCandidate(curr HexTile, cLat, cLon, dist, lat, lon, heading, groundSpeedKts float64, isAirborne bool, startTile HexTile, recentTiles map[string]bool) (Candidate, bool) {
 	// Filter Logic
 	if dist > s.maxDistKm {
 		return Candidate{}, false
@@ -127,9 +127,16 @@ func (s *Scheduler) processCandidate(curr HexTile, cLat, cLon, dist, lat, lon, h
 	// Base: Distance
 	// Penalty 1: Redundancy (Dist + 5km penalty)
 	// Penalty 2: Heading Deviation (Bonus for being dead-ahead)
-	//            Factor 0.1 means 10 degrees off = +1km "virtual distance"
-	//            This prioritizes tiles in front over closer ones to the side.
-	c.Cost = c.Dist + (redundancy * (c.Dist*1.0 + 5.0)) + (deviation * 0.1)
+	//            Factor depends on speed:
+	//            < 100kts: 0.1 (Base)
+	//            > 100kts: Increases by 0.4 for every 100kts
+	//            300kts -> 0.9 (10 deg deviation = +9km penalty)
+	headingWeight := 0.1
+	if groundSpeedKts > 100.0 {
+		headingWeight = 0.1 + ((groundSpeedKts - 100.0) / 100.0 * 0.4)
+	}
+
+	c.Cost = c.Dist + (redundancy * (c.Dist*1.0 + 5.0)) + (deviation * headingWeight)
 
 	return c, true
 }

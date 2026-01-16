@@ -149,6 +149,17 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
                         color: 'var(--accent)',
                         fontWeight: 600
                     }}>
+                        {/* MSFS Star Icon */}
+                        {narratorStatus?.current_poi?.is_msfs_poi && (
+                            <span style={{
+                                color: '#fbbf24',
+                                filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
+                                marginRight: '4px',
+                                fontSize: '14px',
+                                display: 'inline-block',
+                                verticalAlign: 'middle'
+                            }} title="MSFS Scenery">★</span>
+                        )}
                         {displayTitle || (isPreparing ? "Loading..." : "")}
                     </span>
 

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"net/http"
@@ -11,7 +12,13 @@ import (
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/terrain"
 	"phileasgo/pkg/visibility"
+	"phileasgo/pkg/wikidata"
 )
+
+// CoverageProvider interface for fetching tile coverage
+type CoverageProvider interface {
+	GetGlobalCoverage(ctx context.Context) ([]wikidata.CachedTile, error)
+}
 
 // VisibilityHandler handles map visibility requests
 type VisibilityHandler struct {
@@ -19,15 +26,36 @@ type VisibilityHandler struct {
 	simClient  sim.Client
 	elevation  terrain.ElevationGetter
 	store      store.Store
+	coverage   CoverageProvider
 }
 
 // NewVisibilityHandler creates a new handler
-func NewVisibilityHandler(calc *visibility.Calculator, sim sim.Client, elev terrain.ElevationGetter, st store.Store) *VisibilityHandler {
+func NewVisibilityHandler(calc *visibility.Calculator, sim sim.Client, elev terrain.ElevationGetter, st store.Store, cov CoverageProvider) *VisibilityHandler {
 	return &VisibilityHandler{
 		calculator: calc,
 		simClient:  sim,
 		elevation:  elev,
 		store:      st,
+		coverage:   cov,
+	}
+}
+
+// HandleGetCoverage handles GET /api/map/coverage
+func (h *VisibilityHandler) HandleGetCoverage(w http.ResponseWriter, r *http.Request) {
+	if h.coverage == nil {
+		http.Error(w, "Coverage provider not configured", http.StatusNotImplemented)
+		return
+	}
+
+	tiles, err := h.coverage.GetGlobalCoverage(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to get coverage", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(tiles); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
 

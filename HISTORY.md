@@ -1,5 +1,32 @@
 ﻿# Release History
 
+## v0.2.94 (2026-01-16)
+- **Feature**: **Dynamic "Corridor" Tile Scheduling**
+    - The tile scheduler now dynamically adjusts the "heading penalty" based on the aircraft's ground speed to prioritize cells directly in front of the flight path.
+    - **Logic**: Above 100kts, the penalty weight increases linearly (e.g., 0.9 at 300kts).
+    - **Impact**: At high speeds, the scheduler ignores tiles to the side, focusing strictly on filling the map "dead ahead" to keep up with the aircraft.
+- **UI**: **MSFS POI Star Icon**
+    - Points of Interest sourced from MSFS (SimObjects) now display a gold star (★) icon next to their name in the Playback Controls.
+    - Matches the visual style of the map markers, making it easier to identify high-quality scenery during flight.
+- **Tweak**: **Thumbnail Prompt Logic**
+    - Updated `thumbnail_selector.tmpl` to explicitly avoid "Overly panoramic" images which become illegible at small thumbnail sizes.
+- **Doc**: **Configuration Updates**
+    - Updated `README.md` with details on `categories.yaml`, `visibility.yaml`, and prompt templates.
+    - Clarified usage of `fish-audio` (Trump voice) and standard category prompts.
+- **Feature**: **Startup World Map (Cached Coverage)**
+    - When the simulator is disconnected or inactive, the map now displays a visualization of all historically flown areas (cached geodata).
+    - **Performance**: Tiles are aggregated into larger hexagonal regions (H3 Resolution 4) to ensure smooth rendering of global history.
+    - **UX**: The map is fully unlocked (drag, zoom, scroll) in this mode, allowing users to explore their flight history before starting a flight. Locks automatically when the Sim connects.
+- **Tweak**: **Essay Titles**
+    - Updated `essay.tmpl` to force descriptive, two-part titles (e.g. "Topic: Specific Subject") instead of abstract or clickbaity headlines.
+- **Tweak**: **Realistic Blind Spot**
+    - Updated visibility logic (`calculator.go`) to model a realistic cockpit blind spot that scales partially with altitude.
+    - **Logic**: No blind spot below 500ft. Scales linearly to **5.0 NM** at 35,000ft. Capped at 5nm above FL350.
+- **UI**: **Map Marker Visibility**
+    - Implemented a Z-Index priority system for map markers to resolve overlapping issues.
+    - **Priority**: Active POI (Top) > MSFS POIs (Middle) > Standard POIs (Bottom).
+    - Ensures high-value markers are always clickable and visible even in dense clusters.
+
 ## v0.2.93 (2026-01-16)
 - **Feature**: **Smart Tile Prioritization (Heading Bias)**
     - The Wikidata Scheduler now prioritizes tiles directly in front of the aircraft (`AngleDiff < 60°`).
@@ -8,7 +35,6 @@
 - **Optimization**: **Geodata Cache Fast-Forward**
     - Resolved a bottleneck where the scheduler was rate-limiting **Cache Hits** to the same speed as Network Requests (1 per 5s).
     - **Logic**: The system now iterates through up to 20 cached tiles *per tick* (instant verification), drastically reducing the time required to "burn through" known areas and reach new data boundaries.
-    - **Fix**: Prevents the "4-minute stall" when flying through previously scanned regions.
 
 ## v0.2.92 (2026-01-16)
 - **Feature**: **Intelligent Thumbnail Selection**

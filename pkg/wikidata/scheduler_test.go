@@ -40,6 +40,7 @@ func TestGetCandidates(t *testing.T) {
 		lat           float64
 		lon           float64
 		heading       float64
+		speed         float64 // Ground Speed in Knots
 		isAirborne    bool
 		wantMin       int // Minimum number of candidates expected
 		checkSorting  bool
@@ -51,6 +52,7 @@ func TestGetCandidates(t *testing.T) {
 			lat:           50.0,
 			lon:           14.0,
 			heading:       0.0,
+			speed:         0.0,
 			isAirborne:    false,
 			wantMin:       10, // Should find many neighbors in 100km
 			checkSorting:  true,
@@ -62,6 +64,19 @@ func TestGetCandidates(t *testing.T) {
 			lat:           50.0,
 			lon:           14.0,
 			heading:       0.0, // North
+			speed:         100.0,
+			isAirborne:    true,
+			wantMin:       3,
+			checkSorting:  true,
+			checkDistance: true,
+			checkCone:     true,
+		},
+		{
+			name:          "High Speed Corridor (Strong Bias)",
+			lat:           50.0,
+			lon:           14.0,
+			heading:       0.0,   // North
+			speed:         300.0, // High speed -> High heading penalty
 			isAirborne:    true,
 			wantMin:       3,
 			checkSorting:  true,
@@ -73,6 +88,7 @@ func TestGetCandidates(t *testing.T) {
 			lat:           50.0,
 			lon:           14.0,
 			heading:       180.0, // South
+			speed:         100.0,
 			isAirborne:    true,
 			wantMin:       3, // Less than ground, but > 0
 			checkSorting:  true,
@@ -84,7 +100,7 @@ func TestGetCandidates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Pass empty recent map
-			candidates := s.GetCandidates(tt.lat, tt.lon, tt.heading, tt.isAirborne, map[string]bool{})
+			candidates := s.GetCandidates(tt.lat, tt.lon, tt.heading, tt.speed, tt.isAirborne, map[string]bool{})
 
 			// 1. Minimum Count Check
 			if len(candidates) < tt.wantMin {

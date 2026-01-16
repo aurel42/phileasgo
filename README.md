@@ -6,28 +6,24 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 
 ## Features
 
-- **Real-Time AI Narration**: Phileas acts as your tour guide, identifying landmarks as you fly and generating context-aware, engaging spoken tours in real-time using Google Gemini.
-- **Smart Data Ingestion**: Pulls data from Wikidata and Wikipedia, using optimized SparQL queries and heavy caching (SQLite) to be kind to the APIs while ensuring you always have fresh data.
-- **Complex Scorer Logic**: Points of Interest aren't just "nearest". The scorer weighs distance, bearing, category, and novelty to pick the most interesting topic.
-- **Variety Engine**: Extensive logic dedicated to keeping the narration fresh. The tour guide tracks what has been said to ensure new topics and different angles are explored.
-- **Robust TTS Support**:
-    - **Edge TTS**: Zero-config, high-quality neural voices (free).
-    - **Azure Speech**: Premium neural voices (requires subscription, free tier available).
-    - **Fish Audio**: Experimental support for highly emotive, next-gen AI voices (paid service).
-    - **Local SAPI**: Fallback to Windows native TTS.
-- **In-Sim Markers**: Spawns visual markers (balloons) in the simulator so you can instantly spot the POI being discussed. No more guessing which mountain the guide is talking about.
-- **1000cities Integration**: Automatically detects which country you are flying over to ensure correct localized pronunciation of names and appropriate context.
-- **Dynamic Configuration**: Occasionally consults an LLM to "learn" what types of POIs are culturally or geographically significant for your current region, adjusting the scorer weights on the fly.
-- **Flight Sim Focused**: 
-    - **SimConnect Integration**: Seamlessly reads telemetry from MSFS.
-    - **Built-in Mock Sim**: Includes a simulator loop for testing without launching the sim.
-    - **Resource Efficient**: Written in Go to be lightweight (~100MB RAM), leaving your system resources for the sim.
-- **Highly Configurable**: Nearly every aspect of the logic—from prompt macros to scoring weights—can be tweaked via YAML configuration or prompt templates.
-- **Resilient**: Designed to handle real-world conditions: high/low density areas, slow API responses, and long-haul flights without crashing or leaking memory.
-- **Contextual Essays**: When no specific landmark is in sight, Phileas generates engaging essays about the history, geography, or culture of the region you are flying over, ensuring the silence is always filled with interesting content.
-- **Terrain Awareness**: Uses global elevation data to perform Line-of-Sight checks. Phileas won't point out a landmark that is hidden behind a mountain range. Well, sometimes it will. We use a low-res set of data (<500 MB unpackend)
-- **Zero-Latency Playback**: A staging pipeline prepares the next narration while the current one is playing.
-- **Interactive Web Companion**: A Web UI to track your flight, view nearby POIs, manual trigger narrations, and visualize the current visibility radius.
+- **AI Tour Guide**: Generates context-aware, real-time briefings for landmarks using Google Gemini. It knows where you are, your heading, and effectively "sees" the terrain.
+- **Terrain & Visibility Awareness**: 
+    - **Line-of-Sight (LOS)**: Uses ETOPO1 global elevation data to verify visibility. Phileas will rarely point out landmarks hidden behind mountain ranges.
+- **Smart POI Prioritization**:
+    - **Contextual Scoring**: Weighs distance, size, and novelty. Prioritizes significant landmarks (Airports, Mountains, Cities) over generic data points.
+- **Immersive Audio**:
+    - **Headset Effect**: Optional bandpass filter to simulate aviation headset/radio audio.
+    - **Multiple Providers**: Supports Edge TTS (free/default), Azure Speech, and Fish Audio.
+- **Flight Bag (Web UI)**:
+    - Live map showing aircraft position, flight path, and scanned area heatmap.
+    - **Manual Control**: Trigger narrations manually or review nearby POIs.
+- **Visual Markers (VFR)**: Spawns in-sim balloons to help you visually identify a specific landmark.
+- **Sim-Optimized**: 
+    - **Lightweight**: Written in Go (~100MB RAM), runs in the background with zero impact on MSFS framerates. Vibecoded using a braindead LLM, so it's probably not that optimized, but it's good enough for me.
+    - **Offline-First Design**: Heavy SQLite caching ensures that once an area is flown, it loads instantly without hammering APIs.
+- **Highly configurable**: 
+    - **POI Prioritization**: Configure which categories of POIs are most important to you.
+    - **Narration Settings**: Adjust volume, speed, and other settings.
 
 ## Requirements
 
@@ -61,19 +57,51 @@ The install script will:
 
 ## Configuration
 
-Edit `configs/phileas.yaml` to configure API keys:
+PhileasGo is designed to be highly configurable. All configuration files are located in the `configs/` directory.
+
+### Main Configuration (`phileas.yaml`)
+
+Edit `configs/phileas.yaml` to configure API keys and system settings:
 
 ```yaml
 llm:
   gemini_key: "YOUR_GEMINI_API_KEY"  # Required
 
 tts:
-  provider: "edge"  # Default, no additional config needed
-  # Or use Azure for higher quality:
-  # provider: "azure"
-  # azure_key: "YOUR_AZURE_KEY"
-  # azure_region: "eastus"
+  engine: "edge-tts"  # Default, no additional config needed
+  # options: "windows-sapi", "edge-tts", "fish-audio", "azure-speech"
+  
+  # Or use Azure:
+  # engine: "azure-speech"
+  # azure_speech: 
+  #   key: "YOUR_AZURE_KEY"
+  #   region: "eastus"
 ```
+
+### Advanced Customization
+
+You can tweak the behavior of the tour guide by modifying other files in `configs/`:
+
+- **`categories.yaml`**: Define which Wikidata categories are recognized.
+    - Add new categories by mapping them to Wikidata QIDs.
+    - Adjust `weight` to prioritize certain types of landmarks.
+    - Change `size` (S/M/L/XL) to determine from how far away a landmark is visible.
+    - Customize `icon` mappings for the web UI.
+
+- **`visibility.yaml`**: Controls when Phileas "sees" a landmark.
+    - Defines the maximum visibility distance (in Nautical Miles) for each size category (S/M/L/XL) at different altitudes.
+    - Example: If you want "Large" landmarks to be visible from further away at 3000ft, increase the value in the table.
+
+- **`interests.yaml`**: A list of topics that the AI uses to gauge relevance.
+    - Add or remove interests to steer the "flavor" of the tour guide (e.g., add "Architecture" or "Biology" if you want the AI to focus on those aspects).
+
+- **`essays.yaml`**: Configures the topics for longer, regional "essays".
+    - When there are no immediate landmarks, Phileas talks about the region.
+
+- **`prompts/`**: Contains the raw system prompts sent to Google Gemini.
+    - **`narrator/script.tmpl`**: The main prompt used to generate landmark descriptions. You can edit this to change the personality, tone, or structure of the tour guide's narration.
+    - **`category/`**: Contains dynamic sub-prompts used when flying over specific types of landmarks (e.g., `city.tmpl` instructs the LLM to search for local food and vibes, `aerodrome.tmpl` instructs the LLM to focus on aviation history).
+    - **`tts/fish-audio.tmpl`**: A special prompt optimized for a specific cloned voice. It instructs the LLM to use specific mannerisms, vocabulary, and rhetorical styles that align with that persona.
 
 ## Usage
 
@@ -141,6 +169,8 @@ H3 is licensed under the [Apache License 2.0](https://github.com/uber/h3/blob/ma
 
 Elevation data provided by **[ETOPO1 Global Relief Model](https://www.ncei.noaa.gov/products/etopo-global-relief-model)** from NOAA National Centers for Environmental Information.
 Citation: Amante, C. and B.W. Eakins, 2009. ETOPO1 1 Arc-Minute Global Relief Model: Procedures, Data Sources and Analysis. NOAA Technical Memorandum NESDIS NGDC-24. National Geophysical Data Center, NOAA. doi:10.7289/V5C8276M
+
+Category icons provided by **[Mapbox Maki](https://github.com/mapbox/maki)** (CC0 1.0 Universal).
 
 ## License
 

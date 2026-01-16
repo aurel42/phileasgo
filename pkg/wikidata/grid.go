@@ -130,6 +130,22 @@ func (g *Grid) TileCorners(t HexTile) []geo.Point {
 	return corners
 }
 
+// Parent returns the parent cell of the given tile at the specified resolution.
+func (g *Grid) Parent(t HexTile, res int) HexTile {
+	if t.Index == "" {
+		return HexTile{}
+	}
+	cell := h3.CellFromString(t.Index)
+	if cell == 0 {
+		return HexTile{}
+	}
+	parent, err := cell.Parent(res)
+	if err != nil {
+		return HexTile{}
+	}
+	return HexTile{Index: parent.String()}
+}
+
 // DistKm calculates approximate distance between two points (Haversine approx for small distances).
 func DistKm(lat1, lon1, lat2, lon2 float64) float64 {
 	dLat := (lat2 - lat1) * 111.132

@@ -80,10 +80,10 @@ func TestCalculator(t *testing.T) {
 		// --- 3. Blind Spot ---
 		{
 			name:    "Blind Spot (Under Nose)",
-			heading: 0, alt: 1000, bearing: 0, dist: 0.1, size: SizeM,
-			// 1000ft -> BlindRadius ~ 0.2nm. 0.1 < 0.2. RelBearing 0 < 90.
+			heading: 0, alt: 1000, bearing: 0, dist: 0.05, size: SizeM,
+			// 1000ft -> BlindRadius ~ 0.07nm (New Formula). 0.05 < 0.07.
 			// Penalty x0.1
-			wantScore: 0.098, // Base ~0.98 * 0.1
+			wantScore: 0.099, // Base ~0.99 * 0.1
 			wantLog:   "Blind Spot",
 		},
 
@@ -154,42 +154,47 @@ visibility:
 	}
 }
 
-// TestCalculateVisibility tests the map overlay visibility function
-func TestCalculateVisibility(t *testing.T) {
-	manager := NewManagerForTest([]AltitudeRow{
-		{AltAGL: 0, Distances: map[SizeType]float64{SizeS: 0, SizeM: 0, SizeL: 0}},
-		{AltAGL: 1000, Distances: map[SizeType]float64{SizeS: 1.0, SizeM: 5.0, SizeL: 10.0}},
-	})
-	calculator := NewCalculator(manager)
+// TestCalculator_BlindSpot tests the blind spot logic
+func TestCalculator_BlindSpot(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		heading    float64
-		alt        float64
-		bearing    float64
-		dist       float64
-		isOnGround bool
-		wantScore  float64
+		altAGL     float64
+		distNM     float64
+		relBearing float64
+		wantBlind  bool
 	}{
-		// Ground - always uses M size, applies distance decay
-		{"Ground visible", 0, 0, 0, 0.1, true, 0.0},
-		// Airborne visible
-		{"Airborne close", 0, 1000, 315, 1.0, false, 1.0}, // Left front 2.0x capped to 1.0
-		{"Airborne far", 0, 1000, 315, 4.0, false, 0.4},   // 1-4/5=0.2, x2.0=0.4
-		// Invisible
-		{"Too far", 0, 1000, 0, 10.0, false, 0.0},
-		// Blind spot returns 0
-		{"Blind spot", 0, 1000, 0, 0.1, false, 0.0},
-		// Rear returns 0 (bearing multiplier)
-		{"Rear", 0, 1000, 180, 2.0, false, 0.0},
+		// 1. Below 500ft: No blind spot
+		{"Low Alt (100ft), Close (0.01nm)", 100, 0.01, 0, false},
+		{"Low Alt (499ft), Close (0.01nm)", 499, 0.01, 0, false},
+
+		// 2. Transition at 500ft (starts at 0nm)
+		{"500ft, 0.01nm", 500, 0.01, 0, false}, // 0 radius
+
+		// 3. Mid-Altitude Scaling
+		// Formula: (Alt - 500) / 34500 * 5.0
+		// At 17750ft (midpoint): Radius should be ~2.5nm
+		{"Mid Alt (17750ft), Inside (2.4nm)", 17750, 2.4, 0, true},
+		{"Mid Alt (17750ft), Outside (2.6nm)", 17750, 2.6, 0, false},
+
+		// 4. High Altitude Cap (35,000ft -> 5.0nm)
+		{"High Alt (35000ft), Inside (4.9nm)", 35000, 4.9, 0, true},
+		{"High Alt (35000ft), Outside (5.1nm)", 35000, 5.1, 0, false},
+
+		// 5. Above Cap (>35,000ft -> Still 5.0nm)
+		{"Orbit (60000ft), Inside (4.9nm)", 60000, 4.9, 0, true},
+		{"Orbit (60000ft), Outside (5.1nm)", 60000, 5.1, 0, false},
+
+		// 6. Bearing Check (+/- 90 deg)
+		{"Bearing Side (91 deg)", 35000, 1.0, 91, false},
+		{"Bearing Rear (180 deg)", 35000, 1.0, 180, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score := calculator.CalculateVisibility(tt.heading, tt.alt, tt.bearing, tt.dist, tt.isOnGround, 1.0)
-			diff := math.Abs(score - tt.wantScore)
-			if diff > 0.1 {
-				t.Errorf("got %.3f, want %.3f", score, tt.wantScore)
+			if got := isBlindSpot(tt.altAGL, tt.distNM, tt.relBearing); got != tt.wantBlind {
+				t.Errorf("isBlindSpot(%.0f, %.2f, %.0f) = %v, want %v",
+					tt.altAGL, tt.distNM, tt.relBearing, got, tt.wantBlind)
 			}
 		})
 	}

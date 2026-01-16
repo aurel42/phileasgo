@@ -129,6 +129,40 @@ const RangeRings = ({ lat, lon, units }: { lat: number; lon: number; units: 'km'
     );
 };
 
+import { CoverageLayer } from './CoverageLayer';
+
+// Helper to control map interaction based on connection state
+const MapStateController = ({ isConnected }: { isConnected: boolean }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (!isConnected) {
+            map.dragging.enable();
+            map.doubleClickZoom.enable();
+            map.boxZoom.enable();
+            map.keyboard.enable();
+
+            // Unlock zoom for world exploration
+            map.setMinZoom(2);
+            map.setMaxZoom(18);
+        } else {
+            map.dragging.disable();
+            map.touchZoom.disable();
+            map.doubleClickZoom.disable();
+            map.boxZoom.disable();
+            map.keyboard.disable();
+
+            // Lock zoom to aircraft constraints
+            map.setMinZoom(MIN_ZOOM);
+            map.setMaxZoom(MAX_ZOOM);
+
+            // Force-snap zoom if out of bounds
+            if (map.getZoom() < MIN_ZOOM) map.setZoom(MIN_ZOOM);
+            if (map.getZoom() > MAX_ZOOM) map.setZoom(MAX_ZOOM);
+        }
+    }, [isConnected, map]);
+    return null;
+};
+
 interface MapProps {
     units: 'km' | 'nm';
     showCacheLayer: boolean;
@@ -143,6 +177,8 @@ interface MapProps {
 export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiScore, selectedPOI, onPOISelect, onMapClick }: MapProps) => {
 
     const { data: telemetry } = useTelemetry();
+    const isConnected = !!telemetry;
+
     const { status: narratorStatus } = useNarrator();
 
     // Determine the currently narrated POI
@@ -168,22 +204,24 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
     return (
         <MapContainer
             center={center}
-            zoom={DEFAULT_ZOOM}
-            minZoom={MIN_ZOOM}
-            maxZoom={MAX_ZOOM}
+            zoom={isConnected ? DEFAULT_ZOOM : 3}
+            minZoom={isConnected ? MIN_ZOOM : 2}
+            maxZoom={isConnected ? MAX_ZOOM : 18}
             style={{ height: '100%', width: '100%' }}
             zoomControl={false}
-            dragging={false}
+            dragging={!isConnected}
             scrollWheelZoom={true}
-            doubleClickZoom={false}
-            touchZoom={false}
+            doubleClickZoom={!isConnected}
+            touchZoom={!isConnected}
         >
+            <MapStateController isConnected={isConnected} />
             <MapEvents onClick={onMapClick} />
             <AircraftPaneSetup />
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
+            {!isConnected && <CoverageLayer />}
             {showCacheLayer && <CacheLayer />}
             <VisibilityLayer enabled={showVisibilityLayer} />
             {telemetry && (
