@@ -168,7 +168,8 @@ type TriggersConfig struct {
 
 // WikidataConfig holds Wikidata-specific settings.
 type WikidataConfig struct {
-	Area AreaConfig `yaml:"area"`
+	Area          AreaConfig `yaml:"area"`
+	FetchInterval Duration   `yaml:"fetch_interval"`
 }
 
 // TerrainConfig holds terrain and line-of-sight settings.
@@ -255,6 +256,7 @@ func DefaultConfig() *Config {
 				MaxArticles: 500,
 				MaxDist:     Distance(80000), // 80km
 			},
+			FetchInterval: Duration(5 * time.Second),
 		},
 		Terrain: TerrainConfig{
 			LineOfSight:   true,

@@ -108,7 +108,12 @@ func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Cl
 
 // Start begins the background fetch loop.
 func (s *Service) Start(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	// Use configured interval (default 5s)
+	interval := time.Duration(s.cfg.FetchInterval)
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	s.logger.Info("Wikidata Service Started")

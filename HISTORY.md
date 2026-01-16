@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.96 (2026-01-16)
+- **Feature**: **Configurable Wikidata Fetch Interval**
+    - The rate limit for Wikidata tile fetching is now configurable via `phileas.yaml` (`wikidata.fetch_interval`).
+    - Defaults to `5s` (same as before).
+    - Allows fine-tuning the balance between data freshness and API load/rate limits.
+
 ## v0.2.95 (2026-01-16)
 - **Feature**: **Smart Markers (Physics-Based Layout)**
     - Replaced the stacking Z-Index system with a **Force-Directed Physics Simulation** (D3).
