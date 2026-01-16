@@ -1,5 +1,18 @@
 ﻿# Release History
 
+## v0.2.95 (2026-01-16)
+- **Feature**: **Smart Markers (Physics-Based Layout)**
+    - Replaced the stacking Z-Index system with a **Force-Directed Physics Simulation** (D3).
+    - **Logic**: Markers now naturally repel each other to avoid overlap while staying tethered to their geographic location via a leader line.
+    - **Impact**: Creates a clean, "ATC-style" display where even dense clusters of 50+ POIs are individually readable and clickable.
+    - **Priority**: The currently active POI pushes harder to stay visible, while markers settle elegantly around it.
+- **Tweak**: **360° Blind Spot**
+    - Expanded the "Cockpit Blind Spot" logic to cover a full 360-degree radius beneath the aircraft (previously only forward +/- 90°).
+    - Ensures that POIs directly below the plane are consistently hidden regardless of heading, mimicking the inability to see straight down through the floor.
+- **Optimization**: **Map Startup Performance**
+    - Fixed a race condition where the heavy "Global Coverage" calculation (World Map mode) would trigger unnecessarily during the split-second startup phase.
+    - The Map now waits for a definitive connection status from the Simulator before deciding which mode to render, saving CPU cycles on boot.
+
 ## v0.2.94 (2026-01-16)
 - **Feature**: **Dynamic "Corridor" Tile Scheduling**
     - The tile scheduler now dynamically adjusts the "heading penalty" based on the aircraft's ground speed to prioritize cells directly in front of the flight path.

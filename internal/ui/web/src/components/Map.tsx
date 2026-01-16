@@ -6,11 +6,11 @@ import { useTelemetry } from '../hooks/useTelemetry';
 import { AircraftMarker } from './AircraftMarker';
 import { CacheLayer } from './CacheLayer';
 import { VisibilityLayer } from './VisibilityLayer';
-import { POIMarker } from './POIMarker';
+import { SmartMarkerLayer } from './SmartMarkerLayer';
 import type { POI } from '../hooks/usePOIs';
 import { useNarrator } from '../hooks/useNarrator';
 import { useMapEvents } from 'react-leaflet';
-import { isPOIVisible } from '../utils/poiUtils';
+
 
 
 // Zoom level calculations:
@@ -176,8 +176,11 @@ interface MapProps {
 
 export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiScore, selectedPOI, onPOISelect, onMapClick }: MapProps) => {
 
-    const { data: telemetry } = useTelemetry();
+    const { data: telemetry, isLoading: isConnecting } = useTelemetry();
     const isConnected = !!telemetry;
+
+    // Prevent rendering fallback map until we are sure we are disconnected
+    const showFallbackMap = !isConnecting && !isConnected;
 
     const { status: narratorStatus } = useNarrator();
 
@@ -221,7 +224,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
-            {!isConnected && <CoverageLayer />}
+            {showFallbackMap && <CoverageLayer />}
             {showCacheLayer && <CacheLayer />}
             <VisibilityLayer enabled={showVisibilityLayer} />
             {telemetry && (
@@ -238,15 +241,15 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
                 </>
             )}
 
-            {displayPois.filter(p => isPOIVisible(p, minPoiScore) || p.wikidata_id === currentNarratedId || p.wikidata_id === preparingId).map((poi) => (
-                <POIMarker
-                    key={poi.wikidata_id}
-                    poi={poi}
-                    highlighted={poi.wikidata_id === currentNarratedId || poi.wikidata_id === selectedPOI?.wikidata_id}
-                    preparing={poi.wikidata_id === preparingId && poi.wikidata_id !== currentNarratedId}
-                    onClick={onPOISelect}
-                />
-            ))}
+            {/* Smart Marker Layer handles collision avoidance and rendering */}
+            <SmartMarkerLayer
+                pois={displayPois}
+                minPoiScore={minPoiScore}
+                selectedPOI={selectedPOI}
+                currentNarratedId={currentNarratedId}
+                preparingId={preparingId}
+                onPOISelect={onPOISelect}
+            />
         </MapContainer>
     );
 };

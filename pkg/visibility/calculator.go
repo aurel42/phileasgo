@@ -2,7 +2,6 @@ package visibility
 
 import (
 	"fmt"
-	"math"
 )
 
 // Calculator handles visibility logic
@@ -202,8 +201,8 @@ func isBlindSpot(altAGL, distNM, relBearing float64) bool {
 		blindRadius = ratio * maxRadius
 	}
 
-	// Blind spot is under nose (small radius) and Forward (+/- 90 deg)
-	return distNM < blindRadius && math.Abs(relBearing) < 90
+	// Blind spot is under nose (small radius) - now 360 degrees
+	return distNM < blindRadius
 }
 
 func normalizeBearing(b float64) float64 {

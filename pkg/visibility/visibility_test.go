@@ -185,9 +185,9 @@ func TestCalculator_BlindSpot(t *testing.T) {
 		{"Orbit (60000ft), Inside (4.9nm)", 60000, 4.9, 0, true},
 		{"Orbit (60000ft), Outside (5.1nm)", 60000, 5.1, 0, false},
 
-		// 6. Bearing Check (+/- 90 deg)
-		{"Bearing Side (91 deg)", 35000, 1.0, 91, false},
-		{"Bearing Rear (180 deg)", 35000, 1.0, 180, false},
+		// 6. Bearing Check (Now 360 degrees, so these should be TRUE/Blind)
+		{"Bearing Side (91 deg)", 35000, 1.0, 91, true},
+		{"Bearing Rear (180 deg)", 35000, 1.0, 180, true},
 	}
 
 	for _, tt := range tests {
