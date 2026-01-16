@@ -228,7 +228,7 @@ func (h *POIHandler) selectThumbnailWithLLM(ctx context.Context, title, lang str
 	var prompt string
 	var errPrompt error
 	if h.promptMgr != nil {
-		prompt, errPrompt = h.promptMgr.Render("narrator/thumbnail_selector.tmpl", data)
+		prompt, errPrompt = h.promptMgr.Render("context/thumbnail_selector.tmpl", data)
 		if errPrompt != nil {
 			slog.Error("Thumbnail: Failed to execute prompt template", "error", errPrompt)
 			return ""
