@@ -10,6 +10,7 @@ import (
 // InterestsConfig holds interests configuration loaded from YAML.
 type InterestsConfig struct {
 	Interests []string `yaml:"interests"`
+	Avoid     []string `yaml:"avoid"`
 }
 
 // LoadInterests loads interests from the given YAML file.

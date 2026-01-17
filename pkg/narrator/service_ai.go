@@ -75,6 +75,7 @@ type AIService struct {
 
 	essayH    *EssayHandler
 	interests []string
+	avoid     []string
 
 	// scriptHistory []ScriptEntry // Removed scriptHistory
 
@@ -100,6 +101,7 @@ func NewAIService(
 	langRes LanguageResolver,
 	essayH *EssayHandler,
 	interests []string,
+	avoid []string,
 	tr *tracker.Tracker,
 ) *AIService {
 	s := &AIService{
@@ -120,6 +122,7 @@ func NewAIService(
 		essayH:          essayH,
 		skipCooldown:    false,
 		interests:       interests,
+		avoid:           avoid,
 		fallbackTracker: tr,
 		tripSummary:     "", // Initialize tripSummary
 	}

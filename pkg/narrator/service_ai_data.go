@@ -88,6 +88,7 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		Lon:                  tel.Longitude,
 		UnitsInstruction:     s.fetchUnitsInstruction(),
 		Interests:            s.interests,
+		Avoid:                s.avoid,
 		AltitudeMSL:          tel.AltitudeMSL,
 		AltitudeAGL:          tel.AltitudeAGL,
 		Heading:              tel.Heading,
@@ -237,6 +238,7 @@ type NarrationPromptData struct {
 	UnitsInstruction     string
 	TTSInstructions      string
 	Interests            []string
+	Avoid                []string
 	AltitudeMSL          float64
 	AltitudeAGL          float64
 	Heading              float64

@@ -39,7 +39,7 @@ func TestAIService_NextPOIMarker(t *testing.T) {
 		mockAudio,
 		mockPOI,
 		mockBeacon,
-		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil)
+		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil)
 
 	ctx := context.Background()
 	svc.Start()

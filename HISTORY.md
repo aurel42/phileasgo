@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.101 (2026-01-17)
+- **Feature**: **Topics to Avoid**
+    - The Narrator now respects the `avoid` list in `configs/interests.yaml`.
+    - **Logic**: Explicitly instructs the LLM to avoid mentioning or discussing specific user-defined topics (e.g., "Demographics", "Administrative units").
+    - **Impact**: Provides a more tailored and enjoyable narration experience by filtering out unwanted subject matter.
+- **Fix**: **World Map Cleanup**
+    - **Smart Markers**: POI markers are now hidden when the application is disconnected from the simulator (World Map mode).
+    - **Impact**: Ensures a clean view of the global coverage map without stale or distracting POI markers overlaying the terrain.
+
 ## v0.2.100 (2026-01-17)
 - **Fix**: **Region Name Resolution**
     - Resolved issue where non-US regions appeared as numeric codes (e.g., "11") in the overlay.

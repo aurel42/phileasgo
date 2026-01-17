@@ -241,14 +241,17 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
             )}
 
             {/* Smart Marker Layer handles collision avoidance and rendering */}
-            <SmartMarkerLayer
-                pois={displayPois}
-                minPoiScore={minPoiScore}
-                selectedPOI={selectedPOI}
-                currentNarratedId={currentNarratedId}
-                preparingId={preparingId}
-                onPOISelect={onPOISelect}
-            />
+
+            {isConnected && (
+                <SmartMarkerLayer
+                    pois={displayPois}
+                    minPoiScore={minPoiScore}
+                    selectedPOI={selectedPOI}
+                    currentNarratedId={currentNarratedId}
+                    preparingId={preparingId}
+                    onPOISelect={onPOISelect}
+                />
+            )}
         </MapContainer>
     );
 };

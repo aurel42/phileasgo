@@ -423,10 +423,12 @@ func createAIService(
 	// Load interests config
 	interestsCfg, err := config.LoadInterests("configs/interests.yaml")
 	var interests []string
+	var avoid []string
 	if err != nil {
 		slog.Warn("Failed to load interests config, using empty list", "error", err)
 	} else {
 		interests = interestsCfg.Interests
+		avoid = interestsCfg.Avoid
 	}
 
 	return narrator.NewAIService(
@@ -444,6 +446,7 @@ func createAIService(
 		wikiSvc,
 		essayH,
 		interests,
+		avoid,
 		tr,
 	)
 }
