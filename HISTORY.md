@@ -1,6 +1,6 @@
 ﻿# Release History
 
-## v0.3.0 (2026-01-17)
+## v0.2.100 (2026-01-17)
 - **Fix**: **Region Name Resolution**
     - Resolved issue where non-US regions appeared as numeric codes (e.g., "11") in the overlay.
     - **Installation**: Now automatically downloads `admin1CodesASCII.txt` from GeoNames to map numeric admin codes to human-readable names (e.g., "Île-de-France").
