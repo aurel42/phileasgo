@@ -96,16 +96,8 @@ func NewService(citiesPath, admin1Path string) (*Service, error) {
 			}
 		}
 		adminFile.Close()
-	} else {
-		// Log error but proceed? Or maybe just ignore if file missing (though we downloaded it)
-		// For now, let's just proceed with empty map if it fails, or maybe just log.
-		// Since we handle error in caller, let's keep it simple.
-		// Actually, let's return error if critical, but this enhances data.
-		// Use fmt.Printf or similar if we can't log properly here (slog not imported)
-		// Better: just ignore load errors for this auxiliary file to keeps app robust?
-		// User plan says "Modify NewService to accept...".
-	}
 
+	}
 	// 2. Load Cities
 	file, err := os.Open(citiesPath)
 	if err != nil {

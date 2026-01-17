@@ -195,7 +195,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 			"limit", limit)
 
 		// Attempt LLM-based rescue
-		rescuedScript, err := s.rescueScript(ctx, script)
+		rescuedScript, err := s.rescueScript(ctx, script, promptData.MaxWords)
 		if err != nil {
 			slog.Error("Narrator: Script rescue failed", "error", err)
 			return nil, fmt.Errorf("script rescue failed: %w", err)
@@ -342,9 +342,10 @@ func (s *AIService) monitorPlayback(n *Narrative) {
 
 // rescueScript attempts to extract a clean script from contaminated LLM output.
 // It uses a secondary LLM call to identify and remove chain-of-thought reasoning.
-func (s *AIService) rescueScript(ctx context.Context, script string) (string, error) {
+func (s *AIService) rescueScript(ctx context.Context, script string, maxWords int) (string, error) {
 	prompt, err := s.prompts.Render("context/rescue_script.tmpl", map[string]any{
-		"Script": script,
+		"Script":   script,
+		"MaxWords": maxWords,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to render rescue prompt: %w", err)

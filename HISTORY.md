@@ -1,5 +1,18 @@
 ﻿# Release History
 
+## v0.2.102 (2026-01-17)
+- **Fix**: **Rescue Script Word Limit**
+    - The "Rescue Script" mechanism (which cleans up LLM output) now respects the `MaxWords` constraint.
+    - Updated `rescue_script.tmpl` to explicitly instruct the LLM to limit its output, preventing rescued scripts from becoming overly verbose.
+- **Fix**: **Thumbnail Selection**
+    - Strengthened instructions in `thumbnail_selector.tmpl` to strictly reject panoramic images (wide aspect ratios), which display poorly in square UI elements.
+- **Fix**: **Test Suite Stability**
+    - Synced frontend and backend version numbers to pass `TestVersionSync`.
+    - Fixed linting errors in experiment scripts and `pkg/geo`.
+- **Documentation**: **Classification & Rescue**
+    - Added `docs/CLASSIFICATION.md` detailing the classification flow and rescue logic.
+    - Resolved a persistent "Unknown Category" bug by purging corrupted cache entries (Operational Fix).
+
 ## v0.2.101 (2026-01-17)
 - **Feature**: **Topics to Avoid**
     - The Narrator now respects the `avoid` list in `configs/interests.yaml`.
