@@ -106,7 +106,7 @@ html.overlay-mode {
 .overlay-poi-panel .poi-thumbnail {
     width: 100%;
     height: auto;
-    max-height: 180px;
+    max-height: 50vh;
     object-fit: cover;
     border-radius: 8px;
     margin-bottom: 12px;

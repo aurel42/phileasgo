@@ -34,6 +34,22 @@ if (-not (Test-Path $geonamesTxt)) {
     Write-Host "GeoNames data already exists - skipping." -ForegroundColor Gray
 }
 
+# Download GeoNames Admin1 Codes (for region names)
+$admin1Url = "https://download.geonames.org/export/dump/admin1CodesASCII.txt"
+$admin1File = "data/admin1CodesASCII.txt"
+
+if (-not (Test-Path $admin1File)) {
+    Write-Host "Downloading GeoNames Admin1 Codes..." -ForegroundColor Yellow
+    try {
+        Invoke-WebRequest -Uri $admin1Url -OutFile $admin1File
+        Write-Host "Admin1 Codes downloaded!" -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to download Admin1 Codes: $_" -ForegroundColor Red
+    }
+} else {
+    Write-Host "Admin1 Codes already exists - skipping." -ForegroundColor Gray
+}
+
 # Download ETOPO1 Elevation Data (for Line-of-Sight)
 $etopoUrl = "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/ice_surface/grid_registered/binary/etopo1_ice_g_i2.zip"
 $etopoZip = "data/etopo1.zip"

@@ -262,12 +262,10 @@ export const POIInfoPanel = ({ poi, pois, onClose }: POIInfoPanelProps) => {
                         <img
                             src={thumbnailUrl}
                             alt={primaryName}
+                            className="poi-thumbnail"
                             style={{
                                 width: '100%',
                                 height: 'auto',
-                                objectFit: 'cover',
-                                borderRadius: '4px',
-                                border: '1px solid rgba(255, 255, 255, 0.1)'
                             }}
                         />
                     </div>

@@ -71,6 +71,7 @@ type City struct {
 	Lon         float64
 	CountryCode string
 	Admin1Code  string
+	Admin1Name  string
 }
 
 // Service provides reverse geocoding.
@@ -79,8 +80,34 @@ type Service struct {
 }
 
 // NewService loads cities and builds the spatial index.
-func NewService(path string) (*Service, error) {
-	file, err := os.Open(path)
+func NewService(citiesPath, admin1Path string) (*Service, error) {
+	// 1. Load Admin1 Codes (Code -> Name)
+	adminMap := make(map[string]string)
+	adminFile, err := os.Open(admin1Path)
+	if err == nil {
+		scanner := bufio.NewScanner(adminFile)
+		for scanner.Scan() {
+			line := scanner.Text()
+			parts := strings.Split(line, "\t")
+			// format: code <tab> name <tab> nameAscii <tab> ...
+			// We use name (index 1) which is UTF-8
+			if len(parts) >= 2 {
+				adminMap[parts[0]] = parts[1]
+			}
+		}
+		adminFile.Close()
+	} else {
+		// Log error but proceed? Or maybe just ignore if file missing (though we downloaded it)
+		// For now, let's just proceed with empty map if it fails, or maybe just log.
+		// Since we handle error in caller, let's keep it simple.
+		// Actually, let's return error if critical, but this enhances data.
+		// Use fmt.Printf or similar if we can't log properly here (slog not imported)
+		// Better: just ignore load errors for this auxiliary file to keeps app robust?
+		// User plan says "Modify NewService to accept...".
+	}
+
+	// 2. Load Cities
+	file, err := os.Open(citiesPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open cities file: %w", err)
 	}
@@ -110,6 +137,7 @@ func NewService(path string) (*Service, error) {
 			Lon:         lon,
 			CountryCode: country,
 			Admin1Code:  admin1,
+			Admin1Name:  adminMap[country+"."+admin1], // Lookup full name
 		}
 
 		// Add to Grid
@@ -166,6 +194,7 @@ func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
 		CityName:    bestCity.Name,
 		CountryCode: bestCity.CountryCode,
 		Admin1Code:  bestCity.Admin1Code,
+		Admin1Name:  bestCity.Admin1Name,
 	}
 }
 

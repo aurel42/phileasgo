@@ -1,5 +1,16 @@
 ﻿# Release History
 
+## v0.3.0 (2026-01-17)
+- **Fix**: **Region Name Resolution**
+    - Resolved issue where non-US regions appeared as numeric codes (e.g., "11") in the overlay.
+    - **Installation**: Now automatically downloads `admin1CodesASCII.txt` from GeoNames to map numeric admin codes to human-readable names (e.g., "Île-de-France").
+- **Fix**: **Overlay POI Image Cutoff**
+    - Relaxed the vertical size constraint on POI thumbnails in the overlay.
+    - Images can now span up to 50% of the screen height, preventing cropping of vertical or square images.
+- **Narrator**: **Transition Logic Refinement**
+    - Updated `script.tmpl` to replace strict "No Forced Transitions" rules with positive encouragement for thematic continuity.
+    - **Logic**: Explicitly instructs the LLM to actively look for thematic links (e.g. "Speaking of history...") while avoiding verbatim repetition of facts.
+
 ## v0.2.99 (2026-01-17)
 - **Fix**: **Narrator Prompt Repetition**
     - Updated `script.tmpl` to explicitly forbid the LLM from repeating the last sentence of the previous narration.

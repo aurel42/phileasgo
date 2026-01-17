@@ -55,6 +55,7 @@ type LocationInfo struct {
 	CityName    string `json:"city_name"`
 	CountryCode string `json:"country_code"`
 	Admin1Code  string `json:"admin1_code"`
+	Admin1Name  string `json:"admin1_name"`
 	RegionName  string `json:"region_name"` // For future use
 }
 

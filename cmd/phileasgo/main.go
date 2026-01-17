@@ -193,7 +193,7 @@ func initDB(appCfg *config.Config) (*db.DB, store.Store, error) {
 }
 
 func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, simClient sim.Client, catCfg *config.CategoriesConfig) (*CoreServices, error) {
-	geoSvc, err := geo.NewService("data/cities1000.txt")
+	geoSvc, err := geo.NewService("data/cities1000.txt", "data/admin1CodesASCII.txt")
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize geo service: %w", err)
 	}

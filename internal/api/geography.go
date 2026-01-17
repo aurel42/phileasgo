@@ -36,9 +36,14 @@ func (h *GeographyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	loc := h.geoSvc.GetLocation(lat, lon)
+	region := loc.Admin1Code
+	if loc.Admin1Name != "" {
+		region = loc.Admin1Name
+	}
+
 	resp := GeographyResponse{
 		City:    loc.CityName,
-		Region:  loc.Admin1Code,
+		Region:  region,
 		Country: loc.CountryCode,
 	}
 

@@ -238,11 +238,16 @@ func TestFetchTile_CacheOptimization(t *testing.T) {
 		},
 	}
 
+	geoSvc, err := geo.NewService("../../data/cities1000.txt", "../../data/admin1CodesASCII.txt")
+	if err != nil {
+		t.Fatalf("Failed to create geo service: %v", err)
+	}
+
 	svc := NewService(st, &mockSim{}, tracker.New(), &MockClassifier{}, request.New(st, tracker.New(), request.ClientConfig{
 		Retries:   2,
 		BaseDelay: 10 * time.Millisecond,
 		MaxDelay:  50 * time.Millisecond,
-	}), &geo.Service{}, poi.NewManager(&config.Config{}, st, nil), config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}, "en")
+	}), geoSvc, poi.NewManager(&config.Config{}, st, nil), config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}, "en")
 	svc.client = mockClient
 	svc.classifier = &MockClassifier{
 		ClassifyBatchFunc: func(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult {
