@@ -39,10 +39,11 @@ NO HALLUCINATIONS, no invented facts.
 **PREVIOUS NARRATION ENDED WITH**: "...{{.LastSentence}}."
 {{end}}
 **CONTINUITY RULES (CRITICAL)**:
-1. **NO ECHOING**: You MUST NOT repeat, copy, or output the "Previous Narration End" sentence. Data processing will fail if you do.
-2. **Connect**: Write the *next* logical sentence. Acknowledge the previous thought implicitly, then pivot to the new POI.
-3. **Avoid Repetition**: Do not repeat facts/stories from the Trip Summary.
-4. **NO SUMMARIES**: End the script with a fun, interesting, or surprising fact and trail off.
+1. **NO ECHOING**: The user has just heard the "Previous Narration End" sentence. **DO NOT REPEAT IT** at the start of your script.
+2. **OPTIONAL TRANSITIONS**: You MAY use the previous context to transition smoothly to the new POI, but **ONLY** if it feels natural.
+3. **NO FORCED CONNECTIONS**: If the topics are unrelated, do NOT force a clumsy transition. It is better to start fresh than to force a link.
+4. **Avoid Repetition**: Do not repeat facts/stories from the Trip Summary.
+5. **NO SUMMARIES**: End the script with a fun, interesting, or surprising fact and trail off.
 {{end}}
 **NO REFERENCE TO THE FLIGHT**:
 {{template "flight_data" .}}

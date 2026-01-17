@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.99 (2026-01-17)
+- **Fix**: **Narrator Prompt Repetition**
+    - Updated `script.tmpl` to explicitly forbid the LLM from repeating the last sentence of the previous narration.
+    - Added specific instruction: "Do not repeat the last sentence of the previous POI." to the prompt context.
+    - **Impact**: Reduces repetitive phrasing and improved narrative flow between consecutive POIs.
+
 ## v0.2.98 (2026-01-16)
 - **Feature**: **OBS Overlay (Streamer Mode)**
     - Added a dedicated, transparent overlay view (`/overlay`) designed for OBS/Streamlabs integration.
