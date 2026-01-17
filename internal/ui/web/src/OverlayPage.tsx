@@ -24,15 +24,21 @@ const OverlayPage = () => {
         };
     }, []);
 
-    // Fetch min_poi_score to sync with main app filtering
+    // Config state
     const [minPoiScore, setMinPoiScore] = useState<number | undefined>(undefined);
+    const [showMapBox, setShowMapBox] = useState(true);
+    const [showPOIInfo, setShowPOIInfo] = useState(true);
+    const [showInfoBar, setShowInfoBar] = useState(true);
     useEffect(() => {
         const fetchConfig = () => {
             fetch('/api/config')
                 .then(r => r.json())
                 .then(data => {
-                    if (data && typeof data.min_poi_score === 'number') {
-                        setMinPoiScore(data.min_poi_score);
+                    if (data) {
+                        if (typeof data.min_poi_score === 'number') setMinPoiScore(data.min_poi_score);
+                        if (typeof data.show_map_box === 'boolean') setShowMapBox(data.show_map_box);
+                        if (typeof data.show_poi_info === 'boolean') setShowPOIInfo(data.show_poi_info);
+                        if (typeof data.show_info_bar === 'boolean') setShowInfoBar(data.show_info_bar);
                     }
                 })
                 .catch(() => { });
@@ -66,7 +72,7 @@ const OverlayPage = () => {
         <div className="overlay-root">
             <div className="overlay-container">
                 {/* Mini-map in top-left */}
-                {isConnected && telemetry && (
+                {showMapBox && isConnected && telemetry && (
                     <OverlayMiniMap
                         lat={telemetry.Latitude}
                         lon={telemetry.Longitude}
@@ -80,16 +86,20 @@ const OverlayPage = () => {
                 )}
 
                 {/* POI panel in top-right */}
-                <OverlayPOIPanel
-                    poi={currentPoi || null}
-                    playbackProgress={playbackProgress}
-                    isPlaying={isPlaying}
-                />
+                {showPOIInfo && (
+                    <OverlayPOIPanel
+                        poi={currentPoi || null}
+                        playbackProgress={playbackProgress}
+                        isPlaying={isPlaying}
+                    />
+                )}
 
                 {/* Telemetry bar at bottom */}
-                <OverlayTelemetryBar
-                    telemetry={telemetry}
-                />
+                {showInfoBar && (
+                    <OverlayTelemetryBar
+                        telemetry={telemetry}
+                    />
+                )}
             </div>
         </div>
     );

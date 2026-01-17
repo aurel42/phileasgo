@@ -36,6 +36,9 @@ type ConfigResponse struct {
 	TargetPOICount      int     `json:"target_poi_count"`
 	NarrationFrequency  int     `json:"narration_frequency"`
 	TextLength          int     `json:"text_length"`
+	ShowMapBox          bool    `json:"show_map_box"`
+	ShowPOIInfo         bool    `json:"show_poi_info"`
+	ShowInfoBar         bool    `json:"show_info_bar"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -134,6 +137,9 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 		TargetPOICount:      targetCount,
 		NarrationFrequency:  frequency,
 		TextLength:          textLength,
+		ShowMapBox:          h.appCfg.Overlay.MapBox,
+		ShowPOIInfo:         h.appCfg.Overlay.POIInfo,
+		ShowInfoBar:         h.appCfg.Overlay.InfoBar,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.103 (2026-01-17)
+- **Feature**: **Overlay Configuration**
+    - The three overlay components (Map Box, POI Info, Info Bar) are now individually configurable via `phileas.yaml`.
+    - **Config**: Added `overlay.map_box`, `overlay.poi_info`, and `overlay.info_bar` boolean toggles.
+    - **Impact**: Provides flexibility for users who want a cleaner or customized overlay layout (e.g. for OBS/Streaming).
+
 ## v0.2.102 (2026-01-17)
 - **Fix**: **Rescue Script Word Limit**
     - The "Rescue Script" mechanism (which cleans up LLM output) now respects the `MaxWords` constraint.

@@ -26,6 +26,14 @@ type Config struct {
 	Narrator NarratorConfig `yaml:"narrator"`
 	Sim      SimConfig      `yaml:"sim"`
 	Beacon   BeaconConfig   `yaml:"beacon"`
+	Overlay  OverlayConfig  `yaml:"overlay"`
+}
+
+// OverlayConfig holds settings for the overlay UI.
+type OverlayConfig struct {
+	MapBox  bool `yaml:"map_box"`
+	POIInfo bool `yaml:"poi_info"`
+	InfoBar bool `yaml:"info_bar"`
 }
 
 // RequestConfig holds HTTP request settings.
@@ -324,6 +332,11 @@ func DefaultConfig() *Config {
 			FormationCount:    3,
 			MinSpawnAltitude:  Distance(304.8), // 1000ft
 			AltitudeFloor:     Distance(609.6), // 2000ft
+		},
+		Overlay: OverlayConfig{
+			MapBox:  true,
+			POIInfo: true,
+			InfoBar: true,
 		},
 	}
 }
