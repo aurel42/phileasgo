@@ -83,13 +83,23 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 			return
 		}
 
-		// 4. Play
+		// 4. Synthesize Audio
+		audioPath, format, err := s.synthesizeAudio(genCtx, text, "landing_debrief")
+		if err != nil {
+			s.handleTTSError(err)
+			slog.Error("Narrator: Failed to synthesize debrief audio", "error", err)
+			return
+		}
+
+		// 5. Play
 		narrative := &Narrative{
 			POI: &model.POI{
 				NameEn:   "Landing Debrief",
 				Category: "System",
 			}, // Dummy POI for UI display
 			Script:         text,
+			AudioPath:      audioPath,
+			Format:         format,
 			RequestedWords: s.cfg.Narrator.NarrationLengthLongWords,
 		}
 

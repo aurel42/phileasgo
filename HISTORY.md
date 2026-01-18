@@ -1,5 +1,18 @@
 ﻿# Release History
 
+## v0.2.108 (2026-01-18)
+- **Feature**: **System Stats in Overlay**
+    - Added a **System Stats** section to the Overlay Telemetry Bar, displaying Memory Usage (RSS/Max) and Tracked POI count.
+    - Provides real-time visibility into application performance and resource consumption.
+- **Narrator**: **Persona & Prompt Refinement**
+    - **Persona Macro**: Added documentation for `common/macros.tmpl`.
+    - **Rescue Script**: Updated `rescue_script.tmpl` to strip stage directions (e.g., `[pauses]`) and emotional cues from the final output.
+    - **TTS**: Explicitly forbade stage directions and sound effects in the `edge-tts` prompt to prevent them from being read aloud.
+- **Fix**: **Debrief Audio Synthesis**
+    - The "Landing Debrief" now correctly performs an Audio Synthesis step before attempting playback, ensuring the summary is actually voiced.
+- **Fix**: **Cache Layer Visibility**
+    - The debug Cache Layer (circles) now only renders when the client is actively connected to the simulator, preventing visual clutter in disconnected states.
+
 ## v0.2.107 (2026-01-18)
 - **Feature**: **Debrief After Landing**
     - Automatically generates a "Trip Summary Debrief" when the aircraft lands (< 15kts).

@@ -14,7 +14,8 @@ interface Stats {
         'azure-speech'?: { api_success: number; api_zero: number; api_errors: number };
         [key: string]: { api_success: number; api_zero?: number; api_errors: number; hit_rate?: number } | undefined;
     };
-    tracking?: { active_pois?: number };
+    system?: { memory_alloc_mb: number; memory_max_mb: number; goroutines: number };
+    tracking?: { active_pois: number };
 }
 
 interface Config {
@@ -182,6 +183,28 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
 
                         <div style={{ color: '#ccc' }}>TTS <span style={{ fontSize: '0.85em', opacity: 0.8 }}>({config.tts_engine || '?'})</span></div>
                         <div style={{ textAlign: 'right' }}>{ttsStats.api_success}</div>
+                    </div>
+
+                    {/* System Stats (Vertical matching Tracking) */}
+                    <div className="stat-box" style={{ minWidth: '140px', alignItems: 'flex-start' }}>
+                        <div className="stat-value" style={{
+                            fontFamily: 'monospace',
+                            fontSize: '14px',
+                            display: 'grid',
+                            gridTemplateColumns: 'max-content 1fr',
+                            columnGap: '16px',
+                            rowGap: '2px',
+                            textAlign: 'left'
+                        }}>
+                            <div style={{ color: '#ccc' }}>MEM (RSS)</div>
+                            <div style={{ textAlign: 'right' }}>{stats?.system?.memory_alloc_mb || 0} <span className="unit" style={{ fontSize: '12px', color: '#888' }}>MB</span></div>
+
+                            <div style={{ color: '#ccc' }}>MEM (max)</div>
+                            <div style={{ textAlign: 'right' }}>{stats?.system?.memory_max_mb || 0} <span className="unit" style={{ fontSize: '12px', color: '#888' }}>MB</span></div>
+
+                            <div style={{ color: '#ccc' }}>Tracked POIs</div>
+                            <div style={{ textAlign: 'right' }}>{stats?.tracking?.active_pois || 0}</div>
+                        </div>
                     </div>
                 </div>
 

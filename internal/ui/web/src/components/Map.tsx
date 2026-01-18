@@ -225,7 +225,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
             {showFallbackMap && <CoverageLayer />}
-            {showCacheLayer && <CacheLayer />}
+            {showCacheLayer && isConnected && <CacheLayer />}
             <VisibilityLayer enabled={showVisibilityLayer} />
             {isConnected && telemetry && (
                 <>
