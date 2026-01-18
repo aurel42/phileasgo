@@ -1,5 +1,12 @@
 ﻿# Release History
 
+## v0.2.113 (2026-01-18)
+- **Fix**: **Classifier Cache Poisoning**
+    - Resolved a bug where ignored categories were saved as "Unknown" (`""`) in the database, causing them to be incorrectly rescued in subsequent runs.
+    - The system now explicitly checks ignore rules before saving intermediate hierarchy nodes, preventing cache corruption.
+
+
+
 ## v0.2.112 (2026-01-18)
 - **Feature**: **Configurable Screenshot Model**
     - The Gemini model used for screenshot analysis is now independently configurable via `phileas.yaml` (`llm.profiles.screenshot`).

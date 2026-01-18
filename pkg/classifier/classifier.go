@@ -365,6 +365,38 @@ func (c *Classifier) fetchAndCacheLayer(ctx context.Context, ids []string) map[s
 				category = cat
 				break
 			}
+			// FIX: Check if parent is ignored to prevent "cache poisoning" (saved as "")
+			if _, ok := c.config.IgnoredCategories[p]; ok {
+				category = "__IGNORED__"
+				// Don't break immediately? If another parent is a MATCH, we prefer MATCH.
+				// But we established earlier in the loop order that MATCH > IGNORE.
+				// The lookup match above covers MATCH.
+				// So if we find IGNORE here, we can set it, but we should continue checking for MATCH?
+				// Actually, `getLookupMatch` check above handles the MATCH case first for the current parent `p`.
+				// If p is ignored, we set category. But what if a later parent `p2` is a MATCH?
+				// The logic in slowPathHierarchy checks ALL parents for match first.
+				// Here we just want to save *some* valid state.
+				// If we find an ignored parent, we should probably record it, UNLESS we find a match later?
+				// Let's iterate all parents for MATCH first, then for IGNORE.
+			}
+		}
+
+		// 1. Scan for Match first (Priority)
+		for _, p := range parents {
+			if cat, ok := c.getLookupMatch(p); ok {
+				category = cat
+				break
+			}
+		}
+
+		// 2. If no match, scan for Ignore
+		if category == "" {
+			for _, p := range parents {
+				if _, ok := c.config.IgnoredCategories[p]; ok {
+					category = "__IGNORED__"
+					break
+				}
+			}
 		}
 
 		// Save to DB
