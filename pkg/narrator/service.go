@@ -42,6 +42,8 @@ type Service interface {
 	PlayNarrative(ctx context.Context, n *Narrative) error
 	// PlayEssay triggers a regional essay narration.
 	PlayEssay(ctx context.Context, tel *sim.Telemetry) bool
+	// PlayDebrief triggers a post-landing debrief.
+	PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool
 	// SkipCooldown forces the cooldown to expire immediately.
 	SkipCooldown()
 	// ShouldSkipCooldown returns true if the cooldown should be skipped.
@@ -204,6 +206,14 @@ func (s *StubService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	slog.Info("Narrator stub: essay play requested")
+	return true
+}
+
+// PlayDebrief triggers a post-landing debrief (stub).
+func (s *StubService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	slog.Info("Narrator stub: debrief requested")
 	return true
 }
 

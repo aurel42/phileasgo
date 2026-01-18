@@ -24,17 +24,25 @@ type Scheduler struct {
 	jobs        []Job
 	resettables []SessionResettable
 	lastTickPos geo.Point
+	debriefer   Debriefer
 }
 
 // NewScheduler creates a new Scheduler.
-func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink) *Scheduler {
-	return &Scheduler{
+func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink, debriefer Debriefer) *Scheduler {
+	s := &Scheduler{
 		cfg:         cfg,
 		sim:         simClient,
 		sink:        sink,
 		jobs:        []Job{},
 		resettables: []SessionResettable{},
+		debriefer:   debriefer,
 	}
+
+	// Register Core Jobs
+	// Landing Job
+	s.AddJob(NewLandingJob(debriefer))
+
+	return s
 }
 
 // AddResettable registers a component to be reset on session change (teleport).

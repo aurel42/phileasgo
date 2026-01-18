@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.107 (2026-01-18)
+- **Feature**: **Debrief After Landing**
+    - Automatically generates a "Trip Summary Debrief" when the aircraft lands (< 15kts).
+    - Summarizes the flight's highlighted POIs using the rolling trip summary memory.
+    - **Config**: Added `narrator.debrief` section to `phileas.yaml` (enabled by default).
+    - **Logic**: Triggered by `LandingJob` detecting airborne-to-ground transition. Includes a 5-minute cooldown.
+- **Narrator**: **Dynamic Length Control**
+    - The Debrief narration now respects the `narrator.narration_length_long_words` setting (default 200 words).
+    - Updated `debrief.tmpl` to use dynamic `MaxWords` instead of hardcoded limits.
+
 ## v0.2.106 (2026-01-18)
 - **Feature**: **Configurable Overlay Log Line**
     - The server log display in the overlay is now optional and configurable.

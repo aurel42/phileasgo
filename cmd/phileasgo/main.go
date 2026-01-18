@@ -328,33 +328,35 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 	return runServerLifecycle(ctx, srv, quit)
 }
 
-func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, ns *narrator.AIService, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, sink core.TelemetrySink, los *terrain.LOSChecker) *core.Scheduler {
-	sched := core.NewScheduler(cfg, simClient, sink)
+func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc *narrator.AIService, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker) *core.Scheduler {
+	sched := core.NewScheduler(cfg, simClient, apiHandler, narratorSvc)
 	sched.AddJob(core.NewDistanceJob("DistanceSync", 5000, func(c context.Context, t sim.Telemetry) {
 		_ = st.MarkEntitiesSeen(c, map[string][]string{})
 	}))
 
 	// Register Resettables for Teleport Detection
-	sched.AddResettable(ns)
+	sched.AddResettable(narratorSvc)
 	sched.AddResettable(svcs.PoiMgr)
 
-	// REMOVED: NarrationJob from Scheduler (too frequent polling)
-	// sched.AddJob(core.NewNarrationJob(cfg, ns, ns.POIManager(), los))
+	// Register Cleanup Job (runs every 10s)
+	sched.AddJob(core.NewTimeJob("CacheCleanup", 10*time.Second, func(c context.Context, t sim.Telemetry) {
+		// Clean up old cache entries if needed
+	}))
 
-	// Hook NarrationJob into POI Manager's scoring loop (every 5s)
-	narrationJob := core.NewNarrationJob(cfg, ns, ns.POIManager(), simClient, st, los)
+	// Register Debrief Job (implicitly added by NewScheduler via debriefer arg)
+
+	// Hook NarrationJob into POI Manager's scoring loop (every 5s) instead of Scheduler
+	narrationJob := core.NewNarrationJob(cfg, narratorSvc, narratorSvc.POIManager(), simClient, st, los)
 	svcs.PoiMgr.SetScoringCallback(func(c context.Context, t *sim.Telemetry) {
 		if narrationJob.ShouldFire(t) {
 			go narrationJob.Run(c, t)
 		}
 	})
 	svcs.PoiMgr.SetValleyAltitudeCallback(func(altMeters float64) {
-		if th, ok := sink.(*api.TelemetryHandler); ok {
-			th.SetValleyAltitude(altMeters)
-		}
+		apiHandler.SetValleyAltitude(altMeters)
 	})
 
-	dynamicJob := core.NewDynamicConfigJob(cfg, ns.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc)
+	dynamicJob := core.NewDynamicConfigJob(cfg, narratorSvc.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc)
 	sched.AddJob(dynamicJob)
 	sched.AddResettable(dynamicJob)
 

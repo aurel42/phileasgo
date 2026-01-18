@@ -42,6 +42,9 @@ func (m *mockNarratorService) PlayEssay(ctx context.Context, tel *sim.Telemetry)
 func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
 	m.playPOICalled = true
 }
+func (m *mockNarratorService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
+	return true
+}
 
 // Wait, I messed up the signature in thought. It should be:
 // func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {

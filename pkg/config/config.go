@@ -143,7 +143,13 @@ type NarratorConfig struct {
 	TemperatureBase           float32            `yaml:"temperature_base"`             // Base temperature (default 1.0)
 	TemperatureJitter         float32            `yaml:"temperature_jitter"`           // Jitter range (bell curve distribution)
 	Essay                     EssayConfig        `yaml:"essay"`
+	Debrief                   DebriefConfig      `yaml:"debrief"`
 	AudioEffects              AudioEffectsConfig `yaml:"audio_effects"`
+}
+
+// DebriefConfig holds settings for landing debriefs.
+type DebriefConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 // LogConfig holds logging settings.
@@ -306,6 +312,9 @@ func DefaultConfig() *Config {
 				DelayBetweenEssays: Duration(10 * time.Minute),
 				DelayBeforeEssay:   Duration(2 * time.Minute),
 				ScoreThreshold:     2.0,
+			},
+			Debrief: DebriefConfig{
+				Enabled: true,
 			},
 			AudioEffects: AudioEffectsConfig{
 				Headset:    false,

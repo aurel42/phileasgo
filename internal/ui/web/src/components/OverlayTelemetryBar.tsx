@@ -185,27 +185,7 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                     </div>
                 </div>
 
-                {/* Config (Prose) */}
-                <div className="stat-box" style={{ minWidth: '350px', alignItems: 'flex-start', textAlign: 'left', padding: '12px 16px' }}>
-                    <div className="stat-value" style={{ fontSize: '14px', lineHeight: '1.5', fontFamily: 'Inter, sans-serif', fontWeight: 400, color: '#eee' }}>
-                        <div style={{ marginBottom: '4px' }}>
-                            {config.filter_mode === 'adaptive'
-                                ? `Map Marker Mode: Adaptive (~${config.target_poi_count ?? 20} new POIs)`
-                                : `Map Marker Mode: Fixed Score (>= ${(config.min_poi_score ?? 0.5).toFixed(1)})`}
-                        </div>
-                        <div>
-                            {(() => {
-                                const freq = config.narration_frequency ?? 3;
-                                const pacing = ['Rarely', 'Normal', 'Active', 'Busy', 'Constant'][freq - 1] || 'Active';
 
-                                const len = config.text_length ?? 3;
-                                const detail = ['Shortest', 'Shorter', 'Normal', 'Longer', 'Longest'][len - 1] || 'Normal';
-
-                                return `Narration frequency: ${pacing}. Text length: ${detail}.`;
-                            })()}
-                        </div>
-                    </div>
-                </div>
 
                 {/* Branding - Restored Original */}
                 <div className="stat-box branding-box" style={{ minWidth: '120px' }}>

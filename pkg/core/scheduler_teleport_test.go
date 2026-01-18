@@ -25,7 +25,7 @@ func TestScheduler_TeleportDetection(t *testing.T) {
 	// It has SetTelemetry helper
 	mockSim := &mockSimClient{}
 
-	sched := NewScheduler(cfg, mockSim, nil)
+	sched := NewScheduler(cfg, mockSim, nil, nil)
 
 	mr1 := &mockResettable{}
 	mr2 := &mockResettable{}
