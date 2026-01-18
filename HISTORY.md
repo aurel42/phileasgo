@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.110 (2026-01-18)
+- **Fix**: **Improved "Lone Wolf" Logic**
+    - The `CountScoredAbove` competition metric now correctly ignores POIs that are on cooldown (recently narrated).
+    - This ensures that a "Silent Giant" (high-score but played POI) does not artificially force its neighbors into "High Competition" mode, allowing valid "Lone Wolf" narration for active candidates.
+
 ## v0.2.109 (2026-01-18)
 - **Fix**: **Expired POI Filtering**
     - The backend now strictly filters out "Played" POIs that have exceeded their `RepeatTTL` (cooldown) from the UI response.

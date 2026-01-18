@@ -441,3 +441,33 @@ func TestManager_GetNarrationCandidates(t *testing.T) {
 		t.Errorf("GetNarrationCandidates(1): Expected P1, got %v", best)
 	}
 }
+
+func TestManager_CountScoredAbove_Competition(t *testing.T) {
+	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	ctx := context.Background()
+	cfg := config.Config{}
+	cfg.Narrator.RepeatTTL = config.Duration(1 * time.Hour)
+	mgr.config = &cfg
+
+	now := time.Now()
+
+	// Scenario:
+	// P1: Score 10, Playable -> Should count
+	// P2: Score 10, Played Recently (Cooldown) -> Should NOT count (Silent)
+	pois := []*model.POI{
+		{WikidataID: "P1", NameEn: "P1", Score: 10.0, IsVisible: true},
+		{WikidataID: "P2", NameEn: "P2", Score: 10.0, IsVisible: true, LastPlayed: now},
+	}
+
+	for _, p := range pois {
+		_ = mgr.TrackPOI(ctx, p)
+	}
+
+	// Any score > 5.0
+	// Without fix: would return 2
+	// With fix: should return 1
+	count := mgr.CountScoredAbove(5.0, 100)
+	if count != 1 {
+		t.Errorf("CountScoredAbove expected 1 (only playable), got %d", count)
+	}
+}

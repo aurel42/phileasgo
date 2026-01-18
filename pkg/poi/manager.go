@@ -437,6 +437,12 @@ func (m *Manager) CountScoredAbove(threshold float64, limit int) int {
 
 	count := 0
 	for _, p := range m.trackedPOIs {
+		// Only count valid competitors (Playable POIs).
+		// If a neighbor is on cooldown, they are "silent" and don't contribute to competition clatter.
+		if !m.isPlayable(p) {
+			continue
+		}
+
 		if p.Score > threshold {
 			count++
 			if count >= limit {
