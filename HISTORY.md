@@ -1,11 +1,23 @@
 ﻿# Release History
 
+## v0.2.114 (2026-01-18)
+- **Fix**: **"Next POI" Marker Restoration**
+    - Restored the "Preparing" state visualization in `SmartMarkerLayer`.
+    - The POI currently being generated/prepared by the Narrator is now highlighted (darker green, larger scale) on both the Main Map and Overlay Mini-Map.
+    - Resolves a regression where the "Look Ahead" marker was missing from the UI.
+- **Refactor**: **Frontend Filtering Cleanup**
+    - Removed redundant client-side filtering (e.g., `minPoiScore` checks) from React components.
+    - The Frontend now relies strictly on the Backend API as the single source of truth for visibility and filtering.
+- **Fix**: **Adaptive Fallback Threshold**
+    - Corrected the fallback score threshold in `POIManager`'s adaptive mode to allow negative-score POIs when necessary to meet the target count.
+- **Fix**: **Overlay Layout Polish**
+    - Fixed a layout regression in the Overlay Telemetry Bar where the "System Stats" block was incorrectly nested inside the API Status column.
+    - The stats (Memory, Tracked POIs) now appear in their own dedicated column, matching the grid aesthetic.
+
 ## v0.2.113 (2026-01-18)
 - **Fix**: **Classifier Cache Poisoning**
     - Resolved a bug where ignored categories were saved as "Unknown" (`""`) in the database, causing them to be incorrectly rescued in subsequent runs.
     - The system now explicitly checks ignore rules before saving intermediate hierarchy nodes, preventing cache corruption.
-
-
 
 ## v0.2.112 (2026-01-18)
 - **Feature**: **Configurable Screenshot Model**

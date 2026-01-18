@@ -3,12 +3,12 @@ import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useMap, useMapEvents } from 'react-leaflet';
 import * as d3 from 'd3-force';
+// ... existing imports ...
 import type { POI } from '../hooks/usePOIs';
-import { isPOIVisible } from '../utils/poiUtils';
+// Removed unused isPOIVisible import
 
 interface SmartMarkerLayerProps {
     pois: POI[];
-    minPoiScore: number;
     selectedPOI: POI | null;
     currentNarratedId?: string;
     preparingId?: string;
@@ -53,6 +53,7 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
 
     // Active/Playing status logic
     const isHighlighted = priority === 2000;
+    const isPreparing = priority === 1500;
     const isMSFS = poi.is_msfs_poi;
     const isPlayed = poi.last_played && poi.last_played !== "0001-01-01T00:00:00Z";
 
@@ -60,6 +61,10 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
         bgColor = '#22c55e'; // Green
         scale = 1.5;
         zIndex = 2000;
+    } else if (isPreparing) {
+        bgColor = '#15803d'; // Darker Green (Green-700)
+        scale = 1.3;
+        zIndex = 1500;
     } else if (isMSFS) {
         // MSFS badge logic handled by overlay, but maybe boost scale?
         zIndex = 1000;
@@ -82,7 +87,7 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
 
     return (
         <div
-            className={`smart-marker ${isHighlighted ? 'highlighted' : ''}`}
+            className={`smart-marker ${isHighlighted ? 'highlighted' : ''} ${isPreparing ? 'preparing' : ''}`}
             onClick={(e) => {
                 e.stopPropagation(); // Prevent map click
                 onClick(poi);
@@ -119,7 +124,7 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
     );
 };
 
-export const SmartMarkerLayer = ({ pois, minPoiScore, selectedPOI, currentNarratedId, preparingId, onPOISelect }: SmartMarkerLayerProps) => {
+export const SmartMarkerLayer = ({ pois, selectedPOI, currentNarratedId, preparingId, onPOISelect }: SmartMarkerLayerProps) => {
     const map = useMap();
     const [isZooming, setIsZooming] = useState(false);
     const [mapVersion, setMapVersion] = useState(0); // Force recalc on map move
@@ -133,10 +138,8 @@ export const SmartMarkerLayer = ({ pois, minPoiScore, selectedPOI, currentNarrat
         moveend: () => setMapVersion(v => v + 1), // Trigger recalc after pan
     });
 
-    // Filter visible POIs
-    const visiblePOIs = useMemo(() => {
-        return pois.filter(p => isPOIVisible(p, minPoiScore) || p.wikidata_id === currentNarratedId || p.wikidata_id === preparingId);
-    }, [pois, minPoiScore, currentNarratedId, preparingId]);
+    // Use all POIs returned by API (API is source of truth)
+    const visiblePOIs = pois;
 
     // Compute layout SYNCHRONOUSLY using D3 force simulation (no animation)
     const nodes = useMemo(() => {
@@ -147,6 +150,7 @@ export const SmartMarkerLayer = ({ pois, minPoiScore, selectedPOI, currentNarrat
             // Priority Check
             let priority = 0;
             if (p.wikidata_id === currentNarratedId || p.wikidata_id === selectedPOI?.wikidata_id) priority = 2000;
+            else if (p.wikidata_id === preparingId) priority = 1500;
             else if (p.is_msfs_poi) priority = 1000;
 
             return {
@@ -204,6 +208,8 @@ export const SmartMarkerLayer = ({ pois, minPoiScore, selectedPOI, currentNarrat
                 left: 0, top: 0,
                 overflow: 'visible',
                 pointerEvents: 'none',
+                // Explicitly disable pointer events on the SVG container to let clicks pass through to map
+                // Individual elements (lines, circles) can remain non-interactive or receive specific styling
             }}>
                 {nodes.filter(n => {
                     const dx = n.x - n.anchorX;

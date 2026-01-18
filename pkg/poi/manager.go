@@ -347,8 +347,9 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 		if len(visibleCandidates) > targetCount {
 			effectiveThreshold = visibleCandidates[targetCount-1].Score
 		} else {
-			effectiveThreshold = 0.0 // All visible qualify
+			effectiveThreshold = -math.MaxFloat64 // All visible qualify
 		}
+
 	}
 
 	// 3. Assemble final list: All Played OR (Visible AND Score >= Threshold)

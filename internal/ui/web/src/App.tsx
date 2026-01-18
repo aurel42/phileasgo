@@ -198,7 +198,6 @@ function App() {
           showCacheLayer={showCacheLayer}
           showVisibilityLayer={showVisibilityLayer}
           pois={pois}
-          minPoiScore={minPoiScore}
           selectedPOI={selectedPOI}
           onPOISelect={handlePOISelect}
           onMapClick={handlePanelClose}

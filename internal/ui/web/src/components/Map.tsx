@@ -168,13 +168,12 @@ interface MapProps {
     showCacheLayer: boolean;
     showVisibilityLayer: boolean;
     pois: POI[];
-    minPoiScore: number;
     selectedPOI: POI | null;
     onPOISelect: (poi: POI) => void;
     onMapClick: () => void;
 }
 
-export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiScore, selectedPOI, onPOISelect, onMapClick }: MapProps) => {
+export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selectedPOI, onPOISelect, onMapClick }: MapProps) => {
 
     const { data: telemetry, isLoading: isConnecting } = useTelemetry();
     const isConnected = telemetry?.SimState === 'active';
@@ -245,7 +244,6 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, minPoiSc
             {isConnected && (
                 <SmartMarkerLayer
                     pois={displayPois}
-                    minPoiScore={minPoiScore}
                     selectedPOI={selectedPOI}
                     currentNarratedId={currentNarratedId}
                     preparingId={preparingId}

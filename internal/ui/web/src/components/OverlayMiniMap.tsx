@@ -146,7 +146,7 @@ const RingLabels = ({ lat, units }: { lat: number; units: 'km' | 'nm' }) => {
 };
 
 // Map content that depends on the map being ready
-const MapContent = ({ lat, lon, heading, pois, minPoiScore, currentNarratedId, preparingId, units }: OverlayMiniMapProps) => {
+const MapContent = ({ lat, lon, heading, pois, currentNarratedId, preparingId, units }: OverlayMiniMapProps) => {
     return (
         <WhenMapReady>
             {/* Range rings */}
@@ -159,7 +159,6 @@ const MapContent = ({ lat, lon, heading, pois, minPoiScore, currentNarratedId, p
             {pois.length > 0 && (
                 <SmartMarkerLayer
                     pois={pois}
-                    minPoiScore={minPoiScore ?? -100}
                     selectedPOI={null}
                     currentNarratedId={currentNarratedId}
                     preparingId={preparingId}
@@ -170,7 +169,7 @@ const MapContent = ({ lat, lon, heading, pois, minPoiScore, currentNarratedId, p
     );
 };
 
-export const OverlayMiniMap = ({ lat, lon, heading, pois, minPoiScore, currentNarratedId, preparingId, units }: OverlayMiniMapProps) => {
+export const OverlayMiniMap = ({ lat, lon, heading, pois, currentNarratedId, preparingId, units }: OverlayMiniMapProps) => {
     const [map, setMap] = useState<L.Map | null>(null);
 
     // Fixed zoom for mini-map (zoom 9 shows ~150km, good for 20nm ring visibility)
@@ -236,7 +235,6 @@ export const OverlayMiniMap = ({ lat, lon, heading, pois, minPoiScore, currentNa
                     lon={lon}
                     heading={heading}
                     pois={pois}
-                    minPoiScore={minPoiScore}
                     currentNarratedId={currentNarratedId}
                     preparingId={preparingId}
                     units={units}

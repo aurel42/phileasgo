@@ -2,6 +2,7 @@ package poi
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -330,7 +331,7 @@ func TestManager_GetPOIsForUI(t *testing.T) {
 			mode:          "adaptive",
 			targetCount:   10,
 			wantIDs:       []string{"P1", "P2", "P3", "P4", "P5", "P_Played", "P_Airport"},
-			wantThreshold: 0.0,
+			wantThreshold: -math.MaxFloat64,
 		},
 	}
 
