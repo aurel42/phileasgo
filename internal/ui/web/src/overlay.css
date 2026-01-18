@@ -53,10 +53,6 @@ html.overlay-mode {
     background: transparent !important;
 }
 
-/* .overlay-minimap .leaflet-tile-pane {
-    opacity: 0.3 !important;
-} */
-
 /* Hide any panes that shouldn't show */
 .overlay-minimap .leaflet-pane {
     background: transparent !important;
@@ -132,34 +128,83 @@ html.overlay-mode {
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
+
+    /* Flex column to contain stats stats-row + absolute log */
     display: flex;
-    gap: 8px;
-    background: rgba(15, 15, 20, 0.98);
-    padding: 12px 16px;
+    flex-direction: column;
+    align-items: center;
+
+    /* Layout */
+    background: rgba(15, 15, 25, 0.85);
+    /* Darker main bg */
+    padding: 12px 16px 34px 16px;
+    /* Extra bottom padding for log line */
+    gap: 0;
+    /* Gaps handled by stats-row */
+
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(8px);
     pointer-events: auto;
+
+    /* Ensure sizing matches content (not log line) */
+    width: fit-content;
+    max-width: 95vw;
+    /* Prevent overflow on small screens */
+}
+
+/* Container for the boxes */
+.overlay-telemetry-bar .stats-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
 }
 
 .overlay-telemetry-bar .stat-box {
     display: flex;
     flex-direction: column;
+    justify-content: center;
     align-items: center;
-    padding: 8px 12px;
+    padding: 10px 14px;
     min-width: 80px;
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(0, 0, 0, 0.9);
+    /* High contrast black */
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Log Line Style - Absolute to not affect width */
+.overlay-telemetry-bar .log-line {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    line-height: 30px;
+
+    /* Typography */
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #ccc;
+    /* Higher contrast */
+    text-align: left;
+
+    /* Layout */
+    padding: 0 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    /* Border/Bg */
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    background: rgba(0, 0, 0, 0.3);
 }
 
 .overlay-telemetry-bar .stat-label {
-    font-size: 9px;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    display: none;
 }
 
 .overlay-telemetry-bar .stat-value {
@@ -179,56 +224,4 @@ html.overlay-mode {
     font-size: 10px;
     color: #666;
     margin-left: 2px;
-}
-
-/* Status dot */
-.overlay-telemetry-bar .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 6px;
-}
-
-.overlay-telemetry-bar .status-dot.connected {
-    background: #4caf50;
-    box-shadow: 0 0 6px #4caf50;
-}
-
-.overlay-telemetry-bar .status-dot.paused {
-    background: #ff9800;
-    box-shadow: 0 0 6px #ff9800;
-}
-
-.overlay-telemetry-bar .status-dot.error {
-    background: #f44336;
-    box-shadow: 0 0 6px #f44336;
-}
-
-/* API stats colors */
-.overlay-telemetry-bar .stat-success {
-    color: #4caf50;
-}
-
-.overlay-telemetry-bar .stat-error {
-    color: #f44336;
-}
-
-.overlay-telemetry-bar .stat-neutral {
-    color: #888;
-}
-
-/* Flight stage badge */
-.overlay-telemetry-bar .flight-stage {
-    font-size: 10px;
-    font-weight: bold;
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #888;
-}
-
-.overlay-telemetry-bar .flight-stage.active {
-    background: rgba(74, 158, 255, 0.2);
-    color: #4a9eff;
 }

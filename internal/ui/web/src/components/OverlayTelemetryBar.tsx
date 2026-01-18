@@ -23,6 +23,8 @@ interface Config {
     min_poi_score?: number;
     narration_frequency?: number;
     text_length?: number;
+    llm_provider?: string;
+    tts_engine?: string;
 }
 
 interface Geography {
@@ -36,6 +38,7 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
     const [version, setVersion] = useState<string>('...');
     const [config, setConfig] = useState<Config>({});
     const [location, setLocation] = useState<Geography | null>(null);
+    const [logLine, setLogLine] = useState<string>('');
 
     // Use ref to access latest telemetry in interval without resetting it
     const telemetryRef = useRef(telemetry);
@@ -72,194 +75,154 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                 .catch(() => { });
         };
 
+        const fetchLog = () => {
+            fetch('/api/log/latest')
+                .then(r => r.json())
+                .then(data => setLogLine(data.log || ''))
+                .catch(() => { });
+        };
+
         fetchStats();
         fetchVersion();
         fetchConfig();
         fetchLocation();
+        fetchLog();
 
         const statsInterval = setInterval(fetchStats, 5000);
         const configInterval = setInterval(fetchConfig, 5000);
         const locInterval = setInterval(fetchLocation, 10000);
+        const logInterval = setInterval(fetchLog, 1000);
 
         return () => {
             clearInterval(statsInterval);
             clearInterval(configInterval);
             clearInterval(locInterval);
+            clearInterval(logInterval);
         };
     }, []);
 
     if (!telemetry) {
         return (
             <div className="overlay-telemetry-bar">
-                <div className="stat-box">
-                    <div className="stat-label">STATUS</div>
-                    <div className="stat-value">
-                        <span className="status-dot error"></span>
-                        Disconnected
+                <div className="stats-row">
+                    <div className="stat-box">
+                        <div className="stat-value">
+                            <span className="status-dot error"></span>
+                            Disconnected
+                        </div>
                     </div>
                 </div>
             </div>
         );
     }
 
-    const simState = telemetry.SimState || 'disconnected';
-    const statusInfo = {
-        active: { label: 'Active', className: 'connected' },
-        inactive: { label: 'Paused', className: 'paused' },
-        disconnected: { label: 'Disconnected', className: 'error' },
-    }[simState] || { label: 'Unknown', className: '' };
-
-    const wdStats = stats?.providers?.wikidata || { api_success: 0, api_errors: 0 };
-    const wpStats = stats?.providers?.wikipedia || { api_success: 0, api_errors: 0 };
-    const geminiStats = stats?.providers?.gemini || { api_success: 0, api_errors: 0 };
-    const ttsStats = stats?.providers?.['edge-tts'] || stats?.providers?.['azure-speech'] || { api_success: 0, api_errors: 0 };
+    const wdStats = stats?.providers?.wikidata || { api_success: 0 };
+    const wpStats = stats?.providers?.wikipedia || { api_success: 0 };
+    const geminiStats = stats?.providers?.gemini || { api_success: 0 };
+    const ttsStats = stats?.providers?.['edge-tts'] || stats?.providers?.['azure-speech'] || { api_success: 0 };
 
     return (
         <div className="overlay-telemetry-bar">
-            {/* HDG @ GS */}
-            <div className="stat-box">
-                <div className="stat-label">HDG @ GS</div>
-                <div className="stat-value" style={{ fontFamily: 'monospace' }}>
-                    {Math.round(telemetry.Heading)}°
-                </div>
-                <div className="stat-value" style={{ fontFamily: 'monospace' }}>
-                    {Math.round(telemetry.GroundSpeed)}<span className="unit"> kts</span>
-                </div>
-            </div>
+            {/* Wrapper for boxes to control width independent of log line */}
+            <div className="stats-row">
 
-            {/* Altitude */}
-            <div className="stat-box">
-                <div className="stat-label">ALTITUDE</div>
-                <div className="stat-value" style={{ fontFamily: 'monospace' }}>
-                    {Math.round(telemetry.AltitudeAGL)} <span className="unit">ft AGL</span>
-                </div>
-                <div className="stat-sub" style={{ fontFamily: 'monospace' }}>
-                    {Math.round(telemetry.AltitudeMSL)} <span className="unit">ft MSL</span>
-                </div>
-            </div>
-
-            {/* Position */}
-            <div className="stat-box" style={{ minWidth: '280px' }}>
-                <div className="stat-label">POSITION</div>
-                <div className="stat-value" style={{ fontSize: '13px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                    <span className="unit">LAT </span>{telemetry.Latitude.toFixed(4)}
-                    <span className="unit" style={{ marginLeft: '8px' }}>LON </span>{telemetry.Longitude.toFixed(4)}
-                </div>
-                {location?.city && (
-                    <div className="stat-value" style={{ fontSize: '14px', marginTop: '4px', color: '#fff', fontFamily: 'monospace', textAlign: 'center' }}>
-                        <div>
-                            <span style={{ color: '#888', marginRight: '4px', fontSize: '12px' }}>near</span>
-                            {location.city}
-                        </div>
-                        <div style={{ color: '#aaa', fontSize: '12px', marginTop: '2px' }}>
-                            {location.region ? `${location.region}, ` : ''}{location.country}
-                        </div>
+                {/* Tracking (Vertical) */}
+                <div className="stat-box" style={{ alignItems: 'flex-start', minWidth: '120px' }}>
+                    <div className="stat-value" style={{ fontFamily: 'monospace', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ whiteSpace: 'nowrap' }}><span style={{ color: '#ccc', width: '32px', display: 'inline-block' }}>HDG</span> {Math.round(telemetry.Heading)}°</div>
+                        <div style={{ whiteSpace: 'nowrap' }}><span style={{ color: '#ccc', width: '32px', display: 'inline-block' }}>GS</span> {Math.round(telemetry.GroundSpeed)} <span className="unit" style={{ fontSize: '14px', color: '#ccc' }}>kts</span></div>
+                        <div style={{ whiteSpace: 'nowrap' }}><span style={{ color: '#ccc', width: '32px', display: 'inline-block' }}>AGL</span> {Math.round(telemetry.AltitudeAGL)} <span className="unit" style={{ fontSize: '14px', color: '#ccc' }}>ft</span></div>
+                        <div style={{ whiteSpace: 'nowrap' }}><span style={{ color: '#ccc', width: '32px', display: 'inline-block' }}>MSL</span> {Math.round(telemetry.AltitudeMSL)} <span className="unit" style={{ fontSize: '14px', color: '#ccc' }}>ft</span></div>
                     </div>
-                )}
-            </div>
+                </div>
 
-            {/* Status */}
-            <div className="stat-box">
-                <div className="stat-label">STATUS</div>
-                <div className="stat-value">
-                    {simState !== 'disconnected' && (
-                        <span className={`flight-stage ${telemetry.IsOnGround ? '' : 'active'}`}>
-                            {telemetry.IsOnGround ? 'GROUND' : 'AIR'}
-                        </span>
+                {/* Position */}
+                <div className="stat-box" style={{ minWidth: location?.city ? '220px' : '180px' }}>
+                    {location?.city ? (
+                        <>
+                            <div className="stat-value" style={{ fontSize: '16px', color: '#fff', textAlign: 'center', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+                                <span style={{ color: '#ddd', fontWeight: 400, marginRight: '6px', fontSize: '14px' }}>near</span>
+                                {location.city}
+                            </div>
+                            <div style={{ color: '#eee', fontSize: '14px', marginTop: '4px', textAlign: 'center', fontFamily: 'Inter, sans-serif' }}>
+                                {location.region ? `${location.region}, ` : ''}{location.country}
+                            </div>
+                            <div style={{ fontSize: '13px', fontFamily: 'monospace', color: '#ccc', marginTop: '8px', textAlign: 'center', letterSpacing: '0.5px' }}>
+                                {telemetry.Latitude.toFixed(4)}, {telemetry.Longitude.toFixed(4)}
+                            </div>
+                        </>
+                    ) : (
+                        <div className="stat-value" style={{ fontSize: '14px', fontFamily: 'monospace', textAlign: 'center' }}>
+                            <span className="unit" style={{ color: '#ccc' }}>LAT </span>{telemetry.Latitude.toFixed(4)} <br />
+                            <span className="unit" style={{ color: '#ccc' }}>LON </span>{telemetry.Longitude.toFixed(4)}
+                        </div>
                     )}
                 </div>
-                <div className="stat-sub">
-                    <span className={`status-dot ${statusInfo.className}`}></span>
-                    {statusInfo.label}
-                </div>
-            </div>
 
-            {/* Wikidata */}
-            <div className="stat-box">
-                <div className="stat-label">WIKIDATA</div>
-                <div className="stat-value">
-                    <span className="stat-success">{wdStats.api_success}</span>
-                    <span className="stat-neutral"> / </span>
-                    <span className="stat-error">{wdStats.api_errors}</span>
-                </div>
-            </div>
+                {/* APIs (Vertical matching Tracking) */}
+                <div className="stat-box" style={{ minWidth: '160px', alignItems: 'flex-start' }}>
+                    <div className="stat-value" style={{
+                        fontFamily: 'monospace',
+                        fontSize: '14px',
+                        display: 'grid',
+                        gridTemplateColumns: 'max-content 1fr',
+                        columnGap: '16px',
+                        rowGap: '2px',
+                        textAlign: 'left'
+                    }}>
+                        <div style={{ color: '#ccc' }}>Wikidata API</div>
+                        <div style={{ textAlign: 'right' }}>{wdStats.api_success}</div>
 
-            {/* Wikipedia */}
-            <div className="stat-box">
-                <div className="stat-label">WIKIPEDIA</div>
-                <div className="stat-value">
-                    <span className="stat-success">{wpStats.api_success}</span>
-                    <span className="stat-neutral"> / </span>
-                    <span className="stat-error">{wpStats.api_errors}</span>
-                </div>
-            </div>
+                        <div style={{ color: '#ccc' }}>Wikipedia</div>
+                        <div style={{ textAlign: 'right' }}>{wpStats.api_success}</div>
 
-            {/* Gemini */}
-            <div className="stat-box">
-                <div className="stat-label">GEMINI</div>
-                <div className="stat-value">
-                    <span className="stat-success">{geminiStats.api_success}</span>
-                    <span className="stat-neutral"> / </span>
-                    <span className="stat-error">{geminiStats.api_errors}</span>
-                </div>
-            </div>
+                        <div style={{ color: '#ccc' }}>LLM <span style={{ fontSize: '0.85em', opacity: 0.8 }}>({config.llm_provider || '?'})</span></div>
+                        <div style={{ textAlign: 'right' }}>{geminiStats.api_success}</div>
 
-            {/* TTS */}
-            <div className="stat-box">
-                <div className="stat-label">TTS</div>
-                <div className="stat-value">
-                    <span className="stat-success">{ttsStats.api_success}</span>
-                    <span className="stat-neutral"> / </span>
-                    <span className="stat-error">{ttsStats.api_errors}</span>
+                        <div style={{ color: '#ccc' }}>TTS <span style={{ fontSize: '0.85em', opacity: 0.8 }}>({config.tts_engine || '?'})</span></div>
+                        <div style={{ textAlign: 'right' }}>{ttsStats.api_success}</div>
+                    </div>
                 </div>
-            </div>
 
-            {/* POI Filter */}
-            <div className="stat-box">
-                <div className="stat-label">POI FILTER</div>
-                <div className="stat-value" style={{ fontSize: '12px' }}>
-                    {config.filter_mode === 'adaptive'
-                        ? `Adaptive (${config.target_poi_count ?? 20})`
-                        : `Fixed (${(config.min_poi_score ?? 0.5).toFixed(1)})`}
+                {/* Config (Prose) */}
+                <div className="stat-box" style={{ minWidth: '350px', alignItems: 'flex-start', textAlign: 'left', padding: '12px 16px' }}>
+                    <div className="stat-value" style={{ fontSize: '14px', lineHeight: '1.5', fontFamily: 'Inter, sans-serif', fontWeight: 400, color: '#eee' }}>
+                        <div style={{ marginBottom: '4px' }}>
+                            {config.filter_mode === 'adaptive'
+                                ? `Map Marker Mode: Adaptive (~${config.target_poi_count ?? 20} new POIs)`
+                                : `Map Marker Mode: Fixed Score (>= ${(config.min_poi_score ?? 0.5).toFixed(1)})`}
+                        </div>
+                        <div>
+                            {(() => {
+                                const freq = config.narration_frequency ?? 3;
+                                const pacing = ['Rarely', 'Normal', 'Active', 'Busy', 'Constant'][freq - 1] || 'Active';
+
+                                const len = config.text_length ?? 3;
+                                const detail = ['Shortest', 'Shorter', 'Normal', 'Longer', 'Longest'][len - 1] || 'Normal';
+
+                                return `Narration frequency: ${pacing}. Text length: ${detail}.`;
+                            })()}
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-
-
-            {/* Frequency */}
-            <div className="stat-box">
-                <div className="stat-label">NARRATION PACE</div>
-                <div className="stat-value" style={{ fontSize: '12px' }}>
-                    {(() => {
-                        const freq = config.narration_frequency ?? 3;
-                        const labels = ['Rarely', 'Normal', 'Active', 'Busy', 'Constant'];
-                        return labels[freq - 1] || 'Active';
-                    })()}
+                {/* Branding - Restored Original */}
+                <div className="stat-box branding-box" style={{ minWidth: '120px' }}>
+                    <div className="stat-value" style={{ fontSize: '11px', lineHeight: '1.3', textAlign: 'center', color: '#4a9eff', fontWeight: 700, fontFamily: 'sans-serif' }}>
+                        PHILEAS<br />
+                        TOUR GUIDE<br />
+                        FOR MSFS
+                    </div>
+                    <div className="stat-value" style={{ textAlign: 'center', marginTop: '6px', fontSize: '12px', color: '#bbb' }}>
+                        {version}
+                    </div>
                 </div>
-            </div>
 
-            {/* Length */}
-            <div className="stat-box">
-                <div className="stat-label">NARRATION DETAIL</div>
-                <div className="stat-value" style={{ fontSize: '12px' }}>
-                    {(() => {
-                        const len = config.text_length ?? 3;
-                        const labels = ['Shortest', 'Shorter', 'Normal', 'Longer', 'Longest'];
-                        return labels[len - 1] || 'Normal';
-                    })()}
-                </div>
-            </div>
+            </div> {/* End of stats-row */}
 
-            {/* Branding */}
-            <div className="stat-box branding-box" style={{ minWidth: '120px' }}>
-                <div className="stat-value" style={{ fontSize: '10px', lineHeight: '1.2', textAlign: 'center', color: '#4a9eff' }}>
-                    PHILEAS<br />
-                    TOUR GUIDE<br />
-                    FOR MSFS
-                </div>
-                <div className="stat-value" style={{ textAlign: 'center', marginTop: '4px', fontSize: '12px', color: '#888' }}>
-                    {version}
-                </div>
+            {/* Log Line (Outside of flow, absolute positioned in CSS) */}
+            <div className="log-line">
+                {logLine}
             </div>
         </div>
     );

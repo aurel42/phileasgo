@@ -32,11 +32,7 @@ func logGoogleSearchUsage(name string, meta *genai.GroundingMetadata) {
 
 	if used {
 		slog.Info("Gemini: Google Search used",
-			"intent", name,
 			"snippets", snippets,
 			"search_query", query)
-	} else if name == "narration" || name == "essay" {
-		// Explicitly log if NO search was used for narration/essay to help debug
-		slog.Warn("Gemini: Google Search tool configured but NOT used by model", "intent", name)
 	}
 }

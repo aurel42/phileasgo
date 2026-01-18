@@ -100,7 +100,13 @@ func setupHandler(path, levelStr string, stdout bool) (handler slog.Handler, fil
 	}
 	consoleHandler := slog.NewTextHandler(os.Stdout, consoleOpts)
 
-	return &multiHandler{handlers: []slog.Handler{fileHandler, consoleHandler}}, file, nil
+	// 4. Capture Handler - for Overlay (INFO+)
+	captureHandler := slog.NewTextHandler(GlobalLogCapture, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+
+	handlers := []slog.Handler{fileHandler, consoleHandler, captureHandler}
+	return &multiHandler{handlers: handlers}, file, nil
 }
 
 func mathMaxLevel(a, b slog.Level) slog.Level {

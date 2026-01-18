@@ -39,6 +39,7 @@ type ConfigResponse struct {
 	ShowMapBox          bool    `json:"show_map_box"`
 	ShowPOIInfo         bool    `json:"show_poi_info"`
 	ShowInfoBar         bool    `json:"show_info_bar"`
+	LLMProvider         string  `json:"llm_provider"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -140,6 +141,7 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 		ShowMapBox:          h.appCfg.Overlay.MapBox,
 		ShowPOIInfo:         h.appCfg.Overlay.POIInfo,
 		ShowInfoBar:         h.appCfg.Overlay.InfoBar,
+		LLMProvider:         h.appCfg.LLM.Provider,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -32,6 +32,9 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 	// 2d. Stats Endpoint
 	mux.Handle("GET /api/stats", stats)
 
+	// 2d. Logs Endpoint
+	mux.HandleFunc("GET /api/log/latest", handleLatestLog)
+
 	// 2e. Cache Endpoint
 	mux.Handle("GET /api/wikidata/cache", cache)
 

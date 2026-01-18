@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.105 (2026-01-18)
+- **Feature**: **Overlay Polish (Round 3) & Log Display**
+    - Refined the Overlay Telemetry Bar layout with high-contrast stats, vertical API status block (Grid Layout), and Key-Value config prose.
+    - Added a **Server Log Line** display to the overlay, showing the latest filtered log message for debugging.
+    - **Visuals**: Switched to "Inter" font, darkened backgrounds, and improved typography for readability.
+- **Fix**: **Log Readability & Context**
+    - **Empty POI Name**: Thumbnail selection logs now correctly identify the POI using fallback names (Local or QID) if the English name is missing.
+    - **Formatting**: Trimmed trailing spaces from log parameters and removed spurious warning logs about unused Gemini tools.
+    - **Best Name**: Updated API logging to use standard `DisplayName()` logic.
+
 ## v0.2.104 (2026-01-18)
 - **Feature**: **Viewport-Based Cache API**
     - Refactored the Frontend and API to query cached tiles using the visible map bounding box (`min_lat`, `max_lat`, `min_lon`, `max_lon`) instead of a fixed center-point radius.

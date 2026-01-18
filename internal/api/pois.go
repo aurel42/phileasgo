@@ -231,15 +231,18 @@ func (h *POIHandler) selectThumbnailWithLLM(ctx context.Context, title, lang str
 	}
 	selected = strings.Trim(selected, "\"`'")
 
+	// Determine display name for logging
+	poiName := p.DisplayName()
+
 	// Find match in our list (LLM returns the URL)
 	for _, img := range images {
 		if strings.EqualFold(img.URL, selected) {
-			slog.Info("Thumbnail: LLM selected image", "poi", p.NameEn, "url", img.URL)
+			slog.Info("Thumbnail: LLM selected image", "poi", poiName, "url", img.URL)
 			return img.URL
 		}
 		// Fallback: Check if it returned the filename
 		if strings.EqualFold(img.Title, selected) || strings.EqualFold(strings.TrimPrefix(img.Title, "File:"), selected) {
-			slog.Info("Thumbnail: LLM selected image by filename", "poi", p.NameEn, "url", img.URL)
+			slog.Info("Thumbnail: LLM selected image by filename", "poi", poiName, "url", img.URL)
 			return img.URL
 		}
 	}
