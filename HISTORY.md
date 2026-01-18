@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.117 (2026-01-18)
+- **Feature**: **Screenshot Narration Priority**
+    - Screenshots are now detected immediately at the start of the narration loop, ensuring they trigger even in remote areas (e.g. over the ocean) where no POIs are available.
+    - Bypasses the standard "Frequency" checks for immediate feedback.
+- **Narrator**: **Detailed Screenshot Descriptions**
+    - Switched screenshot narration to use `long` form word targets (default ~200 words) instead of short, allowing for richer scene descriptions.
+- **Fix**: **Narrator Crash & Logs**
+    - Resolved a nil pointer dereference when the Beacon system attempted to read coordinates from a screenshot (which has no POI data).
+    - Reduced log spam by downgrading "Screenshot described" messages to DEBUG level.
+
 ## v0.2.116 (2026-01-18)
 - **Feature**: **Unified Narrator Pipeline**
     - Refactored all narrative types (POI, Screenshot, Essay, Debrief) to use the shared `PlayNarrative` method.

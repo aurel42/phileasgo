@@ -51,7 +51,7 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 		"Lat":      fmt.Sprintf("%.3f", tel.Latitude),
 		"Lon":      fmt.Sprintf("%.3f", tel.Longitude),
 		"Alt":      fmt.Sprintf("%.0f", tel.AltitudeAGL),
-		"MaxWords": s.cfg.Narrator.NarrationLengthShortWords,
+		"MaxWords": s.cfg.Narrator.NarrationLengthLongWords,
 	}
 
 	prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
@@ -71,7 +71,7 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 		slog.Warn("Narrator: Gemini returned empty description")
 		return
 	}
-	slog.Info("Narrator: Screenshot described", "text", text)
+	slog.Debug("Narrator: Screenshot described", "text", text)
 
 	// 5. Check if we are still valid/active? (Maybe user paused in between?)
 	if s.IsPaused() {

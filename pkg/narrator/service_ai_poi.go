@@ -42,7 +42,12 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 	// Re-acquire lock to check stagedNarrative again (safe because we released it briefly, state might have changed but unlikely in this flow)
 	// We should ideally have kept logic simpler.
 	if s.stagedNarrative != nil {
-		if manual && s.stagedNarrative.POI.WikidataID != poiID {
+		stagedID := ""
+		if s.stagedNarrative.POI != nil {
+			stagedID = s.stagedNarrative.POI.WikidataID
+		}
+
+		if manual && stagedID != poiID {
 			// Double check logic: we already cleared it above?
 			// Ah, the logic above was inside a lock block? Yes.
 			// So s.stagedNarrative IS nil if we cleared it.
@@ -50,7 +55,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 			// Let's rewrite this part cleaner without re-locking issues.
 		} else {
 			// Use staged narrative
-			slog.Info("Narrator: Using staged narrative (Zero Latency)", "poi_id", s.stagedNarrative.POI.WikidataID)
+			slog.Info("Narrator: Using staged narrative (Zero Latency)", "type", s.stagedNarrative.Type, "poi_id", stagedID)
 			narrative = s.stagedNarrative
 			s.stagedNarrative = nil
 		}
@@ -326,17 +331,19 @@ func (s *AIService) monitorPlayback(n *Narrative) {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if !s.audio.IsBusy() {
-			// Use Title for non-POI narratives, DisplayName() for POI narratives
-			displayName := n.Title
-			displayID := n.Type
-			if n.POI != nil {
-				displayName = n.POI.DisplayName()
-				displayID = n.POI.WikidataID
-			}
-			slog.Info("Narrator: Playback ended", "name", displayName, "id", displayID)
-			break
+		if s.audio.IsBusy() {
+			continue
 		}
+
+		// Use Title for non-POI narratives, DisplayName() for POI narratives
+		displayName := n.Title
+		displayID := n.Type
+		if n.POI != nil {
+			displayName = n.POI.DisplayName()
+			displayID = n.POI.WikidataID
+		}
+		slog.Info("Narrator: Playback ended", "name", displayName, "id", displayID)
+		break
 	}
 
 	// Update Beacon Target immediately after playback

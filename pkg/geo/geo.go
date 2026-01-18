@@ -153,8 +153,8 @@ func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
 	var bestCity City
 	minDistSq := math.MaxFloat64
 
-	for dLat := -1; dLat <= 1; dLat++ {
-		for dLon := -1; dLon <= 1; dLon++ {
+	for dLat := -2; dLat <= 2; dLat++ {
+		for dLon := -2; dLon <= 2; dLon++ {
 			key := s.makeKey(originLatKey+dLat, originLonKey+dLon)
 			cities, ok := s.grid[key]
 			if !ok {

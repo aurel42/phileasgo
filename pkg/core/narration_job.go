@@ -44,6 +44,8 @@ type NarrationJob struct {
 	takeoffTime    time.Time // Track when we left the ground
 	lastAGL        float64   // Last known AGL for visibility boost check
 	hasCheckedOnce bool      // Flag to handle startup state (e.g. starting mid-flight)
+
+	pendingScreenshot string // Queue for detected screenshots that triggered ShouldFire
 }
 
 func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker, w *watcher.Service) *NarrationJob {
@@ -127,6 +129,15 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	// PRIORITY: Check for pending manual override
 	if j.narrator.HasPendingManualOverride() {
 		return true
+	}
+
+	// 0.5 Check for New Screenshots (Priority 0.5)
+	if j.watcher != nil && j.cfg.Narrator.Screenshot.Enabled {
+		if path, ok := j.watcher.CheckNew(); ok {
+			slog.Info("NarrationJob: New screenshot detected (ShouldFire)", "path", path)
+			j.pendingScreenshot = path
+			return true
+		}
 	}
 
 	// 2. Frequency & Pipeline Logic
@@ -366,13 +377,19 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	}
 
 	// 0.5 Check for New Screenshots (Priority 0.5)
+	if j.pendingScreenshot != "" {
+		path := j.pendingScreenshot
+		j.pendingScreenshot = "" // Consume
+		slog.Info("NarrationJob: Processing pending screenshot", "path", path)
+		// Play immediately (blocking or async handled by PlayImage)
+		j.narrator.PlayImage(ctx, path, t)
+		return
+	}
+	// Fallback check if pending was missed (race condition safety or direct Run calls)
 	if j.watcher != nil && j.cfg.Narrator.Screenshot.Enabled {
 		if path, ok := j.watcher.CheckNew(); ok {
-			slog.Info("NarrationJob: New screenshot detected, interrupting flow", "path", path)
-			// Play immediately (blocking or async handled by PlayImage)
+			slog.Info("NarrationJob: New screenshot detected (in Run)", "path", path)
 			j.narrator.PlayImage(ctx, path, t)
-			// We return here to "consume" this tick. The next tick will check standard narrative logic.
-			// Ideally PlayImage starts playing quickly so IsPlaying() becomes true soon.
 			return
 		}
 	}

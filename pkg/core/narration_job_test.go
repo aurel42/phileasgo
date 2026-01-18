@@ -2,11 +2,14 @@ package core
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
+	"phileasgo/pkg/watcher"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +22,7 @@ type mockNarratorService struct {
 	isPaused          bool
 	playEssayCalled   bool
 	playPOICalled     bool
+	playImageCalled   bool
 	prepareNextCalled bool
 	RemainingFunc     func() time.Duration
 	AvgLatencyFunc    func() time.Duration
@@ -42,6 +46,10 @@ func (m *mockNarratorService) PlayEssay(ctx context.Context, tel *sim.Telemetry)
 func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
 	m.playPOICalled = true
 }
+func (m *mockNarratorService) PlayImage(ctx context.Context, imagePath string, tel *sim.Telemetry) {
+	m.playImageCalled = true
+}
+
 func (m *mockNarratorService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 	return true
 }
@@ -823,5 +831,64 @@ func TestNarrationJob_StartAirborne_NoDelay(t *testing.T) {
 	// Should fire IMMEDIATELY (no grace period) because we started in the air
 	if !job.ShouldFire(tel) {
 		t.Error("Started airborne but ShouldFire returned false (Grace period incorrectly applied?)")
+	}
+}
+
+func TestNarrationJob_ScreenshotDetection(t *testing.T) {
+	// Create temp dir for watcher
+	tmpDir := t.TempDir()
+
+	cfg := config.DefaultConfig()
+	cfg.Narrator.AutoNarrate = true
+	cfg.Narrator.Screenshot.Enabled = true
+	cfg.Narrator.Essay.Enabled = false // Prevent essay fallback from firing
+
+	mockN := &mockNarratorService{}
+	pm := &mockPOIManager{best: nil, lat: 48.0, lon: -123.0} // Valid location for consistency check
+	simC := &mockJobSimClient{state: sim.StateActive}
+
+	// Create real watcher pointing to temp dir
+	w, err := watcher.NewService(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create watcher: %v", err)
+	}
+	// We don't start the watcher loop, we just use CheckNew manually via NarrationJob logic
+
+	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, w)
+
+	job.lastTime = time.Time{} // Force ready
+	job.takeoffTime = time.Now().Add(-10 * time.Minute)
+
+	tel := &sim.Telemetry{
+		AltitudeAGL: 3000,
+		Latitude:    48.0,
+		Longitude:   -123.0,
+	}
+
+	// 1. Initial State: No screenshot
+	if job.ShouldFire(tel) {
+		t.Error("ShouldFire returned true with no screenshot and no POI")
+	}
+
+	// 2. Create Dummy Screenshot
+	time.Sleep(1100 * time.Millisecond) // Ensure FS modtime > watcher creation time (Windows resolution safety)
+	imagePath := filepath.Join(tmpDir, "screen_test.png")
+	if err := os.WriteFile(imagePath, []byte("fake png"), 0644); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+
+	// 3. ShouldFire should now find it
+	// Note: CheckNew depends on file mod time vs lastChecked.
+	// Since watcher was created BEFORE file write, modTime > lastChecked.
+	if !job.ShouldFire(tel) {
+		t.Error("ShouldFire returned false, expected true for new screenshot")
+	}
+
+	// 4. Run should trigger PlayImage
+	// Setup Run to consume the pending screenshot
+	job.Run(context.Background(), tel)
+
+	if !mockN.playImageCalled {
+		t.Error("PlayImage was NOT called after detecting screenshot")
 	}
 }
