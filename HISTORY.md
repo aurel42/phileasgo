@@ -1,8 +1,14 @@
 ﻿# Release History
 
+## v0.2.106 (2026-01-18)
+- **Feature**: **Configurable Overlay Log Line**
+    - The server log display in the overlay is now optional and configurable.
+    - **Config**: Added `overlay.log_line` (default: `true`) to `phileas.yaml`.
+    - **API**: Exposed the setting via `/api/config` for frontend conditional rendering.
+
 ## v0.2.105 (2026-01-18)
-- **Feature**: **Overlay Polish (Round 3) & Log Display**
-    - Refined the Overlay Telemetry Bar layout with high-contrast stats, vertical API status block (Grid Layout), and Key-Value config prose.
+- **Feature**: **Overlay Polish & Log Display**
+    - Refined the Overlay Telemetry Bar layout with high-contrast stats, vertical API status block (Grid Layout).
     - Added a **Server Log Line** display to the overlay, showing the latest filtered log message for debugging.
     - **Visuals**: Switched to "Inter" font, darkened backgrounds, and improved typography for readability.
 - **Fix**: **Log Readability & Context**

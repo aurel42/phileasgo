@@ -25,6 +25,7 @@ interface Config {
     text_length?: number;
     llm_provider?: string;
     tts_engine?: string;
+    show_log_line?: boolean;
 }
 
 interface Geography {
@@ -221,9 +222,11 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
             </div> {/* End of stats-row */}
 
             {/* Log Line (Outside of flow, absolute positioned in CSS) */}
-            <div className="log-line">
-                {logLine}
-            </div>
+            {config.show_log_line && (
+                <div className="log-line">
+                    {logLine}
+                </div>
+            )}
         </div>
     );
 };

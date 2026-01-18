@@ -34,6 +34,7 @@ type OverlayConfig struct {
 	MapBox  bool `yaml:"map_box"`
 	POIInfo bool `yaml:"poi_info"`
 	InfoBar bool `yaml:"info_bar"`
+	LogLine bool `yaml:"log_line"`
 }
 
 // RequestConfig holds HTTP request settings.
@@ -337,6 +338,7 @@ func DefaultConfig() *Config {
 			MapBox:  true,
 			POIInfo: true,
 			InfoBar: true,
+			LogLine: true,
 		},
 	}
 }
