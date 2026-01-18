@@ -59,7 +59,7 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 	}
 
 	// 4. Call LLM (Multimodal)
-	text, err := s.llm.GenerateImageText(ctx, "screenshot_analysis", prompt, imagePath)
+	text, err := s.llm.GenerateImageText(ctx, "screenshot", prompt, imagePath)
 	if err != nil {
 		slog.Error("Narrator: Gemini analysis failed", "error", err)
 		return

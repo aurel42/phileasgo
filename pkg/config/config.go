@@ -299,6 +299,7 @@ func DefaultConfig() *Config {
 				"dynamic_config": "gemini-2.5-flash",
 				"script_rescue":  "gemini-2.5-flash-lite", // Script rescue uses cheap model
 				"thumbnails":     "gemini-2.5-flash-lite",
+				"screenshot":     "gemini-2.5-flash-lite", // Vision model
 			},
 		},
 		Narrator: NarratorConfig{

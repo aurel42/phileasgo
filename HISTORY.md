@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.112 (2026-01-18)
+- **Feature**: **Configurable Screenshot Model**
+    - The Gemini model used for screenshot analysis is now independently configurable via `phileas.yaml` (`llm.profiles.screenshot`).
+    - Defaults to `gemini-2.5-flash-lite` for efficient vision analysis.
+    - **Fix**: Resolved implicit dependency on deprecated `gemini-2.0-flash` model.
+
 ## v0.2.111 (2026-01-18)
 - **Feature**: **Screenshot Narration**
     - Implemented a watcher service to detect and narrate screenshots taken during flights.
