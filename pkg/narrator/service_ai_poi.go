@@ -230,7 +230,9 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 
 	// If synthesis successful, return Narrative
 	return &Narrative{
+		Type:           "poi",
 		POI:            p,
+		Title:          p.DisplayName(),
 		Script:         script,
 		AudioPath:      audioPath,
 		Format:         format,
@@ -241,6 +243,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 // PlayNarrative plays a previously generated narrative.
 // This method is non-blocking: it starts playback and returns immediately.
 // Playback completion is monitored in a background goroutine.
+// Supports both POI narratives and non-POI narratives (screenshots, essays, etc.)
 func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 	s.mu.Lock()
 	if s.active {
@@ -248,8 +251,10 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 		return fmt.Errorf("narrator already active")
 	}
 	s.active = true
-	s.currentPOI = n.POI
-	s.lastPOI = n.POI
+	s.currentPOI = n.POI // May be nil for non-POI narratives
+	if n.POI != nil {
+		s.lastPOI = n.POI
+	}
 	s.lastEssayTopic = nil
 	s.lastEssayTitle = ""
 	s.mu.Unlock()
@@ -269,25 +274,40 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 		return fmt.Errorf("audio playback failed: %w", err)
 	}
 
-	// Mark as played
-	n.POI.LastPlayed = time.Now()
-	if err := s.st.SavePOI(ctx, n.POI); err != nil {
-		slog.Error("Narrator: Failed to save narrated POI state", "qid", n.POI.WikidataID, "error", err)
+	// POI-specific operations: mark as played and save
+	if n.POI != nil {
+		n.POI.LastPlayed = time.Now()
+		if err := s.st.SavePOI(ctx, n.POI); err != nil {
+			slog.Error("Narrator: Failed to save narrated POI state", "qid", n.POI.WikidataID, "error", err)
+		}
+	}
+
+	// Determine display name for logging
+	displayName := n.Title
+	displayID := n.Type
+	if n.POI != nil {
+		displayName = n.POI.DisplayName()
+		displayID = n.POI.WikidataID
 	}
 
 	// Log Stats
 	genWords := len(strings.Fields(n.Script))
 	duration := s.audio.Duration()
 	slog.Info("Narrator: Narration stats",
-		"name", n.POI.DisplayName(),
-		"qid", n.POI.WikidataID,
+		"type", n.Type,
+		"name", displayName,
+		"id", displayID,
 		"requested_len", n.RequestedWords,
 		"words", genWords,
 		"audio_duration", duration,
 	)
 
-	// Update History (Trip Summary)
-	s.addScriptToHistory(n.POI.WikidataID, n.POI.DisplayName(), n.Script)
+	// Update History (Trip Summary) - only for POIs and screenshots
+	if n.POI != nil {
+		s.addScriptToHistory(n.POI.WikidataID, n.POI.DisplayName(), n.Script)
+	} else if n.Type == "screenshot" {
+		s.addScriptToHistory("screenshot", n.Title, n.Script)
+	}
 
 	// Update stats
 	s.mu.Lock()
@@ -307,19 +327,27 @@ func (s *AIService) monitorPlayback(n *Narrative) {
 
 	for range ticker.C {
 		if !s.audio.IsBusy() {
-			slog.Info("Narrator: Playback ended", "name", n.POI.DisplayName(), "qid", n.POI.WikidataID)
+			// Use Title for non-POI narratives, DisplayName() for POI narratives
+			displayName := n.Title
+			displayID := n.Type
+			if n.POI != nil {
+				displayName = n.POI.DisplayName()
+				displayID = n.POI.WikidataID
+			}
+			slog.Info("Narrator: Playback ended", "name", displayName, "id", displayID)
 			break
 		}
 	}
 
 	// Update Beacon Target immediately after playback
+	// Only relevant for POI narratives (non-POI narratives don't have map markers)
 	if s.beaconSvc != nil {
 		s.mu.RLock()
 		next := s.stagedNarrative
 		generating := s.generatingPOI
 		s.mu.RUnlock()
 
-		if next != nil {
+		if next != nil && next.POI != nil {
 			slog.Info("Narrator: Switching marker to next staged POI", "qid", next.POI.WikidataID)
 			// Use background context as the original ctx might be cancelled
 			_ = s.beaconSvc.SetTarget(context.Background(), next.POI.Lat, next.POI.Lon)

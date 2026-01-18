@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 )
 
@@ -93,10 +92,9 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 
 		// 5. Play
 		narrative := &Narrative{
-			POI: &model.POI{
-				NameEn:   "Landing Debrief",
-				Category: "System",
-			}, // Dummy POI for UI display
+			Type:           "debrief",
+			POI:            nil, // Debriefs don't have a POI
+			Title:          "Landing Debrief",
 			Script:         text,
 			AudioPath:      audioPath,
 			Format:         format,

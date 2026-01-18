@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"phileasgo/pkg/sim"
+	"strings"
 )
 
 // PlayImage handles the analysis and narration of a screenshot.
-// It generates a description using Gemini (multimodal) and plays it via TTS.
+// It generates a description using Gemini (multimodal), synthesizes audio,
+// and queues it for playback via the standard narrator pipeline.
+// Screenshots do NOT interrupt already-playing narrations; they queue behind current playback.
 func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Telemetry) {
 	if s.IsPaused() {
 		slog.Info("Narrator: Skipping screenshot (paused)")
@@ -50,8 +54,6 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 		"MaxWords": s.cfg.Narrator.NarrationLengthShortWords,
 	}
 
-	// We use a predefined template name "narrator/screenshot"
-	// Assuming promptMgr is available as s.prompts
 	prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
 	if err != nil {
 		slog.Error("Narrator: Failed to render screenshot prompt", "error", err)
@@ -71,30 +73,51 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 	}
 	slog.Info("Narrator: Screenshot described", "text", text)
 
-	// 5. TTS & Playback
-	// Check if we are still valid/active? (Maybe user paused in between?)
+	// 5. Check if we are still valid/active? (Maybe user paused in between?)
 	if s.IsPaused() {
 		return
 	}
 
-	// Synthesize
-	audioFile, err := s.tts.Synthesize(ctx, text, "system_screenshot", "en-US") // Using default voice or system voice if available
+	// Filter markdown artifacts that don't sound good in TTS
+	text = strings.ReplaceAll(text, "*", "")
+
+	// 6. Synthesize audio using shared method
+	audioPath, format, err := s.synthesizeAudio(ctx, text, "screenshot")
 	if err != nil {
-		slog.Error("Narrator: TTS failed for screenshot", "error", err)
+		s.handleTTSError(err)
 		return
 	}
 
-	// Play
-	// We play this as a "System" type or similar, effectively blocking other POIs while playing.
-	// Since we are in 'generating' lock, others shouldn't start.
-	// But PlayAndWait returns immediately? No, currently Play is async usually.
-
-	// If we use s.audio.Play, it sets IsBusy.
-	if err := s.audio.Play(audioFile, false); err != nil {
-		slog.Error("Narrator: Audio playback failed", "error", err)
-		return
+	// 7. Create a Narrative for the screenshot
+	screenshotTitle := fmt.Sprintf("Screenshot: %s", filepath.Base(imagePath))
+	narrative := &Narrative{
+		Type:           "screenshot",
+		POI:            nil, // Screenshots don't have a POI
+		Title:          screenshotTitle,
+		Script:         text,
+		AudioPath:      audioPath,
+		Format:         format,
+		RequestedWords: s.cfg.Narrator.NarrationLengthShortWords,
 	}
 
-	// Update stats/history if needed?
-	// s.recordNarration(...)
+	// 8. Stage the narrative for queue
+	s.mu.Lock()
+	s.stagedNarrative = narrative
+	s.mu.Unlock()
+
+	slog.Info("Narrator: Screenshot staged for playback", "title", screenshotTitle)
+
+	// 9. If no narration is currently active, play immediately
+	//    Otherwise, it will be picked up by the next cycle
+	if !s.audio.IsBusy() && !s.IsActive() {
+		if err := s.PlayNarrative(ctx, narrative); err != nil {
+			slog.Error("Narrator: Failed to play screenshot narrative", "error", err)
+		}
+		// Clear staged since we played it
+		s.mu.Lock()
+		if s.stagedNarrative == narrative {
+			s.stagedNarrative = nil
+		}
+		s.mu.Unlock()
+	}
 }

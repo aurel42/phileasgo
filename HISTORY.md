@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.116 (2026-01-18)
+- **Feature**: **Unified Narrator Pipeline**
+    - Refactored all narrative types (POI, Screenshot, Essay, Debrief) to use the shared `PlayNarrative` method.
+    - Added `Type` and `Title` fields to the `Narrative` struct to support non-POI narratives.
+    - This unifies state management, playback monitoring, and queue handling across all narration types.
+- **Fix**: **Screenshot TTS Issues**
+    - Fixed screenshot narration that was not playing due to incorrect TTS call with wrong argument order.
+    - Screenshots now properly queue behind current narrations instead of interrupting them.
+    - Removed dummy POI usage from Debrief narration.
+
 ## v0.2.115 (2026-01-18)
 - **Fix**: **Played POI Blue Color**
     - Fixed a bug where played MSFS POIs were not displayed in blue because the `isMSFS` check had higher priority than the `isPlayed` check in the marker color logic.

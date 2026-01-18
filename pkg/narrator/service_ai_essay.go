@@ -2,12 +2,8 @@ package narrator
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
 	"phileasgo/pkg/sim"
 )
@@ -24,7 +20,6 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 		s.mu.Unlock()
 		return false
 	}
-	s.active = true
 	s.generating = true
 	s.mu.Unlock()
 
@@ -34,7 +29,6 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 	if err != nil {
 		slog.Error("Narrator: Failed to select essay topic", "error", err)
 		s.mu.Lock()
-		s.active = false
 		s.generating = false
 		s.mu.Unlock()
 		return false
@@ -45,7 +39,6 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 }
 
 func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *sim.Telemetry) {
-	// active is already set true by PlayEssay
 	s.mu.Lock()
 	s.currentTopic = topic
 	s.currentEssayTitle = "" // Reset title until generated
@@ -55,9 +48,7 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	s.mu.Unlock()
 
 	defer func() {
-		time.Sleep(3 * time.Second)
 		s.mu.Lock()
-		s.active = false
 		s.generating = false
 		s.currentTopic = nil
 		s.currentEssayTitle = ""
@@ -111,18 +102,16 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	// Filter markdown artifacts
 	script = strings.ReplaceAll(script, "*", "")
 
-	// Save to history
-	s.addScriptToHistory("", topic.Name, script)
-
 	// Parse Title if present (Format: "TITLE: ...")
+	essayTitle := topic.Name
 	lines := strings.Split(script, "\n")
 	if len(lines) > 0 {
 		firstLine := strings.TrimSpace(lines[0])
 		if strings.HasPrefix(firstLine, "TITLE:") {
-			title := strings.TrimSpace(strings.TrimPrefix(firstLine, "TITLE:"))
+			essayTitle = strings.TrimSpace(strings.TrimPrefix(firstLine, "TITLE:"))
 			s.mu.Lock()
-			s.currentEssayTitle = title
-			s.lastEssayTitle = title // Capture for replay
+			s.currentEssayTitle = essayTitle
+			s.lastEssayTitle = essayTitle // Capture for replay
 			s.mu.Unlock()
 
 			// Remove title line from script for TTS
@@ -130,40 +119,27 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		}
 	}
 
-	// Synthesis
-	cacheDir := os.TempDir()
-	outputPath := filepath.Join(cacheDir, fmt.Sprintf("phileas_essay_%s_%d", topic.ID, time.Now().UnixNano()))
-	voiceID := s.getVoiceID()
-	format, err := s.tts.Synthesize(ctx, script, voiceID, outputPath)
+	// Synthesize audio using shared method
+	audioPath, format, err := s.synthesizeAudio(ctx, script, "essay_"+topic.ID)
 	if err != nil {
+		s.handleTTSError(err)
 		slog.Error("Narrator: TTS essay synthesis failed", "error", err)
 		return
 	}
 
-	audioFile := outputPath + "." + format
-
-	// Playback
-	if err := s.audio.Play(audioFile, false); err != nil {
-		slog.Error("Narrator: Playback failed", "path", audioFile, "error", err)
-		return
+	// Create Narrative for the essay
+	narrative := &Narrative{
+		Type:           "essay",
+		POI:            nil, // Essays don't have a POI
+		Title:          essayTitle,
+		Script:         script,
+		AudioPath:      audioPath,
+		Format:         format,
+		RequestedWords: s.cfg.Narrator.NarrationLengthLongWords,
 	}
 
-	s.mu.Lock()
-	s.generating = false
-	s.mu.Unlock()
-
-	// Wait for finish
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			s.audio.Stop()
-			return
-		case <-ticker.C:
-			if !s.audio.IsBusy() {
-				return
-			}
-		}
+	// Play using shared PlayNarrative
+	if err := s.PlayNarrative(ctx, narrative); err != nil {
+		slog.Error("Narrator: Failed to play essay", "error", err)
 	}
 }

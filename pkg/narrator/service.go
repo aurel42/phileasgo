@@ -69,7 +69,9 @@ type Service interface {
 
 // Narrative represents a prepared narration ready for playback.
 type Narrative struct {
-	POI            *model.POI
+	Type           string     // "poi", "screenshot", "essay", "debrief"
+	POI            *model.POI // nil for non-POI narratives
+	Title          string     // Display title (for non-POI narratives or override)
 	Script         string
 	AudioPath      string
 	Format         string // e.g., "mp3"
