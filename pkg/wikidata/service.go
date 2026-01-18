@@ -289,7 +289,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
 	query := buildCheapQuery(centerLat, centerLon, radiusStr)
 
 	// 4. Execute
-	articles, rawJSON, err := s.client.QuerySPARQL(ctx, query, c.Tile.Key(), radiusMeters)
+	articles, rawJSON, err := s.client.QuerySPARQL(ctx, query, c.Tile.Key(), radiusMeters, centerLat, centerLon)
 	if err != nil {
 		s.logger.Error("SPARQL Failed", "error", err)
 		return false // Network attempt failed, but consumed quota/time
@@ -320,39 +320,21 @@ type CachedTile struct {
 	Radius int     `json:"radius"`
 }
 
-// GetCachedTiles returns a list of cached tiles with their centers and queried radii.
-func (s *Service) GetCachedTiles(ctx context.Context, lat, lon, radiusKm float64) ([]CachedTile, error) {
-	keys, err := s.store.ListGeodataCacheKeys(ctx, "wd_h3_")
+// GetCachedTiles returns a list of cached tiles within the provided bounding box.
+func (s *Service) GetCachedTiles(ctx context.Context, minLat, maxLat, minLon, maxLon float64) ([]CachedTile, error) {
+	records, err := s.store.GetGeodataInBounds(ctx, minLat, maxLat, minLon, maxLon)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list cache keys: %w", err)
 	}
 
 	var results []CachedTile
-
-	for _, k := range keys {
-		// Key format: wd_h3_{index}
-		if len(k) <= 6 {
-			continue
-		}
-		index := k[6:]
-
-		tile := HexTile{Index: index}
-		// Uses named return: lat, lon
-		cLat, cLon := s.gridCenter(tile)
-
-		// Optimization: Check distance before fetching metadata
-		dist := DistKm(lat, lon, cLat, cLon)
-		if dist > radiusKm {
-			continue
+	for _, r := range records {
+		radius := r.Radius
+		if radius <= 0 {
+			radius = 9800 // Default
 		}
 
-		// Fetch metadata (radius)
-		_, r, ok := s.store.GetGeodataCache(ctx, k)
-		if !ok || r <= 0 {
-			r = 9800 // Default 9.8km if missing in metadata
-		}
-
-		results = append(results, CachedTile{Lat: cLat, Lon: cLon, Radius: r})
+		results = append(results, CachedTile{Lat: r.Lat, Lon: r.Lon, Radius: radius})
 	}
 
 	return results, nil

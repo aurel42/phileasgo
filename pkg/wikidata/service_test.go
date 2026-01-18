@@ -13,6 +13,7 @@ import (
 	"phileasgo/pkg/poi"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/store"
 	"phileasgo/pkg/tracker"
 )
 
@@ -54,7 +55,7 @@ func (m *mockStore) GetGeodataCache(ctx context.Context, key string) ([]byte, in
 	}
 	return nil, 0, false
 }
-func (m *mockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error {
+func (m *mockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int, lat, lon float64) error {
 	if m.geodataCache == nil {
 		m.geodataCache = make(map[string][]byte)
 		m.geodataCacheR = make(map[string]int)
@@ -62,6 +63,9 @@ func (m *mockStore) SetGeodataCache(ctx context.Context, key string, val []byte,
 	m.geodataCache[key] = val
 	m.geodataCacheR[key] = radius
 	return nil
+}
+func (m *mockStore) GetGeodataInBounds(ctx context.Context, minLat, maxLat, minLon, maxLon float64) ([]store.GeodataRecord, error) {
+	return nil, nil
 }
 func (m *mockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error) {
 	return nil, nil
@@ -147,15 +151,15 @@ func (m *MockClassifier) GetConfig() *config.CategoriesConfig {
 
 // MockWikidataClient implements ClientInterface for testing
 type MockWikidataClient struct {
-	QuerySPARQLFunc       func(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error)
+	QuerySPARQLFunc       func(ctx context.Context, query, cacheKey string, radiusM int, lat, lon float64) ([]Article, string, error)
 	GetEntitiesBatchFunc  func(ctx context.Context, ids []string) (map[string]EntityMetadata, error)
 	FetchFallbackDataFunc func(ctx context.Context, ids []string, allowedSites []string) (map[string]FallbackData, error)
 	GetEntityClaimsFunc   func(ctx context.Context, id, property string) (targets []string, label string, err error)
 }
 
-func (m *MockWikidataClient) QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error) {
+func (m *MockWikidataClient) QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int, lat, lon float64) ([]Article, string, error) {
 	if m.QuerySPARQLFunc != nil {
-		return m.QuerySPARQLFunc(ctx, query, cacheKey, radiusM)
+		return m.QuerySPARQLFunc(ctx, query, cacheKey, radiusM, lat, lon)
 	}
 	return nil, "[]", nil
 }
@@ -222,7 +226,7 @@ func TestFetchTile_CacheOptimization(t *testing.T) {
 
 	// Mock Client - Should fail if called!
 	mockClient := &MockWikidataClient{
-		QuerySPARQLFunc: func(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error) {
+		QuerySPARQLFunc: func(ctx context.Context, query, cacheKey string, radiusM int, lat, lon float64) ([]Article, string, error) {
 			t.Fatal("QuerySPARQL should NOT be called when cache is present")
 			return nil, "", nil
 		},

@@ -595,16 +595,37 @@ func (s *SQLiteStore) GetGeodataCache(ctx context.Context, key string) (data []b
 	return data, radius, true
 }
 
-func (s *SQLiteStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error {
+func (s *SQLiteStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int, lat, lon float64) error {
 	// Transparent Compression
 	compressed, err := compress(val)
 	if err == nil {
 		val = compressed
 	}
 
-	query := `INSERT OR REPLACE INTO cache_geodata (key, data, radius_m, created_at) VALUES (?, ?, ?, ?)`
-	_, err = s.db.ExecContext(ctx, query, key, val, radius, time.Now())
+	query := `INSERT OR REPLACE INTO cache_geodata (key, data, radius_m, lat, lon, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+	_, err = s.db.ExecContext(ctx, query, key, val, radius, lat, lon, time.Now())
 	return err
+}
+
+func (s *SQLiteStore) GetGeodataInBounds(ctx context.Context, minLat, maxLat, minLon, maxLon float64) ([]GeodataRecord, error) {
+	query := `SELECT key, lat, lon, radius_m FROM cache_geodata 
+	          WHERE lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?`
+
+	rows, err := s.db.QueryContext(ctx, query, minLat, maxLat, minLon, maxLon)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []GeodataRecord
+	for rows.Next() {
+		var r GeodataRecord
+		if err := rows.Scan(&r.Key, &r.Lat, &r.Lon, &r.Radius); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+	return results, nil
 }
 
 func (s *SQLiteStore) ListCacheKeys(ctx context.Context, prefix string) ([]string, error) {

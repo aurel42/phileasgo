@@ -120,8 +120,11 @@ func (d *DB) migrate() error {
 			key TEXT PRIMARY KEY,
 			data BLOB,
 			radius_m INTEGER,
+			lat REAL,
+			lon REAL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
+		`CREATE INDEX IF NOT EXISTS idx_cache_geodata_geo ON cache_geodata(lat, lon);`,
 		`CREATE TABLE IF NOT EXISTS seen_entities (
 			qid TEXT PRIMARY KEY,
 			instances TEXT,

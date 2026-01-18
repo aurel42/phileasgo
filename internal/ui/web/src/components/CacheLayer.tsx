@@ -13,8 +13,13 @@ export const CacheLayer = () => {
 
     useEffect(() => {
         const fetchTiles = () => {
-            const center = map.getCenter();
-            fetch(`/api/wikidata/cache?lat=${center.lat}&lon=${center.lng}`)
+            const bounds = map.getBounds();
+            const minLat = bounds.getSouth();
+            const maxLat = bounds.getNorth();
+            const minLon = bounds.getWest();
+            const maxLon = bounds.getEast();
+
+            fetch(`/api/wikidata/cache?min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`)
                 .then(r => {
                     if (r.ok) return r.json();
                     return [];

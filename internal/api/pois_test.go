@@ -11,6 +11,7 @@ import (
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/poi"
+	"phileasgo/pkg/store"
 	"time"
 )
 
@@ -58,8 +59,11 @@ func (m *apiMockStore) ListCacheKeys(ctx context.Context, prefix string) ([]stri
 func (m *apiMockStore) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
 	return nil, 0, false
 }
-func (m *apiMockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error {
+func (m *apiMockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int, lat, lon float64) error {
 	return nil
+}
+func (m *apiMockStore) GetGeodataInBounds(ctx context.Context, minLat, maxLat, minLon, maxLon float64) ([]store.GeodataRecord, error) {
+	return nil, nil
 }
 func (m *apiMockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error) {
 	return nil, nil

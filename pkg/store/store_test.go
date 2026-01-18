@@ -525,7 +525,7 @@ func TestGeodataStore_SetAndGet(t *testing.T) {
 			defer cleanup()
 
 			// Set
-			err := store.SetGeodataCache(ctx, tt.key, tt.data, tt.radius)
+			err := store.SetGeodataCache(ctx, tt.key, tt.data, tt.radius, 52.0, 13.0)
 			if err != nil {
 				t.Fatalf("SetGeodataCache() error = %v", err)
 			}
@@ -542,6 +542,54 @@ func TestGeodataStore_SetAndGet(t *testing.T) {
 				t.Errorf("GetGeodataCache() data len = %d, want %d", len(gotData), len(tt.data))
 			}
 		})
+	}
+}
+
+func TestGeodataStore_GetGeodataInBounds(t *testing.T) {
+	store, cleanup := setupTestStore(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	// Seed data
+	// r1: stored with lat, lon
+	r1Data := []byte("data1")
+	_ = store.SetGeodataCache(ctx, "k1", r1Data, 1000, 52.0, 13.0)
+
+	// r2: stored with lat, lon outside bounds
+	r2Data := []byte("data2")
+	_ = store.SetGeodataCache(ctx, "k2", r2Data, 2000, 53.0, 14.0)
+
+	// r3: stored with lat, lon (old format or missing? SetGeodataCache enforces args now)
+	// Just another point
+	r3Data := []byte("data3")
+	_ = store.SetGeodataCache(ctx, "k3", r3Data, 3000, 52.1, 13.1)
+
+	// Query Bounds around r1 and r3 but excluding r2
+	// Bounds: 51.9 to 52.2 Lat, 12.9 to 13.2 Lon
+	records, err := store.GetGeodataInBounds(ctx, 51.9, 52.2, 12.9, 13.2)
+	if err != nil {
+		t.Fatalf("GetGeodataInBounds failed: %v", err)
+	}
+
+	if len(records) != 2 {
+		t.Errorf("Expected 2 records, got %d", len(records))
+	}
+
+	foundK1 := false
+	foundK3 := false
+	for _, r := range records {
+		if r.Key == "k1" {
+			foundK1 = true
+			if r.Lat != 52.0 || r.Lon != 13.0 || r.Radius != 1000 {
+				t.Errorf("Record k1 mismatch: %+v", r)
+			}
+		}
+		if r.Key == "k3" {
+			foundK3 = true
+		}
+	}
+	if !foundK1 || !foundK3 {
+		t.Errorf("Missing expected keys k1 or k3. Got: %+v", records)
 	}
 }
 

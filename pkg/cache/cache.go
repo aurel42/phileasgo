@@ -12,7 +12,7 @@ type Cacher interface {
 
 	// Geodata-specific: routes to cache_geodata table with radius metadata
 	GetGeodataCache(ctx context.Context, key string) (data []byte, radiusM int, found bool)
-	SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error
+	SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int, lat, lon float64) error
 }
 
 // SQLiteCache implements Cacher using pkg/db.
@@ -40,7 +40,7 @@ func (c *SQLiteCache) GetGeodataCache(ctx context.Context, key string) (data []b
 	return nil, 0, false
 }
 
-func (c *SQLiteCache) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error {
+func (c *SQLiteCache) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int, lat, lon float64) error {
 	// Stub: Do nothing (real caching done via store.Store)
 	return nil
 }

@@ -29,23 +29,25 @@ func NewCacheHandler(s *wikidata.Service) *CacheHandler {
 
 func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Parse params
-	latStr := r.URL.Query().Get("lat")
-	lonStr := r.URL.Query().Get("lon")
+	minLatStr := r.URL.Query().Get("min_lat")
+	maxLatStr := r.URL.Query().Get("max_lat")
+	minLonStr := r.URL.Query().Get("min_lon")
+	maxLonStr := r.URL.Query().Get("max_lon")
 
-	if latStr == "" || lonStr == "" {
-		http.Error(w, "lat and lon are required", http.StatusBadRequest)
+	if minLatStr == "" || maxLatStr == "" || minLonStr == "" || maxLonStr == "" {
+		http.Error(w, "min_lat, max_lat, min_lon, max_lon are required", http.StatusBadRequest)
 		return
 	}
 
-	lat, err1 := strconv.ParseFloat(latStr, 64)
-	lon, err2 := strconv.ParseFloat(lonStr, 64)
-	if err1 != nil || err2 != nil {
-		http.Error(w, "invalid lat/lon", http.StatusBadRequest)
+	minLat, err1 := strconv.ParseFloat(minLatStr, 64)
+	maxLat, err2 := strconv.ParseFloat(maxLatStr, 64)
+	minLon, err3 := strconv.ParseFloat(minLonStr, 64)
+	maxLon, err4 := strconv.ParseFloat(maxLonStr, 64)
+
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
+		http.Error(w, "invalid bounds", http.StatusBadRequest)
 		return
 	}
-
-	// Constants
-	const searchRadiusKm = 100.0
 
 	// Check API Cache
 	h.mu.RLock()
@@ -58,7 +60,7 @@ func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mu.RUnlock()
 
 	// Cache Miss (or Stale): Compute
-	tiles, err := h.service.GetCachedTiles(r.Context(), lat, lon, searchRadiusKm)
+	tiles, err := h.service.GetCachedTiles(r.Context(), minLat, maxLat, minLon, maxLon)
 	if err != nil {
 		http.Error(w, "failed to fetch tiles", http.StatusInternalServerError)
 		return

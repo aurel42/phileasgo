@@ -32,7 +32,6 @@ node_modules/
 # IDEs
 .vscode/
 .idea/
-.agent/
 
 # OS
 .DS_Store

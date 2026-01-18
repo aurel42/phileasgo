@@ -103,6 +103,6 @@ func (m *mockCacherV) SetCache(ctx context.Context, key string, val []byte) erro
 func (m *mockCacherV) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
 	return nil, 0, false
 }
-func (m *mockCacherV) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error {
+func (m *mockCacherV) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int, lat, lon float64) error {
 	return nil
 }

@@ -24,10 +24,19 @@ type CacheStore interface {
 	ListCacheKeys(ctx context.Context, prefix string) ([]string, error)
 }
 
+// GeodataRecord represents metadata for a cached tile.
+type GeodataRecord struct {
+	Key    string
+	Lat    float64
+	Lon    float64
+	Radius int
+}
+
 // GeodataStore handles geodata-specific caching with radius metadata.
 type GeodataStore interface {
 	GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool)
-	SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error
+	SetGeodataCache(ctx context.Context, key string, val []byte, radius int, lat, lon float64) error
+	GetGeodataInBounds(ctx context.Context, minLat, maxLat, minLon, maxLon float64) ([]GeodataRecord, error)
 	ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error)
 }
 

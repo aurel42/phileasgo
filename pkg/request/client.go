@@ -278,7 +278,7 @@ func (c *Client) PostWithCache(ctx context.Context, u string, body []byte, heade
 }
 
 // PostWithGeodataCache performs a POST request with caching to the geodata table (with radius metadata).
-func (c *Client) PostWithGeodataCache(ctx context.Context, u string, body []byte, headers map[string]string, cacheKey string, radiusM int) ([]byte, error) {
+func (c *Client) PostWithGeodataCache(ctx context.Context, u string, body []byte, headers map[string]string, cacheKey string, radiusM int, lat, lon float64) ([]byte, error) {
 	parsedURL, err := url.Parse(u)
 	if err != nil {
 		return nil, fmt.Errorf("invalid url: %w", err)
@@ -321,7 +321,7 @@ func (c *Client) PostWithGeodataCache(ctx context.Context, u string, body []byte
 
 	// Cache result to geodata table with radius
 	if cacheKey != "" {
-		if err := c.cache.SetGeodataCache(ctx, cacheKey, respBody, radiusM); err != nil {
+		if err := c.cache.SetGeodataCache(ctx, cacheKey, respBody, radiusM, lat, lon); err != nil {
 			slog.Error("Failed to cache geodata response", "key", cacheKey, "error", err)
 		}
 	}

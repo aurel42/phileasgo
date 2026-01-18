@@ -1,5 +1,13 @@
 ﻿# Release History
 
+## v0.2.104 (2026-01-18)
+- **Feature**: **Viewport-Based Cache API**
+    - Refactored the Frontend and API to query cached tiles using the visible map bounding box (`min_lat`, `max_lat`, `min_lon`, `max_lon`) instead of a fixed center-point radius.
+    - **Optimization**: Significant reduction in over-fetching by ensuring the cache layer requests exactly what is visible on screen.
+- **Backend**: **Spatial Cache Metadata**
+    - Updated `pkg/store` and `pkg/wikidata` to store and retrieve cache tiles with precise spatial metadata (`lat`, `lon`, `radius`), enabling accurate reconstruction of the grid without full re-computation.
+    - Added `GetGeodataInBounds` to the store interface for efficient spatial range queries.
+
 ## v0.2.103 (2026-01-17)
 - **Feature**: **Overlay Configuration**
     - The three overlay components (Map Box, POI Info, Info Bar) are now individually configurable via `phileas.yaml`.

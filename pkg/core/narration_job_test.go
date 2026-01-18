@@ -6,6 +6,7 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/store"
 	"strings"
 	"testing"
 	"time"
@@ -432,8 +433,11 @@ func (m *MockStore) ListCacheKeys(ctx context.Context, prefix string) ([]string,
 func (m *MockStore) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
 	return nil, 0, false
 }
-func (m *MockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error {
+func (m *MockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int, lat, lon float64) error {
 	return nil
+}
+func (m *MockStore) GetGeodataInBounds(ctx context.Context, minLat, maxLat, minLon, maxLon float64) ([]store.GeodataRecord, error) {
+	return nil, nil
 }
 func (m *MockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error) {
 	return nil, nil

@@ -23,7 +23,7 @@ const (
 
 // ClientInterface defines the interface for Wikidata interactions.
 type ClientInterface interface {
-	QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error)
+	QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int, lat, lon float64) ([]Article, string, error)
 	GetEntitiesBatch(ctx context.Context, ids []string) (map[string]EntityMetadata, error)
 	FetchFallbackData(ctx context.Context, ids, allowedSites []string) (map[string]FallbackData, error)
 	GetEntityClaims(ctx context.Context, id, property string) (targets []string, label string, err error)
@@ -50,7 +50,7 @@ func NewClient(r *request.Client, logger *slog.Logger) *Client {
 // QuerySPARQL executes a SPARQL query and parses the result into Articles.
 // It returns the list of articles found and the raw JSON response.
 // radiusM is the query radius in meters for geodata caching.
-func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int) ([]Article, string, error) {
+func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int, lat, lon float64) ([]Article, string, error) {
 
 	// Use POST to avoid URL length limits
 	data := url.Values{}
@@ -67,7 +67,7 @@ func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string, radius
 	start := time.Now()
 
 	// Use geodata cache (routes to cache_geodata table with radius metadata)
-	body, err := c.request.PostWithGeodataCache(ctx, c.SPARQLEndpoint, []byte(encodedData), headers, cacheKey, radiusM)
+	body, err := c.request.PostWithGeodataCache(ctx, c.SPARQLEndpoint, []byte(encodedData), headers, cacheKey, radiusM, lat, lon)
 
 	duration := time.Since(start)
 	c.Logger.Debug("SPARQL Query Completed", "duration", duration, "cached", err == nil && len(body) > 0)

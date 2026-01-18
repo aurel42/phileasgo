@@ -20,7 +20,7 @@ func (m *mockCacher) SetCache(ctx context.Context, key string, val []byte) error
 func (m *mockCacher) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
 	return nil, 0, false
 }
-func (m *mockCacher) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error {
+func (m *mockCacher) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int, lat, lon float64) error {
 	return nil
 }
 

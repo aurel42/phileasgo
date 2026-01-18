@@ -21,7 +21,7 @@ func (m *mockCache) SetCache(ctx context.Context, key string, val []byte) error 
 func (m *mockCache) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
 	return nil, 0, false
 }
-func (m *mockCache) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int) error {
+func (m *mockCache) SetGeodataCache(ctx context.Context, key string, val []byte, radiusM int, lat, lon float64) error {
 	return nil
 }
 
@@ -277,7 +277,7 @@ func TestQuerySPARQL(t *testing.T) {
 			client := NewClient(reqClient, slog.Default())
 			client.SPARQLEndpoint = server.URL + "/sparql"
 
-			articles, _, err := client.QuerySPARQL(context.Background(), "SELECT * WHERE {}", "", 0)
+			articles, _, err := client.QuerySPARQL(context.Background(), "SELECT * WHERE {}", "", 0, 0, 0)
 
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("QuerySPARQL() error = %v, wantErr %v", err, tt.wantErr)
