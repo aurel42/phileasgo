@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.109 (2026-01-18)
+- **Fix**: **Expired POI Filtering**
+    - The backend now strictly filters out "Played" POIs that have exceeded their `RepeatTTL` (cooldown) from the UI response.
+    - Resolves an issue where old/expired POIs remained permanently colored blue on the map, even after their cooldown had elapsed.
+    - **Impact**: Map markers now accurately reflect the "Playable" state of landmarks.
+
 ## v0.2.108 (2026-01-18)
 - **Feature**: **System Stats in Overlay**
     - Added a **System Stats** section to the Overlay Telemetry Bar, displaying Memory Usage (RSS/Max) and Tracked POI count.

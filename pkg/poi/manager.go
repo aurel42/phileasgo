@@ -326,7 +326,9 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 
 	for _, p := range m.trackedPOIs {
 		// UI explicitly does NOT filter by ground/air state to allow seeing what's around you on the ground map.
-		if !p.LastPlayed.IsZero() {
+		// Only show played items if they are still within the "Recent History" window (TTL).
+		// Once expired, they drop off the "Played" list and must compete by score again.
+		if !m.isPlayable(p) {
 			played = append(played, p)
 		}
 		if p.IsVisible {

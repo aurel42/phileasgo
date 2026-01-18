@@ -261,7 +261,9 @@ func TestManager_ResetLastPlayed(t *testing.T) {
 }
 
 func TestManager_GetPOIsForUI(t *testing.T) {
-	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	cfg := &config.Config{}
+	cfg.Narrator.RepeatTTL = config.Duration(1 * time.Hour)
+	mgr := NewManager(cfg, NewMockStore(), nil)
 	ctx := context.Background()
 
 	now := time.Now()
