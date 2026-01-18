@@ -1,5 +1,12 @@
 ﻿# Release History
 
+## v0.2.115 (2026-01-18)
+- **Fix**: **Played POI Blue Color**
+    - Fixed a bug where played MSFS POIs were not displayed in blue because the `isMSFS` check had higher priority than the `isPlayed` check in the marker color logic.
+- **Fix**: **Overlay Layout Stability**
+    - Fixed the log line width causing the stats boxes to resize. The log line now inherits width from the container instead of determining it.
+    - Added `white-space: nowrap` to memory value cells to prevent "MB" from wrapping.
+
 ## v0.2.114 (2026-01-18)
 - **Fix**: **"Next POI" Marker Restoration**
     - Restored the "Preparing" state visualization in `SmartMarkerLayer`.

@@ -65,11 +65,12 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
         bgColor = '#15803d'; // Darker Green (Green-700)
         scale = 1.3;
         zIndex = 1500;
+    } else if (isPlayed) {
+        bgColor = '#3b82f6'; // Blue - played POIs are always blue
+        if (isMSFS) zIndex = 1000; // MSFS POIs still get priority
     } else if (isMSFS) {
         // MSFS badge logic handled by overlay, but maybe boost scale?
         zIndex = 1000;
-    } else if (isPlayed) {
-        bgColor = '#3b82f6'; // Blue
     }
 
     const starBadge = isMSFS ? (

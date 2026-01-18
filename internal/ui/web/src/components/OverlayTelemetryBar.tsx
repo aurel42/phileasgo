@@ -199,10 +199,10 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                         textAlign: 'left'
                     }}>
                         <div style={{ color: '#ccc' }}>MEM (RSS)</div>
-                        <div style={{ textAlign: 'right' }}>{stats?.system?.memory_alloc_mb || 0} <span className="unit" style={{ fontSize: '12px', color: '#888' }}>MB</span></div>
+                        <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{stats?.system?.memory_alloc_mb || 0} <span className="unit" style={{ fontSize: '12px', color: '#888' }}>MB</span></div>
 
                         <div style={{ color: '#ccc' }}>MEM (max)</div>
-                        <div style={{ textAlign: 'right' }}>{stats?.system?.memory_max_mb || 0} <span className="unit" style={{ fontSize: '12px', color: '#888' }}>MB</span></div>
+                        <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{stats?.system?.memory_max_mb || 0} <span className="unit" style={{ fontSize: '12px', color: '#888' }}>MB</span></div>
 
                         <div style={{ color: '#ccc' }}>Tracked POIs</div>
                         <div style={{ textAlign: 'right' }}>{stats?.tracking?.active_pois || 0}</div>
