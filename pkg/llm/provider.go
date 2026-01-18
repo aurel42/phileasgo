@@ -14,6 +14,9 @@ type Provider interface {
 	// GenerateJSON sends a prompt and unmarshals the response into the target struct.
 	GenerateJSON(ctx context.Context, name, prompt string, target any) error
 
+	// GenerateImageText sends a prompt + image path and returns the text response.
+	GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error)
+
 	// Configure updates the provider with new settings (e.g. API key).
 	Configure(cfg config.LLMConfig) error
 

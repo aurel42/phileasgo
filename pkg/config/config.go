@@ -144,12 +144,19 @@ type NarratorConfig struct {
 	TemperatureJitter         float32            `yaml:"temperature_jitter"`           // Jitter range (bell curve distribution)
 	Essay                     EssayConfig        `yaml:"essay"`
 	Debrief                   DebriefConfig      `yaml:"debrief"`
+	Screenshot                ScreenshotConfig   `yaml:"screenshot"`
 	AudioEffects              AudioEffectsConfig `yaml:"audio_effects"`
 }
 
 // DebriefConfig holds settings for landing debriefs.
 type DebriefConfig struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+// ScreenshotConfig holds settings for screenshot monitoring.
+type ScreenshotConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Path    string `yaml:"path"` // Defaults to user's Pictures/Screenshots if empty
 }
 
 // LogConfig holds logging settings.
@@ -315,6 +322,10 @@ func DefaultConfig() *Config {
 			},
 			Debrief: DebriefConfig{
 				Enabled: true,
+			},
+			Screenshot: ScreenshotConfig{
+				Enabled: true,
+				Path:    "", // Auto-detect
 			},
 			AudioEffects: AudioEffectsConfig{
 				Headset:    false,

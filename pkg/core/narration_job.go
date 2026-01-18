@@ -15,6 +15,7 @@ import (
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/terrain"
+	"phileasgo/pkg/watcher"
 )
 
 // POIProvider matches the GetBestCandidate method used by NarrationJob.
@@ -32,6 +33,7 @@ type NarrationJob struct {
 	sim        sim.Client
 	store      store.Store
 	losChecker *terrain.LOSChecker
+	watcher    *watcher.Service
 	lastTime   time.Time
 
 	wasBusy          bool
@@ -44,7 +46,7 @@ type NarrationJob struct {
 	hasCheckedOnce bool      // Flag to handle startup state (e.g. starting mid-flight)
 }
 
-func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker) *NarrationJob {
+func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker, w *watcher.Service) *NarrationJob {
 	j := &NarrationJob{
 		BaseJob:    NewBaseJob("Narration"),
 		cfg:        cfg,
@@ -53,6 +55,7 @@ func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, sim
 		sim:        simC,
 		store:      st,
 		losChecker: los,
+		watcher:    w,
 		lastTime:   time.Now(),
 	}
 
@@ -357,7 +360,21 @@ func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
 		slog.Info("NarrationJob: Executing queued manual override", "poi_id", id)
 		// Force play immediately (enqueue=false)
 		j.narrator.PlayPOI(ctx, id, true, false, t, strat)
+		// Force play immediately (enqueue=false)
+		j.narrator.PlayPOI(ctx, id, true, false, t, strat)
 		return
+	}
+
+	// 0.5 Check for New Screenshots (Priority 0.5)
+	if j.watcher != nil && j.cfg.Narrator.Screenshot.Enabled {
+		if path, ok := j.watcher.CheckNew(); ok {
+			slog.Info("NarrationJob: New screenshot detected, interrupting flow", "path", path)
+			// Play immediately (blocking or async handled by PlayImage)
+			j.narrator.PlayImage(ctx, path, t)
+			// We return here to "consume" this tick. The next tick will check standard narrative logic.
+			// Ideally PlayImage starts playing quickly so IsPlaying() becomes true soon.
+			return
+		}
 	}
 
 	// 1. Check for Staged/Prepared Narrative (Pipeline)

@@ -48,7 +48,7 @@ func TestNarrationJob_EssayConfig(t *testing.T) {
 			// Update config for this run
 			cfg.Narrator.Essay.Enabled = tt.essayEnabled
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: tt.altitudeAGL,

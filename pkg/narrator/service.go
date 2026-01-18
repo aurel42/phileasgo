@@ -28,6 +28,8 @@ type Service interface {
 	IsPlaying() bool
 	// PlayPOI triggers narration for a specific POI.
 	PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string)
+	// PlayImage triggers narration for a local image file.
+	PlayImage(ctx context.Context, imagePath string, tel *sim.Telemetry)
 	// PrepareNextNarrative prepares a narrative for a POI and stages it for later playback.
 	PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error
 	// GetPreparedPOI returns the POI currently staged or generating, if any.
@@ -159,6 +161,13 @@ func (s *StubService) PlayPOI(ctx context.Context, poiID string, manual, enqueue
 		slog.Info("Narrator stub: automated play triggering", "poi_id", poiID)
 	}
 	s.narratedPOIs[poiID] = true
+}
+
+// PlayImage triggers narration for a image (stub: just logs).
+func (s *StubService) PlayImage(ctx context.Context, imagePath string, tel *sim.Telemetry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	slog.Info("Narrator stub: image play requested", "path", imagePath)
 }
 
 // PrepareNextNarrative prepares a narrative (stub: just logs).

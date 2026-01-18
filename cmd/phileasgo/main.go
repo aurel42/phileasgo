@@ -36,6 +36,7 @@ import (
 	"phileasgo/pkg/tts"
 	"phileasgo/pkg/version"
 	"phileasgo/pkg/visibility"
+	"phileasgo/pkg/watcher"
 	"phileasgo/pkg/wikidata"
 	"phileasgo/pkg/wikipedia"
 )
@@ -345,8 +346,22 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 
 	// Register Debrief Job (implicitly added by NewScheduler via debriefer arg)
 
+	// Register Debrief Job (implicitly added by NewScheduler via debriefer arg)
+
+	// Watcher for Screenshots
+	var screenWatcher *watcher.Service
+	if cfg.Narrator.Screenshot.Enabled {
+		var err error
+		screenWatcher, err = watcher.NewService(cfg.Narrator.Screenshot.Path)
+		if err != nil {
+			slog.Warn("Failed to initialize screenshot watcher", "error", err)
+		} else {
+			slog.Info("Screenshot watcher started", "path", cfg.Narrator.Screenshot.Path)
+		}
+	}
+
 	// Hook NarrationJob into POI Manager's scoring loop (every 5s) instead of Scheduler
-	narrationJob := core.NewNarrationJob(cfg, narratorSvc, narratorSvc.POIManager(), simClient, st, los)
+	narrationJob := core.NewNarrationJob(cfg, narratorSvc, narratorSvc.POIManager(), simClient, st, los, screenWatcher)
 	svcs.PoiMgr.SetScoringCallback(func(c context.Context, t *sim.Telemetry) {
 		if narrationJob.ShouldFire(t) {
 			go narrationJob.Run(c, t)

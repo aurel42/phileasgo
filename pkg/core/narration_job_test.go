@@ -204,7 +204,7 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 			}
 			pm := &mockPOIManager{best: tt.bestPOI, lat: lat, lon: lon}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: tt.altitudeAGL,
@@ -309,7 +309,7 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 			mockN := &mockNarratorService{}
 			pm := &mockPOIManager{best: tt.bestPOI, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
 
 			// Set State
 			job.lastTime = time.Now().Add(-tt.lastNarrationAgo)
@@ -489,7 +489,7 @@ func TestNarrationJob_AdaptiveMode(t *testing.T) {
 	// POI has score 5.0, which is BELOW strict threshold (10.0)
 	pm := &mockPOIManager{best: &model.POI{Score: 5.0, WikidataID: "Q_LOW"}, lat: 48.0, lon: -123.0}
 	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil)
+	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil, nil)
 
 	tel := &sim.Telemetry{
 		AltitudeAGL: 3000,
@@ -525,7 +525,7 @@ func TestNarrationJob_DynamicMinScore(t *testing.T) {
 	mockN := &mockNarratorService{}
 	pm := &mockPOIManager{best: &model.POI{Score: 5.0, WikidataID: "Q5"}, lat: 48.0, lon: -123.0}
 	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil)
+	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil, nil)
 
 	tel := &sim.Telemetry{
 		AltitudeAGL: 3000,
@@ -621,7 +621,7 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 
 			pm := &mockPOIManager{best: &model.POI{Score: 10.0, WikidataID: "Q_NEXT"}, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
 
 			// Force cooldown ready for non-playing case
 			job.lastTime = time.Time{}
@@ -700,7 +700,7 @@ func TestNarrationJob_PostTakeoffGracePeriod(t *testing.T) {
 			}
 			pm := &mockPOIManager{best: poi, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
 
 			// Prime the job with ground telemetry to avoid "Started Airborne" bypass logic
 			// This simulates that the application started while on the ground.
@@ -808,7 +808,7 @@ func TestNarrationJob_StartAirborne_NoDelay(t *testing.T) {
 	mockN := &mockNarratorService{}
 	pm := &mockPOIManager{best: &model.POI{Score: 10.0, WikidataID: "Q_AIR"}, lat: 48.0, lon: -123.0}
 	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
 	// Important: We do NOT set job.takeoffTime manually. We test the startup logic.
 	job.lastTime = time.Time{} // Force ready for narration (silence wise)
 

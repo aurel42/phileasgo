@@ -1,5 +1,12 @@
 ﻿# Release History
 
+## v0.2.111 (2026-01-18)
+- **Feature**: **Screenshot Narration**
+    - Implemented a watcher service to detect and narrate screenshots taken during flights.
+    - Integrated Gemini 1.5 Pro/Flash Vision capabilities for multimodal analysis (scenery, landmarks) with flight context.
+    - Added configurable prompt with dynamic word count limits via `narrator/screenshot.tmpl`.
+    - **Fix**: Screenshot narration properly interrupts/blocks lower-priority POI narration.
+
 ## v0.2.110 (2026-01-18)
 - **Fix**: **Improved "Lone Wolf" Logic**
     - The `CountScoredAbove` competition metric now correctly ignores POIs that are on cooldown (recently narrated).

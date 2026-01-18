@@ -14,9 +14,10 @@ import (
 // --- Mocks ---
 
 type MockLLM struct {
-	Response         string
-	Err              error
-	GenerateTextFunc func(ctx context.Context, name, prompt string) (string, error)
+	Response              string
+	Err                   error
+	GenerateTextFunc      func(ctx context.Context, name, prompt string) (string, error)
+	GenerateImageTextFunc func(ctx context.Context, name, prompt, imagePath string) (string, error)
 }
 
 func (m *MockLLM) Name() string                         { return "MockLLM" }
@@ -31,6 +32,12 @@ func (m *MockLLM) GenerateJSON(ctx context.Context, name, prompt string, target 
 	return nil
 }
 func (m *MockLLM) HealthCheck(ctx context.Context) error { return nil }
+func (m *MockLLM) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
+	if m.GenerateImageTextFunc != nil {
+		return m.GenerateImageTextFunc(ctx, name, prompt, imagePath)
+	}
+	return m.Response, m.Err
+}
 
 type MockTTS struct {
 	Format string
@@ -45,10 +52,11 @@ func (m *MockTTS) Synthesize(ctx context.Context, text, voiceID, outputPath stri
 }
 
 type MockAudio struct {
-	PlayCalls    int
-	LastFile     string
-	PlayErr      error
-	IsPlayingVal bool
+	PlayCalls       int
+	LastFile        string
+	PlayErr         error
+	IsPlayingVal    bool
+	IsUserPausedVal bool
 }
 
 func (m *MockAudio) Play(filepath string, startPaused bool) error {
@@ -66,9 +74,9 @@ func (m *MockAudio) IsBusy() bool              { return m.IsPlayingVal }
 func (m *MockAudio) IsPaused() bool            { return false }
 func (m *MockAudio) SetVolume(vol float64)     {}
 func (m *MockAudio) Volume() float64           { return 1.0 }
-func (m *MockAudio) SetUserPaused(paused bool) {}
-func (m *MockAudio) IsUserPaused() bool        { return false }
-func (m *MockAudio) ResetUserPause()           {}
+func (m *MockAudio) SetUserPaused(paused bool) { m.IsUserPausedVal = paused }
+func (m *MockAudio) IsUserPaused() bool        { return m.IsUserPausedVal }
+func (m *MockAudio) ResetUserPause()           { m.IsUserPausedVal = false }
 func (m *MockAudio) LastNarrationFile() string { return m.LastFile }
 func (m *MockAudio) ReplayLastNarration() bool { return m.PlayErr == nil }
 func (m *MockAudio) Position() time.Duration   { return 0 }

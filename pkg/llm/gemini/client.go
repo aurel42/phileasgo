@@ -191,6 +191,71 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 		c.tracker.TrackAPISuccess("gemini")
 	}
 	return nil
+
+}
+
+// GenerateImageText sends a prompt + image and returns the text response.
+func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
+	c.mu.RLock()
+	client := c.genaiClient
+	c.mu.RUnlock()
+
+	if client == nil {
+		return "", fmt.Errorf("gemini client not configured")
+	}
+
+	// Read image file
+	imgData, err := os.ReadFile(imagePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read image file: %w", err)
+	}
+
+	// Determine MIME type (simple heuristic)
+	mimeType := "image/jpeg"
+	if strings.HasSuffix(strings.ToLower(imagePath), ".png") {
+		mimeType = "image/png"
+	}
+
+	// Determine model based on intent/profile
+	modelName, config := c.resolveModel(name)
+
+	// Combine Text + Image manually since genai.ImageData helper might not exist
+	// We assume genai.Part has Text and InlineData fields.
+	parts := []*genai.Part{
+		{Text: prompt},
+		{InlineData: &genai.Blob{
+			MIMEType: mimeType,
+			Data:     imgData,
+		}},
+	}
+
+	contents := []*genai.Content{
+		{Parts: parts},
+	}
+
+	resp, err := client.Models.GenerateContent(ctx, modelName, contents, config)
+	if err != nil {
+		c.logPrompt(name, prompt+" [IMAGE: "+imagePath+"]", fmt.Sprintf("ERROR: %v", err))
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure("gemini")
+		}
+		return "", fmt.Errorf("generate image text error: %w", err)
+	}
+
+	text, err := getResponseText(resp)
+	if err != nil {
+		c.logPrompt(name, prompt+" [IMAGE: "+imagePath+"]", fmt.Sprintf("TEXT_PARSE_ERROR: %v", err))
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure("gemini")
+		}
+		return "", err
+	}
+
+	c.logPrompt(name, prompt+" [IMAGE: "+imagePath+"]", text)
+	if c.tracker != nil {
+		c.tracker.TrackAPISuccess("gemini")
+	}
+	return text, nil
 }
 
 func (c *Client) logPrompt(name, prompt, response string) {
