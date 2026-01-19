@@ -5,13 +5,12 @@ import (
 	"strings"
 )
 
-func (s *Service) hydrateCandidates(ctx context.Context, candidates []Article, allowedLangs []string) ([]Article, error) {
+func (p *Pipeline) hydrateCandidates(ctx context.Context, candidates []Article, allowedLangs []string) ([]Article, error) {
 	qids := make([]string, len(candidates))
 	for i := range candidates {
 		qids[i] = candidates[i].QID
 	}
 
-	// Prepare Site Filter
 	var allowedSites []string
 	allowedCodes := make(map[string]bool)
 	if len(allowedLangs) > 0 {
@@ -21,9 +20,7 @@ func (s *Service) hydrateCandidates(ctx context.Context, candidates []Article, a
 		}
 	}
 
-	// Fetch FallbackData with Site Filter
-	// This uses the Wikidata API (wbgetentities) which is much faster/stable than SPARQL joins
-	fallbackData, err := s.client.FetchFallbackData(ctx, qids, allowedSites)
+	fallbackData, err := p.client.FetchFallbackData(ctx, qids, allowedSites)
 	if err != nil {
 		return nil, err
 	}
@@ -33,18 +30,15 @@ func (s *Service) hydrateCandidates(ctx context.Context, candidates []Article, a
 		cand := candidates[i]
 		data, found := fallbackData[cand.QID]
 		if !found {
-			// e.g. Merged/Redirected? Skip/Drop.
 			continue
 		}
 
-		s.processSitelinks(&cand, data.Sitelinks, allowedCodes) // Pass pointer to modify
+		p.processSitelinks(&cand, data.Sitelinks, allowedCodes)
 
-		// Set User Title (if user lang matches)
-		if t, ok := cand.LocalTitles[s.userLang]; ok {
+		if t, ok := cand.LocalTitles[p.userLang]; ok {
 			cand.TitleUser = t
 		}
 
-		// Map Label (if we ever decide to use it)
 		if lbl, ok := data.Labels["en"]; ok {
 			cand.Label = lbl
 		}
@@ -55,7 +49,7 @@ func (s *Service) hydrateCandidates(ctx context.Context, candidates []Article, a
 	return hydrated, nil
 }
 
-func (s *Service) processSitelinks(cand *Article, sitelinks map[string]string, allowedCodes map[string]bool) {
+func (p *Pipeline) processSitelinks(cand *Article, sitelinks map[string]string, allowedCodes map[string]bool) {
 	cand.LocalTitles = make(map[string]string)
 
 	for site, title := range sitelinks {
@@ -63,18 +57,12 @@ func (s *Service) processSitelinks(cand *Article, sitelinks map[string]string, a
 			cand.TitleEn = title
 			continue
 		}
-		// Simple mapping: "frwiki" -> "fr"
 		if strings.HasSuffix(site, "wiki") {
 			lang := strings.TrimSuffix(site, "wiki")
-
-			// Secondary Filter (Double defense)
-			// Only accept if allowed, or if no filter was provided (safety)
 			if len(allowedCodes) > 0 && !allowedCodes[lang] {
 				continue
 			}
-
-			// Filter out non-language wikis if needed (commons, etc - unlikely to match simple suffix)
-			if len(lang) == 2 || len(lang) == 3 { // rough check for iso codes
+			if len(lang) == 2 || len(lang) == 3 {
 				cand.LocalTitles[lang] = title
 			}
 		}

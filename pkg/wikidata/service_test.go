@@ -465,39 +465,22 @@ func TestProcessTileData(t *testing.T) {
 				return h > 0 || l > 0 || area > 0
 			}
 
-			svc := &Service{
-				store:      st,
-				classifier: cl,
-				client:     mockClient,               // Inject Mock!
-				wiki:       &MockWikipediaProvider{}, // Inject Mock!
-				poi:        poi.NewManager(&config.Config{}, st, nil),
-				scheduler:  &Scheduler{grid: NewGrid()},
-				tracker:    tracker.New(),
-				logger:     slog.Default(),
-				geo:        &geo.Service{},                             // Need Geo for enrichment
-				mapper:     NewLanguageMapper(st, nil, slog.Default()), // Mockable?
-				userLang:   "en",
-				cfg: config.WikidataConfig{
-					Area: config.AreaConfig{
-						MaxArticles: 100,
-					},
-				},
-			}
-
-			// Mock Geo Service for "GetCountry" if needed, but we can rely on nil-safe or basic implementation if geo.Service is simple struct?
-			// geo.Service structure might panic if not init.
-			// Let's look at ProcessTileData logic: `country := s.geo.GetCountry(...)`.
-			// Valid geo.Service needed.
-			// However, in Step 916 view, geo.Service wasn't mocked.
-			// We can inject a mock geo provider if Service accepts one, or just ensure geo service doesn't crash.
-			// Actually, Service defines `geo *geo.Service`.
-			// If `geo.Service` has methods that panic on nil internal data, we have a problem.
-			// Usually we need `geo.NewService`.
-			// But for now, let's assume it's robust or skip enrichment error?
-			// Enrichment happens at the END. Steps 1-4 are critical.
+			// Construct Pipeline directly
+			pl := NewPipeline(
+				st,
+				mockClient,
+				&MockWikipediaProvider{},
+				&geo.Service{}, // Geo
+				poi.NewManager(&config.Config{}, st, nil), // POI
+				NewGrid(), // Grid (extracted from new scheduler)
+				NewLanguageMapper(st, nil, slog.Default()), // Mapper
+				cl,
+				slog.Default(),
+				"en",
+			)
 
 			// EXECUTE
-			gotArticles, gotRescued, err := svc.ProcessTileData(context.Background(), []byte(tt.rawJSON), 0, 0, tt.forceDesc)
+			gotArticles, gotRescued, err := pl.ProcessTileData(context.Background(), []byte(tt.rawJSON), 0, 0, tt.forceDesc)
 
 			// ASSERT
 			if (err != nil) != tt.expectError {

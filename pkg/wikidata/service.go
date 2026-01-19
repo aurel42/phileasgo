@@ -52,10 +52,14 @@ type Service struct {
 	// Configuration
 
 	// Configuration
+	// Configuration
+	// Configuration
 	userLang string
+
+	// Core logic pipeline
+	pipeline *Pipeline
 }
 
-// Classifier interface for dependency injection
 // Classifier interface for dependency injection
 type Classifier interface {
 	Classify(ctx context.Context, qid string) (*model.ClassificationResult, error)
@@ -87,23 +91,32 @@ func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Cl
 	}
 
 	client := NewClient(rc, slog.With("component", "wikidata_client"))
-	return &Service{
+	wiki := wikipedia.NewClient(rc)
+	sched := NewScheduler(float64(cfg.Area.MaxDist) / 1000.0) // Config is meters, Scheduler wants KM
+	logger := slog.With("component", "wikidata")
+	mapper := NewLanguageMapper(st, rc, slog.With("component", "mapper"))
+
+	pipeline := NewPipeline(st, client, wiki, geoSvc, poiMgr, sched.grid, mapper, cl, logger, normalizedLang)
+
+	svc := &Service{
+		pipeline:      pipeline,
 		store:         st,
 		sim:           sim,
 		client:        client,
-		wiki:          wikipedia.NewClient(rc),
+		wiki:          wiki,
 		geo:           geoSvc,
 		poi:           poiMgr,
-		scheduler:     NewScheduler(float64(cfg.Area.MaxDist) / 1000.0), // Config is meters, Scheduler wants KM
+		scheduler:     sched,
 		tracker:       tr,
 		classifier:    cl,
 		cfg:           cfg,
-		logger:        slog.With("component", "wikidata"),
+		logger:        logger,
 		recentTiles:   make(map[string]time.Time),
 		inflightTiles: make(map[string]bool),
 		userLang:      normalizedLang,
-		mapper:        NewLanguageMapper(st, rc, slog.With("component", "mapper")),
+		mapper:        mapper,
 	}
+	return svc
 }
 
 // Start begins the background fetch loop.
@@ -256,11 +269,10 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
 
 	centerLat, centerLon := s.gridCenter(c.Tile)
 
-	// 2. Cache Check (Optimization)
 	cachedBody, _, ok := s.store.GetGeodataCache(ctx, key)
 	if ok && len(cachedBody) > 0 {
 		s.logger.Debug("Cache Hit (Optimized)", "key", key)
-		processed, rescued, err := s.ProcessTileData(ctx, cachedBody, centerLat, centerLon, false)
+		processed, rescued, err := s.pipeline.ProcessTileData(ctx, cachedBody, centerLat, centerLon, false)
 		if err == nil {
 			s.logger.Debug("Processed cached tile",
 				"key", key,
@@ -297,7 +309,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
 	_ = rawJSON // rawJSON no longer needed here; caching is internal
 
 	// 5. Process, Enrich, and Save
-	processed, rescued, err := s.ProcessTileData(ctx, []byte(rawJSON), centerLat, centerLon, false)
+	processed, rescued, err := s.pipeline.ProcessTileData(ctx, []byte(rawJSON), centerLat, centerLon, false)
 	if err == nil {
 		s.logger.Debug("Fetched and Saved new tile",
 			"key", c.Tile.Key(),

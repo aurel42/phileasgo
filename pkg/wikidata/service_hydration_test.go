@@ -38,7 +38,7 @@ func TestHydrateCandidates_Filtering(t *testing.T) {
 		},
 	}
 
-	svc := &Service{
+	pl := &Pipeline{
 		client:   mockClient,
 		userLang: "de",
 	}
@@ -49,7 +49,7 @@ func TestHydrateCandidates_Filtering(t *testing.T) {
 
 	// Case 1: Filter Enabled (en + de)
 	allowedLangs := []string{"en", "de"}
-	hydrated, err := svc.hydrateCandidates(context.Background(), candidates, allowedLangs)
+	hydrated, err := pl.hydrateCandidates(context.Background(), candidates, allowedLangs)
 	if err != nil {
 		t.Fatalf("hydrateCandidates failed: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestHydrateCandidates_Filtering(t *testing.T) {
 		}, nil
 	}
 
-	hydrated2, err := svc.hydrateCandidates(context.Background(), candidates, allowedLangs2)
+	hydrated2, err := pl.hydrateCandidates(context.Background(), candidates, allowedLangs2)
 	if err != nil {
 		t.Fatalf("hydrateCandidates failed: %v", err)
 	}

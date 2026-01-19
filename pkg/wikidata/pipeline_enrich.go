@@ -6,66 +6,57 @@ import (
 	"strings"
 	"time"
 
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 )
 
-func (s *Service) enrichAndSave(ctx context.Context, articles []Article, localLangs []string, userLang string) error {
-	// 4a. Fetch Lengths
-	lengths := s.fetchArticleLengths(ctx, articles, localLangs, userLang)
+func (p *Pipeline) enrichAndSave(ctx context.Context, articles []Article, localLangs []string, userLang string) error {
+	lengths := p.fetchArticleLengths(ctx, articles, localLangs, userLang)
 
-	// 4c. Construct POIs
-	// 4c. Construct POIs
 	var candidates []*model.POI
 	var rejectedQIDs []string
 
 	for i := range articles {
-		if p := constructPOI(&articles[i], lengths, localLangs, userLang, s.getIcon); p != nil {
-			candidates = append(candidates, p)
+		if poi := constructPOI(&articles[i], lengths, localLangs, userLang, p.getIcon); poi != nil {
+			candidates = append(candidates, poi)
 		} else {
-			// Failed to construct (e.g. no valid name). Mark as seen/ignore.
 			rejectedQIDs = append(rejectedQIDs, articles[i].QID)
 		}
 	}
 
-	// 5. MERGE DUPLICATES (Spatial Gobbling)
 	var finalPOIs []*model.POI = candidates
-	if dc, ok := s.classifier.(DimClassifier); ok {
+	if dc, ok := p.classifier.(DimClassifier); ok {
 		var mergedRejected []string
-		finalPOIs, mergedRejected = MergePOIs(candidates, dc.GetConfig(), s.logger)
+		finalPOIs, mergedRejected = MergePOIs(candidates, dc.GetConfig(), p.logger)
 		rejectedQIDs = append(rejectedQIDs, mergedRejected...)
 	}
 
-	// 6. Save Valid POIs
-	for _, p := range finalPOIs {
-		if err := s.poi.UpsertPOI(ctx, p); err != nil {
-			s.logger.Error("Failed to save POI", "qid", p.WikidataID, "error", err)
-			// IMPORTANT: If save fails, we ideally should NOT mark it as seen,
-			// so it retries next time. So we don't add to rejectedQIDs here.
+	for _, poi := range finalPOIs {
+		if err := p.poi.UpsertPOI(ctx, poi); err != nil {
+			p.logger.Error("Failed to save POI", "qid", poi.WikidataID, "error", err)
 		}
 	}
 
-	// 7. Save Rejected Items (Mark as Seen to prevent re-fetching)
 	if len(rejectedQIDs) > 0 {
 		toMark := make(map[string][]string)
 		for _, qid := range rejectedQIDs {
-			toMark[qid] = []string{"rejected"} // simple tag
+			toMark[qid] = []string{"rejected"}
 		}
-		if err := s.store.MarkEntitiesSeen(ctx, toMark); err != nil {
-			s.logger.Warn("Failed to mark rejected POIs as seen", "count", len(rejectedQIDs), "error", err)
+		if err := p.store.MarkEntitiesSeen(ctx, toMark); err != nil {
+			p.logger.Warn("Failed to mark rejected POIs as seen", "count", len(rejectedQIDs), "error", err)
 		} else {
-			s.logger.Debug("Marked rejected POIs as seen", "count", len(rejectedQIDs))
+			p.logger.Debug("Marked rejected POIs as seen", "count", len(rejectedQIDs))
 		}
 	}
 
 	return nil
 }
 
-func (s *Service) fetchArticleLengths(ctx context.Context, articles []Article, localLangs []string, userLang string) map[string]map[string]int {
+func (p *Pipeline) fetchArticleLengths(ctx context.Context, articles []Article, localLangs []string, userLang string) map[string]map[string]int {
 	titlesByLang := make(map[string][]string)
 
 	for i := range articles {
 		a := &articles[i]
-		// Aggregate ALL possible titles for length fetching
 		for lang, t := range a.LocalTitles {
 			titlesByLang[lang] = append(titlesByLang[lang], t)
 		}
@@ -73,7 +64,6 @@ func (s *Service) fetchArticleLengths(ctx context.Context, articles []Article, l
 			titlesByLang["en"] = append(titlesByLang["en"], a.TitleEn)
 		}
 		if a.TitleUser != "" && userLang != "en" {
-			// Note: User lang might overlap with LocalTitles keys, duplicates in slice are fine (wiki client handles batch)
 			titlesByLang[userLang] = append(titlesByLang[userLang], a.TitleUser)
 		}
 	}
@@ -83,9 +73,9 @@ func (s *Service) fetchArticleLengths(ctx context.Context, articles []Article, l
 		if len(titles) == 0 {
 			continue
 		}
-		res, err := s.wiki.GetArticleLengths(ctx, titles, lang)
+		res, err := p.wiki.GetArticleLengths(ctx, titles, lang)
 		if err != nil {
-			s.logger.Warn("Failed to fetch article lengths", "lang", lang, "error", err)
+			p.logger.Warn("Failed to fetch article lengths", "lang", lang, "error", err)
 			continue
 		}
 		lengths[lang] = res
@@ -95,14 +85,9 @@ func (s *Service) fetchArticleLengths(ctx context.Context, articles []Article, l
 
 func constructPOI(a *Article, lengths map[string]map[string]int, localLangs []string, userLang string, iconGetter func(string) string) *model.POI {
 	bestURL, bestNameLocal, maxLength := determineBestArticle(a, lengths, localLangs, userLang)
-
 	nameEn := a.TitleEn
 	nameUser := a.TitleUser
 
-	// Rescue Logic removed: We assume we have titles because of strict SPARQL filter (FILTER EXISTS).
-	// If determineBestArticle couldn't find ANY title, something is very wrong upstream.
-
-	// Verify we have at least one valid name
 	if nameEn == "" && bestNameLocal == "" && nameUser == "" {
 		return nil
 	}
@@ -129,10 +114,8 @@ func constructPOI(a *Article, lengths map[string]map[string]int, localLangs []st
 }
 
 func determineBestArticle(a *Article, lengths map[string]map[string]int, localLangs []string, userLang string) (url, nameLocal string, length int) {
-	// 1. Calculate Lengths per Language
 	lenEn := lengths["en"][a.TitleEn]
 	lenUser := 0
-	// Default to first local lang if available
 	primaryLocal := ""
 	if len(localLangs) > 0 {
 		primaryLocal = localLangs[0]
@@ -142,10 +125,8 @@ func determineBestArticle(a *Article, lengths map[string]map[string]int, localLa
 		lenUser = lengths[userLang][a.TitleUser]
 	}
 
-	// 2. Find Best Local Candidate
 	bestLocalLang, bestLocalTitle, maxLocalLen := findBestLocalCandidate(a, lengths, localLangs)
 
-	// 3. Determine Overall Best URL (for narration content)
 	maxLength := maxLocalLen
 	var bestURL string
 
@@ -162,7 +143,6 @@ func determineBestArticle(a *Article, lengths map[string]map[string]int, localLa
 		bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", userLang, replaceSpace(a.TitleUser))
 	}
 
-	// 4. Fallback URL construction if length metrics failed
 	if bestURL == "" {
 		switch {
 		case a.TitleUser != "":
@@ -172,7 +152,6 @@ func determineBestArticle(a *Article, lengths map[string]map[string]int, localLa
 		case bestLocalTitle != "":
 			bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", bestLocalLang, replaceSpace(bestLocalTitle))
 		default:
-			// Absolute backup: Wikidata URL
 			bestURL = "https://www.wikidata.org/wiki/" + a.QID
 		}
 	}
@@ -181,13 +160,11 @@ func determineBestArticle(a *Article, lengths map[string]map[string]int, localLa
 }
 
 func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, localLangs []string) (bestLang, bestTitle string, maxLen int) {
-	// Prioritize based on the provided local languages
 	prefMap := make(map[string]int)
 	for i, l := range localLangs {
 		prefMap[l] = len(localLangs) - i
 	}
 
-	// Iterate over all available local titles (de, pl, etc.)
 	for lang, title := range a.LocalTitles {
 		l := lengths[lang][title]
 		if l > maxLen {
@@ -195,7 +172,6 @@ func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, local
 			bestLang = lang
 			bestTitle = title
 		}
-		// Tie-breaker? Prefer higher priority in localLangs list if lengths equal
 		if l == maxLen && maxLen > 0 {
 			if prefMap[lang] > prefMap[bestLang] {
 				bestLang = lang
@@ -203,7 +179,6 @@ func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, local
 			}
 		}
 	}
-	// Fallback if no length info (or 0 length), pick first available based on priority
 	if bestTitle == "" {
 		for _, lLang := range localLangs {
 			if t, ok := a.LocalTitles[lLang]; ok {
@@ -212,10 +187,7 @@ func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, local
 				return
 			}
 		}
-		// If still nothing (e.g. LocalTitles contains something not in localLangs? Should not happen with new filter),
-		// pick deterministically by sorting keys (last resort safety)
 		if len(a.LocalTitles) > 0 {
-			// Find ANY valid key
 			for l, t := range a.LocalTitles {
 				bestLang = l
 				bestTitle = t
@@ -228,4 +200,16 @@ func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, local
 
 func replaceSpace(s string) string {
 	return strings.ReplaceAll(s, " ", "_")
+}
+
+func (p *Pipeline) getIcon(category string) string {
+	type configProvider interface {
+		GetConfig() *config.CategoriesConfig
+	}
+	if cp, ok := p.classifier.(configProvider); ok {
+		if cfg, ok := cp.GetConfig().Categories[strings.ToLower(category)]; ok {
+			return cfg.Icon
+		}
+	}
+	return ""
 }

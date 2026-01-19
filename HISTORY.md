@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.118 (2026-01-19)
+- **Refactor**: **Wikidata Pipeline Modernization**
+    - Split the monolithic `pkg/wikidata/pipeline.go` into modular components: `pipeline_filter.go` (Filtering), `pipeline_enrich.go` (Enrichment), and `pipeline_hydration.go` (API Hydration), improving maintainability.
+    - Removed legacy `Service` shims and lazy initialization logic.
+    - Updated all tests to instantiate and test the `Pipeline` struct directly, ensuring stricter type safety and cleaner architecture.
+
 ## v0.2.117 (2026-01-18)
 - **Feature**: **Screenshot Narration Priority**
     - Screenshots are now detected immediately at the start of the narration loop, ensuring they trigger even in remote areas (e.g. over the ocean) where no POIs are available.
