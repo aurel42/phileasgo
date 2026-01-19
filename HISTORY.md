@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.119 (2026-01-19)
+- **Fix**: **Classifier Cache Logic**
+    - Resolved a bug where the `__IGNORED__` sentinel was treated as a valid category, causing ignored entities (e.g., administrative districts) to appear on the map.
+    - Updated `classifier.go` to strictly respect the ignore signal in both initial search and hierarchy traversal.
+
 ## v0.2.118 (2026-01-19)
 - **Refactor**: **Wikidata Pipeline Modernization**
     - Split the monolithic `pkg/wikidata/pipeline.go` into modular components: `pipeline_filter.go` (Filtering), `pipeline_enrich.go` (Enrichment), and `pipeline_hydration.go` (API Hydration), improving maintainability.

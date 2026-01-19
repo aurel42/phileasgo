@@ -196,6 +196,9 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 		subclasses = hNode.Parents
 		label = hNode.Name
 		if hNode.Category != "" {
+			if hNode.Category == "__IGNORED__" {
+				return &model.ClassificationResult{Ignored: true}, nil
+			}
 			return c.resultFor(hNode.Category), nil
 		}
 	} else {
@@ -251,6 +254,9 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 		for _, id := range queue {
 			match, parents, foundInDB := c.checkCacheOrDB(ctx, id)
 			if match != "" {
+				if match == "__IGNORED__" {
+					return c.finalizeIgnored(ctx, qid, subclasses, label)
+				}
 				return c.finalizeMatch(ctx, qid, match, subclasses, label)
 			}
 			if foundInDB {
