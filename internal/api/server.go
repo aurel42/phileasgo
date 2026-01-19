@@ -13,7 +13,7 @@ import (
 
 // NewServer creates and configures the HTTP server.
 // It accepts handlers for all API endpoints and a shutdownFunc for graceful shutdown.
-func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *StatsHandler, cache *CacheHandler, pois *POIHandler, vis *VisibilityHandler, audioH *AudioHandler, narratorH *NarratorHandler, geo *GeographyHandler, shutdown func()) *http.Server {
+func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *StatsHandler, cache *CacheHandler, pois *POIHandler, vis *VisibilityHandler, audioH *AudioHandler, narratorH *NarratorHandler, imageH *ImageHandler, geo *GeographyHandler, shutdown func()) *http.Server {
 	mux := http.NewServeMux()
 
 	// 1. Health Endpoint
@@ -61,6 +61,11 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 	if narratorH != nil {
 		mux.HandleFunc("POST /api/narrator/play", narratorH.HandlePlay)
 		mux.HandleFunc("GET /api/narrator/status", narratorH.HandleStatus)
+	}
+
+	// 2j. Image Endpoint
+	if imageH != nil {
+		mux.HandleFunc("GET /api/images/serve", imageH.HandleGetImage)
 	}
 
 	// 3. Shutdown Endpoint

@@ -321,6 +321,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 		api.NewVisibilityHandler(vis, simClient, elevGetter, st, svcs.WikiSvc),
 		api.NewAudioHandler(ns.AudioService(), ns, st),
 		api.NewNarratorHandler(ns.AudioService(), ns),
+		api.NewImageHandler(cfg),
 		geoH,
 		shutdownFunc,
 	)

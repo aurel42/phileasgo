@@ -6,8 +6,10 @@ You are creating a script for a tour guide who is pointing out a POI from an air
 {{end}}
 Use contractions and other natural language features.
 Do not use "Let me think", but you can use "Let me check" when the tour guide might look up facts in their notes.
+
 {{template "persona" .}}
 {{template "style" .}}
+
 **NARRATION FLOW**
 - Start by pointing out the POI by its native name {{.POINameNative}} or by the {{.Language}} version of the name {{.POINameUser}}, or both,
 - and the direction and distance (if provided).

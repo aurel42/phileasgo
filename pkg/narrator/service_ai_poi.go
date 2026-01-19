@@ -257,8 +257,12 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 	}
 	s.active = true
 	s.currentPOI = n.POI // May be nil for non-POI narratives
+	s.currentImagePath = n.ImagePath
 	if n.POI != nil {
 		s.lastPOI = n.POI
+	}
+	if n.ImagePath != "" {
+		s.lastImagePath = n.ImagePath
 	}
 	s.lastEssayTopic = nil
 	s.lastEssayTitle = ""
@@ -275,6 +279,7 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 		s.mu.Lock()
 		s.active = false
 		s.currentPOI = nil
+		s.currentImagePath = ""
 		s.mu.Unlock()
 		return fmt.Errorf("audio playback failed: %w", err)
 	}
@@ -372,6 +377,7 @@ func (s *AIService) monitorPlayback(n *Narrative) {
 	s.mu.Lock()
 	s.active = false
 	s.currentPOI = nil
+	s.currentImagePath = ""
 	s.mu.Unlock()
 }
 

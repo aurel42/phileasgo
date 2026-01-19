@@ -47,11 +47,12 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 
 	// 3. Prepare Prompt
 	data := map[string]any{
-		"City":     city,
-		"Lat":      fmt.Sprintf("%.3f", tel.Latitude),
-		"Lon":      fmt.Sprintf("%.3f", tel.Longitude),
-		"Alt":      fmt.Sprintf("%.0f", tel.AltitudeAGL),
-		"MaxWords": s.cfg.Narrator.NarrationLengthLongWords,
+		"City":        city,
+		"Lat":         fmt.Sprintf("%.3f", tel.Latitude),
+		"Lon":         fmt.Sprintf("%.3f", tel.Longitude),
+		"Alt":         fmt.Sprintf("%.0f", tel.AltitudeAGL),
+		"MaxWords":    s.cfg.Narrator.NarrationLengthLongWords,
+		"TripSummary": s.getTripSummary(),
 	}
 
 	prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
@@ -96,6 +97,7 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 		Title:          screenshotTitle,
 		Script:         text,
 		AudioPath:      audioPath,
+		ImagePath:      imagePath, // Set the path
 		Format:         format,
 		RequestedWords: s.cfg.Narrator.NarrationLengthShortWords,
 	}

@@ -68,6 +68,10 @@ func (m *mockNarratorService) AverageLatency() time.Duration {
 	return 0
 }
 
+func (m *mockNarratorService) CurrentImagePath() string {
+	return ""
+}
+
 type mockPOIManager struct {
 	best *model.POI
 	lat  float64

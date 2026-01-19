@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.120 (2026-01-19)
+- **Feature**: **Screenshot Thumbnail Display**
+    - Screenshots are now displayed as thumbnails in both the Main Info Panel and the Overlay (`/overlay`) during narration playback.
+    - Added a new secure endpoint `/api/images/serve` to serve local screenshot files to the frontend.
+- **Narrator**: **Context-Aware Visuals**
+    - The Screenshot Prompt now receives the **Trip Summary** context, allowing Gemini to reference previous events ("As we saw earlier...").
+    - Explicitly instructed Gemini to ignore **Hot Air Balloons** (multiplayer traffic) in screenshots.
+- **Fix**: **Frontend Integration**
+    - Updated `NarratorStatusResponse` API and frontend TypeScript interfaces to expose `current_image_path`.
+
 ## v0.2.119 (2026-01-19)
 - **Fix**: **Classifier Cache Logic**
     - Resolved a bug where the `__IGNORED__` sentinel was treated as a valid category, causing ignored entities (e.g., administrative districts) to appear on the map.

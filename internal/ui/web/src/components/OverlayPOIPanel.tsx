@@ -3,6 +3,8 @@ import type { POI } from '../hooks/usePOIs';
 
 interface OverlayPOIPanelProps {
     poi: POI | null;
+    imagePath?: string;
+    title?: string;
     playbackProgress: number; // 0-1
     isPlaying: boolean;
 }
@@ -13,36 +15,49 @@ const getName = (poi: POI) => {
     return poi.name_local || 'Unknown';
 };
 
-export const OverlayPOIPanel = ({ poi, playbackProgress, isPlaying }: OverlayPOIPanelProps) => {
+export const OverlayPOIPanel = ({ poi, imagePath, title, playbackProgress, isPlaying }: OverlayPOIPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
-        if (poi && isPlaying) {
+        if ((poi || imagePath) && isPlaying) {
             setVisible(true);
 
-            // Fetch thumbnail if not available
-            if (poi.thumbnail_url) {
-                setThumbnailUrl(poi.thumbnail_url);
-            } else {
-                // Fetch on-demand
-                fetch(`/api/pois/${poi.wikidata_id}/thumbnail`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.url) setThumbnailUrl(data.url);
-                    })
-                    .catch(() => { });
+            if (imagePath) {
+                setThumbnailUrl(`/api/images/serve?path=${encodeURIComponent(imagePath)}`);
+            } else if (poi) {
+                // Fetch thumbnail if not available
+                if (poi.thumbnail_url) {
+                    setThumbnailUrl(poi.thumbnail_url);
+                } else {
+                    // Fetch on-demand
+                    fetch(`/api/pois/${poi.wikidata_id}/thumbnail`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.url) setThumbnailUrl(data.url);
+                        })
+                        .catch(() => { });
+                }
             }
         } else {
             setVisible(false);
             setThumbnailUrl(null);
         }
-    }, [poi, isPlaying]);
+    }, [poi, imagePath, isPlaying]);
 
-    if (!poi) return null;
+    if (!poi && !imagePath) return null;
 
-    const primaryName = getName(poi);
-    const category = poi.specific_category || poi.category || '';
+    let primaryName = title || "Narration";
+    let category = "";
+
+    if (poi) {
+        primaryName = getName(poi);
+        category = poi.specific_category || poi.category || '';
+    } else if (imagePath) {
+        // If title is provided (e.g. "Screenshot: foo.jpg"), use it, otherwise "Screenshot"
+        if (!title) primaryName = "Screenshot";
+        category = "Screenshot"; // Or leave empty
+    }
 
     return (
         <div className={`overlay-poi-panel ${visible ? 'visible' : ''}`}>

@@ -5,6 +5,11 @@ Instead of pointing out a specific landmark, you are providing a short "Regional
 {{template "persona" .}}
 {{template "style" .}}
 
+{{if .TripSummary}}
+**TRIP SUMMARY SO FAR** (for continuity and cross-referencing):
+{{.TripSummary}}
+{{end}}
+
 **UNITS AND MEASUREMENTS**:
 {{.UnitsInstruction}}
 

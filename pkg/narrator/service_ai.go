@@ -56,6 +56,7 @@ type AIService struct {
 	currentPOI        *model.POI
 	currentTopic      *EssayTopic
 	currentEssayTitle string
+	currentImagePath  string // Added field
 
 	// Generation State
 	genCancelFunc context.CancelFunc
@@ -68,6 +69,7 @@ type AIService struct {
 	lastPOI        *model.POI
 	lastEssayTopic *EssayTopic
 	lastEssayTitle string
+	lastImagePath  string // Added field
 
 	// Staging State (Pipeline)
 	stagedNarrative *Narrative
@@ -199,6 +201,13 @@ func (s *AIService) CurrentPOI() *model.POI {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.currentPOI
+}
+
+// CurrentImagePath returns the file path of the message for the current narration.
+func (s *AIService) CurrentImagePath() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentImagePath
 }
 
 // GetPreparedPOI returns the POI being prepared for pipeline playback, if any.

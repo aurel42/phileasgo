@@ -65,6 +65,8 @@ type Service interface {
 	ReplayLast(ctx context.Context) bool
 	// AverageLatency returns the rolling average of generation time.
 	AverageLatency() time.Duration
+	// CurrentImagePath returns the file path of the message for the current narration.
+	CurrentImagePath() string
 }
 
 // Narrative represents a prepared narration ready for playback.
@@ -74,6 +76,7 @@ type Narrative struct {
 	Title          string     // Display title (for non-POI narratives or override)
 	Script         string
 	AudioPath      string
+	ImagePath      string // Path to image (e.g. screenshot)
 	Format         string // e.g., "mp3"
 	Duration       time.Duration
 	RequestedWords int
@@ -283,4 +286,9 @@ func (s *StubService) ReplayLast(ctx context.Context) bool {
 // AverageLatency returns the rolling average of generation time (stub: 0).
 func (s *StubService) AverageLatency() time.Duration {
 	return 0
+}
+
+// CurrentImagePath returns the file path of the message for the current narration (stub: empty).
+func (s *StubService) CurrentImagePath() string {
+	return ""
 }

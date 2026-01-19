@@ -30,6 +30,7 @@ type NarratorController interface {
 	CurrentPOI() *model.POI
 	GetPreparedPOI() *model.POI
 	CurrentTitle() string
+	CurrentImagePath() string
 	NarratedCount() int
 	Stats() map[string]any
 }
@@ -59,13 +60,14 @@ type PlayRequest struct {
 
 // NarratorStatusResponse represents the narrator status.
 type NarratorStatusResponse struct {
-	Active         bool           `json:"active"`
-	PlaybackStatus string         `json:"playback_status"` // idle, preparing, playing, paused
-	CurrentPOI     *model.POI     `json:"current_poi,omitempty"`
-	PreparingPOI   *model.POI     `json:"preparing_poi,omitempty"`
-	CurrentTitle   string         `json:"current_title"`
-	NarratedCount  int            `json:"narrated_count"`
-	Stats          map[string]any `json:"stats"`
+	Active           bool           `json:"active"`
+	PlaybackStatus   string         `json:"playback_status"` // idle, preparing, playing, paused
+	CurrentPOI       *model.POI     `json:"current_poi,omitempty"`
+	PreparingPOI     *model.POI     `json:"preparing_poi,omitempty"`
+	CurrentTitle     string         `json:"current_title"`
+	CurrentImagePath string         `json:"current_image_path,omitempty"`
+	NarratedCount    int            `json:"narrated_count"`
+	Stats            map[string]any `json:"stats"`
 }
 
 // HandlePlay handles POST /api/narrator/play
@@ -124,13 +126,14 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := NarratorStatusResponse{
-		Active:         isActive,
-		PlaybackStatus: status,
-		CurrentPOI:     h.narrator.CurrentPOI(),
-		PreparingPOI:   h.narrator.GetPreparedPOI(),
-		CurrentTitle:   h.narrator.CurrentTitle(),
-		NarratedCount:  h.narrator.NarratedCount(),
-		Stats:          h.narrator.Stats(),
+		Active:           isActive,
+		PlaybackStatus:   status,
+		CurrentPOI:       h.narrator.CurrentPOI(),
+		PreparingPOI:     h.narrator.GetPreparedPOI(),
+		CurrentTitle:     h.narrator.CurrentTitle(),
+		CurrentImagePath: h.narrator.CurrentImagePath(),
+		NarratedCount:    h.narrator.NarratedCount(),
+		Stats:            h.narrator.Stats(),
 	}
 
 	// Check if state changed
