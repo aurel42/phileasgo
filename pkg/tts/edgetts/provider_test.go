@@ -65,3 +65,16 @@ func TestVoices(t *testing.T) {
 		t.Error("Default voice not found in list")
 	}
 }
+
+func TestGenerateSecMSGec(t *testing.T) {
+	p := NewProvider(tracker.New())
+	token := p.generateSecMSGec()
+	if len(token) == 0 {
+		t.Error("Generated token should not be empty")
+	}
+	// It should be a hex string
+	if len(token) != 64 {
+		// SHA256 hex string is 64 chars
+		t.Errorf("Expected token length 64, got %d", len(token))
+	}
+}

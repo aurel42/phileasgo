@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.121 (2026-01-19)
+- **Fix**: **EdgeTTS Handshake Reliability**
+    - Updated the EdgeTTS client headers (`User-Agent` and `Sec-MS-GEC-Version`) to align with Edge version 131.
+    - Resolves transient `403 Forbidden` handshake failures caused by version mismatch with the upstream service.
+
 ## v0.2.120 (2026-01-19)
 - **Feature**: **Screenshot Thumbnail Display**
     - Screenshots are now displayed as thumbnails in both the Main Info Panel and the Overlay (`/overlay`) during narration playback.
