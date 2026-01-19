@@ -11,6 +11,7 @@ import (
 )
 
 // PlayPOI triggers narration for a specific POI.
+// PlayPOI triggers narration for a specific POI.
 func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
 	if manual {
 		slog.Info("Narrator: Manual play requested", "poi_id", poiID, "enqueue_if_busy", enqueueIfBusy)
@@ -29,53 +30,49 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 		_ = s.beaconSvc.SetTarget(context.Background(), p.Lat, p.Lon)
 	}
 
-	var narrative *Narrative
-
-	// 1. Check Staging (Pipeline Optimization)
-	// Only use staged if we didn't just discard it above (i.e. if not manual or if manual matches staged?)
-	// Actually, the manual check above clears stagedNarrative if it exists and we assume override.
-	// But if we requested the SAME ID as staged, we might want to use it?
-	// The discard logic above was unconditional on ID match (simple "Manual Override" rule).
-	// Let's refine: If ID matches, definitely use it. If ID differs, discard it.
-
+	// 1. Check Queue (Deduplication & Re-prioritization)
 	s.mu.Lock()
-	// Re-acquire lock to check stagedNarrative again (safe because we released it briefly, state might have changed but unlikely in this flow)
-	// We should ideally have kept logic simpler.
-	if s.stagedNarrative != nil {
-		stagedID := ""
-		if s.stagedNarrative.POI != nil {
-			stagedID = s.stagedNarrative.POI.WikidataID
-		}
-
-		if manual && stagedID != poiID {
-			// Double check logic: we already cleared it above?
-			// Ah, the logic above was inside a lock block? Yes.
-			// So s.stagedNarrative IS nil if we cleared it.
-			// But wait, I released lock in between.
-			// Let's rewrite this part cleaner without re-locking issues.
-		} else {
-			// Use staged narrative
-			slog.Info("Narrator: Using staged narrative (Zero Latency)", "type", s.stagedNarrative.Type, "poi_id", stagedID)
-			narrative = s.stagedNarrative
-			s.stagedNarrative = nil
+	for i, n := range s.queue {
+		if n.POI != nil && n.POI.WikidataID == poiID {
+			if manual {
+				// Move to front (High Priority)
+				s.queue = append(s.queue[:i], s.queue[i+1:]...)
+				s.queue = append([]*Narrative{n}, s.queue...)
+				slog.Info("Narrator: Boosting queued item to front", "poi_id", poiID)
+			} else {
+				slog.Info("Narrator: Item already in queue, skipping duplicate request", "poi_id", poiID)
+			}
+			s.mu.Unlock()
+			go s.processQueue(context.Background())
+			return
 		}
 	}
 	s.mu.Unlock()
 
-	// 2. Generation Phase (if not staged)
-	if narrative == nil {
-		// Force generation only if manual play
-		narrative, err = s.GenerateNarrative(ctx, poiID, strategy, tel, manual)
-		if err != nil {
-			slog.Error("Narrator: Generation failed", "poi_id", poiID, "error", err)
-			return
-		}
+	// 2. Constraints Check
+	if !manual && s.IsGenerating() {
+		slog.Info("Narrator: Skipping auto-play (busy generating)")
+		return
 	}
 
-	// 3. Playback Phase
-	if err := s.PlayNarrative(ctx, narrative); err != nil {
-		slog.Error("Narrator: Playback failed", "poi_id", poiID, "error", err)
+	if !s.canEnqueue("poi", manual) {
+		slog.Info("Narrator: Play request rejected by queue constraints", "poi_id", poiID, "manual", manual)
+		return
 	}
+
+	// 2. Generation Phase
+	// Manual force=true will cancel any existing generation
+	narrative, err := s.GenerateNarrative(ctx, poiID, strategy, tel, manual)
+	if err != nil {
+		slog.Error("Narrator: Generation failed", "poi_id", poiID, "error", err)
+		return
+	}
+
+	// 3. Enqueue & Trigger
+	s.enqueue(narrative, manual)
+
+	// Trigger processing in background (if idle)
+	go s.processQueue(context.Background())
 }
 
 // PrepareNextNarrative prepares a narrative for a POI and stages it for later playback.
@@ -87,9 +84,7 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 		return err
 	}
 
-	s.mu.Lock()
-	s.stagedNarrative = narrative
-	s.mu.Unlock()
+	s.enqueue(narrative, false)
 	return nil
 }
 
@@ -290,6 +285,9 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 		if err := s.st.SavePOI(ctx, n.POI); err != nil {
 			slog.Error("Narrator: Failed to save narrated POI state", "qid", n.POI.WikidataID, "error", err)
 		}
+	} else if s.beaconSvc != nil {
+		// Clear beacon for non-POI narratives (e.g. screenshot) to avoid confusing 3D markers
+		s.beaconSvc.Clear()
 	}
 
 	// Determine display name for logging
@@ -354,13 +352,14 @@ func (s *AIService) monitorPlayback(n *Narrative) {
 	// Update Beacon Target immediately after playback
 	// Only relevant for POI narratives (non-POI narratives don't have map markers)
 	if s.beaconSvc != nil {
+		// Don't lock just to peek, peekQueue handles RLock
+		next := s.peekQueue()
 		s.mu.RLock()
-		next := s.stagedNarrative
 		generating := s.generatingPOI
 		s.mu.RUnlock()
 
 		if next != nil && next.POI != nil {
-			slog.Info("Narrator: Switching marker to next staged POI", "qid", next.POI.WikidataID)
+			slog.Info("Narrator: Switching marker to next queued POI", "qid", next.POI.WikidataID)
 			// Use background context as the original ctx might be cancelled
 			_ = s.beaconSvc.SetTarget(context.Background(), next.POI.Lat, next.POI.Lon)
 		} else if generating != nil {
@@ -379,6 +378,38 @@ func (s *AIService) monitorPlayback(n *Narrative) {
 	s.currentPOI = nil
 	s.currentImagePath = ""
 	s.mu.Unlock()
+
+	// Trigger next item in queue
+	go s.processQueue(context.Background())
+}
+
+// processQueue attempts to play the next item in the queue.
+func (s *AIService) processQueue(ctx context.Context) {
+	s.mu.Lock()
+	if s.active {
+		s.mu.Unlock()
+		return // Already playing
+	}
+	// Check queue
+	if len(s.queue) == 0 {
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Unlock()
+
+	// Pop (using helper)
+	next := s.popQueue()
+	if next == nil {
+		return
+	}
+
+	if err := s.PlayNarrative(ctx, next); err != nil {
+		slog.Error("Narrator: Queue playback failed, trying next", "error", err)
+		// Try next immediately? Or assume PlayNarrative cleanup triggers monitor?
+		// PlayNarrative returns error implies it didn't start.
+		// So we should try next recursion.
+		go s.processQueue(ctx)
+	}
 }
 
 // rescueScript attempts to extract a clean script from contaminated LLM output.

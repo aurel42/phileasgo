@@ -13,21 +13,23 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 	s.mu.RLock()
 	enabled := s.cfg.Narrator.Debrief.Enabled
 	summary := s.tripSummary
-	active := s.active
 	s.mu.RUnlock()
 
 	if !enabled {
 		return false
 	}
 
-	if active {
-		slog.Info("Narrator: Debrief requested but narrator is busy. Skipping.")
-		return false
-	}
+	// if active { ... } // removed busy check
 
 	// Double check summary length
 	if len(summary) < 50 {
 		slog.Info("Narrator: Debrief requested but trip summary is too short.", "length", len(summary))
+		return false
+	}
+
+	// Queue Constraints
+	if !s.canEnqueue("debrief", true) {
+		slog.Info("Narrator: Debrief skipped (queue constraints)")
 		return false
 	}
 
@@ -101,10 +103,11 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 			RequestedWords: s.cfg.Narrator.NarrationLengthLongWords,
 		}
 
-		// Use PlayNarrative to handle audio/UI
-		if err := s.PlayNarrative(context.Background(), narrative); err != nil {
-			slog.Error("Narrator: Failed to play debrief", "error", err)
-		}
+		// Use Queue (High Priority)
+		s.enqueue(narrative, true)
+
+		// Trigger queue
+		go s.processQueue(context.Background())
 	}()
 
 	return true

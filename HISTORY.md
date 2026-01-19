@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.122 (2026-01-19)
+- **Refactor**: **Unified Narration Queue**
+    - Centralized queue management for all narrative types (POI, Debrief, Essay, Screenshot).
+    - Enforced strict concurrency rules: only one manual/debrief/screenshot item in queue at a time.
+    - Updated `PlayPOI`, `PlayDebrief`, `PlayImage`, and `PlayEssay` to use the unified queue.
+- **Fix**: **Narrator State & Testing**
+    - Resolved race conditions in playback monitoring and queue processing.
+    - Added `service_ai_queue_test.go` to verify asynchronous queue behavior and priority logic.
+    - Fixed lint errors and template loading issues in narrator tests.
+
 ## v0.2.121 (2026-01-19)
 - **Fix**: **EdgeTTS Handshake Reliability**
     - Updated the EdgeTTS client headers (`User-Agent` and `Sec-MS-GEC-Version`) to align with Edge version 131.

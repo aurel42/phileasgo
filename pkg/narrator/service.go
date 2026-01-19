@@ -80,6 +80,7 @@ type Narrative struct {
 	Format         string // e.g., "mp3"
 	Duration       time.Duration
 	RequestedWords int
+	Manual         bool // True if manually requested by user
 }
 
 // StubService is a stub implementation of the narrator service.

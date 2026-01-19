@@ -64,10 +64,10 @@ func TestAIService_NextPOIMarker(t *testing.T) {
 	// Prepare Next (Staging)
 	_ = svc.PrepareNextNarrative(ctx, "QNext", "uniform", &sim.Telemetry{})
 
-	// Verify staged
+	// Verify staged (queued)
 	svc.mu.Lock()
-	if svc.stagedNarrative == nil {
-		t.Fatal("Failed to stage narrative")
+	if len(svc.queue) == 0 {
+		t.Fatal("Failed to stage narrative (queue empty)")
 	}
 	svc.mu.Unlock()
 

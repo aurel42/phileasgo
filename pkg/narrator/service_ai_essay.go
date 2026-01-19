@@ -14,9 +14,13 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 		return false
 	}
 
-	// 1. Synchronous state update to prevent races
+	// 1. Constraints
+	if !s.canEnqueue("essay", false) {
+		return false
+	}
+
 	s.mu.Lock()
-	if s.active {
+	if s.generating {
 		s.mu.Unlock()
 		return false
 	}
@@ -138,8 +142,8 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		RequestedWords: s.cfg.Narrator.NarrationLengthLongWords,
 	}
 
-	// Play using shared PlayNarrative
-	if err := s.PlayNarrative(ctx, narrative); err != nil {
-		slog.Error("Narrator: Failed to play essay", "error", err)
-	}
+	// Enqueue (Automated, Low Priority)
+	s.enqueue(narrative, false)
+
+	go s.processQueue(context.Background())
 }

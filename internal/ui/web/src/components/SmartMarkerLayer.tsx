@@ -49,7 +49,9 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
 
     let bgColor = getColor(poi.score);
     let scale = 1.0;
-    let zIndex = 100 + Math.floor(poi.lat * 100); // Base z-Index by latitude to fix minor overlaps
+    // Base Z by latitude to fix minor overlaps locally (North > South vs South > North depending on leaflet, but consistent offset is key)
+    // Leaflet typically uses Y coord, so we just add a small variation.
+    const baseLatZ = Math.floor(poi.lat * 100);
 
     // Active/Playing status logic
     const isHighlighted = priority === 2000;
@@ -57,20 +59,24 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
     const isMSFS = poi.is_msfs_poi;
     const isPlayed = poi.last_played && poi.last_played !== "0001-01-01T00:00:00Z";
 
+    let zIndex = 0;
+
     if (isHighlighted) {
         bgColor = '#22c55e'; // Green
         scale = 1.5;
-        zIndex = 2000;
+        zIndex = 80000 + baseLatZ;
     } else if (isPreparing) {
         bgColor = '#15803d'; // Darker Green (Green-700)
         scale = 1.3;
-        zIndex = 1500;
+        zIndex = 60000 + baseLatZ;
     } else if (isPlayed) {
         bgColor = '#3b82f6'; // Blue - played POIs are always blue
-        if (isMSFS) zIndex = 1000; // MSFS POIs still get priority
+        scale = 0.6;
+        zIndex = 0 + baseLatZ; // Bottom tier
     } else if (isMSFS) {
-        // MSFS badge logic handled by overlay, but maybe boost scale?
-        zIndex = 1000;
+        zIndex = 40000 + baseLatZ;
+    } else {
+        zIndex = 20000 + baseLatZ; // Standard Unplayed
     }
 
     const starBadge = isMSFS ? (
@@ -148,11 +154,28 @@ export const SmartMarkerLayer = ({ pois, selectedPOI, currentNarratedId, prepari
         const newNodes: SimulationNode[] = visiblePOIs.map(p => {
             const projected = map.latLngToLayerPoint([p.lat, p.lon]);
 
-            // Priority Check
+            // Priority & Scale Logic
             let priority = 0;
-            if (p.wikidata_id === currentNarratedId || p.wikidata_id === selectedPOI?.wikidata_id) priority = 2000;
-            else if (p.wikidata_id === preparingId) priority = 1500;
-            else if (p.is_msfs_poi) priority = 1000;
+            let scale = 1.0;
+
+            const isNarrated = p.wikidata_id === currentNarratedId || p.wikidata_id === selectedPOI?.wikidata_id;
+            const isPreparing = p.wikidata_id === preparingId;
+            const isPlayed = p.last_played && p.last_played !== "0001-01-01T00:00:00Z";
+
+            if (isNarrated) {
+                priority = 2000;
+                scale = 1.5;
+            } else if (isPreparing) {
+                priority = 1500;
+                scale = 1.3;
+            } else if (isPlayed) {
+                // Played POIs get lower priority but are smaller
+                if (p.is_msfs_poi) priority = 1000; // MSFS still stays on top of generic played
+                else priority = 500; // Generic played pushed down
+                scale = 0.6;
+            } else if (p.is_msfs_poi) {
+                priority = 1000;
+            }
 
             return {
                 id: p.wikidata_id,
@@ -161,7 +184,8 @@ export const SmartMarkerLayer = ({ pois, selectedPOI, currentNarratedId, prepari
                 anchorY: projected.y,
                 x: projected.x,
                 y: projected.y,
-                r: MARKER_RADIUS,
+                r: MARKER_RADIUS * scale, // Actual physics radius
+                scale: scale, // Pass scale to renderer to ensure exact match
                 priority: priority,
             };
         });
@@ -170,13 +194,13 @@ export const SmartMarkerLayer = ({ pois, selectedPOI, currentNarratedId, prepari
 
         // Create a fresh simulation and run it to completion synchronously
         const simulation = d3.forceSimulation<SimulationNode>(newNodes)
-            .force('collide', d3.forceCollide<SimulationNode>().radius(d => d.r + COLLISION_PADDING).strength(0.8))
-            .force('x', d3.forceX<SimulationNode>(d => d.anchorX).strength(0.3))
-            .force('y', d3.forceY<SimulationNode>(d => d.anchorY).strength(0.3))
+            .force('collide', d3.forceCollide<SimulationNode>().radius(d => d.r + COLLISION_PADDING).strength(1.0)) // Hard collision (strength 1.0)
+            .force('x', d3.forceX<SimulationNode>(d => d.anchorX).strength(0.1)) // Softer anchor pull to prioritize separation
+            .force('y', d3.forceY<SimulationNode>(d => d.anchorY).strength(0.1))
             .stop(); // Don't auto-start
 
-        // Run simulation to completion (typically ~300 iterations is enough)
-        for (let i = 0; i < 120; ++i) {
+        // Run simulation to completion (more iterations for stability)
+        for (let i = 0; i < 300; ++i) {
             simulation.tick();
         }
 

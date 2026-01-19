@@ -72,8 +72,8 @@ type AIService struct {
 	lastImagePath  string // Added field
 
 	// Staging State (Pipeline)
-	stagedNarrative *Narrative
-	generatingPOI   *model.POI // The POI currently being generated (for UI feedback)
+	queue         []*Narrative // Request queue
+	generatingPOI *model.POI   // The POI currently being generated (for UI feedback)
 
 	essayH    *EssayHandler
 	interests []string
@@ -126,7 +126,8 @@ func NewAIService(
 		interests:       interests,
 		avoid:           avoid,
 		fallbackTracker: tr,
-		tripSummary:     "", // Initialize tripSummary
+		tripSummary:     "",                    // Initialize tripSummary
+		queue:           make([]*Narrative, 0), // Initialize queue
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)
@@ -214,8 +215,8 @@ func (s *AIService) CurrentImagePath() string {
 func (s *AIService) GetPreparedPOI() *model.POI {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.stagedNarrative != nil {
-		return s.stagedNarrative.POI
+	if len(s.queue) > 0 {
+		return s.queue[0].POI
 	}
 	if s.generatingPOI != nil {
 		return s.generatingPOI
@@ -471,5 +472,98 @@ func (s *AIService) ResetSession(ctx context.Context) {
 		s.beaconSvc.Clear()
 	}
 
+	// Clear Queue
+	s.queue = make([]*Narrative, 0)
+
 	slog.Info("Narrator: Session reset (teleport/new flight detected)")
+}
+
+// enqueue adds a narrative to the playback queue.
+func (s *AIService) enqueue(n *Narrative, priority bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Max queue size check (e.g. 5)
+	if len(s.queue) >= 5 && !priority {
+		slog.Info("Narrator: Queue full, dropping low priority item", "title", n.Title)
+		return
+	}
+
+	if priority {
+		// Prepend
+		s.queue = append([]*Narrative{n}, s.queue...)
+	} else {
+		// Append
+		s.queue = append(s.queue, n)
+	}
+	slog.Info("Narrator: Enqueued narrative", "title", n.Title, "priority", priority, "queue_len", len(s.queue))
+}
+
+// popQueue retrieves and removes the next narrative from the queue.
+func (s *AIService) popQueue() *Narrative {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.queue) == 0 {
+		return nil
+	}
+	n := s.queue[0]
+	s.queue = s.queue[1:]
+	slog.Debug("Narrator: Popped from queue", "title", n.Title, "remaining", len(s.queue))
+	return n
+}
+
+// peekQueue returns the head of the queue without removing it.
+func (s *AIService) peekQueue() *Narrative {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.queue) == 0 {
+		return nil
+	}
+	return s.queue[0]
+}
+
+func (s *AIService) canEnqueue(nType string, manual bool) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// 1. Auto POI/Essay: Only allowed if queue is empty
+	if !manual && (nType == "poi" || nType == "essay") && len(s.queue) > 0 {
+		return false
+	}
+
+	return checkQueueLimits(s.queue, nType, manual)
+}
+
+//nolint:gocyclo // Complexity due to limit checking switch
+func checkQueueLimits(queue []*Narrative, nType string, manual bool) bool {
+	var manualPOIs, screenshots, debriefs, essays int
+	for _, n := range queue {
+		switch n.Type {
+		case "poi":
+			if n.Manual {
+				manualPOIs++
+			}
+		case "screenshot":
+			screenshots++
+		case "debrief":
+			debriefs++
+		case "essay":
+			essays++
+		}
+	}
+
+	if nType == "poi" && manual && manualPOIs >= 1 {
+		return false
+	}
+	if nType == "screenshot" && screenshots >= 1 {
+		return false
+	}
+	if nType == "debrief" && debriefs >= 1 {
+		return false
+	}
+	if nType == "essay" && essays >= 1 {
+		return false
+	}
+
+	return true
 }

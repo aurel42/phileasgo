@@ -110,7 +110,8 @@ export const InfoPanel = ({
 
 
     const frontendVersion = `v${packageJson.version}`;
-    const versionMatch = backendVersion === frontendVersion;
+    // Treat null (loading) as a match to prevent flashing orange on load
+    const versionMatch = !backendVersion || backendVersion === frontendVersion;
 
     // We render the container even if loading/error to keep layout, but show message
     if (status === 'pending' && !isRetrying) {

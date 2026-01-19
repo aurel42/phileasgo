@@ -86,14 +86,17 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [narratorStatus?.playback_status, narratorStatus?.current_poi?.wikidata_id, pois]);
 
-  // Auto-close panel when narrator stops (only if auto-opened)
+  // Auto-close panel when narrator stops or switches to non-POI content (e.g. screenshot)
   useEffect(() => {
-    if (narratorStatus?.playback_status === 'idle' && autoOpenedRef.current) {
+    const isIdle = narratorStatus?.playback_status === 'idle';
+    const isPlayingNonPoi = narratorStatus?.playback_status === 'playing' && !narratorStatus?.current_poi;
+
+    if ((isIdle || isPlayingNonPoi) && autoOpenedRef.current) {
       setSelectedPOI(null);
       autoOpenedRef.current = false;
       lastAutoOpenedIdRef.current = null;
     }
-  }, [narratorStatus?.playback_status]);
+  }, [narratorStatus?.playback_status, narratorStatus?.current_poi]);
 
   // Handler for manual POI selection (from map)
   const handlePOISelect = useCallback((poi: POI) => {

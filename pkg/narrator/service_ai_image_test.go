@@ -114,7 +114,7 @@ func TestAIService_PlayImage(t *testing.T) {
 				tts:     mockTTS,
 				prompts: pm,
 				audio:   mockAudio,
-				// ...
+				queue:   make([]*Narrative, 0), // Initialize queue
 			}
 
 			if tt.alreadyBusy {
@@ -128,12 +128,13 @@ func TestAIService_PlayImage(t *testing.T) {
 			// Act
 			svc.PlayImage(context.Background(), "test.png", tel)
 
-			// Assert
-			if tt.expectedAudio && mockAudio.PlayCalls == 0 {
-				t.Error("Expected audio playback, got none")
+			// Assert - Check queue instead of direct audio call
+			// PlayImage now enqueues and triggers processQueue async
+			if tt.expectedAudio && len(svc.queue) == 0 {
+				t.Error("Expected narrative to be enqueued, got empty queue")
 			}
-			if !tt.expectedAudio && mockAudio.PlayCalls > 0 {
-				t.Error("Expected NO audio playback, but Play() was called")
+			if !tt.expectedAudio && len(svc.queue) > 0 {
+				t.Error("Expected NO narrative, but queue is not empty")
 			}
 
 			// Verify flag reset (unless checking mid-execution which is hard here)

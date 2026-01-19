@@ -563,8 +563,8 @@ func TestAIService_PipelineFlow(t *testing.T) {
 			name:             "Mismatch: Staged A, Play B -> Ignores Stage, Generates B",
 			stagedPOIID:      "QStaged",
 			requestPOIID:     "QOther",
-			expectedNarrated: 1,     // Only QOther played (Staged is discarded)
-			expectedStaged:   false, // Cleared on mismatch? No, PlayPOI clears it if mismatch? Implementation says: if mismatch, we ignore staged. Does it clear? Let's check logic: "if s.stagedNarrative != nil ... if match { use } else { s.stagedNarrative = nil }" -> Yes, it clears.
+			expectedNarrated: 1,    // Only QOther played (Staged is discarded)? No, queue keeps A. A plays first. B queued.
+			expectedStaged:   true, // A remains in queue? Start: [A]. Play(B) -> [A, B]. Pop A. Queue has [B]. So queue not empty.
 		},
 		{
 			name:             "No Staged Data -> Generates Fresh",
@@ -605,21 +605,29 @@ func TestAIService_PipelineFlow(t *testing.T) {
 				func() {
 					svc.mu.Lock()
 					defer svc.mu.Unlock()
-					if svc.stagedNarrative == nil {
-						t.Fatal("stagedNarrative is nil after Prepare")
+					if len(svc.queue) == 0 {
+						t.Fatal("queue is empty after Prepare")
 					}
 				}()
 			}
 
 			// 2. Play
-			svc.PlayPOI(ctx, tt.requestPOIID, false, false, &sim.Telemetry{}, "uniform")
+			svc.PlayPOI(ctx, tt.requestPOIID, true, false, &sim.Telemetry{}, "uniform")
+
+			// Wait for async queue processing
+			time.Sleep(100 * time.Millisecond)
 
 			// 3. Verify
 			func() {
 				svc.mu.Lock()
 				defer svc.mu.Unlock()
-				if !tt.expectedStaged && svc.stagedNarrative != nil {
-					t.Error("stagedNarrative should be nil after PlayPOI")
+				// expectedStaged false means we expect queue to be EMPTY
+				if !tt.expectedStaged && len(svc.queue) > 0 {
+					t.Errorf("queue should be empty, got len %d", len(svc.queue))
+				}
+				// expectedStaged true means we expect queue to have items
+				if tt.expectedStaged && len(svc.queue) == 0 {
+					t.Error("queue should not be empty")
 				}
 			}()
 

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"phileasgo/pkg/sim"
 	"strings"
+	"time"
 )
 
 // PlayImage handles the analysis and narration of a screenshot.
@@ -90,36 +90,34 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 	}
 
 	// 7. Create a Narrative for the screenshot
-	screenshotTitle := fmt.Sprintf("Screenshot: %s", filepath.Base(imagePath))
+	screenshotTitle := "Reviewing Screenshot"
+	// TODO: Use better title or timestamp?
+
+	// Queue Constraints
+	if !s.canEnqueue("screenshot", true) {
+		slog.Info("Narrator: Screenshot skipped (queue constraints)")
+		return
+	}
+
+	// 5. Create Narrative
 	narrative := &Narrative{
-		Type:           "screenshot",
-		POI:            nil, // Screenshots don't have a POI
+		Type:           "screenshot", // Or "image"? Check service_ai.go checks "screenshot"
+		POI:            nil,
 		Title:          screenshotTitle,
 		Script:         text,
 		AudioPath:      audioPath,
-		ImagePath:      imagePath, // Set the path
+		ImagePath:      imagePath,
 		Format:         format,
+		Duration:       time.Duration(len(strings.Split(text, " "))) * 300 * time.Millisecond,
 		RequestedWords: s.cfg.Narrator.NarrationLengthShortWords,
+		Manual:         true,
 	}
 
-	// 8. Stage the narrative for queue
-	s.mu.Lock()
-	s.stagedNarrative = narrative
-	s.mu.Unlock()
+	// 8. Enqueue (High Priority)
+	s.enqueue(narrative, true)
 
-	slog.Info("Narrator: Screenshot staged for playback", "title", screenshotTitle)
+	slog.Info("Narrator: Screenshot queued", "title", screenshotTitle)
 
-	// 9. If no narration is currently active, play immediately
-	//    Otherwise, it will be picked up by the next cycle
-	if !s.audio.IsBusy() && !s.IsActive() {
-		if err := s.PlayNarrative(ctx, narrative); err != nil {
-			slog.Error("Narrator: Failed to play screenshot narrative", "error", err)
-		}
-		// Clear staged since we played it
-		s.mu.Lock()
-		if s.stagedNarrative == narrative {
-			s.stagedNarrative = nil
-		}
-		s.mu.Unlock()
-	}
+	// 9. Trigger processing
+	go s.processQueue(context.Background())
 }
