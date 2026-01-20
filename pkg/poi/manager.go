@@ -100,6 +100,7 @@ func (m *Manager) upsertInternal(ctx context.Context, p *model.POI, shouldSave b
 	m.mu.Lock()
 
 	existing, ok := m.trackedPOIs[p.WikidataID]
+	isNew := !ok
 	if !ok {
 		// Not in active cache, check DB
 		dbPOI, err := m.store.GetPOI(ctx, p.WikidataID)
@@ -123,7 +124,8 @@ func (m *Manager) upsertInternal(ctx context.Context, p *model.POI, shouldSave b
 			return fmt.Errorf("%w: failed to save POI %s: %v", ErrStoreFailure, p.WikidataID, err)
 		}
 		m.logger.Debug("Upserted POI", "qid", p.WikidataID, "name", p.DisplayName())
-	} else {
+	} else if isNew {
+		// Only log hydration for genuinely new POIs, not duplicates from overlapping tiles
 		m.logger.Debug("Tracked POI (hydrated)", "qid", p.WikidataID, "name", p.DisplayName())
 	}
 

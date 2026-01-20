@@ -430,6 +430,7 @@ type sparqlValue struct {
 }
 
 func parseBindings(resp sparqlResponse) []Article {
+	seen := make(map[string]bool)
 	var articles []Article
 
 	for _, b := range resp.Results.Bindings {
@@ -442,69 +443,65 @@ func parseBindings(resp sparqlResponse) []Article {
 			qid = parts[len(parts)-1]
 		}
 
-		if qid == "" {
+		if qid == "" || seen[qid] {
 			continue
 		}
+		seen[qid] = true
 
 		sitelinks, _ := strconv.Atoi(val(b, "sitelinks"))
 
-		// Optional Dimensions
-		area := parseFloatPtr(val(b, "area"))
-		height := parseFloatPtr(val(b, "height"))
-		length := parseFloatPtr(val(b, "length"))
-		width := parseFloatPtr(val(b, "width"))
-
-		// Instances
-		instStr := val(b, "instances")
-		var instances []string
-		if instStr != "" {
-			for _, uri := range strings.Split(instStr, ",") {
-				if parts := strings.Split(uri, "/"); len(parts) > 0 {
-					instances = append(instances, parts[len(parts)-1])
-				}
-			}
-		}
-
-		// Parse Local Titles (lang:title|lang:title)
-		localTitlesStr := val(b, "local_titles")
-		localTitles := make(map[string]string)
-		if localTitlesStr != "" {
-			for _, pair := range strings.Split(localTitlesStr, "|") {
-				// Each pair is "lang:title"
-				parts := strings.SplitN(pair, ":", 2)
-				if len(parts) == 2 {
-					// Verify Title Namespace (Reject Category:, File:, etc or their localized equivalents if possible)
-					// Simple heuristic for English/Universal namespaces
-					t := parts[1]
-					if strings.HasPrefix(t, "Category:") ||
-						strings.HasPrefix(t, "File:") ||
-						strings.HasPrefix(t, "Template:") ||
-						strings.HasPrefix(t, "User:") ||
-						strings.HasPrefix(t, "Talk:") {
-						continue
-					}
-					localTitles[parts[0]] = parts[1]
-				}
-			}
-		}
-
 		articles = append(articles, Article{
 			QID:         qid,
-			LocalTitles: localTitles,
+			LocalTitles: parseLocalTitles(val(b, "local_titles")),
 			TitleEn:     val(b, "title_en_val"),
 			TitleUser:   val(b, "title_user_val"),
 			Label:       val(b, "itemLabel"),
 			Lat:         lat,
 			Lon:         lon,
 			Sitelinks:   sitelinks,
-			Instances:   instances,
-			Area:        area,
-			Height:      height,
-			Length:      length,
-			Width:       width,
+			Instances:   parseInstances(val(b, "instances")),
+			Area:        parseFloatPtr(val(b, "area")),
+			Height:      parseFloatPtr(val(b, "height")),
+			Length:      parseFloatPtr(val(b, "length")),
+			Width:       parseFloatPtr(val(b, "width")),
 		})
 	}
 	return articles
+}
+
+func parseInstances(instStr string) []string {
+	if instStr == "" {
+		return nil
+	}
+	var instances []string
+	for _, uri := range strings.Split(instStr, ",") {
+		if parts := strings.Split(uri, "/"); len(parts) > 0 {
+			instances = append(instances, parts[len(parts)-1])
+		}
+	}
+	return instances
+}
+
+func parseLocalTitles(localTitlesStr string) map[string]string {
+	localTitles := make(map[string]string)
+	if localTitlesStr == "" {
+		return localTitles
+	}
+	for _, pair := range strings.Split(localTitlesStr, "|") {
+		parts := strings.SplitN(pair, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		t := parts[1]
+		// Reject namespace prefixes
+		if strings.HasPrefix(t, "Category:") || strings.HasPrefix(t, "File:") ||
+			strings.HasPrefix(t, "Template:") || strings.HasPrefix(t, "User:") ||
+			strings.HasPrefix(t, "Talk:") {
+			continue
+		}
+		localTitles[parts[0]] = t
+	}
+	return localTitles
 }
 
 func val(binding map[string]sparqlValue, key string) string {

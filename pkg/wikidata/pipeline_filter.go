@@ -15,10 +15,13 @@ func (p *Pipeline) filterExistingPOIs(ctx context.Context, rawArticles []Article
 	}
 
 	filtered := make([]Article, 0, len(rawArticles))
+	tracked := make(map[string]bool) // Dedup: avoid calling TrackPOI multiple times for same QID
 	for i := range rawArticles {
-		if poi, ok := poisBatch[rawArticles[i].QID]; !ok {
+		qid := rawArticles[i].QID
+		if poi, ok := poisBatch[qid]; !ok {
 			filtered = append(filtered, rawArticles[i])
-		} else {
+		} else if !tracked[qid] {
+			tracked[qid] = true
 			if err := p.poi.TrackPOI(ctx, poi); err != nil {
 				p.logger.Warn("Failed to track existing POI", "qid", poi.WikidataID, "error", err)
 			}

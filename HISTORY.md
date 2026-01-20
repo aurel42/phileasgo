@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.127 (2026-01-20)
+- **Fix**: **SPARQL Duplicate QID Elimination**
+    - SPARQL queries can return multiple rows for the same entity when multi-valued properties (e.g., `area`) differ between rows.
+    - Added QID deduplication at parse time in `parseBindings()` — first occurrence wins.
+    - Added secondary deduplication in `filterExistingPOIs()` to avoid redundant `TrackPOI` calls.
+    - Reduced log noise by only logging "Tracked POI (hydrated)" for genuinely new POIs.
+- **Refactor**: **SPARQL Parsing Cleanup**
+    - Extracted `parseInstances()` and `parseLocalTitles()` helpers to reduce cyclomatic complexity.
+
 ## v0.2.126 (2026-01-20)
 - **Fix**: **Screenshot Narration Regression**
     - Restored multimodal image support lost in the unified pipeline refactor.
