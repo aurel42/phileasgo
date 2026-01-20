@@ -1,5 +1,12 @@
 ﻿# Release History
 
+## v0.2.126 (2026-01-20)
+- **Fix**: **Screenshot Narration Regression**
+    - Restored multimodal image support lost in the unified pipeline refactor.
+    - `GenerateNarrative` now calls `GenerateImageText()` when an `ImagePath` is provided, ensuring the actual screenshot is sent to Gemini.
+    - Fixed template formatting bug in `screenshot.tmpl` where coordinates were being double-formatted (`%!f(string=...)` error)—values are now passed through directly since they're already formatted in Go.
+    - **Impact**: Gemini now correctly analyzes the image content instead of hallucinating based solely on location context.
+
 ## v0.2.125 (2026-01-20)
 - **Fix**: **Duplicate Thumbnail LLM Requests**
     - Implemented a **singleflight pattern** in `HandleThumbnail` to coalesce concurrent requests for the same POI.

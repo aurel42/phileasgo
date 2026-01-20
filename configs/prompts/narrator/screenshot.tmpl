@@ -7,7 +7,7 @@ Your job is to explain what they are looking at, acting as a guide.
 
 **CONTEXT:**
 - The aircraft is currently near **{{.City}}**.
-- Current Position: {{.Lat | printf "%.4f"}}, {{.Lon | printf "%.4f"}}
+- Current Position: {{.Lat}}, {{.Lon}}
 - Altitude: {{.Alt}} feet.
 {{if .TripSummary}}
 - **Trip So Far**: {{.TripSummary}}

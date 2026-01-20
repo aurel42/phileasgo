@@ -44,9 +44,22 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 	}
 
 	// 3. Generate Script (LLM)
-	script, err := s.generateScript(genCtx, req.Prompt)
-	if err != nil {
-		return nil, fmt.Errorf("LLM generation failed: %w", err)
+	var script string
+	var err error
+	if req.ImagePath != "" {
+		// Multimodal: send prompt + image
+		script, err = s.llm.GenerateImageText(genCtx, "narration", req.Prompt, req.ImagePath)
+		if err != nil {
+			return nil, fmt.Errorf("LLM image generation failed: %w", err)
+		}
+		// Filter markdown artifacts
+		script = strings.ReplaceAll(script, "*", "")
+	} else {
+		// Text-only generation
+		script, err = s.generateScript(genCtx, req.Prompt)
+		if err != nil {
+			return nil, fmt.Errorf("LLM generation failed: %w", err)
+		}
 	}
 
 	// 4. Rescue Script (if too long)
