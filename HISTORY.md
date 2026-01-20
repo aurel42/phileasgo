@@ -1,5 +1,20 @@
 ﻿# Release History
 
+## v0.2.130 (2026-01-20)
+- **Feature**: **Unified Essay/Debrief Info Panel**
+    - Essays and Debriefs now appear in the Overlay POI Panel, displaying their title (e.g., "Topic: Aviation History" or "Debrief").
+    - Updated `OverlayPOIPanel` to support items with only a Title (no POI/Image), ensuring consistent UI feedback for all narrative types.
+    - Renamed "Flight De-brief" to "Debrief" for cleaner UI presentation.
+- **Narrator**: **Word Count Multipliers**
+    - Implemented consistent word count scaling for all narrative types (Essays, Debriefs, Screenshots) based on the user's "Text Length" setting (1-5).
+    - **Essays/Debriefs**: Use "Long" target (base 200 words) * multiplier.
+    - **Screenshots**: Use "Short" target (base 50 words) * multiplier.
+- **Narrator**: **Relative Script Rescue**
+    - Changed the script rescue threshold from a fixed +100 words buffer to a **+30%** relative buffer.
+    - Allows longer narratives (e.g., multiplier x2.0) to have proportionally larger buffers before triggering a rescue rewrite.
+- **UI**: **Friendly "Unknown" Cities**
+    - The Overlay Telemetry Bar now displays "**Far from civilization**" instead of "near Unknown" when no city data is available.
+
 ## v0.2.129 (2026-01-20)
 - **Fix**: **Fish Audio Reliability**
     - Added retry logic (3 attempts) and empty validation to prevent `wav: EOF` errors.

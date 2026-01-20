@@ -262,31 +262,6 @@ func (s *AIService) sampleNarrationLength(p *model.POI, strategy string) (words 
 		longTarget = 200
 	}
 
-	// 1. Get User Preference for Text Length (1..5)
-	// We read directly from store to get the latest value
-	// Default to 1 (Shortest i.e. x1.0) if not set
-	textLengthVal, _ := s.st.GetState(context.Background(), "text_length")
-	textLength := 1
-	if textLengthVal != "" {
-		_, _ = fmt.Sscanf(textLengthVal, "%d", &textLength)
-	}
-
-	// 2. Calculate Multiplier
-	// Range 1..5 -> Multiplier 1.0 .. 2.0 (Steps of 0.25)
-	// 1 -> 1.0 (Shortest)
-	// 2 -> 1.25
-	// 3 -> 1.50
-	// 4 -> 1.75
-	// 5 -> 2.00 (Longest)
-	multiplier := 1.0
-	if textLength > 1 {
-		// Clamp to 5 max just in case
-		if textLength > 5 {
-			textLength = 5
-		}
-		multiplier = 1.0 + float64(textLength-1)*0.25
-	}
-
 	// 3. Determine Base Target based on Strategy
 	if strategy == "" {
 		strategy = DetermineSkewStrategy(p, s.poiMgr, false)
@@ -298,15 +273,46 @@ func (s *AIService) sampleNarrationLength(p *model.POI, strategy string) (words 
 	}
 
 	// 4. Apply Multiplier
-	targetWords := int(float64(baseTarget) * multiplier)
+	targetWords := s.applyWordLengthMultiplier(baseTarget)
 
 	slog.Debug("Narrator: Sampling Length",
 		"strategy", strategy,
-		"user_setting", textLength,
-		"multiplier", multiplier,
 		"base_target", baseTarget,
 		"final_target", targetWords,
 	)
 
 	return targetWords, strategy
+}
+
+// applyWordLengthMultiplier applies the user's text length setting (1..5) to the base word count.
+// 1 -> 1.0x (Shortest)
+// 2 -> 1.25x
+// 3 -> 1.50x
+// 4 -> 1.75x
+// 5 -> 2.00x (Longest)
+func (s *AIService) applyWordLengthMultiplier(baseWords int) int {
+	// 1. Get User Preference for Text Length (1..5)
+	if s.st == nil {
+		return baseWords
+	}
+
+	// We read directly from store to get the latest value
+	// Default to 1 (Shortest i.e. x1.0) if not set
+	textLengthVal, _ := s.st.GetState(context.Background(), "text_length")
+	textLength := 1
+	if textLengthVal != "" {
+		_, _ = fmt.Sscanf(textLengthVal, "%d", &textLength)
+	}
+
+	// 2. Calculate Multiplier
+	multiplier := 1.0
+	if textLength > 1 {
+		// Clamp to 5 max just in case
+		if textLength > 5 {
+			textLength = 5
+		}
+		multiplier = 1.0 + float64(textLength-1)*0.25
+	}
+
+	return int(float64(baseWords) * multiplier)
 }

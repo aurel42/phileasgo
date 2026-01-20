@@ -143,8 +143,14 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                     {location?.city ? (
                         <>
                             <div className="stat-value" style={{ fontSize: '16px', color: '#fff', textAlign: 'center', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                                <span style={{ color: '#ddd', fontWeight: 400, marginRight: '6px', fontSize: '14px' }}>near</span>
-                                {location.city}
+                                {location.city === 'Unknown' ? (
+                                    <span style={{ color: '#fff' }}>Far from civilization</span>
+                                ) : (
+                                    <>
+                                        <span style={{ color: '#ddd', fontWeight: 400, marginRight: '6px', fontSize: '14px' }}>near</span>
+                                        {location.city}
+                                    </>
+                                )}
                             </div>
                             <div style={{ color: '#eee', fontSize: '14px', marginTop: '4px', textAlign: 'center', fontFamily: 'Inter, sans-serif' }}>
                                 {location.region ? `${location.region}, ` : ''}{location.country}

@@ -20,7 +20,7 @@ export const OverlayPOIPanel = ({ poi, imagePath, title, playbackProgress, isPla
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
-        if ((poi || imagePath) && isPlaying) {
+        if ((poi || imagePath || title) && isPlaying) {
             setVisible(true);
 
             if (imagePath) {
@@ -38,14 +38,16 @@ export const OverlayPOIPanel = ({ poi, imagePath, title, playbackProgress, isPla
                         })
                         .catch(() => { });
                 }
+            } else {
+                setThumbnailUrl(null);
             }
         } else {
             setVisible(false);
             setThumbnailUrl(null);
         }
-    }, [poi, imagePath, isPlaying]);
+    }, [poi, imagePath, title, isPlaying]);
 
-    if (!poi && !imagePath) return null;
+    if (!poi && !imagePath && !title) return null;
 
     let primaryName = title || "Narration";
     let category = "";

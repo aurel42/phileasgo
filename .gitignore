@@ -15,6 +15,7 @@
 bin/
 logs/
 configs/phileas.yaml
+configs/phileas-*.yaml
 data/phileas.db*
 data/cities1000.txt
 data/Master.csv

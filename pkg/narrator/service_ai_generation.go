@@ -65,7 +65,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 	// 4. Rescue Script (if too long)
 	if req.MaxWords > 0 {
 		wordCount := len(strings.Fields(script))
-		limit := req.MaxWords + 100 // Buffer
+		limit := int(float64(req.MaxWords) * 1.30) // 30% Buffer
 		if wordCount > limit {
 			slog.Warn("Narrator: Script exceeded limit, attempting rescue", "requested", req.MaxWords, "actual", wordCount)
 			rescued, err := s.rescueScript(genCtx, script, req.MaxWords)

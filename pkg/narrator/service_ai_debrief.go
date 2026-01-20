@@ -56,7 +56,7 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 		Persona:       "Intelligent, fascinating",
 		Accent:        "Neutral",
 		TripSummary:   summary,
-		MaxWords:      s.cfg.Narrator.NarrationLengthLongWords,
+		MaxWords:      s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords),
 		Language_name: "English",
 		Language_code: "en-US",
 	}
@@ -75,9 +75,9 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 		req := GenerationRequest{
 			Type:     model.NarrativeTypeDebrief,
 			Prompt:   prompt,
-			Title:    "Flight De-brief",
+			Title:    "Debrief",
 			SafeID:   "debrief_" + time.Now().Format("20060102_150405"),
-			MaxWords: s.cfg.Narrator.NarrationLengthLongWords,
+			MaxWords: s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords),
 			Manual:   true, // Debriefs are treated as high priority / manual-like
 		}
 

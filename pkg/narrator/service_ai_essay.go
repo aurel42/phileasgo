@@ -28,7 +28,6 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 		s.mu.Unlock()
 		return false
 	}
-	s.generating = true
 	s.mu.Unlock()
 
 	slog.Info("Narrator: Triggering Essay")
@@ -107,7 +106,7 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		// Title unknown until parsing
 		SafeID:     "essay_" + topic.ID,
 		EssayTopic: topic,
-		MaxWords:   s.cfg.Narrator.NarrationLengthLongWords,
+		MaxWords:   s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords),
 		Manual:     false,
 	}
 

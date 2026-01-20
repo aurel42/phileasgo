@@ -22,6 +22,7 @@ func TestAIService_PlayImage(t *testing.T) {
 	mockAudio := &MockAudio{}
 	mockSim := &MockSim{}
 	mockGeo := &MockGeo{City: "Paris"}
+	mockStore := &MockStore{}
 
 	pm, _ := prompts.NewManager(tempDir)
 
@@ -38,6 +39,7 @@ func TestAIService_PlayImage(t *testing.T) {
 		audio:   mockAudio,
 		sim:     mockSim,
 		geoSvc:  mockGeo,
+		st:      mockStore,
 		prompts: pm,
 	}
 

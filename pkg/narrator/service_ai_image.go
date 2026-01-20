@@ -34,7 +34,7 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 		"City":        loc.CityName,
 		"Region":      loc.Admin1Name,
 		"Country":     loc.CountryCode,
-		"MaxWords":    s.cfg.Narrator.NarrationLengthLongWords,
+		"MaxWords":    s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords), // Use LongWords for template context
 		"TripSummary": s.getTripSummary(),
 		"Lat":         fmt.Sprintf("%.3f", tel.Latitude),
 		"Lon":         fmt.Sprintf("%.3f", tel.Longitude),
@@ -58,8 +58,8 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 			Title:     "Screenshot Analysis",
 			SafeID:    "screenshot_" + time.Now().Format("150405"),
 			ImagePath: imagePath,
-			MaxWords:  s.cfg.Narrator.NarrationLengthShortWords, // Target for multimodal description
-			Manual:    true,                                     // Screenshots are user-initiated
+			MaxWords:  s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords), // Target for multimodal description
+			Manual:    true,                                                                  // Screenshots are user-initiated
 		}
 
 		slog.Info("Narrator: Generating Screenshot Narrative", "image", imagePath)
