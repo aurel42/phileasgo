@@ -59,8 +59,8 @@ func TestNarrationJob_EssayConfig(t *testing.T) {
 			job.lastTime = time.Time{} // expired cooldown
 			job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
-			if got := job.ShouldFire(tel); got != tt.expectFire {
-				t.Errorf("ShouldFire() = %v, want %v", got, tt.expectFire)
+			if got := job.CanPrepareEssay(tel); got != tt.expectFire {
+				t.Errorf("CanPrepareEssay() = %v, want %v", got, tt.expectFire)
 			}
 		})
 	}

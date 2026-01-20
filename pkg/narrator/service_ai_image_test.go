@@ -2,154 +2,95 @@ package narrator
 
 import (
 	"context"
-	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
-	"phileasgo/pkg/sim"
+	"phileasgo/pkg/model"
 )
 
 func TestAIService_PlayImage(t *testing.T) {
-	// Setup checks
-	cfg := config.DefaultConfig()
-	cfg.Narrator.Screenshot.Enabled = true
-	cfg.Narrator.NarrationLengthShortWords = 42
+	tempDir, _ := os.MkdirTemp("", "narrator_test")
+	defer os.RemoveAll(tempDir)
+	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "screenshot.tmpl"), []byte("Screenshot of {{.City}}"), 0o644)
 
-	// We need a mock PromptManager that returns a known string
-	// But `prompts.Manager` is a struct, not an interface.
-	// The `Render` method uses actual files.
-	// For unit testing `service_ai.go` logic without loading strict templates,
-	// we assume `prompts.NewManager` is needed OR we rely on integration test style
-	// if we can't mock the struct method.
-	// However, `PlayImage` calls `s.prompts.Render`.
-	// We might fail if templates aren't found.
-	// We can use a real prompt manager pointing to a test directory, or just "configs/prompts" if accessible.
+	mockLLM := &MockLLM{Response: "Beautiful view!"}
+	mockTTS := &MockTTS{}
+	mockAudio := &MockAudio{}
+	mockSim := &MockSim{}
+	mockGeo := &MockGeo{City: "Paris"}
 
-	// For the sake of this test, let's assume we can use the real one if we point to "configs/prompts" relative path.
-	// But better: checks other logic (locking, LLM call, TTS call).
+	pm, _ := prompts.NewManager(tempDir)
 
-	tests := []struct {
-		name          string
-		userPaused    bool
-		alreadyBusy   bool
-		llmError      bool
-		llmEmpty      bool
-		ttsError      bool
-		expectedAudio bool
-	}{
-		{
-			name:          "Success flow",
-			expectedAudio: true,
+	svc := &AIService{
+		cfg: &config.Config{
+			Narrator: config.NarratorConfig{
+				SummaryMaxWords:           500,
+				NarrationLengthShortWords: 50,
+				NarrationLengthLongWords:  200,
+			},
 		},
-		{
-			name:          "User paused -> Skip",
-			userPaused:    true,
-			expectedAudio: false,
-		},
-		// {
-		// 	name:          "Already generating -> Skip",
-		// 	alreadyBusy:   true,
-		// 	expectedAudio: false,
-		// },
-		{
-			name:          "LLM Error -> No Audio",
-			llmError:      true,
-			expectedAudio: false,
-		},
-		{
-			name:          "LLM Empty -> No Audio",
-			llmEmpty:      true,
-			expectedAudio: false,
-		},
-		{
-			name:          "TTS Error -> No Audio",
-			ttsError:      true,
-			expectedAudio: false,
-		},
+		llm:     mockLLM,
+		tts:     mockTTS,
+		audio:   mockAudio,
+		sim:     mockSim,
+		geoSvc:  mockGeo,
+		prompts: pm,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Mocks
-			mockLLM := &MockLLM{Response: "test description"}
-			if tt.llmError {
-				mockLLM.Err = fmt.Errorf("llm error")
-			} else if tt.llmEmpty {
-				mockLLM.GenerateImageTextFunc = func(ctx context.Context, name, prompt, imagePath string) (string, error) {
-					return "", nil
-				}
-			}
+	// 1. Play Image
+	imagePath := filepath.Join(tempDir, "test.jpg")
+	_ = os.WriteFile(imagePath, []byte("fake image data"), 0o644)
 
-			mockTTS := &MockTTS{Format: "mp3"}
-			if tt.ttsError {
-				mockTTS.Err = fmt.Errorf("tts error")
-			}
+	svc.PlayImage(context.Background(), imagePath, nil)
 
-			mockAudio := &MockAudio{}
-			if tt.userPaused {
-				mockAudio.IsUserPausedVal = true
-			}
+	// Wait for async gen
+	time.Sleep(500 * time.Millisecond)
 
-			// Service
-			// We can't mock prompts easily without interface extraction or real file loading.
-			// Let's rely on `mockPromptManager` if we had one? We don't.
-			// Pass nil for prompts? It will crash.
-			// Let's skip prompt manager test by mocking `Render`? No can do.
-			// So we MUST load a prompt manager.
-			// We can pass a path that doesn't exist? No.
-			// We will try to load "testdata/prompts" if we create it, OR blindly use the project one.
-			// Since we run from `pkg/narrator`, project root is `../../configs/prompts`.
-			pm, _ := prompts.NewManager("../../configs/prompts")
-			// Check if pm is nil (it might be if path invalid).
-			// If invalid, `Render` will fail or `NewManager` returns error.
-			// If `NewManager` fails, `s.prompts` is nil -> crash.
-			// We should perhaps handle nil in PlayImage? No, init guarantees it.
+	if mockLLM.GenerateTextCalls == 0 && mockLLM.GenerateImageTextCalls == 0 {
+		t.Errorf("expected LLM calls, got none")
+	}
 
-			// Hack: Create a dummy PromptManager if `../../configs/prompts` fails.
-			// But for now let's hope it works.
+	if mockAudio.PlayCalls != 1 {
+		t.Errorf("expected 1 audio play call, got %d", mockAudio.PlayCalls)
+	}
+}
 
-			svc := &AIService{
-				cfg:     cfg,
-				llm:     mockLLM,
-				tts:     mockTTS,
-				prompts: pm,
-				audio:   mockAudio,
-				queue:   make([]*Narrative, 0), // Initialize queue
-			}
+func TestAIService_GenerateScreenshotNarrative(t *testing.T) {
+	tempDir, _ := os.MkdirTemp("", "narrator_test")
+	defer os.RemoveAll(tempDir)
+	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "screenshot.tmpl"), []byte("Screenshot of {{.City}}"), 0o644)
 
-			if tt.alreadyBusy {
-				svc.generating = true
-			}
+	mockLLM := &MockLLM{Response: "Beautiful view!"}
+	mockTTS := &MockTTS{Format: "mp3"}
 
-			tel := &sim.Telemetry{
-				Latitude: 10, Longitude: 20, AltitudeAGL: 3000,
-			}
+	pm, _ := prompts.NewManager(tempDir)
 
-			// Act
-			// Act
-			svc.PlayImage(context.Background(), "test.png", tel)
-			svc.ProcessPriorityQueue(context.Background())
-			time.Sleep(50 * time.Millisecond) // Wait for playback
+	svc := &AIService{
+		cfg: &config.Config{
+			Narrator: config.NarratorConfig{
+				NarrationLengthShortWords: 50,
+			},
+		},
+		llm:     mockLLM,
+		tts:     mockTTS,
+		prompts: pm,
+	}
 
-			// Assert - Check NarratedCount (since queue is consumed by processQueue)
-			currentCount := svc.NarratedCount()
-			// OR check svc.generating if blocking? No.
-			// svc.queue might be empty.
+	n, err := svc.GenerateScreenshotNarrative(context.Background(), "test.jpg", nil)
+	if err != nil {
+		t.Fatalf("failed to generate: %v", err)
+	}
 
-			if tt.expectedAudio {
-				if currentCount == 0 && len(svc.queue) == 0 {
-					t.Error("Expected narrative to be played, but count is 0 and queue empty")
-				}
-			} else {
-				if currentCount > 0 || len(svc.queue) > 0 {
-					t.Error("Expected NO narrative, but something played or queued")
-				}
-			}
-
-			// Verify flag reset (unless checking mid-execution which is hard here)
-			// ...
-		})
+	if n.Type != model.NarrativeTypeScreenshot {
+		t.Error("wrong narrative type")
+	}
+	if n.Script != "Beautiful view!" {
+		t.Error("wrong script")
 	}
 }

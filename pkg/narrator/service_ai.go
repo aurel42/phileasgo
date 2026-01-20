@@ -2,6 +2,7 @@ package narrator
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -16,10 +17,29 @@ import (
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/tts"
-	"phileasgo/pkg/tts/edgetts"
 )
 
-// GenerationJob represents a request to generate a narrative.
+// GenerationRequest represents a standardized request to generate a narrative.
+type GenerationRequest struct {
+	Type   model.NarrativeType
+	Prompt string
+
+	// Metadata
+	Title       string
+	SafeID      string // Used for temporal file naming (not caching)
+	AudioFormat string // Default "mp3"
+
+	// Context Objects (passed through to result)
+	POI        *model.POI
+	ImagePath  string
+	EssayTopic *EssayTopic
+
+	// Constraints
+	MaxWords int
+	Manual   bool
+}
+
+// GenerationJob represents a queued request (priority queue).
 type GenerationJob struct {
 	Type      model.NarrativeType
 	POIID     string
@@ -83,9 +103,9 @@ type AIService struct {
 	lastImagePath  string // Added field
 
 	// Staging State (Pipeline)
-	priorityGenQueue []*GenerationJob // Priority queue for generation requests (Manual/Screenshot)
-	queue            []*Narrative     // Playback queue (ready items)
-	generatingPOI    *model.POI       // The POI currently being generated (for UI feedback)
+	priorityGenQueue []*GenerationJob   // Priority queue for generation requests (Manual/Screenshot)
+	queue            []*model.Narrative // Playback queue (ready items)
+	generatingPOI    *model.POI         // The POI currently being generated (for UI feedback)
 
 	essayH    *EssayHandler
 	interests []string
@@ -138,9 +158,9 @@ func NewAIService(
 		interests:        interests,
 		avoid:            avoid,
 		fallbackTracker:  tr,
-		tripSummary:      "",                        // Initialize tripSummary
-		queue:            make([]*Narrative, 0),     // Initialize playback queue
-		priorityGenQueue: make([]*GenerationJob, 0), // Initialize priority queue
+		tripSummary:      "",                          // Initialize tripSummary
+		queue:            make([]*model.Narrative, 0), // Initialize playback queue
+		priorityGenQueue: make([]*GenerationJob, 0),   // Initialize priority queue
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)
@@ -165,250 +185,116 @@ func (s *AIService) Stop() {
 }
 
 // IsActive returns true if narrator is currently active (generating or playing).
-func (s *AIService) IsActive() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.active
-}
 
-// HasPendingManualOverride returns true if a user-requested POI is queued.
-func (s *AIService) HasPendingManualOverride() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.priorityGenQueue) > 0 || s.pendingManualID != ""
-}
-
-// HasPendingPriority returns true if there are items in the priority generation queue.
-func (s *AIService) HasPendingPriority() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.priorityGenQueue) > 0
-}
-
-func (s *AIService) enqueuePriority(job *GenerationJob) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.priorityGenQueue = append(s.priorityGenQueue, job)
-	slog.Info("Narrator: Enqueued priority generation job", "type", job.Type, "poi_id", job.POIID, "queue_len", len(s.priorityGenQueue))
-}
-
-func (s *AIService) popPriority() *GenerationJob {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.priorityGenQueue) == 0 {
-		return nil
+// GenerateNarrative creates a narrative from a standardized request.
+// It handles:
+// 1. Concurrency checks (IsGenerating)
+// 2. Cancellation Context
+// 3. LLM Generation
+// 4. Script Rescue
+// 5. TTS Synthesis
+// 6. Narrative Construction
+func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationRequest) (*model.Narrative, error) {
+	// 1. Sync State Check & Cancellation
+	if err := s.handleGenerationState(req.Manual); err != nil {
+		return nil, err
 	}
-	job := s.priorityGenQueue[0]
-	s.priorityGenQueue = s.priorityGenQueue[1:]
-	return job
-}
 
-func (s *AIService) peekPriority() *GenerationJob {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if len(s.priorityGenQueue) == 0 {
-		return nil
-	}
-	return s.priorityGenQueue[0]
-}
-
-// GetPendingManualOverride returns and clears the pending manual override.
-func (s *AIService) GetPendingManualOverride() (poiID, strategy string, ok bool) {
+	// Create cancellable context
+	genCtx, cancel := context.WithCancel(ctx)
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.pendingManualID != "" {
-		id := s.pendingManualID
-		strat := s.pendingManualStrategy
-		s.pendingManualID = ""
-		s.pendingManualStrategy = ""
-		return id, strat, true
-	}
-	return "", "", false
-}
+	s.genCancelFunc = cancel
+	s.mu.Unlock()
 
-// ProcessPriorityQueue processes the generation queue.
-// It dequeues the highest priority job, generates the narrative (blocking),
-// and enqueues the result to the playback queue.
-func (s *AIService) ProcessPriorityQueue(ctx context.Context) {
-	s.mu.Lock()
-	if len(s.priorityGenQueue) == 0 {
+	startTime := time.Now()
+
+	// Defer Cleanup
+	defer func() {
+		s.updateLatency(time.Since(startTime))
+		s.mu.Lock()
+		s.generating = false
+		s.genCancelFunc = nil
+		s.generatingPOI = nil
 		s.mu.Unlock()
-		return
-	}
-	s.mu.Unlock()
+		cancel()
+	}()
 
-	// Loop to drain higher priority items if needed, or just process one?
-	// The plan says "Strictly serialize". One call to ProcessPriorityQueue might handle one.
-	// But usually orchestrator calls it.
-	// If we want to drain, we loop.
-	// "Priority Generation Queue: ... strictly serialized."
-	// Let's process ONE item per call to allow main loop to tick / check other things?
-	// But if main loop calls this *if* HasPriority(), it will keep calling it.
-	// This is blocking generation (5-10s).
-	// So ONE item is correct.
-
-	job := s.popPriority()
-	if job == nil {
-		return
+	// 2. Set Active POI (if applicable) for UI feedback
+	if req.POI != nil {
+		s.mu.Lock()
+		s.generatingPOI = req.POI
+		s.mu.Unlock()
 	}
 
-	slog.Info("Narrator: Processing priority job", "type", job.Type, "id", job.POIID)
-
-	var narrative *Narrative
-	var err error
-
-	// Use telemetry from job if available, else nil (which might cause issues in generation if not handled)
-	tel := job.Telemetry
-	if tel == nil {
-		tel = &sim.Telemetry{} // Empty default
-	}
-
-	switch job.Type {
-	case model.NarrativeTypePOI:
-		narrative, err = s.GenerateNarrative(ctx, job.POIID, job.Strategy, tel, job.Manual)
-	case model.NarrativeTypeScreenshot:
-		narrative, err = s.GenerateScreenshotNarrative(ctx, job.ImagePath, tel)
-	default:
-		slog.Warn("Narrator: Unknown job type", "type", job.Type)
-		return
-	}
-
+	// 3. Generate Script (LLM)
+	// We assume req.Prompt is already fully rendered by the caller
+	script, err := s.generateScript(genCtx, req.Prompt)
 	if err != nil {
-		slog.Error("Narrator: Priority generation failed", "type", job.Type, "error", err)
-		return
+		return nil, fmt.Errorf("LLM generation failed: %w", err)
 	}
 
-	if narrative != nil {
-		// Enqueue for playback (High Priority)
-		s.enqueue(narrative, true)
-
-		// Trigger playback processing immediately?
-		// processQueue handles playback.
-		go s.processQueue(context.Background())
-	}
-}
-
-// IsGenerating returns true if narrator is currently generating script/audio.
-func (s *AIService) IsGenerating() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.generating
-}
-
-// IsPlaying returns true if narrator is currently playing audio (or checking busy state).
-func (s *AIService) IsPlaying() bool {
-	// We delegate to audio manager's IsBusy because "paused" also means "playing" in context of scheduler
-	return s.audio.IsBusy()
-}
-
-// IsPaused returns true if the narrator is globally paused by the user.
-func (s *AIService) IsPaused() bool {
-	return s.audio.IsUserPaused()
-}
-
-// CurrentPOI returns the POI currently being narrated, if any.
-func (s *AIService) CurrentPOI() *model.POI {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.currentPOI
-}
-
-// CurrentImagePath returns the file path of the message for the current narration.
-func (s *AIService) CurrentImagePath() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.currentImagePath
-}
-
-// GetPreparedPOI returns the POI being prepared for pipeline playback, if any.
-func (s *AIService) GetPreparedPOI() *model.POI {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if len(s.queue) > 0 {
-		return s.queue[0].POI
-	}
-	if s.generatingPOI != nil {
-		return s.generatingPOI
-	}
-	return nil
-}
-
-// CurrentTitle returns the title of the current narration.
-func (s *AIService) CurrentTitle() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.currentPOI != nil {
-		return s.currentPOI.DisplayName()
-	}
-	if s.currentTopic != nil {
-		if s.currentEssayTitle != "" {
-			return s.currentEssayTitle
+	// 4. Rescue Script (if too long)
+	if req.MaxWords > 0 {
+		wordCount := len(strings.Fields(script))
+		limit := req.MaxWords + 100 // Buffer
+		if wordCount > limit {
+			slog.Warn("Narrator: Script exceeded limit, attempting rescue", "requested", req.MaxWords, "actual", wordCount)
+			rescued, err := s.rescueScript(genCtx, script, req.MaxWords)
+			if err == nil {
+				script = rescued
+				slog.Info("Narrator: Script rescue successful")
+			} else {
+				slog.Error("Narrator: Script rescue failed, using original", "error", err)
+			}
 		}
-		return "Essay about " + s.currentTopic.Name
 	}
-	return ""
-}
 
-// NarratedCount returns the number of narrated POIs.
-func (s *AIService) NarratedCount() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.narratedCount
-}
-
-// Stats returns narrator statistics.
-func (s *AIService) Stats() map[string]any {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	// Return a copy
-	res := make(map[string]any, len(s.stats))
-	for k, v := range s.stats {
-		res[k] = v
+	// 5. TTS Synthesis
+	// Use provided SafeID or a fallback
+	safeID := req.SafeID
+	if safeID == "" {
+		safeID = "gen_" + time.Now().Format("150405")
 	}
-	// Add prediction window stats
-	if len(s.latencies) > 0 {
-		var sum time.Duration
-		for _, d := range s.latencies {
-			sum += d
+
+	audioPath, format, err := s.synthesizeAudio(genCtx, script, safeID)
+	if err != nil {
+		s.handleTTSError(err)
+		return nil, fmt.Errorf("TTS synthesis failed: %w", err)
+	}
+
+	// 6. Construct Narrative
+	n := &model.Narrative{
+		Type:           req.Type,
+		Title:          req.Title,
+		Script:         script,
+		AudioPath:      audioPath,
+		Format:         format,
+		RequestedWords: req.MaxWords,
+		Manual:         req.Manual,
+
+		// Context passthrough
+		POI:       req.POI,
+		ImagePath: req.ImagePath,
+	}
+	if req.EssayTopic != nil {
+		n.EssayTopic = req.EssayTopic.Name
+	}
+
+	// If Title was missing, try to extract from script (common for Essays)
+	if n.Title == "" {
+		lines := strings.Split(script, "\n")
+		if len(lines) > 0 {
+			first := strings.TrimSpace(lines[0])
+			if strings.HasPrefix(first, "TITLE:") {
+				n.Title = strings.TrimSpace(strings.TrimPrefix(first, "TITLE:"))
+				// Remove title line from script to avoid speaking it twice?
+				// Legacy behavior did this. Let's do it if we extracted it.
+				n.Script = strings.Join(lines[1:], "\n")
+			}
 		}
-		avg := sum / time.Duration(len(s.latencies))
-		res["latency_avg_ms"] = avg.Milliseconds()
-	}
-	return res
-}
-
-func (s *AIService) updateLatency(d time.Duration) {
-	s.mu.Lock()
-	s.latencies = append(s.latencies, d)
-	if len(s.latencies) > 10 {
-		s.latencies = s.latencies[1:]
 	}
 
-	// Calculate rolling average and update prediction window
-	var sum time.Duration
-	for _, lat := range s.latencies {
-		sum += lat
-	}
-	avg := sum / time.Duration(len(s.latencies))
-	s.mu.Unlock()
-
-	// Update the sim's prediction window with the observed latency (minimum 60s)
-	predWindow := max(avg*2, 60*time.Second)
-	s.sim.SetPredictionWindow(predWindow)
-	slog.Debug("Narrator: Updated latency stats", "new_latency", d, "rolling_window_size", len(s.latencies), "new_prediction_window", predWindow)
-}
-
-func (s *AIService) AverageLatency() time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.latencies) == 0 {
-		return 60 * time.Second // Default initial window
-	}
-	var sum time.Duration
-	for _, lat := range s.latencies {
-		sum += lat
-	}
-	return sum / time.Duration(len(s.latencies))
+	return n, nil
 }
 
 // POIManager returns the internal POI manager.
@@ -424,255 +310,4 @@ func (s *AIService) LLMProvider() llm.Provider {
 // AudioService returns the internal audio service.
 func (s *AIService) AudioService() audio.Service {
 	return s.audio
-}
-
-// Remaining returns the remaining duration of the current narration.
-func (s *AIService) Remaining() time.Duration {
-	return s.audio.Remaining()
-}
-
-// activateFallback switches to edge-tts for the remainder of this session.
-// Called when Azure TTS returns a fatal error (429, 5xx, etc.)
-func (s *AIService) activateFallback() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.useFallbackTTS {
-		return // Already activated
-	}
-
-	slog.Warn("Narrator: Activating edge-tts fallback for this session")
-	s.fallbackTTS = edgetts.NewProvider(s.fallbackTracker) // With tracker for stats
-	s.useFallbackTTS = true
-}
-
-// getTTSProvider returns the active TTS provider (fallback if activated).
-func (s *AIService) getTTSProvider() tts.Provider {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.useFallbackTTS && s.fallbackTTS != nil {
-		return s.fallbackTTS
-	}
-	if s.useFallbackTTS && s.fallbackTTS != nil {
-		return s.fallbackTTS
-	}
-	return s.tts
-}
-
-// getVoiceID returns the configured voice ID for the active TTS engine.
-func (s *AIService) getVoiceID() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// If using fallback (EdgeTTS), use its config
-	if s.useFallbackTTS {
-		return s.cfg.TTS.EdgeTTS.VoiceID
-	}
-
-	// Otherwise check the primary engine
-	switch s.cfg.TTS.Engine {
-	case "azure-speech":
-		return s.cfg.TTS.AzureSpeech.VoiceID
-	case "fish-audio":
-		return s.cfg.TTS.FishAudio.VoiceID
-	case "edge-tts":
-		return s.cfg.TTS.EdgeTTS.VoiceID
-	default:
-		return ""
-	}
-}
-
-// isUsingFallbackTTS returns true if fallback TTS is active.
-func (s *AIService) isUsingFallbackTTS() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.useFallbackTTS
-}
-
-func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript string) {
-	s.mu.Lock()
-	currentSummary := s.tripSummary
-	s.mu.Unlock()
-
-	// Build update prompt data
-	data := struct {
-		CurrentSummary string
-		LastTitle      string
-		LastScript     string
-		MaxWords       int
-	}{
-		CurrentSummary: currentSummary,
-		LastTitle:      lastTitle,
-		LastScript:     lastScript,
-		MaxWords:       s.cfg.Narrator.SummaryMaxWords,
-	}
-
-	prompt, err := s.prompts.Render("narrator/summary_update.tmpl", data)
-	if err != nil {
-		slog.Error("Narrator: Failed to render summary update template", "error", err)
-		return
-	}
-
-	newSummary, err := s.llm.GenerateText(ctx, "summary", prompt)
-	if err != nil {
-		slog.Error("Narrator: Failed to update trip summary", "error", err)
-		return
-	}
-
-	s.mu.Lock()
-	s.tripSummary = strings.TrimSpace(newSummary)
-	s.mu.Unlock()
-
-	slog.Info("Narrator: Trip summary updated", "length", len(s.tripSummary))
-}
-
-func (s *AIService) getTripSummary() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.tripSummary
-}
-
-func (s *AIService) addScriptToHistory(qid, title, script string) {
-	// Extract the last sentence for flow continuity
-	// Simple heuristic: split by period, take the last non-empty one.
-	sentences := strings.Split(script, ".")
-	var lastSentence string
-	for i := len(sentences) - 1; i >= 0; i-- {
-		trimmed := strings.TrimSpace(sentences[i])
-		if len(trimmed) > 10 { // Ignore tiny fragments
-			lastSentence = trimmed
-			break
-		}
-	}
-
-	s.mu.Lock()
-	if lastSentence != "" {
-		s.lastScriptEnd = lastSentence
-	}
-	s.mu.Unlock()
-
-	// Legacy method call for POI script storage (from Phase 1)
-	// We no longer need the s.scriptHistory slice, but we still trigger
-	// the summary update which is the new focus.
-	go s.updateTripSummary(context.Background(), title, script)
-}
-
-// ResetSession clears the session history (trip summary, counters, replay memory).
-// This is called when the aircraft teleports or starts a new flight.
-func (s *AIService) ResetSession(ctx context.Context) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.tripSummary = ""
-	s.narratedCount = 0
-	s.currentPOI = nil
-	s.currentTopic = nil
-	s.currentEssayTitle = ""
-	s.lastPOI = nil
-	s.lastEssayTopic = nil
-	s.lastEssayTitle = ""
-	s.lastScriptEnd = ""
-	// Clear fallback state if needed, or keep it per app run?
-	// User request implied trip summary and counts. Fallback TTS might be transient error related, so keeping it is safer.
-
-	// Clear active beacons
-	if s.beaconSvc != nil {
-		s.beaconSvc.Clear()
-	}
-
-	// Clear Queue
-	s.queue = make([]*Narrative, 0)
-
-	slog.Info("Narrator: Session reset (teleport/new flight detected)")
-}
-
-// enqueue adds a narrative to the playback queue.
-func (s *AIService) enqueue(n *Narrative, priority bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Max queue size check (e.g. 5)
-	if len(s.queue) >= 5 && !priority {
-		slog.Info("Narrator: Queue full, dropping low priority item", "title", n.Title)
-		return
-	}
-
-	if priority {
-		// Prepend
-		s.queue = append([]*Narrative{n}, s.queue...)
-	} else {
-		// Append
-		s.queue = append(s.queue, n)
-	}
-	slog.Info("Narrator: Enqueued narrative", "title", n.Title, "priority", priority, "queue_len", len(s.queue))
-}
-
-// popQueue retrieves and removes the next narrative from the queue.
-func (s *AIService) popQueue() *Narrative {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.queue) == 0 {
-		return nil
-	}
-	n := s.queue[0]
-	s.queue = s.queue[1:]
-	slog.Debug("Narrator: Popped from queue", "title", n.Title, "remaining", len(s.queue))
-	return n
-}
-
-// peekQueue returns the head of the queue without removing it.
-func (s *AIService) peekQueue() *Narrative {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if len(s.queue) == 0 {
-		return nil
-	}
-	return s.queue[0]
-}
-
-func (s *AIService) canEnqueue(nType string, manual bool) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// 1. Auto POI/Essay: Only allowed if queue is empty
-	if !manual && (nType == "poi" || nType == "essay") && len(s.queue) > 0 {
-		return false
-	}
-
-	return checkQueueLimits(s.queue, nType, manual)
-}
-
-//nolint:gocyclo // Complexity due to limit checking switch
-func checkQueueLimits(queue []*Narrative, nType string, manual bool) bool {
-	var manualPOIs, screenshots, debriefs, essays int
-	for _, n := range queue {
-		switch n.Type {
-		case "poi":
-			if n.Manual {
-				manualPOIs++
-			}
-		case "screenshot":
-			screenshots++
-		case "debrief":
-			debriefs++
-		case "essay":
-			essays++
-		}
-	}
-
-	if nType == "poi" && manual && manualPOIs >= 1 {
-		return false
-	}
-	if nType == "screenshot" && screenshots >= 1 {
-		return false
-	}
-	if nType == "debrief" && debriefs >= 1 {
-		return false
-	}
-	if nType == "essay" && essays >= 1 {
-		return false
-	}
-
-	return true
 }

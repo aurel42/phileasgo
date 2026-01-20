@@ -21,19 +21,67 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 		return
 	}
 
-	s.enqueuePriority(&GenerationJob{
-		Type:      model.NarrativeTypeScreenshot,
-		ImagePath: imagePath,
-		Manual:    true,
-		CreatedAt: time.Now(),
-		Telemetry: tel,
-	})
-	slog.Info("Narrator: Screenshot generation enqueued", "path", imagePath)
+	// Gather Context
+	if tel == nil {
+		t, err := s.sim.GetTelemetry(ctx)
+		if err != nil {
+			slog.Error("Narrator: Failed to get telemetry for screenshot", "error", err)
+			return
+		}
+		tel = &t
+	}
+
+	loc := s.geoSvc.GetLocation(tel.Latitude, tel.Longitude)
+	city := loc.CityName
+
+	// Prepare Prompt
+	data := map[string]any{
+		"City":        city,
+		"MaxWords":    s.cfg.Narrator.NarrationLengthLongWords,
+		"TripSummary": s.getTripSummary(),
+		"Lat":         fmt.Sprintf("%.3f", tel.Latitude),
+		"Lon":         fmt.Sprintf("%.3f", tel.Longitude),
+		"Alt":         fmt.Sprintf("%.0f", tel.AltitudeAGL),
+	}
+
+	prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
+	if err != nil {
+		slog.Error("Narrator: Failed to render screenshot prompt", "error", err)
+		return
+	}
+
+	// 4. Generate Async (Unified Pipeline)
+	go func() {
+		// Use a detached context for generation
+		genCtx := context.Background()
+
+		req := GenerationRequest{
+			Type:      model.NarrativeTypeScreenshot,
+			Prompt:    prompt,
+			Title:     "Screenshot Analysis",
+			SafeID:    "screenshot_" + time.Now().Format("150405"),
+			ImagePath: imagePath,
+			MaxWords:  s.cfg.Narrator.NarrationLengthShortWords,
+			Manual:    true, // Screenshots are user-initiated
+		}
+
+		slog.Info("Narrator: Generating Screenshot Narrative", "image", imagePath)
+
+		narrative, err := s.GenerateNarrative(genCtx, &req)
+		if err != nil {
+			slog.Error("Narrator: Screenshot generation failed", "image", imagePath, "error", err)
+			return
+		}
+
+		// Enqueue (High Priority)
+		s.enqueue(narrative, true)
+		go s.processQueue(genCtx)
+	}()
 }
 
 // GenerateScreenshotNarrative generates a narrative from a screenshot path.
 // It handles LLM analysis and TTS synthesis.
-func (s *AIService) GenerateScreenshotNarrative(ctx context.Context, imagePath string, tel *sim.Telemetry) (*Narrative, error) {
+func (s *AIService) GenerateScreenshotNarrative(ctx context.Context, imagePath string, tel *sim.Telemetry) (*model.Narrative, error) {
 	slog.Info("Narrator: Analyzing screenshot...", "path", imagePath)
 
 	// 2. Gather Context (City)
@@ -46,11 +94,17 @@ func (s *AIService) GenerateScreenshotNarrative(ctx context.Context, imagePath s
 	// 3. Prepare Prompt
 	data := map[string]any{
 		"City":        city,
-		"Lat":         fmt.Sprintf("%.3f", tel.Latitude),
-		"Lon":         fmt.Sprintf("%.3f", tel.Longitude),
-		"Alt":         fmt.Sprintf("%.0f", tel.AltitudeAGL),
-		"MaxWords":    s.cfg.Narrator.NarrationLengthLongWords,
 		"TripSummary": s.getTripSummary(),
+		"MaxWords":    s.cfg.Narrator.NarrationLengthLongWords,
+	}
+	if tel != nil {
+		data["Lat"] = fmt.Sprintf("%.3f", tel.Latitude)
+		data["Lon"] = fmt.Sprintf("%.3f", tel.Longitude)
+		data["Alt"] = fmt.Sprintf("%.0f", tel.AltitudeAGL)
+	} else {
+		data["Lat"] = "Unknown"
+		data["Lon"] = "Unknown"
+		data["Alt"] = "Unknown"
 	}
 
 	prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
@@ -88,8 +142,8 @@ func (s *AIService) GenerateScreenshotNarrative(ctx context.Context, imagePath s
 	// PlayImage legacy had check before enqueue.
 	// Here we just generate. Enqueuing is caller's job.
 
-	narrative := &Narrative{
-		Type:           "screenshot",
+	narrative := &model.Narrative{
+		Type:           model.NarrativeTypeScreenshot,
 		POI:            nil,
 		Title:          screenshotTitle,
 		Script:         text,

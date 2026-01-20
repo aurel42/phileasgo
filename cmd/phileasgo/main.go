@@ -374,9 +374,11 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 		}
 
 		// 3. Auto Narrations
+		// 3. Auto Narrations
 		if narrationJob.CanPreparePOI(t) {
-			narrationJob.PreparePOI(c, t)
-			return
+			if narrationJob.PreparePOI(c, t) {
+				return
+			}
 		}
 		if narrationJob.CanPrepareEssay(t) {
 			narrationJob.PrepareEssay(c, t)

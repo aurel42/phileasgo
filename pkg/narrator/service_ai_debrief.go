@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 )
 
@@ -75,53 +76,31 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 		return false
 	}
 
-	// 3. Generate Async
+	// 3. Generate Async (Unified Pipeline)
 	go func() {
 		// Use a detached context for generation
-		genCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
+		genCtx := context.Background()
 
-		s.mu.Lock()
-		s.genCancelFunc = cancel // Register cancel func for pre-emption
-		s.mu.Unlock()
+		req := GenerationRequest{
+			Type:     model.NarrativeTypeDebrief,
+			Prompt:   prompt,
+			Title:    "Flight De-brief",
+			SafeID:   "debrief_" + time.Now().Format("20060102_150405"),
+			MaxWords: s.cfg.Narrator.NarrationLengthLongWords,
+			Manual:   true, // Debriefs are treated as high priority / manual-like
+		}
 
-		defer func() {
-			s.mu.Lock()
-			s.generating = false
-			s.genCancelFunc = nil
-			s.mu.Unlock()
-		}()
+		slog.Info("Narrator: Generating Debrief", "max_words", req.MaxWords)
 
-		text, err := s.llm.GenerateText(genCtx, "debrief", prompt)
+		narrative, err := s.GenerateNarrative(genCtx, &req)
 		if err != nil {
-			slog.Error("Narrator: Failed to generate debrief", "error", err)
+			slog.Error("Narrator: Debrief generation failed", "error", err)
 			return
 		}
 
-		// 4. Synthesize Audio
-		audioPath, format, err := s.synthesizeAudio(genCtx, text, "landing_debrief")
-		if err != nil {
-			s.handleTTSError(err)
-			slog.Error("Narrator: Failed to synthesize debrief audio", "error", err)
-			return
-		}
-
-		// 5. Play
-		narrative := &Narrative{
-			Type:           "debrief",
-			POI:            nil, // Debriefs don't have a POI
-			Title:          "Landing Debrief",
-			Script:         text,
-			AudioPath:      audioPath,
-			Format:         format,
-			RequestedWords: s.cfg.Narrator.NarrationLengthLongWords,
-		}
-
-		// Use Queue (High Priority)
+		// Enqueue (High Priority)
 		s.enqueue(narrative, true)
-
-		// Trigger queue
-		go s.processQueue(context.Background())
+		go s.processQueue(genCtx)
 	}()
 
 	return true

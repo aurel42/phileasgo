@@ -1,89 +1,129 @@
 package narrator
 
 import (
+	"context"
+	"phileasgo/pkg/model"
 	"testing"
 )
 
-func TestAIService_QueueConstraints(t *testing.T) {
-	s := &AIService{
-		queue: make([]*Narrative, 0),
+func TestAIService_QueueManagement(t *testing.T) {
+	svc := &AIService{}
+
+	// 1. Enqueue Auto POI
+	svc.enqueue(&model.Narrative{Title: "Auto", Manual: false, Type: "poi"}, false)
+	if len(svc.queue) != 1 {
+		t.Error("expected 1 item in queue")
 	}
 
-	// 1. Auto POI allowed when queue empty
-	if !s.canEnqueue("poi", false) {
-		t.Error("Auto POI should be allowed when queue is empty")
+	// 2. Enqueue Priority Manual POI
+	svc.enqueue(&model.Narrative{Title: "Manual", Manual: true, Type: "poi"}, true)
+	if len(svc.queue) != 2 || svc.queue[0].Title != "Manual" {
+		t.Error("priority item should be at the front")
 	}
 
-	// 2. Add item manually
-	s.enqueue(&Narrative{Type: "poi", Manual: true, Title: "Manual 1"}, true)
-
-	// 3. Auto POI rejected when queue not empty
-	if s.canEnqueue("poi", false) {
-		t.Error("Auto POI should be rejected when queue is not empty")
+	// 3. Peek Queue
+	n := svc.peekQueue()
+	if n == nil || n.Title != "Manual" {
+		t.Error("peek failed")
 	}
 
-	// 4. Auto Essay rejected when queue not empty
-	if s.canEnqueue("essay", false) {
-		t.Error("Auto Essay should be rejected when queue is not empty")
+	// 4. Pop Queue
+	n2 := svc.popQueue()
+	if n2 == nil || n2.Title != "Manual" || len(svc.queue) != 1 {
+		t.Error("pop failed")
 	}
 
-	// 5. Manual POI rejected if one already strictly queued (Limit 1 Manual POI)
-	// Current queue: [Manual 1]
-	// Count manual POIs = 1. Limit is 1. Should return false.
-	if s.canEnqueue("poi", true) {
-		t.Error("Second Manual POI should be rejected if one exists in queue")
+	// 5. Manual Override Getters
+	svc.pendingManualID = "Q1"
+	svc.pendingManualStrategy = "short"
+	if !svc.HasPendingManualOverride() {
+		t.Error("expected pending override")
+	}
+	id, _, ok := svc.GetPendingManualOverride()
+	if !ok || id != "Q1" {
+		t.Errorf("expected Q1, got %s (ok=%v)", id, ok)
+	}
+	if svc.HasPendingManualOverride() {
+		t.Error("override should be cleared after get")
 	}
 
-	// 6. Screenshot: Add one
-	if !s.canEnqueue("screenshot", true) {
-		t.Error("Screenshot should be allowed (count 0)")
-	}
-	s.enqueue(&Narrative{Type: "screenshot", Manual: true, Title: "Screen 1"}, true)
-	// Queue: [Screen 1, Manual 1] (Priority prepend)
-
-	// 7. Screenshot rejected if one exists
-	if s.canEnqueue("screenshot", true) {
-		t.Error("Second Screenshot should be rejected")
+	// 6. Reset Session
+	svc.queue = []*model.Narrative{{Type: "poi"}}
+	svc.ResetSession(context.Background())
+	if len(svc.queue) != 0 {
+		t.Error("expected empty queue after reset")
 	}
 
-	// 8. Debrief: Add one
-	if !s.canEnqueue("debrief", true) {
-		t.Error("Debrief should be allowed")
+	// 7. promoteInQueue - Boost case
+	svc.queue = []*model.Narrative{
+		{POI: &model.POI{WikidataID: "Q1"}, Type: "poi"},
+		{POI: &model.POI{WikidataID: "Q2"}, Type: "poi"},
 	}
-	s.enqueue(&Narrative{Type: "debrief", Manual: true, Title: "Debrief 1"}, true)
-	// Queue: [Debrief 1, Screen 1, Manual 1]
+	if !svc.promoteInQueue("Q2", true) {
+		t.Error("expected true (found Q2)")
+	}
+	if svc.queue[0].POI.WikidataID != "Q2" {
+		t.Error("Q2 should be boosted to front")
+	}
 
-	// 9. Debrief rejected if one exists
-	if s.canEnqueue("debrief", true) {
-		t.Error("Second Debrief should be rejected")
+	// 8. handleManualQueueAndOverride - Generating case
+	svc.generating = true
+	if !svc.handleManualQueueAndOverride("Q3", "long", true, true) {
+		t.Error("expected true (enqueued priority job)")
 	}
 }
 
-func TestAIService_QueuePriority(t *testing.T) {
-	s := &AIService{
-		queue: make([]*Narrative, 0),
+func TestAIService_QueueLimits(t *testing.T) {
+	svc := &AIService{}
+
+	// 1. Allow Manual POI when empty
+	if !checkQueueLimits(svc.queue, "poi", true) {
+		t.Error("should allow manual POI when empty")
 	}
 
-	// Auto Item (Low Priority)
-	n1 := &Narrative{Type: "poi", Manual: false, Title: "Auto 1"}
-	s.enqueue(n1, false)
-	// Queue: [Auto 1]
-
-	// Auto Item 2
-	n2 := &Narrative{Type: "poi", Manual: false, Title: "Auto 2"}
-	s.enqueue(n2, false)
-	// Queue: [Auto 1, Auto 2]
-
-	// Manual Item (High Priority)
-	n3 := &Narrative{Type: "image", Manual: true, Title: "Manual 3"}
-	s.enqueue(n3, true)
-	// Queue: [Manual 3, Auto 1, Auto 2]
-
-	// Check order
-	if s.queue[0].Title != "Manual 3" {
-		t.Errorf("Expected Manual 3 at head, got %s", s.queue[0].Title)
+	// 2. Deny Auto POI when auto already queued
+	svc.queue = []*model.Narrative{{Type: "poi", Manual: false}}
+	if checkQueueLimits(svc.queue, "poi", false) {
+		t.Error("should deny second auto POI")
 	}
-	if s.queue[1].Title != "Auto 1" {
-		t.Errorf("Expected Auto 1 at pos 1, got %s", s.queue[1].Title)
+
+	// 3. Allow Manual POI even if auto queued
+	if !checkQueueLimits(svc.queue, "poi", true) {
+		t.Error("should allow manual POI if only auto is queued")
+	}
+
+	// 4. Deny second Manual POI
+	svc.queue = append(svc.queue, &model.Narrative{Type: "poi", Manual: true})
+	if checkQueueLimits(svc.queue, "poi", true) {
+		t.Error("should deny second manual POI")
+	}
+
+	// 5. Deny Screenshot if already queued
+	svc.queue = []*model.Narrative{{Type: model.NarrativeTypeScreenshot}}
+	if checkQueueLimits(svc.queue, "screenshot", true) {
+		t.Error("should deny second screenshot")
+	}
+
+	// 6. Allow Screenshot if none queued
+	svc.queue = nil
+	if !checkQueueLimits(svc.queue, "screenshot", true) {
+		t.Error("should allow screenshot when none queued")
+	}
+
+	// 7. Debrief and Essay limits
+	svc.queue = []*model.Narrative{{Type: "debrief"}}
+	if checkQueueLimits(svc.queue, "debrief", true) {
+		t.Error("should deny second debrief")
+	}
+	svc.queue = []*model.Narrative{{Type: "essay"}}
+	if checkQueueLimits(svc.queue, "essay", true) {
+		t.Error("should deny second essay")
+	}
+}
+
+func TestAIService_CanEnqueue(t *testing.T) {
+	svc := &AIService{}
+	if !svc.canEnqueue("poi", true) {
+		t.Error("canEnqueue failed")
 	}
 }

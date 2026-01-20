@@ -406,7 +406,14 @@ func TestAIService_GeneratePlay(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Generate
-	narrative, err := svc.GenerateNarrative(ctx, "QGen", "uniform", &sim.Telemetry{}, false)
+	req := GenerationRequest{
+		Type:   model.NarrativeTypePOI,
+		Title:  "QGen",
+		SafeID: "QGen",
+		Prompt: "Test Prompt",
+		POI:    &model.POI{WikidataID: "QGen"},
+	}
+	narrative, err := svc.GenerateNarrative(ctx, &req)
 	if err != nil {
 		t.Fatalf("GenerateNarrative failed: %v", err)
 	}
@@ -523,7 +530,14 @@ func TestAIService_LatencyTracking(t *testing.T) {
 	}
 
 	// 2. GenerateNarrative (should take ~50ms)
-	_, err := svc.GenerateNarrative(context.Background(), "QLatency", "uniform", &sim.Telemetry{}, false)
+	req := GenerationRequest{
+		Type:   model.NarrativeTypePOI,
+		Title:  "QLatency",
+		SafeID: "QLatency",
+		Prompt: "Test Prompt",
+		POI:    &model.POI{WikidataID: "QLatency"},
+	}
+	_, err := svc.GenerateNarrative(context.Background(), &req)
 	if err != nil {
 		t.Fatalf("GenerateNarrative failed: %v", err)
 	}
@@ -688,13 +702,21 @@ func TestAIService_ScriptValidation(t *testing.T) {
 		&MockBeacon{},
 		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil)
 
-	_, err := svc.GenerateNarrative(context.Background(), "QLong", "uniform", &sim.Telemetry{}, false)
-	if err == nil {
-		t.Fatal("Expected error for excessively long script, got nil")
+	req := GenerationRequest{
+		Type:     model.NarrativeTypePOI,
+		Title:    "QLong",
+		SafeID:   "QLong",
+		Prompt:   "Test Prompt",
+		POI:      &model.POI{WikidataID: "QLong"},
+		MaxWords: 200,
+	}
+	narrative, err := svc.GenerateNarrative(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("Expected success (fallback to original) for excessively long script, got error: %v", err)
 	}
 
-	// New behavior: attempts rescue first, then fails because template not found in test env
-	if !strings.Contains(err.Error(), "script rescue failed") {
-		t.Errorf("Expected error message to contain 'script rescue failed', got: %v", err)
+	// Should have used original script because rescue failed
+	if !strings.Contains(narrative.Script, "word word") {
+		t.Error("Expected original long script to be preserved")
 	}
 }

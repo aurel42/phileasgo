@@ -1,5 +1,18 @@
 ﻿# Release History
 
+## v0.2.123 (2026-01-20)
+- **Refactor**: **Narrator Package Modularization**
+    - Split the monolithic `service_ai.go` into focused files: `service_ai_queue.go`, `service_ai_tts.go`, `service_ai_state.go`, and `service_ai_stats.go`.
+    - Improved code maintainability and testability by isolating functional domains.
+- **Testing**: **Narrator Coverage & Stability**
+    - Achieved **80.6%** statement coverage for the `narrator` package.
+    - Added tests for `handleTTSError` (fallback logic), `rescueScript` (LLM script cleanup), and comprehensive state getters.
+    - Verified complex queue limits and priority boosting logic.
+- **Fix**: **Project-wide Lint & Reliability**
+    - Resolved `SA5011` potential nil pointer dereferences in `service_ai_image.go`.
+    - Cleaned up unused fields and methods across the `narrator` package to satisfy static analysis.
+    - Fixed race conditions and state assertion mismatches in narrator tests.
+
 ## v0.2.122 (2026-01-19)
 - **Refactor**: **Unified Narration Queue**
     - Centralized queue management for all narrative types (POI, Debrief, Essay, Screenshot).

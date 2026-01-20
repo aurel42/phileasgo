@@ -39,9 +39,9 @@ type Service interface {
 	// GetPendingManualOverride returns and clears the pending manual override.
 	GetPendingManualOverride() (string, string, bool)
 	// GenerateNarrative prepares a narrative for a POI without playing it.
-	GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry, force bool) (*Narrative, error)
+	GenerateNarrative(ctx context.Context, req *GenerationRequest) (*model.Narrative, error)
 	// PlayNarrative plays a previously generated narrative.
-	PlayNarrative(ctx context.Context, n *Narrative) error
+	PlayNarrative(ctx context.Context, n *model.Narrative) error
 	// PlayEssay triggers a regional essay narration.
 	PlayEssay(ctx context.Context, tel *sim.Telemetry) bool
 	// PlayDebrief triggers a post-landing debrief.
@@ -67,20 +67,6 @@ type Service interface {
 	AverageLatency() time.Duration
 	// CurrentImagePath returns the file path of the message for the current narration.
 	CurrentImagePath() string
-}
-
-// Narrative represents a prepared narration ready for playback.
-type Narrative struct {
-	Type           string     // "poi", "screenshot", "essay", "debrief"
-	POI            *model.POI // nil for non-POI narratives
-	Title          string     // Display title (for non-POI narratives or override)
-	Script         string
-	AudioPath      string
-	ImagePath      string // Path to image (e.g. screenshot)
-	Format         string // e.g., "mp3"
-	Duration       time.Duration
-	RequestedWords int
-	Manual         bool // True if manually requested by user
 }
 
 // StubService is a stub implementation of the narrator service.
@@ -198,17 +184,18 @@ func (s *StubService) GetPendingManualOverride() (poiID, strategy string, ok boo
 }
 
 // GenerateNarrative prepares a narrative (stub).
-func (s *StubService) GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry, force bool) (*Narrative, error) {
-	slog.Info("Narrator stub: generated narrative for POI", "poi_id", poiID)
-	return &Narrative{
-		POI:      &model.POI{WikidataID: poiID},
+func (s *StubService) GenerateNarrative(ctx context.Context, req *GenerationRequest) (*model.Narrative, error) {
+	slog.Info("Narrator stub: generated narrative", "type", req.Type)
+	return &model.Narrative{
+		Type:     req.Type,
+		Title:    req.Title,
 		Script:   "Stub script",
 		Duration: time.Second,
 	}, nil
 }
 
 // PlayNarrative plays a narrative (stub).
-func (s *StubService) PlayNarrative(ctx context.Context, n *Narrative) error {
+func (s *StubService) PlayNarrative(ctx context.Context, n *model.Narrative) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	slog.Info("Narrator stub: playing narrative for POI", "poi_id", n.POI.WikidataID)

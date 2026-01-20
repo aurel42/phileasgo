@@ -18,11 +18,15 @@ type MockLLM struct {
 	Err                   error
 	GenerateTextFunc      func(ctx context.Context, name, prompt string) (string, error)
 	GenerateImageTextFunc func(ctx context.Context, name, prompt, imagePath string) (string, error)
+
+	GenerateTextCalls      int
+	GenerateImageTextCalls int
 }
 
 func (m *MockLLM) Name() string                         { return "MockLLM" }
 func (m *MockLLM) Configure(cfg config.LLMConfig) error { return nil }
 func (m *MockLLM) GenerateText(ctx context.Context, name, prompt string) (string, error) {
+	m.GenerateTextCalls++
 	if m.GenerateTextFunc != nil {
 		return m.GenerateTextFunc(ctx, name, prompt)
 	}
@@ -33,6 +37,7 @@ func (m *MockLLM) GenerateJSON(ctx context.Context, name, prompt string, target 
 }
 func (m *MockLLM) HealthCheck(ctx context.Context) error { return nil }
 func (m *MockLLM) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
+	m.GenerateImageTextCalls++
 	if m.GenerateImageTextFunc != nil {
 		return m.GenerateImageTextFunc(ctx, name, prompt, imagePath)
 	}
@@ -57,6 +62,8 @@ type MockAudio struct {
 	PlayErr         error
 	IsPlayingVal    bool
 	IsUserPausedVal bool
+	CanReplay       bool
+	Replayed        bool
 }
 
 func (m *MockAudio) Play(filepath string, startPaused bool) error {
@@ -71,15 +78,21 @@ func (m *MockAudio) Stop()                     {}
 func (m *MockAudio) Shutdown()                 {}
 func (m *MockAudio) IsPlaying() bool           { return m.IsPlayingVal }
 func (m *MockAudio) IsBusy() bool              { return m.IsPlayingVal }
-func (m *MockAudio) IsPaused() bool            { return false }
+func (m *MockAudio) IsPaused() bool            { return m.IsUserPausedVal }
 func (m *MockAudio) SetVolume(vol float64)     {}
 func (m *MockAudio) Volume() float64           { return 1.0 }
 func (m *MockAudio) SetUserPaused(paused bool) { m.IsUserPausedVal = paused }
 func (m *MockAudio) IsUserPaused() bool        { return m.IsUserPausedVal }
 func (m *MockAudio) ResetUserPause()           { m.IsUserPausedVal = false }
 func (m *MockAudio) LastNarrationFile() string { return m.LastFile }
-func (m *MockAudio) ReplayLastNarration() bool { return m.PlayErr == nil }
-func (m *MockAudio) Position() time.Duration   { return 0 }
+func (m *MockAudio) ReplayLastNarration() bool {
+	if m.CanReplay {
+		m.Replayed = true
+		return true
+	}
+	return false
+}
+func (m *MockAudio) Position() time.Duration { return 0 }
 func (m *MockAudio) Duration() time.Duration {
 	return time.Second * 10
 }
@@ -180,15 +193,18 @@ func (m *MockBeacon) Clear() {
 }
 
 type MockSim struct {
-	Telemetry sim.Telemetry
-	Err       error
+	Telemetry  sim.Telemetry
+	Err        error
+	PredWindow time.Duration
 }
 
 func (m *MockSim) GetTelemetry(ctx context.Context) (sim.Telemetry, error) {
 	return m.Telemetry, m.Err
 }
-func (m *MockSim) GetState() sim.State                 { return sim.StateActive }
-func (m *MockSim) SetPredictionWindow(d time.Duration) {}
+func (m *MockSim) GetState() sim.State { return sim.StateActive }
+func (m *MockSim) SetPredictionWindow(d time.Duration) {
+	m.PredWindow = d
+}
 func (m *MockSim) SetObjectPosition(id uint32, lat, lon, alt, pitch, bank, heading float64) error {
 	return nil
 }

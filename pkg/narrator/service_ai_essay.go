@@ -3,8 +3,8 @@ package narrator
 import (
 	"context"
 	"log/slog"
-	"strings"
 
+	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 )
 
@@ -16,7 +16,7 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 
 	// 1. Constraints
 	if s.HasPendingPriority() {
-		// slog.Info("Narrator: Essay skipped (priority jobs pending)") // optional log
+
 		return false
 	}
 	if !s.canEnqueue("essay", false) {
@@ -101,53 +101,29 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		return
 	}
 
-	// Generate Script
-	script, err := s.llm.GenerateText(ctx, "essay", prompt)
-	if err != nil {
-		slog.Error("Narrator: LLM essay script generation failed", "error", err)
-		return
-	}
-	// Filter markdown artifacts
-	script = strings.ReplaceAll(script, "*", "")
-
-	// Parse Title if present (Format: "TITLE: ...")
-	essayTitle := topic.Name
-	lines := strings.Split(script, "\n")
-	if len(lines) > 0 {
-		firstLine := strings.TrimSpace(lines[0])
-		if strings.HasPrefix(firstLine, "TITLE:") {
-			essayTitle = strings.TrimSpace(strings.TrimPrefix(firstLine, "TITLE:"))
-			s.mu.Lock()
-			s.currentEssayTitle = essayTitle
-			s.lastEssayTitle = essayTitle // Capture for replay
-			s.mu.Unlock()
-
-			// Remove title line from script for TTS
-			script = strings.Join(lines[1:], "\n")
-		}
+	req := GenerationRequest{
+		Type:   model.NarrativeTypeEssay,
+		Prompt: prompt,
+		// Title unknown until parsing
+		SafeID:     "essay_" + topic.ID,
+		EssayTopic: topic,
+		MaxWords:   s.cfg.Narrator.NarrationLengthLongWords,
+		Manual:     false,
 	}
 
-	// Synthesize audio using shared method
-	audioPath, format, err := s.synthesizeAudio(ctx, script, "essay_"+topic.ID)
+	narrative, err := s.GenerateNarrative(ctx, &req)
 	if err != nil {
-		s.handleTTSError(err)
-		slog.Error("Narrator: TTS essay synthesis failed", "error", err)
+		slog.Error("Narrator: Essay generation failed", "error", err)
 		return
 	}
 
-	// Create Narrative for the essay
-	narrative := &Narrative{
-		Type:           "essay",
-		POI:            nil, // Essays don't have a POI
-		Title:          essayTitle,
-		Script:         script,
-		AudioPath:      audioPath,
-		Format:         format,
-		RequestedWords: s.cfg.Narrator.NarrationLengthLongWords,
-	}
+	// Capture parsed title for UI state
+	s.mu.Lock()
+	s.currentEssayTitle = narrative.Title
+	s.lastEssayTitle = narrative.Title
+	s.mu.Unlock()
 
 	// Enqueue (Automated, Low Priority)
 	s.enqueue(narrative, false)
-
 	go s.processQueue(context.Background())
 }

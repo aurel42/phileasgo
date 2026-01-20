@@ -2,9 +2,122 @@ package narrator
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"phileasgo/pkg/model"
 	"time"
 )
+
+// handleGenerationState manages the busy state and cancellation logic.
+func (s *AIService) handleGenerationState(manual bool) error {
+	s.mu.Lock()
+	if s.generating {
+		if manual {
+			slog.Info("Narrator: Forcing generation, canceling previous job")
+			if s.genCancelFunc != nil {
+				s.genCancelFunc()
+			}
+			s.mu.Unlock()
+
+			// Busy wait for cleanup
+			timeout := time.After(5 * time.Second)
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
+
+		WaitLoop:
+			for {
+				select {
+				case <-timeout:
+					return fmt.Errorf("timeout waiting for previous generation to cancel")
+				case <-ticker.C:
+					s.mu.RLock()
+					stillGen := s.generating
+					s.mu.RUnlock()
+					if !stillGen {
+						break WaitLoop
+					}
+				}
+			}
+			s.mu.Lock()
+		} else {
+			s.mu.Unlock()
+			return fmt.Errorf("narrator already generating")
+		}
+	}
+	s.generating = true
+	s.mu.Unlock()
+	return nil
+}
+
+// IsActive returns true if narrator is currently active (generating or playing).
+func (s *AIService) IsActive() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.active || s.generating
+}
+
+// IsGenerating returns true if narrator is currently generating script/audio.
+func (s *AIService) IsGenerating() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.generating
+}
+
+// IsPlaying returns true if narrator is currently playing audio (or checking busy state).
+func (s *AIService) IsPlaying() bool {
+	return s.audio.IsBusy()
+}
+
+// IsPaused returns true if the narrator is globally paused by the user.
+func (s *AIService) IsPaused() bool {
+	return s.audio.IsPaused()
+}
+
+// CurrentPOI returns the POI currently being narrated, if any.
+func (s *AIService) CurrentPOI() *model.POI {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentPOI
+}
+
+// CurrentImagePath returns the file path of the message for the current narration.
+func (s *AIService) CurrentImagePath() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentImagePath
+}
+
+// GetPreparedPOI returns the POI being prepared for pipeline playback, if any.
+func (s *AIService) GetPreparedPOI() *model.POI {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// Check queue[0] or actively generating POI
+	if len(s.queue) > 0 && s.queue[0].POI != nil {
+		return s.queue[0].POI
+	}
+	return s.generatingPOI
+}
+
+// CurrentTitle returns the title of the current narration.
+func (s *AIService) CurrentTitle() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.currentPOI != nil {
+		return s.currentPOI.DisplayName()
+	}
+	if s.currentTopic != nil {
+		if s.currentEssayTitle != "" {
+			return s.currentEssayTitle
+		}
+		return "Essay about " + s.currentTopic.Name
+	}
+	return ""
+}
+
+// Remaining returns the remaining duration of the current narration.
+func (s *AIService) Remaining() time.Duration {
+	return s.audio.Remaining()
+}
 
 func (s *AIService) ReplayLast(ctx context.Context) bool {
 	// 1. Check Audio Replay Capability

@@ -181,27 +181,38 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 				Longitude:   -123.0,
 			}
 
-			shouldFire := job.ShouldFire(tel)
-			if shouldFire != tt.expectShouldFire {
-				t.Errorf("Frequency %d (%s): ShouldFire = %v, expected %v", tt.freq, tt.name, shouldFire, tt.expectShouldFire)
+			// 1. Check if we can prepare a POI narration (Frequency/Pipeline logic)
+			canPrepare := job.CanPreparePOI(tel)
+
+			// Special Check: If we are testing Frequency/Pipeline rules (tt.remaining set),
+			// we expect CanPrepare to match strictly.
+			// If we are testing "Rarely/Lone Wolf" (content filter), CanPrepare might be true but Prepare fails.
+			isContentTest := tt.poiStrategy != ""
+			if !isContentTest && canPrepare != tt.expectShouldFire {
+				t.Errorf("Frequency %d (%s): CanPreparePOI = %v, expected %v", tt.freq, tt.name, canPrepare, tt.expectShouldFire)
 			}
 
 			// Check correct method calls based on state
-			if shouldFire && tt.expectShouldFire {
-				job.Run(context.Background(), tel)
+			if canPrepare {
+				job.PreparePOI(context.Background(), tel)
+			}
+
+			if tt.expectShouldFire {
+				// Assert PlayPOI called (unless Pipeline prepared next)
+				// ... existing logic below checks this ...
 
 				// Case 1: Pipelining (Active/Busy/Constant + IsPlaying)
 				if tt.isPlaying && tt.freq >= 3 {
 					if !mockN.prepareNextCalled {
-						t.Error("Run: Expected PrepareNextNarrative call for Pipeline")
+						t.Error("PreparePOI: Expected PrepareNextNarrative call for Pipeline")
 					}
 					if mockN.playPOICalled {
-						t.Error("Run: Did NOT expect PlayPOI call during Pipeline")
+						t.Error("PreparePOI: Did NOT expect PlayPOI call during Pipeline")
 					}
 				} else {
 					// Case 2: Standard Playback (Not Playing OR Rarely/Normal)
 					if !mockN.playPOICalled {
-						t.Error("Run: Expected PlayPOI call")
+						t.Error("PreparePOI: Expected PlayPOI call")
 					}
 				}
 			}

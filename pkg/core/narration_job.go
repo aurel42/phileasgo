@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"phileasgo/pkg/config"
@@ -45,8 +44,6 @@ type NarrationJob struct {
 	lastAGL        float64   // Last known AGL for visibility boost check
 	hasCheckedOnce bool      // Flag to handle startup state (e.g. starting mid-flight)
 	hasDebriefed   bool      // Flag to ensure debrief runs only once per flight
-
-	pendingScreenshot string // Queue for detected screenshots that triggered ShouldFire
 }
 
 func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker, w *watcher.Service) *NarrationJob {
@@ -103,69 +100,6 @@ func (j *NarrationJob) checkNarratorReady() bool {
 	return true
 }
 
-// ShouldFire checks if the job should run.
-// Deprecated: Use CanPreparePOI, CanPrepareEssay, PreparePOI, PrepareEssay instead.
-func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
-	if atomic.LoadInt32(&j.running) == 1 {
-		return false
-	}
-
-	// 0. Pre-flight checks
-	if !j.checkPreConditions(t) {
-		return false
-	}
-
-	// Track AGL for visibility boost decisions
-	j.lastAGL = t.AltitudeAGL
-
-	// Post-takeoff grace period logic
-	// Post-takeoff grace period logic
-	if !j.checkPostTakeoffGrace(t) {
-		return false
-	}
-
-	// 1. Narrator Activity Check
-	if !j.checkNarratorReady() {
-		return false
-	}
-
-	// PRIORITY: Check for pending manual override
-	if j.narrator.HasPendingManualOverride() {
-		return true
-	}
-
-	// 0.5 Check for New Screenshots (Priority 0.5)
-	if j.watcher != nil && j.cfg.Narrator.Screenshot.Enabled {
-		if path, ok := j.watcher.CheckNew(); ok {
-			slog.Info("NarrationJob: New screenshot detected (ShouldFire)", "path", path)
-			j.pendingScreenshot = path
-			return true
-		}
-	}
-
-	// 2. Frequency & Pipeline Logic
-	if !j.checkFrequencyRules() {
-		return false
-	}
-
-	// 3. POI Selection (Dynamic Check)
-	if j.hasEligiblePOI(t) {
-		return true
-	}
-
-	// No candidates found? Boost visibility!
-	// Only boost if we were actually ready to narrate (passed all checks)
-	// and we are NOT in essay fallback mode (which might happen next).
-	j.incrementVisibilityBoost(context.Background())
-
-	// 4. Essay fallback
-	// Don't pipeline essays for now (keeps it simple)
-	if j.narrator.IsPlaying() {
-		return false
-	}
-	return j.checkEssayEligible(t)
-}
-
 // CanPreparePOI checks if the system is ready to prepare a POI narration (Manual or Auto).
 // This includes checking frequency rules (pipelining) and narrator state.
 func (j *NarrationJob) CanPreparePOI(t *sim.Telemetry) bool {
@@ -197,7 +131,11 @@ func (j *NarrationJob) CanPrepareEssay(t *sim.Telemetry) bool {
 	if !j.checkPreConditions(t) {
 		return false
 	}
-	// 2. Essay Logic
+	// 2. State Check
+	if j.narrator.IsPaused() || j.narrator.IsGenerating() {
+		return false
+	}
+	// 3. Essay Logic
 	return j.checkEssayEligible(t)
 }
 
@@ -276,7 +214,12 @@ func (j *NarrationJob) CanPrepareDebrief(t *sim.Telemetry) bool {
 		return false
 	}
 
-	// 2. Already Debriefed?
+	// 2. State Check
+	if j.narrator.IsPaused() || j.narrator.IsGenerating() {
+		return false
+	}
+
+	// 3. Already Debriefed?
 	if j.hasDebriefed {
 		return false
 	}
@@ -350,36 +293,6 @@ func (j *NarrationJob) checkPostTakeoffGrace(t *sim.Telemetry) bool {
 	}
 
 	return true
-}
-
-// hasEligiblePOI checks if there are any valid candidates given the current filters.
-func (j *NarrationJob) hasEligiblePOI(t *sim.Telemetry) bool {
-	var minScore *float64
-	if j.getFilterMode() != "adaptive" {
-		val := j.getMinScore()
-		minScore = &val
-	}
-
-	candidates := j.poiMgr.GetNarrationCandidates(10, minScore, t.IsOnGround)
-
-	// Apply "Rarely" Strategy Filter (Local Hero / Lone Wolf)
-	if j.getNarrationFrequency() == 1 { // Rarely
-		filtered := make([]*model.POI, 0, len(candidates))
-		analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
-		if !ok {
-			slog.Error("NarrationJob: Failed to cast poiMgr to POIAnalyzer", "type", fmt.Sprintf("%T", j.poiMgr))
-		}
-		if ok {
-			for _, p := range candidates {
-				if narrator.DetermineSkewStrategy(p, analyzer, t.IsOnGround) == narrator.StrategyMaxSkew {
-					filtered = append(filtered, p)
-				}
-			}
-			candidates = filtered
-		}
-	}
-
-	return len(candidates) > 0
 }
 
 // checkFrequencyRules determines if we can fire based on frequency settings (1-5).
@@ -516,116 +429,6 @@ func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 	return true
 }
 
-func (j *NarrationJob) Run(ctx context.Context, t *sim.Telemetry) {
-	if !j.TryLock() {
-		return
-	}
-	defer j.Unlock()
-
-	// 0. Check for Pending Manual Override (Priority 1)
-	if id, strat, ok := j.narrator.GetPendingManualOverride(); ok {
-		slog.Info("NarrationJob: Executing queued manual override", "poi_id", id)
-		// Force play immediately (enqueue=false)
-		j.narrator.PlayPOI(ctx, id, true, false, t, strat)
-		// Force play immediately (enqueue=false)
-		j.narrator.PlayPOI(ctx, id, true, false, t, strat)
-		return
-	}
-
-	// 0.5 Check for New Screenshots (Priority 0.5)
-	if j.pendingScreenshot != "" {
-		path := j.pendingScreenshot
-		j.pendingScreenshot = "" // Consume
-		slog.Info("NarrationJob: Processing pending screenshot", "path", path)
-		// Play immediately (blocking or async handled by PlayImage)
-		j.narrator.PlayImage(ctx, path, t)
-		return
-	}
-	// Fallback check if pending was missed (race condition safety or direct Run calls)
-	if j.watcher != nil && j.cfg.Narrator.Screenshot.Enabled {
-		if path, ok := j.watcher.CheckNew(); ok {
-			slog.Info("NarrationJob: New screenshot detected (in Run)", "path", path)
-			j.narrator.PlayImage(ctx, path, t)
-			return
-		}
-	}
-
-	// 1. Check for Staged/Prepared Narrative (Pipeline)
-	// If the narrator has a POI ready (or generating), we MUST play that one
-	// to avoid the "Jumping Beacon" issue (Scheduler calculating X while Narrator plays Y).
-	if staged := j.narrator.GetPreparedPOI(); staged != nil {
-		// DUPLICATION FIX: If pipeline is backed up (Playing OR Active/Cooling down), don't force a play attempt.
-		// We simply return and let the scheduler tick again later.
-		if j.narrator.IsActive() {
-			return
-		}
-
-		slog.Info("NarrationJob: Activating staged narrative", "poi", staged.DisplayName())
-		// We call PlayPOI with the STAGED ID.
-		// PlayPOI will see the ID, set the beacon correctly, and then (re)discover the staged content.
-		// Strategy is less relevant here as it's already baked into the narrative, but we pass "uniform" or reuse.
-		j.narrator.PlayPOI(ctx, staged.WikidataID, false, false, t, narrator.StrategyUniform)
-		return
-	}
-
-	// Pick best (first visible)
-	var best *model.POI
-	// Reuse logic from getVisibleCandidate if possible, but we need to pass candidates list
-	// Since getVisibleCandidate refetches, we might duplicate work or diverge.
-	// Let's rely on getVisibleCandidate but UPDATE it to support the list or just call it directly.
-	// Actually, getVisibleCandidate DOES re-fetch.
-	// To ensure consistency, we should use getVisibleCandidate's logic but applied to our pre-filtered criteria?
-	// Or just call getVisibleCandidate and assume it does the same thing?
-	// getVisibleCandidate checks 1000 items. ShouldFire checked 10.
-
-	// Correct approach:
-	// Use getVisibleCandidate but make it robust to Frequency logic.
-	// getVisibleCandidate needs to valid candidates.
-	best = j.getVisibleCandidate(t)
-
-	// If best is nil, try essay directly
-	if best == nil {
-		j.tryEssay(ctx, t)
-		return
-	}
-
-	// Re-verify threshold (Dynamic) and playability
-	// State might have changed or getVisibleCandidate might be used differently
-	if !j.isPlayable(best) {
-		j.tryEssay(ctx, t)
-		return
-	}
-
-	// Note: getVisibleCandidate already respects dynamic minScore from config
-	// But it does NOT respect the "Rarely" filter yet.
-	// We need to inject that into getVisibleCandidate or check it here.
-
-	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer), t.IsOnGround)
-	// No more cooldown calculation here!
-
-	// Get current boost for logging
-	currentBoost := j.getBoostFactor()
-
-	slog.Info("NarrationJob: Triggering narration",
-		"name", best.DisplayName(),
-		"score", fmt.Sprintf("%.2f", best.Score),
-		"boost", fmt.Sprintf("x%.1f", currentBoost),
-		"freq", j.getNarrationFrequency(),
-	)
-
-	// Successful narration selection -> Reset Boost
-	j.resetVisibilityBoost(ctx)
-
-	// Pipeline vs Direct Play
-	if j.narrator.IsPlaying() {
-		if err := j.narrator.PrepareNextNarrative(ctx, best.WikidataID, strategy, t); err != nil {
-			slog.Error("NarrationJob: Pipeline preparation failed", "error", err)
-		}
-	} else {
-		j.narrator.PlayPOI(ctx, best.WikidataID, false, false, t, strategy)
-	}
-}
-
 // getVisibleCandidate returns the highest-scoring POI that has line-of-sight.
 // If LOS is disabled or no checker is available, falls back to GetBestCandidate.
 func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
@@ -733,27 +536,6 @@ func (j *NarrationJob) isLocationConsistent(t *sim.Telemetry) bool {
 	return dist <= 10000 // 10km
 }
 
-func (j *NarrationJob) tryEssay(ctx context.Context, t *sim.Telemetry) {
-	// Re-check eligibility (Silence, Cooldown, Altitude)
-	// This is critical because Run() can fall through here even if ShouldFire() triggered for a POI candidate
-	// (e.g. if the candidate turned out to be invisible). In that case, we MUST re-verify essay rules
-	// to prevent bypassing startup silence.
-	if !j.checkEssayEligible(t) {
-		return
-	}
-
-	if j.narrator.PlayEssay(ctx, t) {
-		// On success, update timers
-		now := time.Now()
-		j.lastEssayTime = now
-		j.lastTime = now
-
-		// We revert to standard cooldown/strategy for the *scheduler* to wake up.
-		// The essay cooldown is handled explicitly in ShouldFire via lastEssayTime.
-		// j.calculateCooldown(1.0, narrator.StrategyUniform) // Removed in Phase 2
-	}
-}
-
 func (j *NarrationJob) getNarrationFrequency() int {
 	fallback := j.cfg.Narrator.Frequency
 	if fallback < 1 {
@@ -812,19 +594,6 @@ func (j *NarrationJob) getMinScore() float64 {
 		return fallback
 	}
 	return parsed
-}
-
-func (j *NarrationJob) getBoostFactor() float64 {
-	if j.store == nil {
-		return 1.0
-	}
-	val, ok := j.store.GetState(context.Background(), "visibility_boost")
-	if ok && val != "" {
-		if f, err := strconv.ParseFloat(val, 64); err == nil {
-			return f
-		}
-	}
-	return 1.0
 }
 
 func (j *NarrationJob) incrementVisibilityBoost(ctx context.Context) {

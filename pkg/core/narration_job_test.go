@@ -131,6 +131,7 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.AutoNarrate = true
 	cfg.Narrator.MinScoreThreshold = 10.0
+	cfg.Narrator.Essay.Enabled = true // Enable Essay for these tests
 
 	tests := []struct {
 		name             string
@@ -229,18 +230,40 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 			job.lastTime = time.Time{}
 			job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
-			// Test ShouldFire
-			if job.ShouldFire(tel) != tt.expectShouldFire {
-				t.Errorf("%s: ShouldFire returned %v, expected %v", tt.name, !tt.expectShouldFire, tt.expectShouldFire)
+			// Test Readiness
+			ready := job.CanPreparePOI(tel)
+			// Only assert NOT ready if we are testing a blocker (like Paused)
+			if tt.isPaused && ready {
+				t.Errorf("%s: Expected CanPreparePOI to be false (Paused)", tt.name)
 			}
 
+			// Execute if ready (Simulate main.go loop)
+			poiFired := false
+			if ready {
+				poiFired = job.PreparePOI(context.Background(), tel)
+			}
+
+			// Fallback to Essay if POI didn't fire (and Essay is ready)
+			if !poiFired && job.CanPrepareEssay(tel) {
+				job.PrepareEssay(context.Background(), tel)
+			}
+
+			// Assert Outcomes
 			if tt.expectShouldFire {
-				job.Run(context.Background(), tel)
+				// We expected SOMETHING to happen (POI or Essay)
 				if tt.expectEssay && !mockN.playEssayCalled {
 					t.Error("Expected PlayEssay to be called")
 				}
 				if !tt.expectEssay && tt.bestPOI != nil && tt.bestPOI.Score >= cfg.Narrator.MinScoreThreshold && !mockN.playPOICalled {
 					t.Error("Expected PlayPOI to be called")
+				}
+			} else {
+				// We expected NOTHING to happen
+				if mockN.playEssayCalled {
+					t.Error("Unexpected PlayEssay call")
+				}
+				if mockN.playPOICalled {
+					t.Error("Unexpected PlayPOI call")
 				}
 			}
 		})
@@ -338,31 +361,51 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 				Longitude:   -123.0,
 			}
 
-			// 1. ShouldFire Check
-			fired := job.ShouldFire(tel)
-			if fired != tt.expectShouldFire {
-				t.Errorf("ShouldFire() = %v, want %v", fired, tt.expectShouldFire)
+			// 1. Priority Logic Simulation (Mirroring Main Loop)
+			// We track if we *attempted* an action, but final success depends on Mock calls
+			// 1. Priority Logic Simulation (Mirroring Main Loop)
+			if job.CanPreparePOI(tel) {
+				if job.PreparePOI(context.Background(), tel) {
+					// POI Triggered, skip Essay for this tick (represented by loop break in main)
+				} else {
+					// Fall through to Essay if POI failed (e.g. no content)
+					if job.CanPrepareEssay(tel) {
+						job.PrepareEssay(context.Background(), tel)
+					}
+				}
+			} else if job.CanPrepareEssay(tel) {
+				job.PrepareEssay(context.Background(), tel)
 			}
 
-			// 2. Run Check (only if expected to fire)
+			// 2. Verification of Outcomes
 			if tt.expectShouldFire {
-				job.Run(context.Background(), tel)
-
+				// If we expected fire, one of them should have been called
+				if !mockN.playEssayCalled && !mockN.playPOICalled {
+					t.Error("Expected narration (POI or Essay), but neither played")
+				}
 				if tt.expectEssayCalled != mockN.playEssayCalled {
 					t.Errorf("PlayEssay called? %v, want %v", mockN.playEssayCalled, tt.expectEssayCalled)
 				}
 				if tt.expectPOICalled != mockN.playPOICalled {
 					t.Errorf("PlayPOI called? %v, want %v", mockN.playPOICalled, tt.expectPOICalled)
 				}
-
-				// Verify State Updates
+			} else {
+				// Expected Silence
 				if mockN.playEssayCalled {
-					if time.Since(job.lastEssayTime) > 1*time.Second {
-						t.Error("lastEssayTime was not updated after playing essay")
-					}
-					if time.Since(job.lastTime) > 1*time.Second {
-						t.Error("lastTime (silence) was not updated after playing essay")
-					}
+					t.Error("Unexpected PlayEssay call")
+				}
+				if mockN.playPOICalled {
+					t.Error("Unexpected PlayPOI call")
+				}
+			}
+
+			// Verify State Updates
+			if mockN.playEssayCalled {
+				if time.Since(job.lastEssayTime) > 1*time.Second {
+					t.Error("lastEssayTime was not updated after playing essay")
+				}
+				if time.Since(job.lastTime) > 1*time.Second {
+					t.Error("lastTime (silence) was not updated after playing essay")
 				}
 			}
 		})
@@ -511,13 +554,13 @@ func TestNarrationJob_AdaptiveMode(t *testing.T) {
 	job.lastTime = time.Time{} // Force ready
 	job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
-	// 1. ShouldFire should be TRUE because adaptive mode ignores the 10.0 threshold
-	if !job.ShouldFire(tel) {
-		t.Error("Adaptive Mode: ShouldFire returned false for valid low-score POI")
+	// 1. CanPreparePOI should be TRUE
+	if !job.CanPreparePOI(tel) {
+		t.Error("Adaptive Mode: CanPreparePOI returned false for valid low-score POI")
 	}
 
-	// 2. Run should trigger PlayPOI
-	job.Run(context.Background(), tel)
+	// 2. PreparePOI should trigger PlayPOI
+	job.PreparePOI(context.Background(), tel)
 	if !mockN.playPOICalled {
 		t.Error("Adaptive Mode: Expected PlayPOI to be called for low-score POI")
 	}
@@ -547,21 +590,25 @@ func TestNarrationJob_DynamicMinScore(t *testing.T) {
 	job.lastTime = time.Time{}
 	job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
-	// 1. ShouldFire should be FALSE (5.0 < 6.0)
-	// (Even though default was 10.0, we override to 6.0. 5.0 is still < 6.0)
-	if job.ShouldFire(tel) {
-		t.Error("Dynamic Score: ShouldFire returned true, expected false (5.0 < 6.0)")
+	// 1. CanPreparePOI should be TRUE (System Ready, not checking score yet)
+	if !job.CanPreparePOI(tel) {
+		t.Error("Dynamic Score: CanPreparePOI returned false, expected true (ready state)")
+	}
+
+	// 2. PreparePOI should return FALSE (Score < Threshold)
+	if job.PreparePOI(context.Background(), tel) {
+		t.Error("Dynamic Score: PreparePOI returned true, expected false (score < threshold)")
 	}
 
 	// Update Store to be even lower (4.0)
 	store.SetState(context.Background(), "min_poi_score", "4.0")
 
-	// 2. ShouldFire should now be TRUE (5.0 >= 4.0)
-	if !job.ShouldFire(tel) {
-		t.Error("Dynamic Score: ShouldFire returned false, expected true (5.0 >= 4.0)")
+	// 2. CanPreparePOI should now be TRUE (5.0 >= 4.0)
+	if !job.CanPreparePOI(tel) {
+		t.Error("Dynamic Score: CanPreparePOI returned false, expected true (5.0 >= 4.0)")
 	}
 
-	job.Run(context.Background(), tel)
+	job.PreparePOI(context.Background(), tel)
 	if !mockN.playPOICalled {
 		t.Error("Dynamic Score: Expected PlayPOI call after lowering threshold")
 	}
@@ -645,15 +692,15 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 				Longitude:   -123.0,
 			}
 
-			// 1. ShouldFire
-			fired := job.ShouldFire(tel)
+			// 1. CanPreparePOI
+			fired := job.CanPreparePOI(tel)
 			if fired != tt.expectShouldFire {
-				t.Errorf("ShouldFire() = %v, want %v", fired, tt.expectShouldFire)
+				t.Errorf("CanPreparePOI() = %v, want %v", fired, tt.expectShouldFire)
 			}
 
-			// 2. Run (if fired)
+			// 2. PreparePOI (if fired)
 			if fired {
-				job.Run(context.Background(), tel)
+				job.PreparePOI(context.Background(), tel)
 				if mockN.prepareNextCalled != tt.expectPrepareNext {
 					t.Errorf("PrepareNextNarrative called? %v, want %v", mockN.prepareNextCalled, tt.expectPrepareNext)
 				}
@@ -716,7 +763,7 @@ func TestNarrationJob_PostTakeoffGracePeriod(t *testing.T) {
 
 			// Prime the job with ground telemetry to avoid "Started Airborne" bypass logic
 			// This simulates that the application started while on the ground.
-			job.ShouldFire(&sim.Telemetry{
+			job.CanPreparePOI(&sim.Telemetry{
 				IsOnGround: true,
 				Latitude:   48.0,
 				Longitude:  -123.0,
@@ -741,9 +788,9 @@ func TestNarrationJob_PostTakeoffGracePeriod(t *testing.T) {
 				Longitude:   -123.0,
 			}
 
-			fired := job.ShouldFire(tel)
+			fired := job.CanPreparePOI(tel)
 			if fired != tt.expectShouldFire {
-				t.Errorf("ShouldFire() = %v, want %v", fired, tt.expectShouldFire)
+				t.Errorf("CanPreparePOI() = %v, want %v", fired, tt.expectShouldFire)
 			}
 		})
 	}
@@ -833,8 +880,8 @@ func TestNarrationJob_StartAirborne_NoDelay(t *testing.T) {
 	}
 
 	// Should fire IMMEDIATELY (no grace period) because we started in the air
-	if !job.ShouldFire(tel) {
-		t.Error("Started airborne but ShouldFire returned false (Grace period incorrectly applied?)")
+	if !job.CanPreparePOI(tel) {
+		t.Error("Started airborne but CanPreparePOI returned false (Grace period incorrectly applied?)")
 	}
 }
 
@@ -870,8 +917,10 @@ func TestNarrationJob_ScreenshotDetection(t *testing.T) {
 	}
 
 	// 1. Initial State: No screenshot
-	if job.ShouldFire(tel) {
-		t.Error("ShouldFire returned true with no screenshot and no POI")
+	// CheckScreenshots should NOT trigger PlayImage
+	job.CheckScreenshots(context.Background(), tel)
+	if mockN.playImageCalled {
+		t.Error("PlayImage call unexpectedly")
 	}
 
 	// 2. Create Dummy Screenshot
@@ -881,16 +930,10 @@ func TestNarrationJob_ScreenshotDetection(t *testing.T) {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 
-	// 3. ShouldFire should now find it
+	// 3. CheckScreenshots should found it and Play
 	// Note: CheckNew depends on file mod time vs lastChecked.
 	// Since watcher was created BEFORE file write, modTime > lastChecked.
-	if !job.ShouldFire(tel) {
-		t.Error("ShouldFire returned false, expected true for new screenshot")
-	}
-
-	// 4. Run should trigger PlayImage
-	// Setup Run to consume the pending screenshot
-	job.Run(context.Background(), tel)
+	job.CheckScreenshots(context.Background(), tel)
 
 	if !mockN.playImageCalled {
 		t.Error("PlayImage was NOT called after detecting screenshot")

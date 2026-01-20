@@ -33,23 +33,10 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 	}
 
 	// 1. Check Queue (Deduplication & Re-prioritization)
-	s.mu.Lock()
-	for i, n := range s.queue {
-		if n.POI != nil && n.POI.WikidataID == poiID {
-			if manual {
-				// Move to front (High Priority)
-				s.queue = append(s.queue[:i], s.queue[i+1:]...)
-				s.queue = append([]*Narrative{n}, s.queue...)
-				slog.Info("Narrator: Boosting queued item to front", "poi_id", poiID)
-			} else {
-				slog.Info("Narrator: Item already in queue, skipping duplicate request", "poi_id", poiID)
-			}
-			s.mu.Unlock()
-			go s.processQueue(context.Background())
-			return
-		}
+	if s.promoteInQueue(poiID, manual) {
+		go s.processQueue(context.Background())
+		return
 	}
-	s.mu.Unlock()
 
 	// 2. Priority Queue Enqueue (Manual Only)
 	if manual {
@@ -81,10 +68,29 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 
 	// 4. Async Generation (Auto)
 	go func() {
-		// Use a detached context for generation to survive caller context cancel
+		// Ensure generation context survives
 		genCtx := context.Background()
 
-		narrative, err := s.GenerateNarrative(genCtx, poiID, strategy, tel, manual)
+		// Build Prompt
+		promptData := s.buildPromptData(genCtx, p, tel, strategy)
+		prompt, err := s.prompts.Render("narrator/script.tmpl", promptData)
+		if err != nil {
+			slog.Error("Narrator: Failed to render prompt", "error", err)
+			return
+		}
+
+		// Create Request
+		req := GenerationRequest{
+			Type:     model.NarrativeTypePOI,
+			Prompt:   prompt,
+			Title:    p.DisplayName(),
+			SafeID:   strings.ReplaceAll(p.WikidataID, "/", "_"),
+			POI:      p,
+			MaxWords: promptData.MaxWords,
+			Manual:   manual,
+		}
+
+		narrative, err := s.GenerateNarrative(genCtx, &req)
 		if err != nil {
 			slog.Error("Narrator: Generation failed", "poi_id", poiID, "error", err)
 			return
@@ -100,7 +106,31 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error {
 	slog.Info("Narrator: Pipeline preparing next narrative", "poi_id", poiID)
 
-	narrative, err := s.GenerateNarrative(ctx, poiID, strategy, tel, false)
+	p, err := s.poiMgr.GetPOI(ctx, poiID)
+	if err != nil {
+		return err
+	}
+	if p == nil {
+		return fmt.Errorf("POI not found")
+	}
+
+	promptData := s.buildPromptData(ctx, p, tel, strategy)
+	prompt, err := s.prompts.Render("narrator/script.tmpl", promptData)
+	if err != nil {
+		return err
+	}
+
+	req := GenerationRequest{
+		Type:     model.NarrativeTypePOI,
+		Prompt:   prompt,
+		Title:    p.DisplayName(),
+		SafeID:   strings.ReplaceAll(p.WikidataID, "/", "_"),
+		POI:      p,
+		MaxWords: promptData.MaxWords,
+		Manual:   false,
+	}
+
+	narrative, err := s.GenerateNarrative(ctx, &req)
 	if err != nil {
 		return err
 	}
@@ -109,164 +139,11 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 	return nil
 }
 
-// GenerateNarrative prepares a narrative for a POI without playing it.
-func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry, force bool) (*Narrative, error) {
-	// 1. Synchronous state check & Force Logic
-	s.mu.Lock()
-	if s.generating {
-		if force {
-			slog.Info("Narrator: Forcing generation, canceling previous job")
-			if s.genCancelFunc != nil {
-				s.genCancelFunc() // Cancel the existing context
-			}
-			s.mu.Unlock()
-
-			// Wait for the previous job to exit (it clears s.generating in defer)
-			// Busy wait with timeout
-			waitStart := time.Now()
-			for {
-				s.mu.RLock()
-				stillGen := s.generating
-				s.mu.RUnlock()
-				if !stillGen {
-					break
-				}
-				if time.Since(waitStart) > 5*time.Second {
-					return nil, fmt.Errorf("timeout waiting for previous generation to cancel")
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-			s.mu.Lock() // Re-acquire for setting true below
-		} else {
-			s.mu.Unlock()
-			return nil, fmt.Errorf("narrator already generating")
-		}
-	}
-	s.generating = true
-
-	// Create a cancellable context for THIS generation
-	genCtx, cancel := context.WithCancel(ctx)
-	s.genCancelFunc = cancel
-
-	s.mu.Unlock()
-
-	// Capture start time for latency tracking
-	startTime := time.Now()
-
-	defer func() {
-		// Update Latency (Total Generation Cost)
-		// We do this in defer to catch errors too, though ideally we only care about success or expensive failures?
-		// Let's count it all for now as "Cost of utilizing the creation pipeline".
-		// Actually, if it errors early, it's fast. That might skew avg down.
-		// But if it takes 5s and fails, we want to know that cost.
-		s.updateLatency(time.Since(startTime))
-
-		s.mu.Lock()
-		s.generating = false
-		s.genCancelFunc = nil // Clear cancel func
-		s.generatingPOI = nil
-		s.mu.Unlock()
-		cancel() // Ensure context is cancelled on exit
-	}()
-
-	// Use genCtx instead of ctx for downstream calls
-	ctx = genCtx
-
-	// Fetch POI (using background context for consistency with prev implementation, or passed ctx)
-	p, err := s.poiMgr.GetPOI(ctx, poiID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch POI: %w", err)
-	}
-	if p == nil {
-		return nil, fmt.Errorf("POI not found: %s", poiID)
-	}
-
-	// Update state to show we are generating THIS POI
-	s.mu.Lock()
-	s.generatingPOI = p
-	s.mu.Unlock()
-
-	// Gather Context & Build Prompt
-	promptData := s.buildPromptData(ctx, p, tel, strategy)
-	slog.Info("Narrator: Generating script",
-		"name", p.DisplayName(),
-		"qid", p.WikidataID,
-		"relative_dominance", promptData.DominanceStrategy,
-		"predicted_delay", s.AverageLatency(),
-	)
-
-	prompt, err := s.prompts.Render("narrator/script.tmpl", promptData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to render prompt: %w", err)
-	}
-
-	// Generate LLM Script
-	script, err := s.generateScript(ctx, prompt)
-	if err != nil {
-		return nil, fmt.Errorf("LLM generation failed: %w", err)
-	}
-
-	// Plausibility Check: Script too long may indicate reasoning leak
-	wordCount := len(strings.Fields(script))
-	limit := promptData.MaxWords + 100
-	if wordCount > limit {
-		slog.Warn("Narrator: Script exceeded limit, attempting rescue",
-			"requested", promptData.MaxWords,
-			"actual", wordCount,
-			"limit", limit)
-
-		// Attempt LLM-based rescue
-		rescuedScript, err := s.rescueScript(ctx, script, promptData.MaxWords)
-		if err != nil {
-			slog.Error("Narrator: Script rescue failed", "error", err)
-			return nil, fmt.Errorf("script rescue failed: %w", err)
-		}
-
-		slog.Info("Narrator: Script rescue successful",
-			"original_words", wordCount,
-			"rescued_words", len(strings.Fields(rescuedScript)))
-		script = rescuedScript
-	}
-
-	// Save to history (This was in narratePOI, ok to do here as it's part of "creation")
-	p.Script = script
-	// REMOVED: s.addScriptToHistory(p.WikidataID, p.DisplayName(), script) - Moved to PlayNarrative
-
-	// TTS Synthesis
-	safeID := strings.ReplaceAll(p.WikidataID, "/", "_")
-	audioPath, format, err := s.synthesizeAudio(ctx, script, safeID)
-	if err != nil {
-		s.handleTTSError(err)
-		return nil, fmt.Errorf("TTS synthesis failed: %w", err)
-	}
-
-	// Log generation complete (before queue wait for playback)
-	genWords := len(strings.Fields(script))
-	slog.Debug("Narrator: Generation complete",
-		"name", p.DisplayName(),
-		"qid", p.WikidataID,
-		"requested_len", promptData.MaxWords,
-		"words", genWords,
-	)
-
-	// If synthesis successful, return Narrative
-	return &Narrative{
-		Type:           "poi",
-		POI:            p,
-		Title:          p.DisplayName(),
-		Script:         script,
-		AudioPath:      audioPath,
-		Format:         format,
-		RequestedWords: promptData.MaxWords,
-		Manual:         force,
-	}, nil
-}
-
 // PlayNarrative plays a previously generated narrative.
 // This method is non-blocking: it starts playback and returns immediately.
 // Playback completion is monitored in a background goroutine.
 // Supports both POI narratives and non-POI narratives (screenshots, essays, etc.)
-func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
+func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error {
 	s.mu.Lock()
 	if s.active {
 		s.mu.Unlock()
@@ -314,7 +191,7 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 
 	// Determine display name for logging
 	displayName := n.Title
-	displayID := n.Type
+	displayID := string(n.Type)
 	if n.POI != nil {
 		displayName = n.POI.DisplayName()
 		displayID = n.POI.WikidataID
@@ -351,7 +228,7 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *Narrative) error {
 }
 
 // monitorPlayback waits for audio to finish and cleans up state.
-func (s *AIService) monitorPlayback(n *Narrative) {
+func (s *AIService) monitorPlayback(n *model.Narrative) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -362,7 +239,7 @@ func (s *AIService) monitorPlayback(n *Narrative) {
 
 		// Use Title for non-POI narratives, DisplayName() for POI narratives
 		displayName := n.Title
-		displayID := n.Type
+		displayID := string(n.Type)
 		if n.POI != nil {
 			displayName = n.POI.DisplayName()
 			displayID = n.POI.WikidataID
@@ -457,4 +334,26 @@ func (s *AIService) rescueScript(ctx context.Context, script string, maxWords in
 	}
 
 	return strings.TrimSpace(rescued), nil
+}
+
+// promoteInQueue checks if a POI is already in the queue and promotes it if manual.
+// Returns true if the POI was found and handled (promoted or already exists).
+func (s *AIService) promoteInQueue(poiID string, manual bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i, n := range s.queue {
+		if n.POI != nil && n.POI.WikidataID == poiID {
+			if manual {
+				// Move to front (High Priority)
+				s.queue = append(s.queue[:i], s.queue[i+1:]...)
+				s.queue = append([]*model.Narrative{n}, s.queue...)
+				slog.Info("Narrator: Boosting queued item to front", "poi_id", poiID)
+			} else {
+				slog.Info("Narrator: Item already in queue, skipping duplicate request", "poi_id", poiID)
+			}
+			return true
+		}
+	}
+	return false
 }

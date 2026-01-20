@@ -75,14 +75,14 @@ func (m *mockPhase2NarratorService) Resume()                            {}
 func (m *mockPhase2NarratorService) CurrentNarrative() *model.Narrative { return nil }
 func (m *mockPhase2NarratorService) CurrentTitle() string               { return "" }
 func (m *mockPhase2NarratorService) CurrentImagePath() string           { return "" }
-func (m *mockPhase2NarratorService) GenerateNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry, force bool) (*narrator.Narrative, error) {
+func (m *mockPhase2NarratorService) GenerateNarrative(ctx context.Context, req *narrator.GenerationRequest) (*model.Narrative, error) {
 	return nil, nil
 }
 func (m *mockPhase2NarratorService) NarratedCount() int    { return 0 }
 func (m *mockPhase2NarratorService) Stats() map[string]any { return nil }
 func (m *mockPhase2NarratorService) Start()                {}
 func (m *mockPhase2NarratorService) Stop()                 {}
-func (m *mockPhase2NarratorService) PlayNarrative(ctx context.Context, n *narrator.Narrative) error {
+func (m *mockPhase2NarratorService) PlayNarrative(ctx context.Context, n *model.Narrative) error {
 	return nil
 }
 func (m *mockPhase2NarratorService) SkipCooldown()                       {}
