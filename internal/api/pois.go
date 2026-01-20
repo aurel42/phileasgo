@@ -200,7 +200,7 @@ func (h *POIHandler) selectThumbnailWithLLM(ctx context.Context, title, lang str
 		ArticleURL string
 		Images     []wikipedia.ImageResult
 	}{
-		Name:       p.NameEn,
+		Name:       p.DisplayName(),
 		Category:   p.Category,
 		ArticleURL: articleURL,
 		Images:     images,

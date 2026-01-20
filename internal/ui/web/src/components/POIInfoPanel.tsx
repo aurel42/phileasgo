@@ -47,7 +47,7 @@ const formatTimeAgo = (dateStr: string) => {
 
 export const POIInfoPanel = ({ poi, pois, onClose }: POIInfoPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-    const [strategy, setStrategy] = useState<'min_skew' | 'uniform' | 'max_skew'>('uniform');
+    const [strategy, setStrategy] = useState<'min_skew' | 'uniform' | 'max_skew'>('min_skew');
     const queryClient = useQueryClient();
 
     // Get fresh POI data from the polled pois array
@@ -188,17 +188,12 @@ export const POIInfoPanel = ({ poi, pois, onClose }: POIInfoPanelProps) => {
                                     className={`length-btn ${strategy === 'min_skew' ? 'active' : ''}`}
                                     onClick={(e) => { e.stopPropagation(); setStrategy('min_skew'); }}
                                     title="Short Narration"
-                                >S</button>
-                                <button
-                                    className={`length-btn ${strategy === 'uniform' ? 'active' : ''}`}
-                                    onClick={(e) => { e.stopPropagation(); setStrategy('uniform'); }}
-                                    title="Standard Narration"
-                                >M</button>
+                                >SHORT</button>
                                 <button
                                     className={`length-btn ${strategy === 'max_skew' ? 'active' : ''}`}
                                     onClick={(e) => { e.stopPropagation(); setStrategy('max_skew'); }}
                                     title="Long Narration"
-                                >L</button>
+                                >LONG</button>
                             </div>
                         </div>
                     </div>

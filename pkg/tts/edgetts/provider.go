@@ -85,7 +85,7 @@ func (p *Provider) dial(ctx context.Context) (*websocket.Conn, error) {
 	header.Set("Origin", edgeOrigin)
 	header.Set("Pragma", "no-cache")
 	header.Set("Cache-Control", "no-cache")
-	header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.2903.99")
+	header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0")
 	header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
 	header.Set("Accept-Language", "en-US,en;q=0.9")
 
@@ -95,7 +95,7 @@ func (p *Provider) dial(ctx context.Context) (*websocket.Conn, error) {
 
 	// Sec-MS-GEC Generation
 	token := p.generateSecMSGec()
-	version := "1-131.0.2903.99"
+	version := "1-132.0.2957.127"
 
 	url := fmt.Sprintf("%s?TrustedClientToken=%s&Sec-MS-GEC=%s&Sec-MS-GEC-Version=%s",
 		edgeBaseURL, trustedClientToken, token, version)

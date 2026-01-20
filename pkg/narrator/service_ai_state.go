@@ -70,7 +70,7 @@ func (s *AIService) IsPlaying() bool {
 
 // IsPaused returns true if the narrator is globally paused by the user.
 func (s *AIService) IsPaused() bool {
-	return s.audio.IsPaused()
+	return s.audio.IsUserPaused()
 }
 
 // CurrentPOI returns the POI currently being narrated, if any.

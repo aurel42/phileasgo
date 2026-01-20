@@ -1,5 +1,18 @@
 ﻿# Release History
 
+## v0.2.124 (2026-01-20)
+- **Fix**: **Scheduler Pause Button**
+    - Resolved a bug where the Pause button in the browser app did not stop auto-narration.
+    - The scheduler was checking `audio.IsPaused()` (transient playback state) instead of `audio.IsUserPaused()` (user-initiated pause).
+    - Updated `AIService.IsPaused()` in `pkg/narrator/service_ai_state.go` to correctly check the user pause state.
+- **Fix**: **Missing POI Name in Thumbnail Selector**
+    - The thumbnail selection prompt was using `p.NameEn` which can be empty for POIs with only local names.
+    - Changed to `p.DisplayName()` in `internal/api/pois.go` to ensure a name is always available (fallback: NameUser > NameEn > NameLocal > WikidataID).
+- **UI**: **Simplified Narration Length Selector**
+    - Removed the **M** (Medium) button from the POI Info Panel.
+    - Renamed **S** to **SHORT** and **L** to **LONG** for clarity.
+    - Default selection is now **SHORT** instead of Medium.
+
 ## v0.2.123 (2026-01-20)
 - **Refactor**: **Unified Narration Generation Pipeline & Modularization**
     - Split the monolithic `service_ai.go` into specialized files: `service_ai_queue.go`, `service_ai_tts.go`, `service_ai_state.go`, `service_ai_stats.go`, and `service_ai_generation.go`.
