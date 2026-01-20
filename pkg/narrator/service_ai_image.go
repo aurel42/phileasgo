@@ -28,11 +28,12 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 	}
 
 	loc := s.geoSvc.GetLocation(tel.Latitude, tel.Longitude)
-	city := loc.CityName
 
 	// Prepare Prompt
 	data := map[string]any{
-		"City":        city,
+		"City":        loc.CityName,
+		"Region":      loc.Admin1Name,
+		"Country":     loc.CountryCode,
 		"MaxWords":    s.cfg.Narrator.NarrationLengthLongWords,
 		"TripSummary": s.getTripSummary(),
 		"Lat":         fmt.Sprintf("%.3f", tel.Latitude),

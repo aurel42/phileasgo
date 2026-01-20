@@ -131,8 +131,8 @@ func (j *NarrationJob) CanPrepareEssay(t *sim.Telemetry) bool {
 	if !j.checkPreConditions(t) {
 		return false
 	}
-	// 2. State Check
-	if j.narrator.IsPaused() || j.narrator.IsGenerating() {
+	// 2. State Check - essays require complete silence
+	if j.narrator.IsPaused() || j.narrator.IsGenerating() || j.narrator.IsPlaying() {
 		return false
 	}
 	// 3. Essay Logic
@@ -384,13 +384,26 @@ func (j *NarrationJob) checkPreConditions(t *sim.Telemetry) bool {
 }
 
 func (j *NarrationJob) isPlayable(p *model.POI) bool {
+	// Check if already in pipeline (Generating, Queued, Playing)
+	// This prevents the "double trigger" issue where a POI is selected again while generating/queued
+	if j.narrator.IsPOIBusy(p.WikidataID) {
+		return false
+	}
+
 	if p.LastPlayed.IsZero() {
 		return true
 	}
 	return time.Since(p.LastPlayed) >= time.Duration(j.cfg.Narrator.RepeatTTL)
 }
 
+// hasEligiblePOI returns true if there is at least one visible POI candidate.
+// This is used by checkEssayEligible to ensure essays are gap-fillers only.
+func (j *NarrationJob) hasEligiblePOI(t *sim.Telemetry) bool {
+	return j.getVisibleCandidate(t) != nil
+}
+
 // checkEssayEligible returns true if conditions for essay narration are met.
+// Essays are gap-fillers: they only fire when there are NO visible POIs.
 func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 	if !j.cfg.Narrator.Essay.Enabled {
 		return false
@@ -398,6 +411,12 @@ func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 
 	// Disable Essay in "Rarely" mode
 	if j.getNarrationFrequency() == 1 {
+		return false
+	}
+
+	// PRIORITY RULE: Essays only fire when there are NO visible POIs
+	// This is the core "gap filler" logic from v0.2.121
+	if j.hasEligiblePOI(t) {
 		return false
 	}
 
@@ -410,7 +429,14 @@ func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 
 	// Global delay before essay (Time since last narration)
 	// Must be quiet for at least DelayBeforeEssay
-	if time.Since(j.lastTime) < time.Duration(j.cfg.Narrator.Essay.DelayBeforeEssay) {
+	delayBeforeEssay := time.Duration(j.cfg.Narrator.Essay.DelayBeforeEssay)
+	if time.Since(j.lastTime) < delayBeforeEssay {
+		return false
+	}
+
+	// Takeoff grace: Wait at least DelayBeforeEssay after takeoff
+	// This gives POIs a chance to be narrated before falling back to essays
+	if !j.takeoffTime.IsZero() && time.Since(j.takeoffTime) < delayBeforeEssay {
 		return false
 	}
 
@@ -425,7 +451,7 @@ func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 		return false
 	}
 
-	slog.Debug("NarrationJob: Essay eligible (Silence & Cooldown met)")
+	slog.Debug("NarrationJob: Essay eligible (No POIs, Silence & Cooldown met)")
 	return true
 }
 

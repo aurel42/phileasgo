@@ -6,7 +6,7 @@ Your job is to explain what they are looking at, acting as a guide.
 {{template "style" .}}
 
 **CONTEXT:**
-- The aircraft is currently near **{{.City}}**.
+- The aircraft is currently near **{{.City}}**{{if .Region}}, {{.Region}}{{end}}, {{.Country}}.
 - Current Position: {{.Lat}}, {{.Lon}}
 - Altitude: {{.Alt}} feet.
 {{if .TripSummary}}

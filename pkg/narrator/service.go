@@ -67,6 +67,8 @@ type Service interface {
 	AverageLatency() time.Duration
 	// CurrentImagePath returns the file path of the message for the current narration.
 	CurrentImagePath() string
+	// IsPOIBusy returns true if the POI is currently generating, queued, or playing.
+	IsPOIBusy(poiID string) bool
 }
 
 // StubService is a stub implementation of the narrator service.
@@ -279,4 +281,9 @@ func (s *StubService) AverageLatency() time.Duration {
 // CurrentImagePath returns the file path of the message for the current narration (stub: empty).
 func (s *StubService) CurrentImagePath() string {
 	return ""
+}
+
+// IsPOIBusy returns true if the POI is currently generating, queued, or playing (stub: false).
+func (s *StubService) IsPOIBusy(poiID string) bool {
+	return false
 }

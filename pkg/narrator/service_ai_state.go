@@ -87,6 +87,38 @@ func (s *AIService) CurrentImagePath() string {
 	return s.currentImagePath
 }
 
+// IsPOIBusy returns true if the POI is currently generating, queued, or playing.
+func (s *AIService) IsPOIBusy(poiID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// 1. Check Generating
+	if s.generatingPOI != nil && s.generatingPOI.WikidataID == poiID {
+		return true
+	}
+
+	// 2. Check Playing
+	if s.currentPOI != nil && s.currentPOI.WikidataID == poiID {
+		return true
+	}
+
+	// 3. Check Queue
+	for _, n := range s.queue {
+		if n.POI != nil && n.POI.WikidataID == poiID {
+			return true
+		}
+	}
+
+	// 4. Check Priority Generation Queue
+	for _, job := range s.priorityGenQueue {
+		if job.POIID == poiID {
+			return true
+		}
+	}
+
+	return false
+}
+
 // GetPreparedPOI returns the POI being prepared for pipeline playback, if any.
 func (s *AIService) GetPreparedPOI() *model.POI {
 	s.mu.RLock()

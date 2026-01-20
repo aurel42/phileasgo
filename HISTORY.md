@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.128 (2026-01-20)
+- **Fix**: **Restored Essay Rules (Gap-Filling)**
+    - Essays now correctly function as "gap-fillers": they only trigger if NO visible POIs are eligible (`hasEligiblePOI`).
+    - Added comprehensive silence checks: Essays cannot trigger while audio is playing (paused, generating, or active).
+    - Added **Takeoff Grace Period** for essays: Essays must wait at least `delay_before_essay` (default 4m) after takeoff before firing.
+- **Fix**: **Duplicate Narration Prevention**
+    - Introduced `IsPOIBusy(qid)` check in the narrator service.
+    - Prevents `NarrationJob` from selecting a POI that is currently generating or sitting in the queue, eliminating "double narration" of the same POI.
+
 ## v0.2.127 (2026-01-20)
 - **Fix**: **SPARQL Duplicate QID Elimination**
     - SPARQL queries can return multiple rows for the same entity when multi-valued properties (e.g., `area`) differ between rows.
