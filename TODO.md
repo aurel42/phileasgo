@@ -16,4 +16,4 @@ X add a streaming switch to the UI so it keeps updating in the background
 X expand blind spot to 360°
 X OBS overlay
 - add info about next city or town to script prompt, and find a good way to make use of it
-- Check X ShouldFire, RunPOI, Narrative in model, conditions and flows for manual POI, Screenshot, Debrief, system-selected POI, Essay
+- auto-update edge-tts user agent and key from locally installed Edge

@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.2.125 (2026-01-20)
+- **Fix**: **Duplicate Thumbnail LLM Requests**
+    - Implemented a **singleflight pattern** in `HandleThumbnail` to coalesce concurrent requests for the same POI.
+    - When multiple frontend components (POIInfoPanel + OverlayPOIPanel) request a thumbnail simultaneously, the second request now waits for the first to complete and receives the same result.
+    - Ensures both UIs display the same thumbnail from a single LLM call.
+- **Fix**: **Debrief Queue Bypass**
+    - Removed redundant `s.generating` check from `PlayDebrief` that caused debriefs to be skipped instead of queued.
+    - Debriefs are now properly enqueued as high-priority items and will play when the audio is free.
+
 ## v0.2.124 (2026-01-20)
 - **Fix**: **Scheduler Pause Button**
     - Resolved a bug where the Pause button in the browser app did not stop auto-narration.

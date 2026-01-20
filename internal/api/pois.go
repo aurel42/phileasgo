@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"phileasgo/pkg/llm"
 	"phileasgo/pkg/llm/prompts"
@@ -18,6 +19,13 @@ import (
 	"phileasgo/pkg/wikipedia"
 )
 
+// thumbnailFlight holds an in-flight thumbnail fetch for request coalescing.
+type thumbnailFlight struct {
+	done   chan struct{} // Closed when fetch completes
+	result string        // Result URL (empty string if failed)
+	err    error         // Error if fetch failed
+}
+
 // POIHandler exposes POI data to the frontend.
 type POIHandler struct {
 	mgr       *poi.Manager
@@ -25,11 +33,23 @@ type POIHandler struct {
 	store     store.Store
 	llm       llm.Provider
 	promptMgr *prompts.Manager
+
+	// thumbnailFlights coalesces concurrent thumbnail requests for the same POI.
+	// Key is POI WikidataID, value is the in-flight request.
+	thumbnailFlightMu sync.Mutex
+	thumbnailFlights  map[string]*thumbnailFlight
 }
 
 // NewPOIHandler creates a new POI handler.
 func NewPOIHandler(mgr *poi.Manager, wp *wikipedia.Client, st store.Store, llmProv llm.Provider, promptMgr *prompts.Manager) *POIHandler {
-	return &POIHandler{mgr: mgr, wp: wp, store: st, llm: llmProv, promptMgr: promptMgr}
+	return &POIHandler{
+		mgr:              mgr,
+		wp:               wp,
+		store:            st,
+		llm:              llmProv,
+		promptMgr:        promptMgr,
+		thumbnailFlights: make(map[string]*thumbnailFlight),
+	}
 }
 
 // ... existing handler methods ...
@@ -79,6 +99,7 @@ func (h *POIHandler) HandleTracked(w http.ResponseWriter, r *http.Request) {
 
 // HandleThumbnail handles GET /api/pois/{id}/thumbnail.
 // Fetches thumbnail from Wikipedia if not cached, persists it, and returns it.
+// Uses singleflight pattern to coalesce concurrent requests for the same POI.
 func (h *POIHandler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -101,17 +122,49 @@ func (h *POIHandler) HandleThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If thumbnail already cached, return it
+	// If thumbnail already cached, return it immediately
 	if p.ThumbnailURL != "" {
 		h.respondThumbnail(w, p.ThumbnailURL)
 		return
 	}
 
-	// Fetch new thumbnail
-	thumbURL, err := h.fetchAndCacheThumbnail(r.Context(), p)
-	if err != nil {
-		// Log error but return empty thumbnail to frontend so it stops retrying or shows placeholder
-		slog.Warn("Failed to fetch thumbnail", "poi_id", poiID, "error", err)
+	// Singleflight: Check if a fetch is already in progress for this POI
+	h.thumbnailFlightMu.Lock()
+	if flight, ok := h.thumbnailFlights[poiID]; ok {
+		// Another request is already fetching; wait for it
+		h.thumbnailFlightMu.Unlock()
+		<-flight.done // Wait for completion
+		if flight.err != nil {
+			slog.Warn("Failed to fetch thumbnail (waited)", "poi_id", poiID, "error", flight.err)
+			h.respondThumbnail(w, "")
+			return
+		}
+		h.respondThumbnail(w, flight.result)
+		return
+	}
+
+	// We are the first request; create a flight record
+	flight := &thumbnailFlight{done: make(chan struct{})}
+	h.thumbnailFlights[poiID] = flight
+	h.thumbnailFlightMu.Unlock()
+
+	// Fetch thumbnail (this is the expensive LLM call)
+	thumbURL, fetchErr := h.fetchAndCacheThumbnail(r.Context(), p)
+
+	// Store result in flight struct
+	flight.result = thumbURL
+	flight.err = fetchErr
+
+	// Signal completion to all waiters
+	close(flight.done)
+
+	// Clean up the flight record
+	h.thumbnailFlightMu.Lock()
+	delete(h.thumbnailFlights, poiID)
+	h.thumbnailFlightMu.Unlock()
+
+	if fetchErr != nil {
+		slog.Warn("Failed to fetch thumbnail", "poi_id", poiID, "error", fetchErr)
 		h.respondThumbnail(w, "")
 		return
 	}

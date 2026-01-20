@@ -40,15 +40,6 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 		return false
 	}
 
-	s.mu.Lock()
-	if s.generating {
-		s.mu.Unlock()
-		slog.Info("Narrator: Debrief skipped (busy generating)")
-		return false
-	}
-	s.generating = true
-	s.mu.Unlock()
-
 	slog.Info("Narrator: Generating Landing Debrief...")
 
 	// 2. Build Prompt
