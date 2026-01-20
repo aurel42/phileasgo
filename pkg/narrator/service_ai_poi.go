@@ -7,9 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 )
 
+// PlayPOI triggers narration for a specific POI.
 // PlayPOI triggers narration for a specific POI.
 // PlayPOI triggers narration for a specific POI.
 func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
@@ -49,8 +51,25 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 	}
 	s.mu.Unlock()
 
-	// 2. Constraints Check
-	if !manual && s.IsGenerating() {
+	// 2. Priority Queue Enqueue (Manual Only)
+	if manual {
+		s.enqueuePriority(&GenerationJob{
+			Type:      model.NarrativeTypePOI,
+			POIID:     poiID,
+			Manual:    true,
+			Strategy:  strategy,
+			CreatedAt: time.Now(),
+			Telemetry: tel,
+		})
+		return
+	}
+
+	// 3. Auto-Play Constraints (Drains Priority First)
+	if s.HasPendingPriority() {
+		slog.Info("Narrator: Skipping auto-play (priority queue not empty)")
+		return
+	}
+	if s.IsGenerating() {
 		slog.Info("Narrator: Skipping auto-play (busy generating)")
 		return
 	}
@@ -60,19 +79,21 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 		return
 	}
 
-	// 2. Generation Phase
-	// Manual force=true will cancel any existing generation
-	narrative, err := s.GenerateNarrative(ctx, poiID, strategy, tel, manual)
-	if err != nil {
-		slog.Error("Narrator: Generation failed", "poi_id", poiID, "error", err)
-		return
-	}
+	// 4. Async Generation (Auto)
+	go func() {
+		// Use a detached context for generation to survive caller context cancel
+		genCtx := context.Background()
 
-	// 3. Enqueue & Trigger
-	s.enqueue(narrative, manual)
+		narrative, err := s.GenerateNarrative(genCtx, poiID, strategy, tel, manual)
+		if err != nil {
+			slog.Error("Narrator: Generation failed", "poi_id", poiID, "error", err)
+			return
+		}
 
-	// Trigger processing in background (if idle)
-	go s.processQueue(context.Background())
+		// Enqueue & Trigger
+		s.enqueue(narrative, manual)
+		s.processQueue(genCtx)
+	}()
 }
 
 // PrepareNextNarrative prepares a narrative for a POI and stages it for later playback.
@@ -237,6 +258,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, poiID, strategy strin
 		AudioPath:      audioPath,
 		Format:         format,
 		RequestedWords: promptData.MaxWords,
+		Manual:         force,
 	}, nil
 }
 

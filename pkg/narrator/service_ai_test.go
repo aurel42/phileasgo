@@ -137,6 +137,9 @@ func TestAIService_PlayPOI(t *testing.T) {
 			// For this test, I'll rely on a small sleep for simplicity as it's a unit test with mocks (fast).
 			svc.PlayPOI(context.Background(), tt.poiID, true, false, &sim.Telemetry{}, "uniform")
 
+			// Trigger Priority Processing (Simulate Main Loop)
+			svc.ProcessPriorityQueue(context.Background())
+
 			// Wait a bit
 			time.Sleep(200 * time.Millisecond)
 
@@ -223,6 +226,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, false, &tt.telemetry, "uniform")
+			svc.ProcessPriorityQueue(context.Background())
 			time.Sleep(20 * time.Millisecond) // Wait for go routine
 
 			for _, expect := range tt.expectInPrompt {
@@ -339,6 +343,7 @@ func TestAIService_NavUnits(t *testing.T) {
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), "Q8080", true, false, &tt.telemetry, "uniform")
+			svc.ProcessPriorityQueue(context.Background())
 			time.Sleep(50 * time.Millisecond) // Wait for goroutine
 
 			if capturedPrompt == "" {
@@ -369,7 +374,9 @@ func TestAIService_BeaconCleanup(t *testing.T) {
 	}}, mockBeacon, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil)
 
 	svc.Start()
+	svc.Start()
 	svc.PlayPOI(context.Background(), "Q12345", true, false, &sim.Telemetry{}, "uniform")
+	svc.ProcessPriorityQueue(context.Background())
 	time.Sleep(50 * time.Millisecond) // Wait for go routine
 
 	if !mockBeacon.Cleared {
@@ -613,6 +620,7 @@ func TestAIService_PipelineFlow(t *testing.T) {
 
 			// 2. Play
 			svc.PlayPOI(ctx, tt.requestPOIID, true, false, &sim.Telemetry{}, "uniform")
+			svc.ProcessPriorityQueue(ctx)
 
 			// Wait for async queue processing
 			time.Sleep(100 * time.Millisecond)
@@ -641,6 +649,8 @@ func TestAIService_ScriptValidation(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
 	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
+	_ = os.MkdirAll(filepath.Join(tempDir, "context"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, "context", "rescue_script.tmpl"), []byte("RESCUE_FAILED"), 0o644)
 	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
 	pm, _ := prompts.NewManager(tempDir)
 
@@ -650,6 +660,13 @@ func TestAIService_ScriptValidation(t *testing.T) {
 	longScript := strings.Repeat("word ", 1000)
 
 	mockLLM := &MockLLM{Response: longScript}
+	mockLLM.GenerateTextFunc = func(ctx context.Context, profile, prompt string) (string, error) {
+		if profile == "script_rescue" {
+			return "RESCUE_FAILED", nil
+		}
+		return longScript, nil
+	}
+
 	mockPOI := &MockPOIProvider{
 		GetPOIFunc: func(_ context.Context, qid string) (*model.POI, error) {
 			return &model.POI{WikidataID: qid}, nil

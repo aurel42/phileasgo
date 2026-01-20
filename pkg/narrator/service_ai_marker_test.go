@@ -48,6 +48,8 @@ func TestAIService_NextPOIMarker(t *testing.T) {
 	// This will start audio playback (MockAudio.IsPlayingVal = true)
 	// And launch monitorPlayback in background
 	svc.PlayPOI(context.Background(), "Q_MARKER_TEST", true, false, &sim.Telemetry{}, "uniform")
+	svc.ProcessPriorityQueue(context.Background())
+	time.Sleep(50 * time.Millisecond) // Wait for async processQueue
 
 	if !mockBeacon.TargetSet {
 		t.Error("Expected Beacon to be set immediately upon PlayPOI call")

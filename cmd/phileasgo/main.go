@@ -364,8 +364,27 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 	// Hook NarrationJob into POI Manager's scoring loop (every 5s) instead of Scheduler
 	narrationJob := core.NewNarrationJob(cfg, narratorSvc, narratorSvc.POIManager(), simClient, st, los, screenWatcher)
 	svcs.PoiMgr.SetScoringCallback(func(c context.Context, t *sim.Telemetry) {
-		if narrationJob.ShouldFire(t) {
-			go narrationJob.Run(c, t)
+		// 1. Check for Screenshots (Polling)
+		narrationJob.CheckScreenshots(c, t)
+
+		// 2. Process Sync Priority Queue (Manual Overrides)
+		if narratorSvc.HasPendingPriority() {
+			narratorSvc.ProcessPriorityQueue(c)
+			return
+		}
+
+		// 3. Auto Narrations
+		if narrationJob.CanPreparePOI(t) {
+			narrationJob.PreparePOI(c, t)
+			return
+		}
+		if narrationJob.CanPrepareEssay(t) {
+			narrationJob.PrepareEssay(c, t)
+			return
+		}
+		if narrationJob.CanPrepareDebrief(t) {
+			narrationJob.PrepareDebrief(c, t)
+			return
 		}
 	})
 	svcs.PoiMgr.SetValleyAltitudeCallback(func(altMeters float64) {

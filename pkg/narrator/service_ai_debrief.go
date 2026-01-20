@@ -33,6 +33,21 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 		return false
 	}
 
+	// 1.5 Sync Checks
+	if s.HasPendingPriority() {
+		slog.Info("Narrator: Debrief skipped (priority jobs pending)")
+		return false
+	}
+
+	s.mu.Lock()
+	if s.generating {
+		s.mu.Unlock()
+		slog.Info("Narrator: Debrief skipped (busy generating)")
+		return false
+	}
+	s.generating = true
+	s.mu.Unlock()
+
 	slog.Info("Narrator: Generating Landing Debrief...")
 
 	// 2. Build Prompt
@@ -67,8 +82,7 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 		defer cancel()
 
 		s.mu.Lock()
-		s.generating = true
-		s.genCancelFunc = cancel
+		s.genCancelFunc = cancel // Register cancel func for pre-emption
 		s.mu.Unlock()
 
 		defer func() {

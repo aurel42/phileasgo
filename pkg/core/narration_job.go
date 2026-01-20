@@ -44,6 +44,7 @@ type NarrationJob struct {
 	takeoffTime    time.Time // Track when we left the ground
 	lastAGL        float64   // Last known AGL for visibility boost check
 	hasCheckedOnce bool      // Flag to handle startup state (e.g. starting mid-flight)
+	hasDebriefed   bool      // Flag to ensure debrief runs only once per flight
 
 	pendingScreenshot string // Queue for detected screenshots that triggered ShouldFire
 }
@@ -102,6 +103,8 @@ func (j *NarrationJob) checkNarratorReady() bool {
 	return true
 }
 
+// ShouldFire checks if the job should run.
+// Deprecated: Use CanPreparePOI, CanPrepareEssay, PreparePOI, PrepareEssay instead.
 func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 	if atomic.LoadInt32(&j.running) == 1 {
 		return false
@@ -161,6 +164,159 @@ func (j *NarrationJob) ShouldFire(t *sim.Telemetry) bool {
 		return false
 	}
 	return j.checkEssayEligible(t)
+}
+
+// CanPreparePOI checks if the system is ready to prepare a POI narration (Manual or Auto).
+// This includes checking frequency rules (pipelining) and narrator state.
+func (j *NarrationJob) CanPreparePOI(t *sim.Telemetry) bool {
+	// 1. Pre-flight checks
+	if !j.checkPreConditions(t) {
+		return false
+	}
+	if !j.checkPostTakeoffGrace(t) {
+		return false
+	}
+
+	// 2. Narrator Activity Check (Base)
+	// If generating, we are busy.
+	if j.narrator.IsGenerating() {
+		return false
+	}
+	// Also check Pause / Cooldown logic
+	if !j.checkNarratorReady() {
+		return false
+	}
+
+	// 3. Frequency & Pipeline Logic
+	return j.checkFrequencyRules()
+}
+
+// CanPrepareEssay checks if the system is ready for an essay.
+func (j *NarrationJob) CanPrepareEssay(t *sim.Telemetry) bool {
+	// 1. Pre-flight
+	if !j.checkPreConditions(t) {
+		return false
+	}
+	// 2. Essay Logic
+	return j.checkEssayEligible(t)
+}
+
+// CheckScreenshots polls the watcher for new screenshots and triggers playback.
+func (j *NarrationJob) CheckScreenshots(ctx context.Context, t *sim.Telemetry) {
+	if j.watcher != nil && j.cfg.Narrator.Screenshot.Enabled {
+		if path, ok := j.watcher.CheckNew(); ok {
+			slog.Info("NarrationJob: New screenshot detected", "path", path)
+			j.narrator.PlayImage(ctx, path, t)
+		}
+	}
+}
+
+// PreparePOI triggers the finding and playing of a POI.
+// Returns true if a POI was successfully found and triggered (or pipelined).
+func (j *NarrationJob) PreparePOI(ctx context.Context, t *sim.Telemetry) bool {
+	if !j.TryLock() {
+		return false
+	}
+	defer j.Unlock()
+
+	// Pick best (first visible)
+	best := j.getVisibleCandidate(t)
+	if best == nil {
+		// No candidates? Boost visibility for next time.
+		// Only if we passed all the readiness checks (which we did to get here).
+		j.incrementVisibilityBoost(ctx)
+		return false
+	}
+
+	// Re-verify playability
+	if !j.isPlayable(best) {
+		// If best is not playable, we technically found something but rejected it.
+		// Should we boost? Probably yes, effectively "nothing playable found".
+		j.incrementVisibilityBoost(ctx)
+		return false
+	}
+
+	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer), t.IsOnGround)
+
+	// Logging
+	slog.Info("NarrationJob: Triggering POI", "name", best.DisplayName())
+	j.resetVisibilityBoost(ctx)
+
+	// Play or Pipeline
+	if j.narrator.IsPlaying() {
+		if err := j.narrator.PrepareNextNarrative(ctx, best.WikidataID, strategy, t); err != nil {
+			slog.Error("NarrationJob: Pipeline preparation failed", "error", err)
+			return false
+		}
+	} else {
+		// Auto-play (manual=false)
+		j.narrator.PlayPOI(ctx, best.WikidataID, false, false, t, strategy)
+	}
+	return true
+}
+
+// PrepareEssay triggers an essay narration.
+func (j *NarrationJob) PrepareEssay(ctx context.Context, t *sim.Telemetry) {
+	if !j.TryLock() {
+		return
+	}
+	defer j.Unlock()
+
+	if j.narrator.PlayEssay(ctx, t) {
+		now := time.Now()
+		j.lastEssayTime = now
+		j.lastTime = now
+	}
+}
+
+// CanPrepareDebrief checks if the system is ready for a debrief.
+func (j *NarrationJob) CanPrepareDebrief(t *sim.Telemetry) bool {
+	// 1. Config Check
+	if !j.cfg.Narrator.Debrief.Enabled {
+		return false
+	}
+
+	// 2. Already Debriefed?
+	if j.hasDebriefed {
+		return false
+	}
+
+	// 3. Ground Logic
+	// Must be on ground
+	if !t.IsOnGround {
+		return false
+	}
+
+	// 4. Flight Logic
+	// Must have had a takeoff recently (tracked by takeoffTime)
+	// If takeoffTime is zero, we never took off in this session.
+	if j.takeoffTime.IsZero() {
+		return false
+	}
+
+	// Optional: Check if we landed "recently"?
+	// Actually, if we are on ground AND takeoffTime is set AND !hasDebriefed,
+	// it implies we landed and are waiting to debrief.
+	// We might want to wait a few seconds after landing?
+	// For now, immediate is fine, PlayDebrief has internal checks too?
+
+	return true
+}
+
+// PrepareDebrief triggers a debrief narration.
+func (j *NarrationJob) PrepareDebrief(ctx context.Context, t *sim.Telemetry) {
+	if !j.TryLock() {
+		return
+	}
+	defer j.Unlock()
+
+	if j.narrator.PlayDebrief(ctx, t) {
+		j.hasDebriefed = true
+		// Reset takeoff time so we don't debrief again until next flight?
+		// No, hasDebriefed flag handles this for the current "cycle".
+		// But if we take off again, we need to reset hasDebriefed.
+		// That reset logic belongs in checkPostTakeoffGrace or similar flight detection logic.
+	}
 }
 
 // checkPostTakeoffGrace enforces a 1-minute silence after takeoff.

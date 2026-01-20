@@ -15,6 +15,10 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 	}
 
 	// 1. Constraints
+	if s.HasPendingPriority() {
+		// slog.Info("Narrator: Essay skipped (priority jobs pending)") // optional log
+		return false
+	}
 	if !s.canEnqueue("essay", false) {
 		return false
 	}

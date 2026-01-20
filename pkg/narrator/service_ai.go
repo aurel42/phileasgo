@@ -19,6 +19,17 @@ import (
 	"phileasgo/pkg/tts/edgetts"
 )
 
+// GenerationJob represents a request to generate a narrative.
+type GenerationJob struct {
+	Type      model.NarrativeType
+	POIID     string
+	ImagePath string
+	Manual    bool
+	Strategy  string // e.g., "funny", "historic"
+	CreatedAt time.Time
+	Telemetry *sim.Telemetry
+}
+
 // ScriptEntry represents a previously generated narration script.
 type ScriptEntry struct {
 	QID    string
@@ -72,8 +83,9 @@ type AIService struct {
 	lastImagePath  string // Added field
 
 	// Staging State (Pipeline)
-	queue         []*Narrative // Request queue
-	generatingPOI *model.POI   // The POI currently being generated (for UI feedback)
+	priorityGenQueue []*GenerationJob // Priority queue for generation requests (Manual/Screenshot)
+	queue            []*Narrative     // Playback queue (ready items)
+	generatingPOI    *model.POI       // The POI currently being generated (for UI feedback)
 
 	essayH    *EssayHandler
 	interests []string
@@ -107,27 +119,28 @@ func NewAIService(
 	tr *tracker.Tracker,
 ) *AIService {
 	s := &AIService{
-		cfg:             cfg,
-		llm:             llm,
-		tts:             tts,
-		prompts:         prompts,
-		audio:           audioMgr,
-		poiMgr:          poiMgr,
-		beaconSvc:       beaconSvc,
-		geoSvc:          geoSvc,
-		sim:             simClient,
-		st:              st,
-		wikipedia:       wikipediaClient,
-		langRes:         langRes,
-		stats:           make(map[string]any),
-		latencies:       make([]time.Duration, 0, 10),
-		essayH:          essayH,
-		skipCooldown:    false,
-		interests:       interests,
-		avoid:           avoid,
-		fallbackTracker: tr,
-		tripSummary:     "",                    // Initialize tripSummary
-		queue:           make([]*Narrative, 0), // Initialize queue
+		cfg:              cfg,
+		llm:              llm,
+		tts:              tts,
+		prompts:          prompts,
+		audio:            audioMgr,
+		poiMgr:           poiMgr,
+		beaconSvc:        beaconSvc,
+		geoSvc:           geoSvc,
+		sim:              simClient,
+		st:               st,
+		wikipedia:        wikipediaClient,
+		langRes:          langRes,
+		stats:            make(map[string]any),
+		latencies:        make([]time.Duration, 0, 10),
+		essayH:           essayH,
+		skipCooldown:     false,
+		interests:        interests,
+		avoid:            avoid,
+		fallbackTracker:  tr,
+		tripSummary:      "",                        // Initialize tripSummary
+		queue:            make([]*Narrative, 0),     // Initialize playback queue
+		priorityGenQueue: make([]*GenerationJob, 0), // Initialize priority queue
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)
@@ -162,7 +175,41 @@ func (s *AIService) IsActive() bool {
 func (s *AIService) HasPendingManualOverride() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.pendingManualID != ""
+	return len(s.priorityGenQueue) > 0 || s.pendingManualID != ""
+}
+
+// HasPendingPriority returns true if there are items in the priority generation queue.
+func (s *AIService) HasPendingPriority() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.priorityGenQueue) > 0
+}
+
+func (s *AIService) enqueuePriority(job *GenerationJob) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.priorityGenQueue = append(s.priorityGenQueue, job)
+	slog.Info("Narrator: Enqueued priority generation job", "type", job.Type, "poi_id", job.POIID, "queue_len", len(s.priorityGenQueue))
+}
+
+func (s *AIService) popPriority() *GenerationJob {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.priorityGenQueue) == 0 {
+		return nil
+	}
+	job := s.priorityGenQueue[0]
+	s.priorityGenQueue = s.priorityGenQueue[1:]
+	return job
+}
+
+func (s *AIService) peekPriority() *GenerationJob {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.priorityGenQueue) == 0 {
+		return nil
+	}
+	return s.priorityGenQueue[0]
 }
 
 // GetPendingManualOverride returns and clears the pending manual override.
@@ -177,6 +224,68 @@ func (s *AIService) GetPendingManualOverride() (poiID, strategy string, ok bool)
 		return id, strat, true
 	}
 	return "", "", false
+}
+
+// ProcessPriorityQueue processes the generation queue.
+// It dequeues the highest priority job, generates the narrative (blocking),
+// and enqueues the result to the playback queue.
+func (s *AIService) ProcessPriorityQueue(ctx context.Context) {
+	s.mu.Lock()
+	if len(s.priorityGenQueue) == 0 {
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Unlock()
+
+	// Loop to drain higher priority items if needed, or just process one?
+	// The plan says "Strictly serialize". One call to ProcessPriorityQueue might handle one.
+	// But usually orchestrator calls it.
+	// If we want to drain, we loop.
+	// "Priority Generation Queue: ... strictly serialized."
+	// Let's process ONE item per call to allow main loop to tick / check other things?
+	// But if main loop calls this *if* HasPriority(), it will keep calling it.
+	// This is blocking generation (5-10s).
+	// So ONE item is correct.
+
+	job := s.popPriority()
+	if job == nil {
+		return
+	}
+
+	slog.Info("Narrator: Processing priority job", "type", job.Type, "id", job.POIID)
+
+	var narrative *Narrative
+	var err error
+
+	// Use telemetry from job if available, else nil (which might cause issues in generation if not handled)
+	tel := job.Telemetry
+	if tel == nil {
+		tel = &sim.Telemetry{} // Empty default
+	}
+
+	switch job.Type {
+	case model.NarrativeTypePOI:
+		narrative, err = s.GenerateNarrative(ctx, job.POIID, job.Strategy, tel, job.Manual)
+	case model.NarrativeTypeScreenshot:
+		narrative, err = s.GenerateScreenshotNarrative(ctx, job.ImagePath, tel)
+	default:
+		slog.Warn("Narrator: Unknown job type", "type", job.Type)
+		return
+	}
+
+	if err != nil {
+		slog.Error("Narrator: Priority generation failed", "type", job.Type, "error", err)
+		return
+	}
+
+	if narrative != nil {
+		// Enqueue for playback (High Priority)
+		s.enqueue(narrative, true)
+
+		// Trigger playback processing immediately?
+		// processQueue handles playback.
+		go s.processQueue(context.Background())
+	}
 }
 
 // IsGenerating returns true if narrator is currently generating script/audio.
