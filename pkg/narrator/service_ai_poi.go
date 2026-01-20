@@ -152,6 +152,10 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error
 	s.active = true
 	s.currentPOI = n.POI // May be nil for non-POI narratives
 	s.currentImagePath = n.ImagePath
+	s.currentEssayTitle = ""
+	if n.Type == "essay" || n.Type == "debrief" {
+		s.currentEssayTitle = n.Title
+	}
 	if n.POI != nil {
 		s.lastPOI = n.POI
 	}
@@ -275,6 +279,8 @@ func (s *AIService) monitorPlayback(n *model.Narrative) {
 	s.mu.Lock()
 	s.active = false
 	s.currentPOI = nil
+	s.currentTopic = nil
+	s.currentEssayTitle = ""
 	s.currentImagePath = ""
 	s.mu.Unlock()
 

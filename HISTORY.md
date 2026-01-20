@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.131 (2026-01-20)
+- **Fix**: **Essay Title Extraction & Display**
+    - Resolved a bug where Essay/Debrief titles were not being correctly extracted from the LLM script, causing the Overlay Info Panel to remain hidden.
+    - **Logic**: The narrator now extracts the "TITLE:" line *before* TTS generation, preventing the "Title colon..." prefix from being read aloud.
+    - **State**: Fixed `PlayNarrative` to correctly restore the essay title state during playback, ensuring the UI panel appears.
+
 ## v0.2.130 (2026-01-20)
 - **Feature**: **Unified Essay/Debrief Info Panel**
     - Essays and Debriefs now appear in the Overlay POI Panel, displaying their title (e.g., "Topic: Aviation History" or "Debrief").

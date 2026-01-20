@@ -137,10 +137,10 @@ func (s *AIService) CurrentTitle() string {
 	if s.currentPOI != nil {
 		return s.currentPOI.DisplayName()
 	}
+	if s.currentEssayTitle != "" {
+		return s.currentEssayTitle
+	}
 	if s.currentTopic != nil {
-		if s.currentEssayTitle != "" {
-			return s.currentEssayTitle
-		}
 		return "Essay about " + s.currentTopic.Name
 	}
 	return ""

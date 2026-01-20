@@ -62,6 +62,11 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		}
 	}
 
+	// 3a. Extract Metadata (Title) - BEFORE Rescue/TTS
+	// We do this early so the TITLE line is not counted in word limits or read by TTS.
+	var extractedTitle string
+	extractedTitle, script = s.extractTitleFromScript(script)
+
 	// 4. Rescue Script (if too long)
 	if req.MaxWords > 0 {
 		wordCount := len(strings.Fields(script))
@@ -91,9 +96,14 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 	}
 
 	// 6. Construct Narrative
+	finalTitle := req.Title
+	if finalTitle == "" {
+		finalTitle = extractedTitle
+	}
+
 	n := &model.Narrative{
 		Type:           req.Type,
-		Title:          req.Title,
+		Title:          finalTitle,
 		Script:         script,
 		AudioPath:      audioPath,
 		Format:         format,
@@ -108,19 +118,28 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		n.EssayTopic = req.EssayTopic.Name
 	}
 
-	// If Title was missing, try to extract from script (common for Essays)
-	if n.Title == "" {
-		lines := strings.Split(script, "\n")
-		if len(lines) > 0 {
-			first := strings.TrimSpace(lines[0])
-			if strings.HasPrefix(first, "TITLE:") {
-				n.Title = strings.TrimSpace(strings.TrimPrefix(first, "TITLE:"))
-				n.Script = strings.Join(lines[1:], "\n")
+	return n, nil
+}
+
+// extractTitleFromScript parses the "TITLE:" line from the script if present.
+// Returns the extracted title and the cleaned script (without the title line).
+func (s *AIService) extractTitleFromScript(script string) (title, cleanScript string) {
+	var extractedTitle string
+	lines := strings.Split(script, "\n")
+	if len(lines) > 0 {
+		first := strings.TrimSpace(lines[0])
+		// Case-insensitive prefix check for robustness
+		if strings.HasPrefix(strings.ToUpper(first), "TITLE:") {
+			extractedTitle = strings.TrimSpace(first[6:]) // Remove "TITLE:" (6 chars)
+			// Remove the title line from the script for processing
+			if len(lines) > 1 {
+				script = strings.Join(lines[1:], "\n")
+			} else {
+				script = ""
 			}
 		}
 	}
-
-	return n, nil
+	return extractedTitle, strings.TrimSpace(script)
 }
 
 // rescueScript attempts to extract a clean script from contaminated LLM output.
