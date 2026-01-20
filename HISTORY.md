@@ -1,9 +1,10 @@
 ﻿# Release History
 
 ## v0.2.123 (2026-01-20)
-- **Refactor**: **Narrator Package Modularization**
-    - Split the monolithic `service_ai.go` into focused files: `service_ai_queue.go`, `service_ai_tts.go`, `service_ai_state.go`, and `service_ai_stats.go`.
-    - Improved code maintainability and testability by isolating functional domains.
+- **Refactor**: **Unified Narration Generation Pipeline & Modularization**
+    - Split the monolithic `service_ai.go` into specialized files: `service_ai_queue.go`, `service_ai_tts.go`, `service_ai_state.go`, `service_ai_stats.go`, and `service_ai_generation.go`.
+    - Implemented a standardized `GenerateNarrative` pipeline with a unified `GenerationRequest` struct, simplifying the flow for POIs, Essays, Debriefs, and Screenshots.
+    - Removed redundant generation methods (e.g., `GenerateScreenshotNarrative`) in favor of the unified pipeline.
 - **Testing**: **Narrator Coverage & Stability**
     - Achieved **80.6%** statement coverage for the `narrator` package.
     - Added tests for `handleTTSError` (fallback logic), `rescueScript` (LLM script cleanup), and comprehensive state getters.
