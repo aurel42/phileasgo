@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.2.132 (2026-01-21)
+- **Fix**: **Robust Essay Title Fallback**
+    - Implemented a guaranteed fallback mechanism in `PlayNarrative`: if the title cannot be extracted from the script, the system now constructs a default title (e.g., "Essay: Topic Name") to ensure the UI Panel always appears.
+    - **Logic**: Enhanced title extraction regex to handle Markdown bold/italic markers (`**TITLE:**`, `Title :`) and irregular spacing, resolving cases where the LLM's formatting prevented metadata parsing.
+
 ## v0.2.131 (2026-01-20)
 - **Fix**: **Essay Title Extraction & Display**
     - Resolved a bug where Essay/Debrief titles were not being correctly extracted from the LLM script, causing the Overlay Info Panel to remain hidden.

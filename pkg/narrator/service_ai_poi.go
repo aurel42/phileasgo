@@ -144,29 +144,15 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 // Playback completion is monitored in a background goroutine.
 // Supports both POI narratives and non-POI narratives (screenshots, essays, etc.)
 func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error {
+	// Check active first
 	s.mu.Lock()
 	if s.active {
 		s.mu.Unlock()
 		return fmt.Errorf("narrator already active")
 	}
-	s.active = true
-	s.currentPOI = n.POI // May be nil for non-POI narratives
-	s.currentImagePath = n.ImagePath
-	s.currentEssayTitle = ""
-	if n.Type == "essay" || n.Type == "debrief" {
-		s.currentEssayTitle = n.Title
-	}
-	if n.POI != nil {
-		s.lastPOI = n.POI
-	}
-	if n.ImagePath != "" {
-		s.lastImagePath = n.ImagePath
-	}
-	s.lastEssayTopic = nil
-	s.lastEssayTitle = ""
 	s.mu.Unlock()
 
-	audioFile := n.AudioPath + "." + n.Format
+	audioFile := s.setPlaybackState(n)
 
 	// Start playback (synchronous to catch immediate errors)
 	if err := s.audio.Play(audioFile, false); err != nil {
@@ -229,6 +215,45 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error
 	go s.monitorPlayback(n)
 
 	return nil
+}
+
+// setPlaybackState updates the narrator state for the given narrative.
+// Returns the audio file path to play.
+func (s *AIService) setPlaybackState(n *model.Narrative) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Ensure Essays always have a title for UI visibility
+	if (n.Type == "essay" || n.Type == "debrief") && n.Title == "" {
+		if n.EssayTopic != "" {
+			n.Title = "Essay: " + n.EssayTopic
+		} else {
+			n.Title = "Regional Essay"
+		}
+		if n.Type == "debrief" {
+			n.Title = "Debrief"
+		}
+	}
+
+	s.active = true
+	s.currentPOI = n.POI // May be nil for non-POI narratives
+	s.currentImagePath = n.ImagePath
+	s.currentEssayTitle = ""
+
+	if n.Type == "essay" || n.Type == "debrief" {
+		s.currentEssayTitle = n.Title
+	}
+
+	if n.POI != nil {
+		s.lastPOI = n.POI
+	}
+	if n.ImagePath != "" {
+		s.lastImagePath = n.ImagePath
+	}
+	s.lastEssayTopic = nil
+	s.lastEssayTitle = ""
+
+	return n.AudioPath + "." + n.Format
 }
 
 // monitorPlayback waits for audio to finish and cleans up state.

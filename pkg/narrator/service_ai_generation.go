@@ -128,14 +128,31 @@ func (s *AIService) extractTitleFromScript(script string) (title, cleanScript st
 	lines := strings.Split(script, "\n")
 	if len(lines) > 0 {
 		first := strings.TrimSpace(lines[0])
-		// Case-insensitive prefix check for robustness
-		if strings.HasPrefix(strings.ToUpper(first), "TITLE:") {
-			extractedTitle = strings.TrimSpace(first[6:]) // Remove "TITLE:" (6 chars)
-			// Remove the title line from the script for processing
-			if len(lines) > 1 {
-				script = strings.Join(lines[1:], "\n")
-			} else {
-				script = ""
+
+		// Regex to match "TITLE:" with optional markdown asterisks and flexible spacing
+		// ^[\*]*TITLE\s*:\s*(.*)
+		// We process manually to avoid heavy regex compilation every time if desired,
+		// but regex is cleaner for this complexity.
+		// Let's use simple string manipulation for performance/safety without new imports if possible,
+		// or just strip specific prefixes.
+
+		upper := strings.ToUpper(first)
+		// Remove markdown bold/italic markers from start
+		cleanFirst := strings.TrimLeft(upper, "*_")
+
+		if strings.HasPrefix(cleanFirst, "TITLE") {
+			// Find the colon
+			idx := strings.Index(first, ":")
+			if idx != -1 && idx < 10 { // Colon must be near start
+				extractedTitle = strings.TrimSpace(first[idx+1:])
+				extractedTitle = strings.Trim(extractedTitle, "*_") // Remove trailing markdown
+
+				// Remove the title line
+				if len(lines) > 1 {
+					script = strings.Join(lines[1:], "\n")
+				} else {
+					script = ""
+				}
 			}
 		}
 	}
