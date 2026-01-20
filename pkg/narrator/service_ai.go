@@ -2,9 +2,7 @@ package narrator
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -185,117 +183,6 @@ func (s *AIService) Stop() {
 }
 
 // IsActive returns true if narrator is currently active (generating or playing).
-
-// GenerateNarrative creates a narrative from a standardized request.
-// It handles:
-// 1. Concurrency checks (IsGenerating)
-// 2. Cancellation Context
-// 3. LLM Generation
-// 4. Script Rescue
-// 5. TTS Synthesis
-// 6. Narrative Construction
-func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationRequest) (*model.Narrative, error) {
-	// 1. Sync State Check & Cancellation
-	if err := s.handleGenerationState(req.Manual); err != nil {
-		return nil, err
-	}
-
-	// Create cancellable context
-	genCtx, cancel := context.WithCancel(ctx)
-	s.mu.Lock()
-	s.genCancelFunc = cancel
-	s.mu.Unlock()
-
-	startTime := time.Now()
-
-	// Defer Cleanup
-	defer func() {
-		s.updateLatency(time.Since(startTime))
-		s.mu.Lock()
-		s.generating = false
-		s.genCancelFunc = nil
-		s.generatingPOI = nil
-		s.mu.Unlock()
-		cancel()
-	}()
-
-	// 2. Set Active POI (if applicable) for UI feedback
-	if req.POI != nil {
-		s.mu.Lock()
-		s.generatingPOI = req.POI
-		s.mu.Unlock()
-	}
-
-	// 3. Generate Script (LLM)
-	// We assume req.Prompt is already fully rendered by the caller
-	script, err := s.generateScript(genCtx, req.Prompt)
-	if err != nil {
-		return nil, fmt.Errorf("LLM generation failed: %w", err)
-	}
-
-	// 4. Rescue Script (if too long)
-	if req.MaxWords > 0 {
-		wordCount := len(strings.Fields(script))
-		limit := req.MaxWords + 100 // Buffer
-		if wordCount > limit {
-			slog.Warn("Narrator: Script exceeded limit, attempting rescue", "requested", req.MaxWords, "actual", wordCount)
-			rescued, err := s.rescueScript(genCtx, script, req.MaxWords)
-			if err == nil {
-				script = rescued
-				slog.Info("Narrator: Script rescue successful")
-			} else {
-				slog.Error("Narrator: Script rescue failed, using original", "error", err)
-			}
-		}
-	}
-
-	// 5. TTS Synthesis
-	// Use provided SafeID or a fallback
-	safeID := req.SafeID
-	if safeID == "" {
-		safeID = "gen_" + time.Now().Format("150405")
-	}
-
-	audioPath, format, err := s.synthesizeAudio(genCtx, script, safeID)
-	if err != nil {
-		s.handleTTSError(err)
-		return nil, fmt.Errorf("TTS synthesis failed: %w", err)
-	}
-
-	// 6. Construct Narrative
-	n := &model.Narrative{
-		Type:           req.Type,
-		Title:          req.Title,
-		Script:         script,
-		AudioPath:      audioPath,
-		Format:         format,
-		RequestedWords: req.MaxWords,
-		Manual:         req.Manual,
-
-		// Context passthrough
-		POI:       req.POI,
-		ImagePath: req.ImagePath,
-	}
-	if req.EssayTopic != nil {
-		n.EssayTopic = req.EssayTopic.Name
-	}
-
-	// If Title was missing, try to extract from script (common for Essays)
-	if n.Title == "" {
-		lines := strings.Split(script, "\n")
-		if len(lines) > 0 {
-			first := strings.TrimSpace(lines[0])
-			if strings.HasPrefix(first, "TITLE:") {
-				n.Title = strings.TrimSpace(strings.TrimPrefix(first, "TITLE:"))
-				// Remove title line from script to avoid speaking it twice?
-				// Legacy behavior did this. Let's do it if we extracted it.
-				n.Script = strings.Join(lines[1:], "\n")
-			}
-		}
-	}
-
-	return n, nil
-}
 
 // POIManager returns the internal POI manager.
 func (s *AIService) POIManager() POIProvider {

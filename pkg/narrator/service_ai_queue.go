@@ -155,28 +155,44 @@ func (s *AIService) ProcessPriorityQueue(ctx context.Context) {
 	// Process Job
 	go func() {
 		genCtx := context.Background()
-		p, err := s.poiMgr.GetPOI(genCtx, job.POIID)
-		if err != nil {
-			slog.Error("Narrator: Priority job failed - POI not found", "poi_id", job.POIID)
+		var req *GenerationRequest
+
+		switch job.Type {
+		case model.NarrativeTypePOI:
+			p, err := s.poiMgr.GetPOI(genCtx, job.POIID)
+			if err != nil {
+				slog.Error("Narrator: Priority job failed - POI not found", "poi_id", job.POIID)
+				return
+			}
+
+			promptData := s.buildPromptData(genCtx, p, job.Telemetry, job.Strategy)
+			prompt, _ := s.prompts.Render("narrator/script.tmpl", promptData)
+
+			req = &GenerationRequest{
+				Type:     model.NarrativeTypePOI,
+				Prompt:   prompt,
+				Title:    p.DisplayName(),
+				SafeID:   strings.ReplaceAll(p.WikidataID, "/", "_"),
+				POI:      p,
+				MaxWords: promptData.MaxWords,
+				Manual:   job.Manual,
+			}
+
+		case model.NarrativeTypeScreenshot:
+			// Screenshot prompt logic moved to PlayImage directly for now,
+			// but if we support queuing generation jobs for vision, it would go here.
+			// Currently PlayImage starts its own goroutine.
+			slog.Warn("Narrator: ProcessPriorityQueue received unexpected screenshot job")
 			return
-		}
 
-		promptData := s.buildPromptData(genCtx, p, job.Telemetry, job.Strategy)
-		prompt, _ := s.prompts.Render("narrator/script.tmpl", promptData)
-
-		req := &GenerationRequest{
-			Type:     job.Type,
-			Prompt:   prompt,
-			Title:    p.DisplayName(),
-			SafeID:   strings.ReplaceAll(p.WikidataID, "/", "_"),
-			POI:      p,
-			MaxWords: promptData.MaxWords,
-			Manual:   job.Manual,
+		default:
+			slog.Warn("Narrator: ProcessPriorityQueue received unsupported job type", "type", job.Type)
+			return
 		}
 
 		n, err := s.GenerateNarrative(genCtx, req)
 		if err != nil {
-			slog.Error("Narrator: Priority generation failed", "poi_id", job.POIID, "error", err)
+			slog.Error("Narrator: Priority generation failed", "type", job.Type, "error", err)
 			return
 		}
 

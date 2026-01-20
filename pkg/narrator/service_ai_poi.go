@@ -311,31 +311,6 @@ func (s *AIService) processQueue(ctx context.Context) {
 	}
 }
 
-// rescueScript attempts to extract a clean script from contaminated LLM output.
-// It uses a secondary LLM call to identify and remove chain-of-thought reasoning.
-func (s *AIService) rescueScript(ctx context.Context, script string, maxWords int) (string, error) {
-	prompt, err := s.prompts.Render("context/rescue_script.tmpl", map[string]any{
-		"Script":   script,
-		"MaxWords": maxWords,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to render rescue prompt: %w", err)
-	}
-
-	// Use script_rescue profile (cheap model)
-	rescued, err := s.llm.GenerateText(ctx, "script_rescue", prompt)
-	if err != nil {
-		return "", fmt.Errorf("rescue LLM call failed: %w", err)
-	}
-
-	// Check for explicit failure signal
-	if strings.TrimSpace(rescued) == "RESCUE_FAILED" {
-		return "", fmt.Errorf("LLM could not extract valid script")
-	}
-
-	return strings.TrimSpace(rescued), nil
-}
-
 // promoteInQueue checks if a POI is already in the queue and promotes it if manual.
 // Returns true if the POI was found and handled (promoted or already exists).
 func (s *AIService) promoteInQueue(poiID string, manual bool) bool {

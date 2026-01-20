@@ -9,7 +9,6 @@ import (
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
-	"phileasgo/pkg/model"
 )
 
 func TestAIService_PlayImage(t *testing.T) {
@@ -57,40 +56,5 @@ func TestAIService_PlayImage(t *testing.T) {
 
 	if mockAudio.PlayCalls != 1 {
 		t.Errorf("expected 1 audio play call, got %d", mockAudio.PlayCalls)
-	}
-}
-
-func TestAIService_GenerateScreenshotNarrative(t *testing.T) {
-	tempDir, _ := os.MkdirTemp("", "narrator_test")
-	defer os.RemoveAll(tempDir)
-	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
-	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "screenshot.tmpl"), []byte("Screenshot of {{.City}}"), 0o644)
-
-	mockLLM := &MockLLM{Response: "Beautiful view!"}
-	mockTTS := &MockTTS{Format: "mp3"}
-
-	pm, _ := prompts.NewManager(tempDir)
-
-	svc := &AIService{
-		cfg: &config.Config{
-			Narrator: config.NarratorConfig{
-				NarrationLengthShortWords: 50,
-			},
-		},
-		llm:     mockLLM,
-		tts:     mockTTS,
-		prompts: pm,
-	}
-
-	n, err := svc.GenerateScreenshotNarrative(context.Background(), "test.jpg", nil)
-	if err != nil {
-		t.Fatalf("failed to generate: %v", err)
-	}
-
-	if n.Type != model.NarrativeTypeScreenshot {
-		t.Error("wrong narrative type")
-	}
-	if n.Script != "Beautiful view!" {
-		t.Error("wrong script")
 	}
 }
