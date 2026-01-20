@@ -303,7 +303,7 @@ func (s *AIService) processQueue(ctx context.Context) {
 	}
 
 	if err := s.PlayNarrative(ctx, next); err != nil {
-		slog.Error("Narrator: Queue playback failed, trying next", "error", err)
+		slog.Error("Narrator: Queue playback failed, trying next", "title", next.Title, "error", err)
 		// Try next immediately? Or assume PlayNarrative cleanup triggers monitor?
 		// PlayNarrative returns error implies it didn't start.
 		// So we should try next recursion.

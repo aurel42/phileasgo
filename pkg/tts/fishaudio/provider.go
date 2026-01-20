@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/tracker"
@@ -62,8 +63,7 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 		return "", fmt.Errorf("no voice ID configured for Fish Audio")
 	}
 
-	// 2. Prepare Request
-	// 2. Prepare Request
+	// 2. Prepare Request Data
 	reqData := requestBody{
 		Text:        text,
 		ReferenceID: vid,
@@ -78,45 +78,90 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	// 3. Execute with Retry
+	return p.executeWithRetry(ctx, jsonData, text, outputPath)
+}
+
+func (p *Provider) executeWithRetry(ctx context.Context, jsonData []byte, text, outputPath string) (string, error) {
+	maxRetries := 2 // Total 3 attempts
+	var lastErr error
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// Delay between retries
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(500 * time.Millisecond):
+				tts.Log("FISH", fmt.Sprintf("Retrying request (attempt %d/%d)...", attempt+1, maxRetries+1), 0, lastErr)
+			}
+		}
+
+		ext, retry, err := p.executeAttempt(ctx, jsonData, text, outputPath)
+		if err == nil {
+			// Success!
+			if p.tracker != nil {
+				p.tracker.TrackAPISuccess("fish-audio")
+			}
+			return ext, nil
+		}
+
+		if !retry {
+			return "", err // Fatal error
+		}
+
+		lastErr = err
+	}
+
+	// All retries failed
+	if p.tracker != nil {
+		p.tracker.TrackAPIFailure("fish-audio")
+	}
+
+	// Wrap in FatalError if it wasn't already, to trigger fallback if appropriate
+	return "", tts.NewFatalError(500, fmt.Sprintf("Fish Audio failed after %d attempts: %v", maxRetries+1, lastErr))
+}
+
+func (p *Provider) executeAttempt(ctx context.Context, jsonData []byte, text, outputPath string) (ext string, retry bool, err error) {
+	// Create request
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
+		return "", false, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	// Construct debug info
+	// Debug info
 	var headerLog strings.Builder
 	for k, v := range req.Header {
 		headerLog.WriteString(fmt.Sprintf("%s: %s\n", k, strings.Join(v, ", ")))
 	}
 	logContent := fmt.Sprintf("HEADERS:\n%s\nPAYLOAD:\n%s", headerLog.String(), text)
 
-	// 3. Execute Request
 	resp, err := p.client.Do(req)
 	if err != nil {
 		tts.Log("FISH", logContent, 0, err)
-		if p.tracker != nil {
-			p.tracker.TrackAPIFailure("fish-audio")
-		}
-		return "", fmt.Errorf("api request failed: %w", err)
+		return "", true, err // Retry on network error
 	}
-	defer resp.Body.Close()
 
+	// Check Status
 	if resp.StatusCode != http.StatusOK {
-		tts.Log("FISH", logContent, resp.StatusCode, nil)
-		if p.tracker != nil {
-			p.tracker.TrackAPIFailure("fish-audio")
-		}
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("fish audio api error (status %d): %s", resp.StatusCode, string(body))
+		resp.Body.Close()
+
+		tts.Log("FISH", logContent, resp.StatusCode, nil)
+
+		// Fast Fail on Auth Errors
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			return "", false, tts.NewFatalError(resp.StatusCode, fmt.Sprintf("Fish Audio Auth Failed: %s", string(body)))
+		}
+
+		return "", true, fmt.Errorf("fish audio api error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	// 4. Save Output
-	tts.Log("FISH", logContent, 200, nil)
-	// Ensure extension
-	ext := "mp3"
+	// Save Output
+	ext = "mp3"
 	filename := outputPath
 	if filepath.Ext(filename) != "."+ext {
 		filename = filename + "." + ext
@@ -124,22 +169,29 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 
 	f, err := os.Create(filename)
 	if err != nil {
-		return "", fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer f.Close()
-
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		if p.tracker != nil {
-			p.tracker.TrackAPIFailure("fish-audio")
-		}
-		return "", fmt.Errorf("failed to write audio to file: %w", err)
+		resp.Body.Close()
+		return "", false, fmt.Errorf("failed to create output file: %w", err)
 	}
 
-	if p.tracker != nil {
-		p.tracker.TrackAPISuccess("fish-audio")
+	// Copy and check size
+	written, err := io.Copy(f, resp.Body)
+	resp.Body.Close()
+	f.Close() // Close to flush
+
+	if err != nil {
+		tts.Log("FISH", logContent, 200, err)
+		os.Remove(filename)
+		return "", true, fmt.Errorf("failed to write audio to file: %w", err)
 	}
 
-	return ext, nil
+	if written == 0 {
+		tts.Log("FISH", "Received empty audio file (0 bytes)", 200, nil)
+		os.Remove(filename)
+		return "", true, fmt.Errorf("received empty audio from fish audio")
+	}
+
+	tts.Log("FISH", logContent, 200, nil)
+	return ext, false, nil
 }
 
 // Voices returns a list of available voices (mocked or fetched).

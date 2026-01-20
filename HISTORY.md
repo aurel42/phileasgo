@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.2.129 (2026-01-20)
+- **Fix**: **Fish Audio Reliability**
+    - Added retry logic (3 attempts) and empty validation to prevent `wav: EOF` errors.
+- **Refactor**: **Queue Playback Logging**
+    - Added POI Title to queue error logs for better visibility and debugging.
+- **Fix**: **River Prompts**
+    - Strengthened instructions for river narrations to avoid source/mouth confusion.
+- **Fix**: **Test Stability**
+    - Fixed panic in `pkg/core` tests by initializing mocks correctly.
+
 ## v0.2.128 (2026-01-20)
 - **Fix**: **Restored Essay Rules (Gap-Filling)**
     - Essays now correctly function as "gap-fillers": they only trigger if NO visible POIs are eligible (`hasEligiblePOI`).

@@ -443,7 +443,7 @@ func TestNarrationJob_isPlayable(t *testing.T) {
 		},
 	}
 
-	job := &NarrationJob{cfg: cfg}
+	job := &NarrationJob{cfg: cfg, narrator: &mockNarratorService{}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			poi := &model.POI{LastPlayed: tt.lastPlayed}
