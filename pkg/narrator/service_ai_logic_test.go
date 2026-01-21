@@ -189,3 +189,23 @@ func TestHumanRound(t *testing.T) {
 		}
 	}
 }
+
+func TestCapitalizeStart(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"hello", "Hello"},
+		{"World", "World"},
+		{"", ""},
+		{"a", "A"},
+		{"123", "123"},
+	}
+
+	for _, tt := range tests {
+		got := capitalizeStart(tt.input)
+		if got != tt.want {
+			t.Errorf("capitalizeStart(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}

@@ -106,7 +106,7 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		// Title unknown until parsing
 		SafeID:     "essay_" + topic.ID,
 		EssayTopic: topic,
-		MaxWords:   s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords),
+		MaxWords:   s.applyWordLengthMultiplier(topic.MaxWords),
 		Manual:     false,
 	}
 

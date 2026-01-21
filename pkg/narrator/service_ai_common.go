@@ -12,8 +12,8 @@ import (
 	"phileasgo/pkg/tts"
 )
 
-func (s *AIService) generateScript(ctx context.Context, prompt string) (string, error) {
-	script, err := s.llm.GenerateText(ctx, "narration", prompt)
+func (s *AIService) generateScript(ctx context.Context, profile, prompt string) (string, error) {
+	script, err := s.llm.GenerateText(ctx, profile, prompt)
 	if err != nil {
 		return "", err
 	}

@@ -43,12 +43,18 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		s.mu.Unlock()
 	}
 
+	// Determine LLM Profile based on type
+	profile := string(req.Type)
+	if req.Type == model.NarrativeTypePOI {
+		profile = "narration"
+	}
+
 	// 3. Generate Script (LLM)
 	var script string
 	var err error
 	if req.ImagePath != "" {
 		// Multimodal: send prompt + image
-		script, err = s.llm.GenerateImageText(genCtx, "narration", req.Prompt, req.ImagePath)
+		script, err = s.llm.GenerateImageText(genCtx, profile, req.Prompt, req.ImagePath)
 		if err != nil {
 			return nil, fmt.Errorf("LLM image generation failed: %w", err)
 		}
@@ -56,7 +62,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		script = strings.ReplaceAll(script, "*", "")
 	} else {
 		// Text-only generation
-		script, err = s.generateScript(genCtx, req.Prompt)
+		script, err = s.generateScript(genCtx, profile, req.Prompt)
 		if err != nil {
 			return nil, fmt.Errorf("LLM generation failed: %w", err)
 		}
@@ -75,8 +81,16 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 			slog.Warn("Narrator: Script exceeded limit, attempting rescue", "requested", req.MaxWords, "actual", wordCount)
 			rescued, err := s.rescueScript(genCtx, script, req.MaxWords)
 			if err == nil {
-				script = rescued
-				slog.Info("Narrator: Script rescue successful")
+				// Re-extract TITLE from rescued script if needed
+				resTitle, resScript := s.extractTitleFromScript(rescued)
+				if resTitle != "" {
+					req.Title = resTitle
+					script = resScript
+				} else {
+					script = rescued
+				}
+				rescuedWordCount := len(strings.Fields(script))
+				slog.Info("Narrator: Script rescue successful", "original", wordCount, "rescued", rescuedWordCount)
 			} else {
 				slog.Error("Narrator: Script rescue failed, using original", "error", err)
 			}

@@ -34,7 +34,7 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 		"City":        loc.CityName,
 		"Region":      loc.Admin1Name,
 		"Country":     loc.CountryCode,
-		"MaxWords":    s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords), // Use LongWords for template context
+		"MaxWords":    s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords), // Consistent with GenerationRequest target
 		"TripSummary": s.getTripSummary(),
 		"Lat":         fmt.Sprintf("%.3f", tel.Latitude),
 		"Lon":         fmt.Sprintf("%.3f", tel.Longitude),

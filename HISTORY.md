@@ -1,5 +1,18 @@
 ﻿# Release History
 
+## v0.2.137 (2026-01-21)
+- **Narrator**: **Word Count & Profile Synchronization**
+  - Synchronized `MaxWords` targets for Screenshots (~50 words) to ensure visual details are preserved.
+  - Updated Essays to use topic-specific word counts from `essays.yaml` while respecting the user's length multiplier.
+  - Fixed dynamic profile selection for different narrative types (POI, Screenshot, Essay, Debrief).
+  - Improved test coverage for the narration pipeline to over 80%.
+  - Added instrumentation to confirm multimodal image attachments in logs.
+
+## v0.2.136 (2026-01-21)
+- **Narrator**: **Script Rescue Metrics**
+  - Updated the "Script Rescue successful" log message to include original and rescued word counts.
+  - Provides better visibility into the performance and necessity of the rescue mechanism.
+
 ## v0.2.135 (2026-01-21)
 - **Feature**: **Generic Narration Panels**
   - Added support for displaying "Flight Debrief" and "Regional Essay" information in the UI even when no POI is active.

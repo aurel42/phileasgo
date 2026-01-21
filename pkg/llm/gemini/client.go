@@ -216,6 +216,11 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 		mimeType = "image/png"
 	}
 
+	slog.Debug("Gemini: Attaching image to multimodal request",
+		"path", imagePath,
+		"size_bytes", len(imgData),
+		"mime", mimeType)
+
 	// Determine model based on intent/profile
 	modelName, config := c.resolveModel(name)
 

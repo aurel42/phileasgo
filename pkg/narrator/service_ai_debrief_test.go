@@ -6,6 +6,7 @@ import (
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
+	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 )
 
@@ -151,5 +152,19 @@ func TestPlayDebrief_ShortSummary(t *testing.T) {
 
 	if svc.PlayDebrief(context.Background(), &sim.Telemetry{}) {
 		t.Error("PlayDebrief returned true when summary is too short")
+	}
+}
+
+func TestPlayDebrief_PendingGeneration(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Narrator.Debrief.Enabled = true
+	svc := NewAIService(cfg, nil, nil, nil, nil, nil, nil, nil, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil)
+	svc.tripSummary = "This is a long enough summary for the debrief to be considered."
+
+	// Mock pending generation
+	svc.enqueueGeneration(&GenerationJob{Type: model.NarrativeTypePOI})
+
+	if svc.PlayDebrief(context.Background(), &sim.Telemetry{}) {
+		t.Error("PlayDebrief returned true when generation is pending")
 	}
 }

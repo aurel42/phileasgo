@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"phileasgo/pkg/llm/prompts"
+	"phileasgo/pkg/model"
+	"phileasgo/pkg/sim"
 	"strings"
 	"testing"
 )
@@ -36,4 +38,30 @@ func TestAIService_RescueScript(t *testing.T) {
 	if err == nil {
 		t.Error("expected error due to missing template")
 	}
+}
+
+func TestAIService_PlayPOI_Constraints(t *testing.T) {
+	mockPOI := &model.POI{WikidataID: "Q123", NameEn: "Test POI"}
+	mockPOIProv := &MockPOIProvider{
+		GetPOIFunc: func(ctx context.Context, qid string) (*model.POI, error) {
+			return mockPOI, nil
+		},
+	}
+	mockSim := &MockSim{}
+
+	svc := &AIService{
+		poiMgr: mockPOIProv,
+		sim:    mockSim,
+		st:     &MockStore{},
+	}
+
+	// 1. Manual PlayPOI - should enqueue generation
+	svc.PlayPOI(context.Background(), "Q123", true, false, &sim.Telemetry{}, "")
+	if len(svc.generationQueue) != 1 {
+		t.Errorf("Expected 1 manual generation job, got %d", len(svc.generationQueue))
+	}
+
+	// 2. Automated PlayPOI - skip because busy (pending generation)
+	svc.PlayPOI(context.Background(), "Q456", false, false, &sim.Telemetry{}, "")
+	// Should log "Skipping auto-play (priority queue not empty)" and return
 }

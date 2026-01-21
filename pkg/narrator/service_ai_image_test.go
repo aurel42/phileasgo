@@ -60,3 +60,40 @@ func TestAIService_PlayImage(t *testing.T) {
 		t.Errorf("expected 1 audio play call, got %d", mockAudio.PlayCalls)
 	}
 }
+
+func TestAIService_PlayImage_RenderError(t *testing.T) {
+	tempDir := t.TempDir()
+	// No templates provided, Render will fail
+
+	mockLLM := &MockLLM{}
+	mockTTS := &MockTTS{}
+	mockAudio := &MockAudio{}
+	mockSim := &MockSim{}
+	mockGeo := &MockGeo{City: "Paris"}
+	mockStore := &MockStore{}
+
+	pm, _ := prompts.NewManager(tempDir)
+
+	svc := &AIService{
+		cfg:     &config.Config{},
+		llm:     mockLLM,
+		tts:     mockTTS,
+		audio:   mockAudio,
+		sim:     mockSim,
+		geoSvc:  mockGeo,
+		st:      mockStore,
+		prompts: pm,
+	}
+
+	imagePath := filepath.Join(tempDir, "test.jpg")
+	_ = os.WriteFile(imagePath, []byte("fake image data"), 0o644)
+
+	// Action
+	svc.PlayImage(context.Background(), imagePath, nil)
+
+	// Verify no async gen started due to render error
+	time.Sleep(100 * time.Millisecond)
+	if mockLLM.GenerateImageTextCalls != 0 {
+		t.Errorf("expected no LLM calls on render error")
+	}
+}
