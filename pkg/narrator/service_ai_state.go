@@ -53,14 +53,14 @@ func (s *AIService) handleGenerationState(manual bool) error {
 func (s *AIService) IsActive() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.active || s.generating
+	return s.active || s.generating || len(s.playbackQueue) > 0 || len(s.generationQueue) > 0
 }
 
 // IsGenerating returns true if narrator is currently generating script/audio.
 func (s *AIService) IsGenerating() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.generating
+	return s.generating || len(s.generationQueue) > 0
 }
 
 // IsPlaying returns true if narrator is currently playing audio (or checking busy state).
@@ -102,15 +102,15 @@ func (s *AIService) IsPOIBusy(poiID string) bool {
 		return true
 	}
 
-	// 3. Check Queue
-	for _, n := range s.queue {
+	// 3. Check Playback Queue
+	for _, n := range s.playbackQueue {
 		if n.POI != nil && n.POI.WikidataID == poiID {
 			return true
 		}
 	}
 
-	// 4. Check Priority Generation Queue
-	for _, job := range s.priorityGenQueue {
+	// 4. Check Generation Queue
+	for _, job := range s.generationQueue {
 		if job.POIID == poiID {
 			return true
 		}
@@ -123,9 +123,9 @@ func (s *AIService) IsPOIBusy(poiID string) bool {
 func (s *AIService) GetPreparedPOI() *model.POI {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// Check queue[0] or actively generating POI
-	if len(s.queue) > 0 && s.queue[0].POI != nil {
-		return s.queue[0].POI
+	// Check playbackQueue[0] or actively generating POI
+	if len(s.playbackQueue) > 0 && s.playbackQueue[0].POI != nil {
+		return s.playbackQueue[0].POI
 	}
 	return s.generatingPOI
 }

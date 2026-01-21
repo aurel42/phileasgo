@@ -368,8 +368,8 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 		narrationJob.CheckScreenshots(c, t)
 
 		// 2. Process Sync Priority Queue (Manual Overrides)
-		if narratorSvc.HasPendingPriority() {
-			narratorSvc.ProcessPriorityQueue(c)
+		if narratorSvc.HasPendingGeneration() {
+			narratorSvc.ProcessGenerationQueue(c)
 			return
 		}
 

@@ -66,7 +66,7 @@ func (h *AudioHandler) HandleControl(w http.ResponseWriter, r *http.Request) {
 	case "resume":
 		h.audio.Resume()
 		h.audio.ResetUserPause()
-		h.narrator.ProcessQueue(context.Background())
+		h.narrator.ProcessPlaybackQueue(context.Background())
 		state = "playing"
 	case "stop":
 		h.audio.Stop()

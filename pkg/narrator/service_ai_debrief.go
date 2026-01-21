@@ -29,13 +29,13 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 	}
 
 	// Queue Constraints
-	if !s.canEnqueue("debrief", true) {
+	if !s.canEnqueuePlayback("debrief", true) {
 		slog.Info("Narrator: Debrief skipped (queue constraints)")
 		return false
 	}
 
 	// 1.5 Sync Checks
-	if s.HasPendingPriority() {
+	if s.HasPendingGeneration() {
 		slog.Info("Narrator: Debrief skipped (priority jobs pending)")
 		return false
 	}
@@ -90,8 +90,8 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 		}
 
 		// Enqueue (High Priority)
-		s.enqueue(narrative, true)
-		go s.ProcessQueue(genCtx)
+		s.enqueuePlayback(narrative, true)
+		go s.ProcessPlaybackQueue(genCtx)
 	}()
 
 	return true

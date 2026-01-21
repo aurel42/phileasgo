@@ -13,7 +13,7 @@ import (
 func (s *AIService) HasPendingManualOverride() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return len(s.priorityGenQueue) > 0 || s.pendingManualID != ""
+	return len(s.generationQueue) > 0 || s.pendingManualID != ""
 }
 
 // GetPendingManualOverride returns and clears the pending manual override.
@@ -30,60 +30,60 @@ func (s *AIService) GetPendingManualOverride() (poiID, strategy string, ok bool)
 	return "", "", false
 }
 
-// enqueue adds a narrative to the playback queue.
-func (s *AIService) enqueue(n *model.Narrative, priority bool) {
+// enqueuePlayback adds a narrative to the playback queue.
+func (s *AIService) enqueuePlayback(n *model.Narrative, priority bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// Max queue size check (e.g. 5)
-	if len(s.queue) >= 5 && !priority {
+	if len(s.playbackQueue) >= 5 && !priority {
 		slog.Info("Narrator: Queue full, dropping low priority item", "title", n.Title)
 		return
 	}
 
 	if priority {
 		// Prepend
-		s.queue = append([]*model.Narrative{n}, s.queue...)
+		s.playbackQueue = append([]*model.Narrative{n}, s.playbackQueue...)
 	} else {
 		// Append
-		s.queue = append(s.queue, n)
+		s.playbackQueue = append(s.playbackQueue, n)
 	}
-	slog.Info("Narrator: Enqueued narrative", "title", n.Title, "priority", priority, "queue_len", len(s.queue))
+	slog.Info("Narrator: Enqueued narrative", "title", n.Title, "priority", priority, "queue_len", len(s.playbackQueue))
 }
 
-// popQueue retrieves and removes the next narrative from the queue.
-func (s *AIService) popQueue() *model.Narrative {
+// popPlaybackQueue retrieves and removes the next narrative from the queue.
+func (s *AIService) popPlaybackQueue() *model.Narrative {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.queue) == 0 {
+	if len(s.playbackQueue) == 0 {
 		return nil
 	}
-	n := s.queue[0]
-	s.queue = s.queue[1:]
-	slog.Debug("Narrator: Popped from queue", "title", n.Title, "remaining", len(s.queue))
+	n := s.playbackQueue[0]
+	s.playbackQueue = s.playbackQueue[1:]
+	slog.Debug("Narrator: Popped from queue", "title", n.Title, "remaining", len(s.playbackQueue))
 	return n
 }
 
-// peekQueue returns the head of the queue without removing it.
-func (s *AIService) peekQueue() *model.Narrative {
+// peekPlaybackQueue returns the head of the queue without removing it.
+func (s *AIService) peekPlaybackQueue() *model.Narrative {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if len(s.queue) == 0 {
+	if len(s.playbackQueue) == 0 {
 		return nil
 	}
-	return s.queue[0]
+	return s.playbackQueue[0]
 }
 
-func (s *AIService) canEnqueue(nType string, manual bool) bool {
+func (s *AIService) canEnqueuePlayback(nType string, manual bool) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	// 1. Auto POI/Essay: Only allowed if queue is empty
-	if !manual && (nType == "poi" || nType == "essay") && len(s.queue) > 0 {
+	if !manual && (nType == "poi" || nType == "essay") && len(s.playbackQueue) > 0 {
 		return false
 	}
 
-	return checkQueueLimits(s.queue, nType, manual)
+	return checkQueueLimits(s.playbackQueue, nType, manual)
 }
 
 //nolint:gocyclo // Complexity due to limit checking switch
@@ -126,30 +126,30 @@ func checkQueueLimits(queue []*model.Narrative, nType string, manual bool) bool 
 	return true
 }
 
-// enqueuePriority adds a generation job to the priority queue.
-func (s *AIService) enqueuePriority(job *GenerationJob) {
+// enqueueGeneration adds a generation job to the priority queue.
+func (s *AIService) enqueueGeneration(job *GenerationJob) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.priorityGenQueue = append(s.priorityGenQueue, job)
-	slog.Info("Narrator: Enqueued priority generation job", "type", job.Type, "poi_id", job.POIID, "queue_len", len(s.priorityGenQueue))
+	s.generationQueue = append(s.generationQueue, job)
+	slog.Info("Narrator: Enqueued priority generation job", "type", job.Type, "poi_id", job.POIID, "queue_len", len(s.generationQueue))
 }
 
-// HasPendingPriority returns true if there are items in the priority generation queue.
-func (s *AIService) HasPendingPriority() bool {
+// HasPendingGeneration returns true if there are items in the priority generation queue.
+func (s *AIService) HasPendingGeneration() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return len(s.priorityGenQueue) > 0
+	return len(s.generationQueue) > 0
 }
 
-// ProcessPriorityQueue processes the generation queue.
-func (s *AIService) ProcessPriorityQueue(ctx context.Context) {
+// ProcessGenerationQueue processes the generation queue.
+func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 	s.mu.Lock()
-	if len(s.priorityGenQueue) == 0 {
+	if len(s.generationQueue) == 0 {
 		s.mu.Unlock()
 		return
 	}
-	job := s.priorityGenQueue[0]
-	s.priorityGenQueue = s.priorityGenQueue[1:]
+	job := s.generationQueue[0]
+	s.generationQueue = s.generationQueue[1:]
 	s.mu.Unlock()
 
 	// Process Job
@@ -196,8 +196,8 @@ func (s *AIService) ProcessPriorityQueue(ctx context.Context) {
 			return
 		}
 
-		s.enqueue(n, true)
-		go s.ProcessQueue(genCtx)
+		s.enqueuePlayback(n, true)
+		go s.ProcessPlaybackQueue(genCtx)
 	}()
 }
 
@@ -213,7 +213,7 @@ func (s *AIService) handleManualQueueAndOverride(poiID, strategy string, manual,
 
 	if isGenerating {
 		if enqueueIfBusy {
-			s.enqueuePriority(&GenerationJob{
+			s.enqueueGeneration(&GenerationJob{
 				Type:      model.NarrativeTypePOI,
 				POIID:     poiID,
 				Manual:    true,
@@ -314,7 +314,7 @@ func (s *AIService) ResetSession(ctx context.Context) {
 	}
 
 	// Clear Queue
-	s.queue = make([]*model.Narrative, 0)
+	s.playbackQueue = make([]*model.Narrative, 0)
 
 	slog.Info("Narrator: Session reset (teleport/new flight detected)")
 }

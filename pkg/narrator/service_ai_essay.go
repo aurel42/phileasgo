@@ -15,11 +15,11 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 	}
 
 	// 1. Constraints
-	if s.HasPendingPriority() {
+	if s.HasPendingGeneration() {
 
 		return false
 	}
-	if !s.canEnqueue("essay", false) {
+	if !s.canEnqueuePlayback("essay", false) {
 		return false
 	}
 
@@ -123,6 +123,6 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	s.mu.Unlock()
 
 	// Enqueue (Automated, Low Priority)
-	s.enqueue(narrative, false)
-	go s.ProcessQueue(context.Background())
+	s.enqueuePlayback(narrative, false)
+	go s.ProcessPlaybackQueue(context.Background())
 }

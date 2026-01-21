@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.134 (2026-01-21)
+- **Refactor**: Improved clarity and naming of Narrator queue management.
+  - Renamed `queue` to `playbackQueue` and `priorityGenQueue` to `generationQueue`.
+  - Standardized method names using "Playback" and "Generation" terminology.
+  - Updated all internal services, API handlers, and test mocks to reflect the new naming.
+
 ## v0.2.133 (2026-01-21)
 - **Fix**: **Narrative Playback on Pause**
     - Prevented narrations from starting while the application is paused.

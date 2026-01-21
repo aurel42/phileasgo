@@ -75,7 +75,7 @@ func TestAIService_PlaybackDetails(t *testing.T) {
 	mockAudio := &MockAudio{IsPlayingVal: true}
 	svc := &AIService{
 		audio: mockAudio,
-		queue: []*model.Narrative{
+		playbackQueue: []*model.Narrative{
 			{POI: &model.POI{NameEn: "Queued POI"}},
 		},
 		currentPOI: &model.POI{NameEn: "Current POI"},
@@ -101,7 +101,7 @@ func TestAIService_PlaybackDetails(t *testing.T) {
 	}
 
 	// 4. Generating fallback
-	svc.queue = nil
+	svc.playbackQueue = nil
 	svc.generatingPOI = &model.POI{NameEn: "Gen POI"}
 	p = svc.GetPreparedPOI()
 	if p == nil || p.NameEn != "Gen POI" {

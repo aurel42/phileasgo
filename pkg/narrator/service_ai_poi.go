@@ -34,13 +34,13 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 
 	// 1. Check Queue (Deduplication & Re-prioritization)
 	if s.promoteInQueue(poiID, manual) {
-		go s.ProcessQueue(context.Background())
+		go s.ProcessPlaybackQueue(context.Background())
 		return
 	}
 
 	// 2. Priority Queue Enqueue (Manual Only)
 	if manual {
-		s.enqueuePriority(&GenerationJob{
+		s.enqueueGeneration(&GenerationJob{
 			Type:      model.NarrativeTypePOI,
 			POIID:     poiID,
 			Manual:    true,
@@ -52,7 +52,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 	}
 
 	// 3. Auto-Play Constraints (Drains Priority First)
-	if s.HasPendingPriority() {
+	if s.HasPendingGeneration() {
 		slog.Info("Narrator: Skipping auto-play (priority queue not empty)")
 		return
 	}
@@ -61,7 +61,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 		return
 	}
 
-	if !s.canEnqueue("poi", manual) {
+	if !s.canEnqueuePlayback("poi", manual) {
 		slog.Info("Narrator: Play request rejected by queue constraints", "poi_id", poiID, "manual", manual)
 		return
 	}
@@ -97,8 +97,8 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 		}
 
 		// Enqueue & Trigger
-		s.enqueue(narrative, manual)
-		s.ProcessQueue(genCtx)
+		s.enqueuePlayback(narrative, manual)
+		s.ProcessPlaybackQueue(genCtx)
 	}()
 }
 
@@ -135,7 +135,7 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 		return err
 	}
 
-	s.enqueue(narrative, false)
+	s.enqueuePlayback(narrative, false)
 	return nil
 }
 
@@ -281,7 +281,7 @@ func (s *AIService) monitorPlayback(n *model.Narrative) {
 	// Only relevant for POI narratives (non-POI narratives don't have map markers)
 	if s.beaconSvc != nil {
 		// Don't lock just to peek, peekQueue handles RLock
-		next := s.peekQueue()
+		next := s.peekPlaybackQueue()
 		s.mu.RLock()
 		generating := s.generatingPOI
 		s.mu.RUnlock()
@@ -310,11 +310,11 @@ func (s *AIService) monitorPlayback(n *model.Narrative) {
 	s.mu.Unlock()
 
 	// Trigger next item in queue
-	go s.ProcessQueue(context.Background())
+	go s.ProcessPlaybackQueue(context.Background())
 }
 
-// ProcessQueue attempts to play the next item in the queue.
-func (s *AIService) ProcessQueue(ctx context.Context) {
+// ProcessPlaybackQueue implements the Service interface.
+func (s *AIService) ProcessPlaybackQueue(ctx context.Context) {
 	if s.IsPaused() {
 		slog.Info("Narrator: Queue processing deferred (paused)")
 		return
@@ -326,14 +326,14 @@ func (s *AIService) ProcessQueue(ctx context.Context) {
 		return // Already playing
 	}
 	// Check queue
-	if len(s.queue) == 0 {
+	if len(s.playbackQueue) == 0 {
 		s.mu.Unlock()
 		return
 	}
 	s.mu.Unlock()
 
 	// Pop (using helper)
-	next := s.popQueue()
+	next := s.popPlaybackQueue()
 	if next == nil {
 		return
 	}
@@ -343,7 +343,7 @@ func (s *AIService) ProcessQueue(ctx context.Context) {
 		// Try next immediately? Or assume PlayNarrative cleanup triggers monitor?
 		// PlayNarrative returns error implies it didn't start.
 		// So we should try next recursion.
-		go s.ProcessQueue(ctx)
+		go s.ProcessPlaybackQueue(ctx)
 	}
 }
 
@@ -353,12 +353,12 @@ func (s *AIService) promoteInQueue(poiID string, manual bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for i, n := range s.queue {
+	for i, n := range s.playbackQueue {
 		if n.POI != nil && n.POI.WikidataID == poiID {
 			if manual {
 				// Move to front (High Priority)
-				s.queue = append(s.queue[:i], s.queue[i+1:]...)
-				s.queue = append([]*model.Narrative{n}, s.queue...)
+				s.playbackQueue = append(s.playbackQueue[:i], s.playbackQueue[i+1:]...)
+				s.playbackQueue = append([]*model.Narrative{n}, s.playbackQueue...)
 				slog.Info("Narrator: Boosting queued item to front", "poi_id", poiID)
 			} else {
 				slog.Info("Narrator: Item already in queue, skipping duplicate request", "poi_id", poiID)

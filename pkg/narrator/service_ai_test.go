@@ -138,7 +138,7 @@ func TestAIService_PlayPOI(t *testing.T) {
 			svc.PlayPOI(context.Background(), tt.poiID, true, false, &sim.Telemetry{}, "uniform")
 
 			// Trigger Priority Processing (Simulate Main Loop)
-			svc.ProcessPriorityQueue(context.Background())
+			svc.ProcessGenerationQueue(context.Background())
 
 			// Wait a bit
 			time.Sleep(200 * time.Millisecond)
@@ -226,7 +226,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, false, &tt.telemetry, "uniform")
-			svc.ProcessPriorityQueue(context.Background())
+			svc.ProcessGenerationQueue(context.Background())
 			time.Sleep(20 * time.Millisecond) // Wait for go routine
 
 			for _, expect := range tt.expectInPrompt {
@@ -343,7 +343,7 @@ func TestAIService_NavUnits(t *testing.T) {
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), "Q8080", true, false, &tt.telemetry, "uniform")
-			svc.ProcessPriorityQueue(context.Background())
+			svc.ProcessGenerationQueue(context.Background())
 			time.Sleep(50 * time.Millisecond) // Wait for goroutine
 
 			if capturedPrompt == "" {
@@ -376,7 +376,7 @@ func TestAIService_BeaconCleanup(t *testing.T) {
 	svc.Start()
 	svc.Start()
 	svc.PlayPOI(context.Background(), "Q12345", true, false, &sim.Telemetry{}, "uniform")
-	svc.ProcessPriorityQueue(context.Background())
+	svc.ProcessGenerationQueue(context.Background())
 	time.Sleep(50 * time.Millisecond) // Wait for go routine
 
 	if !mockBeacon.Cleared {
@@ -626,7 +626,7 @@ func TestAIService_PipelineFlow(t *testing.T) {
 				func() {
 					svc.mu.Lock()
 					defer svc.mu.Unlock()
-					if len(svc.queue) == 0 {
+					if len(svc.playbackQueue) == 0 {
 						t.Fatal("queue is empty after Prepare")
 					}
 				}()
@@ -634,7 +634,7 @@ func TestAIService_PipelineFlow(t *testing.T) {
 
 			// 2. Play
 			svc.PlayPOI(ctx, tt.requestPOIID, true, false, &sim.Telemetry{}, "uniform")
-			svc.ProcessPriorityQueue(ctx)
+			svc.ProcessGenerationQueue(ctx)
 
 			// Wait for async queue processing
 			time.Sleep(100 * time.Millisecond)
@@ -644,11 +644,11 @@ func TestAIService_PipelineFlow(t *testing.T) {
 				svc.mu.Lock()
 				defer svc.mu.Unlock()
 				// expectedStaged false means we expect queue to be EMPTY
-				if !tt.expectedStaged && len(svc.queue) > 0 {
-					t.Errorf("queue should be empty, got len %d", len(svc.queue))
+				if !tt.expectedStaged && len(svc.playbackQueue) > 0 {
+					t.Errorf("queue should be empty, got len %d", len(svc.playbackQueue))
 				}
 				// expectedStaged true means we expect queue to have items
-				if tt.expectedStaged && len(svc.queue) == 0 {
+				if tt.expectedStaged && len(svc.playbackQueue) == 0 {
 					t.Error("queue should not be empty")
 				}
 			}()

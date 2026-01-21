@@ -101,9 +101,9 @@ type AIService struct {
 	lastImagePath  string // Added field
 
 	// Staging State (Pipeline)
-	priorityGenQueue []*GenerationJob   // Priority queue for generation requests (Manual/Screenshot)
-	queue            []*model.Narrative // Playback queue (ready items)
-	generatingPOI    *model.POI         // The POI currently being generated (for UI feedback)
+	generationQueue []*GenerationJob   // Priority queue for generation requests (Manual/Screenshot)
+	playbackQueue   []*model.Narrative // Playback queue (ready items)
+	generatingPOI   *model.POI         // The POI currently being generated (for UI feedback)
 
 	essayH    *EssayHandler
 	interests []string
@@ -137,28 +137,28 @@ func NewAIService(
 	tr *tracker.Tracker,
 ) *AIService {
 	s := &AIService{
-		cfg:              cfg,
-		llm:              llm,
-		tts:              tts,
-		prompts:          prompts,
-		audio:            audioMgr,
-		poiMgr:           poiMgr,
-		beaconSvc:        beaconSvc,
-		geoSvc:           geoSvc,
-		sim:              simClient,
-		st:               st,
-		wikipedia:        wikipediaClient,
-		langRes:          langRes,
-		stats:            make(map[string]any),
-		latencies:        make([]time.Duration, 0, 10),
-		essayH:           essayH,
-		skipCooldown:     false,
-		interests:        interests,
-		avoid:            avoid,
-		fallbackTracker:  tr,
-		tripSummary:      "",                          // Initialize tripSummary
-		queue:            make([]*model.Narrative, 0), // Initialize playback queue
-		priorityGenQueue: make([]*GenerationJob, 0),   // Initialize priority queue
+		cfg:             cfg,
+		llm:             llm,
+		tts:             tts,
+		prompts:         prompts,
+		audio:           audioMgr,
+		poiMgr:          poiMgr,
+		beaconSvc:       beaconSvc,
+		geoSvc:          geoSvc,
+		sim:             simClient,
+		st:              st,
+		wikipedia:       wikipediaClient,
+		langRes:         langRes,
+		stats:           make(map[string]any),
+		latencies:       make([]time.Duration, 0, 10),
+		essayH:          essayH,
+		skipCooldown:    false,
+		interests:       interests,
+		avoid:           avoid,
+		fallbackTracker: tr,
+		tripSummary:     "",                          // Initialize tripSummary
+		playbackQueue:   make([]*model.Narrative, 0), // Initialize playback queue
+		generationQueue: make([]*GenerationJob, 0),   // Initialize priority queue
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)

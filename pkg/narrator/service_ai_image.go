@@ -74,7 +74,7 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 		narrative.Script = strings.ReplaceAll(narrative.Script, "*", "")
 
 		// Enqueue (High Priority)
-		s.enqueue(narrative, true)
-		go s.ProcessQueue(genCtx)
+		s.enqueuePlayback(narrative, true)
+		go s.ProcessPlaybackQueue(genCtx)
 	}()
 }
