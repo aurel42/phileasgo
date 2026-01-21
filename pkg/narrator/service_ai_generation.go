@@ -146,6 +146,7 @@ func (s *AIService) extractTitleFromScript(script string) (title, cleanScript st
 			if idx != -1 && idx < 10 { // Colon must be near start
 				extractedTitle = strings.TrimSpace(first[idx+1:])
 				extractedTitle = strings.Trim(extractedTitle, "*_") // Remove trailing markdown
+				extractedTitle = strings.TrimSpace(extractedTitle)  // Remove any spaces that were inside markers
 
 				// Remove the title line
 				if len(lines) > 1 {
