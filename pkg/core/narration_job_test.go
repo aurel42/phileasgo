@@ -28,11 +28,12 @@ type mockNarratorService struct {
 	AvgLatencyFunc    func() time.Duration
 }
 
-func (m *mockNarratorService) IsPlaying() bool      { return m.isPlaying }
-func (m *mockNarratorService) IsActive() bool       { return m.isActive }
-func (m *mockNarratorService) IsGenerating() bool   { return false }
-func (m *mockNarratorService) IsPaused() bool       { return m.isPaused }
-func (m *mockNarratorService) CurrentTitle() string { return "" }
+func (m *mockNarratorService) IsPlaying() bool                  { return m.isPlaying }
+func (m *mockNarratorService) IsActive() bool                   { return m.isActive }
+func (m *mockNarratorService) IsGenerating() bool               { return false }
+func (m *mockNarratorService) IsPaused() bool                   { return m.isPaused }
+func (m *mockNarratorService) CurrentTitle() string             { return "" }
+func (m *mockNarratorService) CurrentType() model.NarrativeType { return "" }
 func (m *mockNarratorService) Remaining() time.Duration {
 	if m.RemainingFunc != nil {
 		return m.RemainingFunc()

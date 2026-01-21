@@ -238,6 +238,7 @@ func (s *AIService) setPlaybackState(n *model.Narrative) string {
 	s.active = true
 	s.currentPOI = n.POI // May be nil for non-POI narratives
 	s.currentImagePath = n.ImagePath
+	s.currentType = n.Type
 	s.currentEssayTitle = ""
 
 	if n.Type == "essay" || n.Type == "debrief" {
@@ -307,6 +308,7 @@ func (s *AIService) monitorPlayback(n *model.Narrative) {
 	s.currentTopic = nil
 	s.currentEssayTitle = ""
 	s.currentImagePath = ""
+	s.currentType = ""
 	s.mu.Unlock()
 
 	// Trigger next item in queue

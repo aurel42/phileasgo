@@ -85,7 +85,8 @@ type AIService struct {
 	currentPOI        *model.POI
 	currentTopic      *EssayTopic
 	currentEssayTitle string
-	currentImagePath  string // Added field
+	currentType       model.NarrativeType // The type of the currently playing narrative
+	currentImagePath  string              // Added field
 
 	// Generation State
 	genCancelFunc context.CancelFunc

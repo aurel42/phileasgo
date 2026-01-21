@@ -91,6 +91,7 @@ const OverlayPage = () => {
                         poi={currentPoi || null}
                         imagePath={narratorStatus?.current_image_path}
                         title={narratorStatus?.current_title}
+                        currentType={narratorStatus?.current_type}
                         playbackProgress={playbackProgress}
                         isPlaying={isPlaying}
                     />

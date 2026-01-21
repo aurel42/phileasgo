@@ -5,6 +5,7 @@ interface OverlayPOIPanelProps {
     poi: POI | null;
     imagePath?: string;
     title?: string;
+    currentType?: string;
     playbackProgress: number; // 0-1
     isPlaying: boolean;
 }
@@ -15,7 +16,7 @@ const getName = (poi: POI) => {
     return poi.name_local || 'Unknown';
 };
 
-export const OverlayPOIPanel = ({ poi, imagePath, title, playbackProgress, isPlaying }: OverlayPOIPanelProps) => {
+export const OverlayPOIPanel = ({ poi, imagePath, title, currentType, playbackProgress, isPlaying }: OverlayPOIPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const [visible, setVisible] = useState(false);
 
@@ -59,6 +60,10 @@ export const OverlayPOIPanel = ({ poi, imagePath, title, playbackProgress, isPla
         // If title is provided (e.g. "Screenshot: foo.jpg"), use it, otherwise "Screenshot"
         if (!title) primaryName = "Screenshot";
         category = "Screenshot"; // Or leave empty
+    } else if (currentType === 'debrief') {
+        category = "Flight Summary";
+    } else if (currentType === 'essay') {
+        category = "Regional Essay";
     }
 
     return (

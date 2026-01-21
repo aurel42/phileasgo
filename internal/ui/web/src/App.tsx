@@ -82,6 +82,17 @@ function App() {
         autoOpenedRef.current = true;
         lastAutoOpenedIdRef.current = poiId;
       }
+    } else if (narratorStatus?.playback_status === 'playing' && (narratorStatus?.current_type === 'debrief' || narratorStatus?.current_type === 'essay')) {
+      // Auto-open for non-POI narratives
+      const title = narratorStatus.current_title || (narratorStatus.current_type === 'debrief' ? 'Debrief' : 'Essay');
+      if (lastAutoOpenedIdRef.current !== title) {
+        // Since we don't have a POI, we need a way to show a "generic" info panel.
+        // For now, let's just use the presence of current_title/type to keep the panel open if we were to have one.
+        // However, the UI is very POI-centric. 
+        // A better approach for now might be to NOT auto-open the dashboard panel for debriefs if we don't have a GenericInfoPanel yet,
+        // OR we can make POIInfoPanel more resilient.
+        lastAutoOpenedIdRef.current = title;
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [narratorStatus?.playback_status, narratorStatus?.current_poi?.wikidata_id, pois]);
@@ -213,12 +224,14 @@ function App() {
       </div>
       <div className="dashboard-container">
         <PlaybackControls />
-        {selectedPOI ? (
+        {(selectedPOI || (narratorStatus?.playback_status === 'playing' && narratorStatus?.current_type === 'debrief')) ? (
           <POIInfoPanel
-            key={selectedPOI.wikidata_id}
+            key={selectedPOI?.wikidata_id || 'debrief'}
             poi={selectedPOI}
             pois={pois}
             aircraftHeading={telemetry?.Heading || 0}
+            currentTitle={narratorStatus?.current_title}
+            currentType={narratorStatus?.current_type}
             onClose={handlePanelClose}
           />
         ) : (

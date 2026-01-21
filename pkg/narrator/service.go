@@ -60,6 +60,8 @@ type Service interface {
 	CurrentPOI() *model.POI
 	// CurrentTitle returns the title of the current narration.
 	CurrentTitle() string
+	// CurrentType returns the type of the current narration.
+	CurrentType() model.NarrativeType
 	// Explanation: We need Remaining() to calculate pipeline trigger
 	// Remaining returns the estimated remaining duration of the current playback.
 	Remaining() time.Duration
@@ -267,6 +269,11 @@ func (s *StubService) CurrentPOI() *model.POI {
 
 // CurrentTitle returns the title of the current narration (stub: empty).
 func (s *StubService) CurrentTitle() string {
+	return ""
+}
+
+// CurrentType returns the type of the current narration (stub: empty).
+func (s *StubService) CurrentType() model.NarrativeType {
 	return ""
 }
 

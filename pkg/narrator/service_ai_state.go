@@ -146,6 +146,13 @@ func (s *AIService) CurrentTitle() string {
 	return ""
 }
 
+// CurrentType returns the type of the current narration.
+func (s *AIService) CurrentType() model.NarrativeType {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentType
+}
+
 // Remaining returns the remaining duration of the current narration.
 func (s *AIService) Remaining() time.Duration {
 	return s.audio.Remaining()

@@ -1,5 +1,12 @@
 ﻿# Release History
 
+## v0.2.135 (2026-01-21)
+- **Feature**: **Generic Narration Panels**
+  - Added support for displaying "Flight Debrief" and "Regional Essay" information in the UI even when no POI is active.
+  - Added `current_type` to narrator status API to allow UI to differentiate between narration categories.
+  - Improved Dashboard auto-open logic to show the debrief panel when playing.
+  - Updated Overlay POI panel to show descriptive categories for non-POI content.
+
 ## v0.2.134 (2026-01-21)
 - **Refactor**: Improved clarity and naming of Narrator queue management.
   - Renamed `queue` to `playbackQueue` and `priorityGenQueue` to `generationQueue`.

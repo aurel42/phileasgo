@@ -30,6 +30,7 @@ type NarratorController interface {
 	CurrentPOI() *model.POI
 	GetPreparedPOI() *model.POI
 	CurrentTitle() string
+	CurrentType() model.NarrativeType
 	CurrentImagePath() string
 	NarratedCount() int
 	Stats() map[string]any
@@ -65,6 +66,7 @@ type NarratorStatusResponse struct {
 	CurrentPOI       *model.POI     `json:"current_poi,omitempty"`
 	PreparingPOI     *model.POI     `json:"preparing_poi,omitempty"`
 	CurrentTitle     string         `json:"current_title"`
+	CurrentType      string         `json:"current_type"`
 	CurrentImagePath string         `json:"current_image_path,omitempty"`
 	NarratedCount    int            `json:"narrated_count"`
 	Stats            map[string]any `json:"stats"`
@@ -131,6 +133,7 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		CurrentPOI:       h.narrator.CurrentPOI(),
 		PreparingPOI:     h.narrator.GetPreparedPOI(),
 		CurrentTitle:     h.narrator.CurrentTitle(),
+		CurrentType:      string(h.narrator.CurrentType()),
 		CurrentImagePath: h.narrator.CurrentImagePath(),
 		NarratedCount:    h.narrator.NarratedCount(),
 		Stats:            h.narrator.Stats(),

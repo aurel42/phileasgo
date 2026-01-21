@@ -25,6 +25,7 @@ export interface NarratorStatusResponse {
     current_poi?: POI;
     preparing_poi?: POI;
     current_title?: string;
+    current_type?: string;
     current_image_path?: string;
     narrated_count: number;
     stats: Record<string, unknown>;

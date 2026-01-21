@@ -40,6 +40,14 @@ func (m *mockPhase2NarratorService) IsPlaying() bool {
 	return m.isPlaying
 }
 
+func (m *mockPhase2NarratorService) CurrentTitle() string {
+	return ""
+}
+
+func (m *mockPhase2NarratorService) CurrentType() model.NarrativeType {
+	return ""
+}
+
 func (m *mockPhase2NarratorService) IsGenerating() bool {
 	return m.isGeneratingVal
 }
@@ -75,7 +83,6 @@ func (m *mockPhase2NarratorService) CurrentPOI() *model.POI             { return
 func (m *mockPhase2NarratorService) Pause(duration time.Duration)       {}
 func (m *mockPhase2NarratorService) Resume()                            {}
 func (m *mockPhase2NarratorService) CurrentNarrative() *model.Narrative { return nil }
-func (m *mockPhase2NarratorService) CurrentTitle() string               { return "" }
 func (m *mockPhase2NarratorService) CurrentImagePath() string           { return "" }
 func (m *mockPhase2NarratorService) IsPOIBusy(poiID string) bool        { return false }
 func (m *mockPhase2NarratorService) GenerateNarrative(ctx context.Context, req *narrator.GenerationRequest) (*model.Narrative, error) {
