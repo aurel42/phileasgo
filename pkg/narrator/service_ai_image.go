@@ -75,6 +75,6 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 
 		// Enqueue (High Priority)
 		s.enqueue(narrative, true)
-		go s.processQueue(genCtx)
+		go s.ProcessQueue(genCtx)
 	}()
 }

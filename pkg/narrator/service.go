@@ -40,6 +40,8 @@ type Service interface {
 	GetPendingManualOverride() (string, string, bool)
 	// GenerateNarrative prepares a narrative for a POI without playing it.
 	GenerateNarrative(ctx context.Context, req *GenerationRequest) (*model.Narrative, error)
+	// ProcessQueue attempts to play the next item in the ready queue.
+	ProcessQueue(ctx context.Context)
 	// PlayNarrative plays a previously generated narrative.
 	PlayNarrative(ctx context.Context, n *model.Narrative) error
 	// PlayEssay triggers a regional essay narration.
@@ -194,6 +196,11 @@ func (s *StubService) GenerateNarrative(ctx context.Context, req *GenerationRequ
 		Script:   "Stub script",
 		Duration: time.Second,
 	}, nil
+}
+
+// ProcessQueue attempts to play the next item in the queue (stub).
+func (s *StubService) ProcessQueue(ctx context.Context) {
+	// Stub doesn't have a queue
 }
 
 // PlayNarrative plays a narrative (stub).

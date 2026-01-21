@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.2.133 (2026-01-21)
+- **Fix**: **Narrative Playback on Pause**
+    - Prevented narrations from starting while the application is paused.
+    - **Logic**: Narratives that finish preparation (LLM/TTS) while paused are now kept in the queue.
+    - **Resume**: Added logic to automatically trigger the playback queue when the user unpauses, ensuring no waiting content is delayed further.
+
 ## v0.2.132 (2026-01-21)
 - **Fix**: **Robust Essay Title Fallback**
     - Implemented a guaranteed fallback mechanism in `PlayNarrative`: if the title cannot be extracted from the script, the system now constructs a default title (e.g., "Essay: Topic Name") to ensure the UI Panel always appears.

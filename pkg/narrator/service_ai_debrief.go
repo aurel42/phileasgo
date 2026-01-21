@@ -91,7 +91,7 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 
 		// Enqueue (High Priority)
 		s.enqueue(narrative, true)
-		go s.processQueue(genCtx)
+		go s.ProcessQueue(genCtx)
 	}()
 
 	return true

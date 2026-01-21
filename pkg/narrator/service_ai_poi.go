@@ -34,7 +34,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 
 	// 1. Check Queue (Deduplication & Re-prioritization)
 	if s.promoteInQueue(poiID, manual) {
-		go s.processQueue(context.Background())
+		go s.ProcessQueue(context.Background())
 		return
 	}
 
@@ -98,7 +98,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 
 		// Enqueue & Trigger
 		s.enqueue(narrative, manual)
-		s.processQueue(genCtx)
+		s.ProcessQueue(genCtx)
 	}()
 }
 
@@ -310,11 +310,16 @@ func (s *AIService) monitorPlayback(n *model.Narrative) {
 	s.mu.Unlock()
 
 	// Trigger next item in queue
-	go s.processQueue(context.Background())
+	go s.ProcessQueue(context.Background())
 }
 
-// processQueue attempts to play the next item in the queue.
-func (s *AIService) processQueue(ctx context.Context) {
+// ProcessQueue attempts to play the next item in the queue.
+func (s *AIService) ProcessQueue(ctx context.Context) {
+	if s.IsPaused() {
+		slog.Info("Narrator: Queue processing deferred (paused)")
+		return
+	}
+
 	s.mu.Lock()
 	if s.active {
 		s.mu.Unlock()
@@ -338,7 +343,7 @@ func (s *AIService) processQueue(ctx context.Context) {
 		// Try next immediately? Or assume PlayNarrative cleanup triggers monitor?
 		// PlayNarrative returns error implies it didn't start.
 		// So we should try next recursion.
-		go s.processQueue(ctx)
+		go s.ProcessQueue(ctx)
 	}
 }
 

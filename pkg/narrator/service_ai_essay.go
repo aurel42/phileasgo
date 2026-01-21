@@ -124,5 +124,5 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 
 	// Enqueue (Automated, Low Priority)
 	s.enqueue(narrative, false)
-	go s.processQueue(context.Background())
+	go s.ProcessQueue(context.Background())
 }

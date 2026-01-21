@@ -197,7 +197,7 @@ func (s *AIService) ProcessPriorityQueue(ctx context.Context) {
 		}
 
 		s.enqueue(n, true)
-		go s.processQueue(genCtx)
+		go s.ProcessQueue(genCtx)
 	}()
 }
 

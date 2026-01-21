@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -65,6 +66,7 @@ func (h *AudioHandler) HandleControl(w http.ResponseWriter, r *http.Request) {
 	case "resume":
 		h.audio.Resume()
 		h.audio.ResetUserPause()
+		h.narrator.ProcessQueue(context.Background())
 		state = "playing"
 	case "stop":
 		h.audio.Stop()

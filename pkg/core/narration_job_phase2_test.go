@@ -25,6 +25,8 @@ func (m *mockPhase2NarratorService) PlayPOI(ctx context.Context, poiID string, m
 	m.playPOICalled = true
 }
 
+func (m *mockPhase2NarratorService) ProcessQueue(ctx context.Context) {}
+
 func (m *mockPhase2NarratorService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 	m.playDebriefCalled = true
 	return true
