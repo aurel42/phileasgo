@@ -40,7 +40,7 @@ func TestOpenAI_GenerateText(t *testing.T) {
 
 	tr := tracker.New()
 	rc := request.New(nil, tr, request.ClientConfig{})
-	cfg := config.ProviderConfig{Key: "test_key", Model: "test_model"}
+	cfg := config.ProviderConfig{Key: "test_key", Profiles: map[string]string{"test": "test_model"}}
 
 	c, err := NewClient(cfg, server.URL, rc)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestOpenAI_GenerateJSON(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Model: "model"}, server.URL, rc)
+	c, _ := NewClient(config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
 
 	var target struct {
 		Result string `json:"result"`
@@ -104,7 +104,7 @@ func TestOpenAI_GenerateImageText(t *testing.T) {
 	tmpFile.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Model: "model"}, server.URL, rc)
+	c, _ := NewClient(config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
 
 	res, err := c.GenerateImageText(context.Background(), "test", "describe", tmpFile.Name())
 	if err != nil {
@@ -125,7 +125,7 @@ func TestOpenAI_Errors(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Model: "model"}, server.URL, rc)
+	c, _ := NewClient(config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
 
 	_, err := c.GenerateText(context.Background(), "test", "ping")
 	if err == nil {
@@ -145,7 +145,10 @@ func TestOpenAI_InternalError(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Model: "model"}, server.URL, rc)
+	c, _ := NewClient(config.ProviderConfig{
+		Key:      "key",
+		Profiles: map[string]string{"test": "model"},
+	}, server.URL, rc)
 
 	_, err := c.GenerateText(context.Background(), "test", "ping")
 	if err == nil {
@@ -164,7 +167,10 @@ func TestOpenAI_HealthCheck(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Model: "model"}, server.URL, rc)
+	c, _ := NewClient(config.ProviderConfig{
+		Key:      "key",
+		Profiles: map[string]string{"test": "model"},
+	}, server.URL, rc)
 
 	if err := c.HealthCheck(context.Background()); err != nil {
 		t.Errorf("HealthCheck failed: %v", err)
@@ -173,7 +179,6 @@ func TestOpenAI_HealthCheck(t *testing.T) {
 
 func TestOpenAI_ResolveModel(t *testing.T) {
 	cfg := config.ProviderConfig{
-		Model: "default-model",
 		Profiles: map[string]string{
 			"narration": "pro-model",
 		},
@@ -181,13 +186,22 @@ func TestOpenAI_ResolveModel(t *testing.T) {
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
 	c, _ := NewClient(cfg, "http://localhost", rc)
 
+	// Test with a known profile
 	m, _ := c.resolveModel("narration")
 	if m != "pro-model" {
 		t.Errorf("expected pro-model, got %s", m)
 	}
-	m, _ = c.resolveModel("other")
-	if m != "default-model" {
-		t.Errorf("expected default-model, got %s", m)
+
+	// Test with an unknown profile, should return error
+	_, err := c.resolveModel("other")
+	if err == nil {
+		t.Errorf("expected error for unknown profile, got nil")
+	}
+
+	// Test with an empty profile name, should return error
+	_, err = c.resolveModel("")
+	if err == nil {
+		t.Errorf("expected error for empty profile, got nil")
 	}
 }
 
@@ -198,7 +212,10 @@ func TestOpenAI_UnmarshalError(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Model: "model"}, server.URL, rc)
+	c, _ := NewClient(config.ProviderConfig{
+		Key:      "key",
+		Profiles: map[string]string{"test": "model"},
+	}, server.URL, rc)
 
 	_, err := c.GenerateText(context.Background(), "test", "ping")
 	if err == nil || !strings.Contains(err.Error(), "failed to unmarshal") {
@@ -213,7 +230,7 @@ func TestOpenAI_NoChoices(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Model: "model"}, server.URL, rc)
+	c, _ := NewClient(config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
 
 	_, err := c.GenerateText(context.Background(), "test", "ping")
 	if err == nil || !strings.Contains(err.Error(), "returned no choices") {

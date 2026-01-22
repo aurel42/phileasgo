@@ -2,41 +2,7 @@ package gemini
 
 import (
 	"math/rand"
-
-	"google.golang.org/genai"
 )
-
-// resolveModel returns the target model name and configuration for the given intent.
-func (c *Client) resolveModel(intent string) (string, *genai.GenerateContentConfig) {
-	// Identify configured model name
-	targetModel := c.modelName // Default
-
-	// Check if intent maps to a profile
-	if profileModel, ok := c.profiles[intent]; ok && profileModel != "" {
-		targetModel = profileModel
-	}
-
-	// Default configuration
-	config := &genai.GenerateContentConfig{}
-
-	// Enable Google Search for narration tasks (Text generation)
-	// Note: Google Search is currently incompatible with JSON mode (used by dynamic_config).
-	if intent == "essay" || intent == "narration" {
-		config.Tools = []*genai.Tool{
-			{
-				GoogleSearch: &genai.GoogleSearch{},
-			},
-		}
-
-		// Apply temperature with bell curve (normal distribution)
-		if c.temperatureBase > 0 {
-			temp := sampleTemperature(c.temperatureBase, c.temperatureJitter)
-			config.Temperature = &temp
-		}
-	}
-
-	return targetModel, config
-}
 
 // sampleTemperature samples from a normal distribution centered on base.
 // Uses jitter as the approximate range (±jitter), with σ = jitter/2.

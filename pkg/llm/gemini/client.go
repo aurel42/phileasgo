@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"google.golang.org/api/iterator"
 	"google.golang.org/genai"
@@ -21,7 +23,6 @@ import (
 type Client struct {
 	genaiClient *genai.Client
 	apiKey      string
-	modelName   string
 	profiles    map[string]string // Map intent -> modelName
 	rc          *request.Client
 
@@ -37,14 +38,9 @@ func NewClient(cfg config.ProviderConfig, rc *request.Client) (*Client, error) {
 	c := &Client{
 		rc:                rc,
 		apiKey:            cfg.Key,
-		modelName:         cfg.Model,
 		profiles:          cfg.Profiles,
 		temperatureBase:   1.0, // Defaults
 		temperatureJitter: 0.3,
-	}
-
-	if c.modelName == "" {
-		c.modelName = "gemini-2.0-flash"
 	}
 
 	if c.apiKey != "" {
@@ -86,6 +82,19 @@ func (c *Client) SetTemperature(base, jitter float32) {
 	c.temperatureJitter = jitter
 }
 
+func (c *Client) getTemperature() *float32 {
+	// Simple randomization within range
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	val := c.temperatureBase + (r.Float32()-0.5)*c.temperatureJitter
+	if val < 0 {
+		val = 0
+	}
+	if val > 1.0 {
+		val = 1.0
+	}
+	return &val
+}
+
 // GenerateText sends a prompt and returns the text response.
 func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string, error) {
 	c.mu.RLock()
@@ -97,7 +106,11 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 	}
 
 	// Determine model based on intent/profile
-	modelName, config := c.resolveModel(name)
+	// Determine model based on intent/profile
+	modelName, config, err := c.resolveModel(name)
+	if err != nil {
+		return "", err
+	}
 
 	// Create content part for prompt
 	resp, err := client.Models.GenerateContent(ctx, modelName, genai.Text(prompt), config)
@@ -129,7 +142,11 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 	}
 
 	// Determine model based on intent/profile
-	modelName, config := c.resolveModel(name)
+	// Determine model based on intent/profile
+	modelName, config, err := c.resolveModel(name)
+	if err != nil {
+		return fmt.Errorf("gemini resolve model error: %w", err)
+	}
 	config.ResponseMIMEType = "application/json"
 
 	resp, err := client.Models.GenerateContent(ctx, modelName, genai.Text(prompt), config)
@@ -180,7 +197,11 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 		"mime", mimeType)
 
 	// Determine model based on intent/profile
-	modelName, config := c.resolveModel(name)
+	// Determine model based on intent/profile
+	modelName, config, err := c.resolveModel(name)
+	if err != nil {
+		return "", err
+	}
 
 	// Combine Text + Image manually since genai.ImageData helper might not exist
 	// We assume genai.Part has Text and InlineData fields.
@@ -218,10 +239,30 @@ func getResponseText(resp *genai.GenerateContentResponse) (string, error) {
 	return sb.String(), nil
 }
 
-// validateModel checks if the configured model is available for the API key.
+// resolveModel determines the model name and generation config based on the intent.
+// resolveModel determines the model name and generation config based on the intent.
+func (c *Client) resolveModel(intent string) (string, *genai.GenerateContentConfig, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	model, ok := c.profiles[intent]
+	if !ok || model == "" {
+		return "", nil, fmt.Errorf("no model configured for intent %q", intent)
+	}
+
+	cfg := &genai.GenerateContentConfig{
+		Temperature: c.getTemperature(),
+	}
+	return model, cfg, nil
+}
+
+// validateModel checks if the configured models are available.
 func (c *Client) validateModel(ctx context.Context) error {
+	if len(c.profiles) == 0 {
+		return fmt.Errorf("no profiles configured for gemini provider")
+	}
+
 	modelsToCheck := make(map[string]bool)
-	modelsToCheck[c.modelName] = true
 	for _, m := range c.profiles {
 		modelsToCheck[m] = true
 	}
@@ -280,17 +321,35 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("gemini client not initialized (missing API key?)")
 	}
 
-	// Verify that the specifically configured model is available.
-	// This confirms API key validity, network connectivity, and model access permissions.
-	name := c.modelName
+	// Verify that at least one configured profile is available.
+	if len(c.profiles) == 0 {
+		return fmt.Errorf("no profiles configured")
+	}
+
+	// checking arbitrarily the first one
+	var firstModel string
+	for _, m := range c.profiles {
+		firstModel = m
+		break
+	}
+
+	name := firstModel
 	if !strings.HasPrefix(name, "models/") {
 		name = "models/" + name
 	}
 
 	_, err := c.genaiClient.Models.Get(ctx, name, nil)
 	if err != nil {
-		return fmt.Errorf("configured model %q unavailable or API unreachable: %w", c.modelName, err)
+		return fmt.Errorf("configured model %q unavailable or API unreachable: %w", name, err)
 	}
 
 	return nil
+}
+
+// HasProfile checks if the provider has a specific profile configured.
+func (c *Client) HasProfile(name string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	_, ok := c.profiles[name]
+	return ok && c.profiles[name] != ""
 }

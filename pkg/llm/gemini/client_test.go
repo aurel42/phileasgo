@@ -40,9 +40,8 @@ func TestHealthCheck(t *testing.T) {
 
 			// Minimal config for test
 			cfg := config.ProviderConfig{
-				Key:   tt.apiKey,
-				Model: "gemini-pro",
-				Type:  "gemini",
+				Key:      tt.apiKey,
+				Profiles: map[string]string{"narration": "gemini-pro"},
 			}
 
 			// We need a dummy tracker and cache for the deps

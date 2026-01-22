@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -17,11 +16,14 @@ import (
 
 // Client implements llm.Provider for any OpenAI-compatible API.
 type Client struct {
-	rc        *request.Client
-	apiKey    string
-	modelName string
-	baseURL   string
-	profiles  map[string]string
+	rc       *request.Client
+	apiKey   string
+	baseURL  string
+	profiles map[string]string
+
+	// Temperature settings
+	temperatureBase   float32
+	temperatureJitter float32
 
 	mu sync.RWMutex
 }
@@ -66,36 +68,27 @@ type openaiResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// NewClient creates a new OpenAI-compatible client.
+// NewClient creates a new OpenAI client.
 func NewClient(cfg config.ProviderConfig, baseURL string, rc *request.Client) (*Client, error) {
-	c := &Client{
-		rc:        rc,
-		apiKey:    cfg.Key,
-		modelName: cfg.Model,
-		baseURL:   baseURL,
-		profiles:  cfg.Profiles,
+	if baseURL == "" {
+		return nil, fmt.Errorf("baseURL is required")
 	}
 
-	if c.baseURL == "" {
-		return nil, fmt.Errorf("openai-compatible client requires a baseURL")
-	}
-
-	// Validate Model Availability
-	if c.apiKey != "" {
-		if err := c.validateModel(context.Background()); err != nil {
-			if os.Getenv("TEST_MODE") == "true" {
-				slog.Warn("OpenAI model validation failed (proceeding due to TEST_MODE)", "error", err)
-			} else {
-				return nil, fmt.Errorf("model validation failed: %w", err)
-			}
-		}
-	}
-
-	return c, nil
+	return &Client{
+		baseURL:           strings.TrimSuffix(baseURL, "/"),
+		apiKey:            cfg.Key,
+		profiles:          cfg.Profiles,
+		rc:                rc,
+		temperatureBase:   1.0,
+		temperatureJitter: 0.3,
+	}, nil
 }
 
 func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string, error) {
-	model, _ := c.resolveModel(name)
+	model, err := c.resolveModel(name)
+	if err != nil {
+		return "", err
+	}
 
 	req := openaiRequest{
 		Model: model,
@@ -109,7 +102,10 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 }
 
 func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
-	model, _ := c.resolveModel(name)
+	model, err := c.resolveModel(name)
+	if err != nil {
+		return err
+	}
 
 	req := openaiRequest{
 		Model: model,
@@ -135,7 +131,10 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 }
 
 func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
-	model, _ := c.resolveModel(name)
+	model, err := c.resolveModel(name)
+	if err != nil {
+		return "", err
+	}
 
 	data, err := os.ReadFile(imagePath)
 	if err != nil {
@@ -171,8 +170,21 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	if c.apiKey == "" {
 		return fmt.Errorf("api key not configured")
 	}
+
+	c.mu.RLock()
+	var testProfile string
+	for p := range c.profiles {
+		testProfile = p
+		break
+	}
+	c.mu.RUnlock()
+
+	if testProfile == "" {
+		return fmt.Errorf("no profiles configured")
+	}
+
 	// Simple text generation call as health check
-	_, err := c.GenerateText(ctx, "health", "ping")
+	_, err := c.GenerateText(ctx, testProfile, "ping")
 	return err
 }
 
@@ -214,19 +226,26 @@ func (c *Client) execute(ctx context.Context, oreq openaiRequest) (string, error
 	return oresp.Choices[0].Message.Content, nil
 }
 
-func (c *Client) resolveModel(intent string) (string, bool) {
+func (c *Client) HasProfile(name string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	_, ok := c.profiles[name]
+	return ok && c.profiles[name] != ""
+}
+
+func (c *Client) resolveModel(intent string) (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	if model, ok := c.profiles[intent]; ok && model != "" {
-		return model, true
+		return model, nil
 	}
-	return c.modelName, false
+	return "", fmt.Errorf("profile %q not configured", intent)
 }
 
 func (c *Client) validateModel(ctx context.Context) error {
-	if c.modelName == "" {
-		return fmt.Errorf("primary model name is required")
+	if len(c.profiles) == 0 {
+		return fmt.Errorf("no profiles configured")
 	}
 	return nil
 }

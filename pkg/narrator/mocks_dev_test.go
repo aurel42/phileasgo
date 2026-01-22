@@ -36,6 +36,7 @@ func (m *MockLLM) GenerateJSON(ctx context.Context, name, prompt string, target 
 	return nil
 }
 func (m *MockLLM) HealthCheck(ctx context.Context) error { return nil }
+func (m *MockLLM) HasProfile(name string) bool           { return true }
 func (m *MockLLM) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
 	m.GenerateImageTextCalls++
 	if m.GenerateImageTextFunc != nil {

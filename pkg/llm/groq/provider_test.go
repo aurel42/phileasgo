@@ -13,7 +13,7 @@ import (
 func TestGroq_NewClient(t *testing.T) {
 	tr := tracker.New()
 	rc := request.New(nil, tr, request.ClientConfig{})
-	cfg := config.ProviderConfig{Key: "test_key", Model: ""}
+	cfg := config.ProviderConfig{Key: "test_key"}
 
 	c, err := NewClient(cfg, rc)
 	if err != nil {

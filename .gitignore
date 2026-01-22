@@ -29,6 +29,7 @@ internal/ui/dist/
 internal/ui/web/node_modules/
 node_modules/
 .env.local
+.env
 
 # IDEs
 .vscode/

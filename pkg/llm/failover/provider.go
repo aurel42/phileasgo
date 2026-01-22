@@ -25,6 +25,8 @@ type Provider struct {
 }
 
 // New creates a new Provider with failover and unified logging.
+// providers: ordered list of all initialized providers (global fallback chain).
+// names: names corresponding to the provider list.
 func New(providers []llm.Provider, names []string, logPath string, t *tracker.Tracker) (*Provider, error) {
 	if len(providers) == 0 {
 		return nil, fmt.Errorf("at least one provider required for failover")
@@ -72,6 +74,18 @@ func (f *Provider) GenerateImageText(ctx context.Context, name, prompt, imagePat
 	return res.(string), nil
 }
 
+// HasProfile implements llm.Provider.
+func (f *Provider) HasProfile(name string) bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	for _, p := range f.providers {
+		if p.HasProfile(name) {
+			return true
+		}
+	}
+	return false
+}
+
 // HealthCheck verifies that at least one provider is healthy.
 func (f *Provider) HealthCheck(ctx context.Context) error {
 	f.mu.RLock()
@@ -108,62 +122,83 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 	names := f.names
 	f.mu.RUnlock()
 
-	lastIndex := len(providers) - 1
+	// Filter providers that actually support the requested profile
+	// This implicitly handles the "Sparse Profile" requirement.
+	type candidate struct {
+		index int
+		p     llm.Provider
+		name  string
+	}
+	var candidates []candidate
 
 	for i, p := range providers {
-		// Skip if disabled (Circuit Breaker)
+		// 1. Check Circuit Breaker
 		f.mu.RLock()
 		isDisabled := f.disabled[i]
 		f.mu.RUnlock()
-
 		if isDisabled {
 			continue
 		}
 
-		res, err := fn(p)
+		// 2. Check Profile Support (Dynamic Routing)
+		if !p.HasProfile(callName) {
+			continue
+		}
+
+		candidates = append(candidates, candidate{i, p, names[i]})
+	}
+
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("no active provider supports profile %q", callName)
+	}
+
+	lastIndex := len(candidates) - 1
+
+	for idx, c := range candidates {
+		res, err := fn(c.p)
 		if err == nil {
 			// SUCCESS
-			f.trackStats(names[i], true)
-			f.logRequest(names[i], callName, prompt, fmt.Sprintf("%v", res), nil)
+			f.trackStats(c.name, true)
+			f.logRequest(c.name, callName, prompt, fmt.Sprintf("%v", res), nil)
 			return res, nil
 		}
 
 		// Handle error
-		f.trackStats(names[i], false)
-		f.logRequest(names[i], callName, prompt, "", err)
+		f.trackStats(c.name, false)
+		f.logRequest(c.name, callName, prompt, "", err)
 
 		isFatal := isUnrecoverable(err)
-		isLast := i == lastIndex
+		isLast := idx == lastIndex
 
 		if isFatal {
 			if !isLast {
-				slog.Warn("LLM Provider fatal error, disabling for the session", "provider", names[i], "error", err)
+				slog.Warn("LLM Provider fatal error, disabling for the session", "provider", c.name, "error", err)
 				f.mu.Lock()
-				f.disabled[i] = true
+				f.disabled[c.index] = true
 				f.mu.Unlock()
-				continue // Try next
+				continue // Try next candidate
 			}
-			// It's the last one, don't disable, just return the error
+			// Last candidate failed fatally
 			return nil, err
 		}
 
 		// Retryable error
 		if !isLast {
-			slog.Info("LLM Provider failed (retryable), falling back", "provider", names[i], "next", names[i+1], "error", err)
+			slog.Info("LLM Provider failed (retryable), falling back", "provider", c.name, "next", candidates[idx+1].name, "error", err)
 			continue // Try next immediately
 		}
 
-		// It's the last provider, retry with backoff
-		res, err = f.retryLast(p, names[i], fn)
+		// Last candidate, retry with backoff
+		res, err = f.retryLast(c.p, c.name, fn)
 		if err != nil {
-			f.logRequest(names[i], callName, prompt, "", err)
+			f.logRequest(c.name, callName, prompt, "", err)
 		} else {
-			f.logRequest(names[i], callName, prompt, fmt.Sprintf("%v", res), nil)
+			f.logRequest(c.name, callName, prompt, fmt.Sprintf("%v", res), nil)
 		}
 		return res, err
 	}
 
-	return nil, fmt.Errorf("all LLM providers exhausted or disabled")
+	return nil, fmt.Errorf("all LLM providers exhausted for profile %q", callName)
 }
 
 func (f *Provider) retryLast(p llm.Provider, name string, fn func(llm.Provider) (any, error)) (any, error) {

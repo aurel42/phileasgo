@@ -57,7 +57,7 @@ func NewLLMProvider(cfg config.LLMConfig, logPath string, rc *request.Client, t 
 		names = append(names, name)
 	}
 
-	// Wrap in Failover Provider with unified logging and stats
+	// Wrap in Failover Provider with unified logging and names
 	return failover.New(providers, names, logPath, t)
 }
 

@@ -88,7 +88,6 @@ type LLMConfig struct {
 type ProviderConfig struct {
 	Type     string            `yaml:"type"`     // "gemini", "groq", "openai"
 	Key      string            `yaml:"key"`      // API Key
-	Model    string            `yaml:"model"`    // Default model name
 	Profiles map[string]string `yaml:"profiles"` // Map of intent -> model
 }
 
@@ -298,9 +297,8 @@ func DefaultConfig() *Config {
 		LLM: LLMConfig{
 			Providers: map[string]ProviderConfig{
 				"gemini": {
-					Type:  "gemini",
-					Model: "gemini-2.5-flash-lite",
-					Key:   "",
+					Type: "gemini",
+					Key:  "",
 					Profiles: map[string]string{
 						"essay":          "gemini-2.5-flash",
 						"narration":      "gemini-2.5-flash-lite",

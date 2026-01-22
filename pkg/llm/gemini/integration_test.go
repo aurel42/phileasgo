@@ -16,9 +16,11 @@ func TestIntegration_GenerateText(t *testing.T) {
 	}
 
 	c, err := gemini.NewClient(config.ProviderConfig{
-		Key:   key,
-		Model: "gemini-2.0-flash",
-		Type:  "gemini",
+		Key:  key,
+		Type: "gemini",
+		Profiles: map[string]string{
+			"IntegrationTest": "gemini-2.0-flash", // Use profile for dummy "IntegrationTest" intent
+		},
 	}, nil)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
@@ -42,9 +44,11 @@ func TestIntegration_GenerateJSON(t *testing.T) {
 	}
 
 	c, err := gemini.NewClient(config.ProviderConfig{
-		Key:   key,
-		Model: "gemini-2.0-flash",
-		Type:  "gemini",
+		Key:  key,
+		Type: "gemini",
+		Profiles: map[string]string{
+			"IntegrationTest": "gemini-2.0-flash", // Use profile for dummy "IntegrationTest" intent
+		},
 	}, nil)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)

@@ -11,10 +11,11 @@ import (
 )
 
 type mockProvider struct {
-	responses []string
-	errors    []error
-	healthErr error
-	callCount int
+	responses         []string
+	errors            []error
+	healthErr         error
+	callCount         int
+	supportedProfiles map[string]bool
 }
 
 func (m *mockProvider) GenerateText(ctx context.Context, name, prompt string) (string, error) {
@@ -37,6 +38,13 @@ func (m *mockProvider) GenerateImageText(ctx context.Context, name, prompt, imag
 
 func (m *mockProvider) HealthCheck(ctx context.Context) error {
 	return m.healthErr
+}
+
+func (m *mockProvider) HasProfile(name string) bool {
+	if m.supportedProfiles != nil {
+		return m.supportedProfiles[name]
+	}
+	return true
 }
 
 func TestFailover_SuccessFirst(t *testing.T) {
@@ -294,5 +302,52 @@ func TestFailover_Logging(t *testing.T) {
 		if len(parts) > 1 && strings.Contains(parts[len(parts)-1], "Fail Prompt") {
 			t.Errorf("error log should NOT contain prompt text")
 		}
+	}
+}
+
+func TestFailover_ProfileSparse(t *testing.T) {
+	// P1: Default provider (but MISSING "vision")
+	p1 := &mockProvider{
+		responses:         []string{"default_resp"},
+		errors:            []error{nil},
+		supportedProfiles: map[string]bool{"narration": true},
+	}
+	// P2: Vision provider (Has "vision")
+	p2 := &mockProvider{
+		responses:         []string{"vision_resp"},
+		errors:            []error{nil},
+		supportedProfiles: map[string]bool{"vision": true},
+	}
+
+	// Global chain: P1 -> P2
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", nil)
+
+	// Call narration (supported by P1)
+	res, err := f.GenerateText(context.Background(), "narration", "text prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res != "default_resp" {
+		t.Errorf("expected default_resp, got %s", res)
+	}
+	if p1.callCount != 1 {
+		t.Errorf("p1 should be called for narration")
+	}
+
+	// Call vision (NOT supported by P1, should fallback to P2)
+	// IMPORTANT: P1 should NOT be called at all (HashProfile check)
+	p1CallsInit := p1.callCount
+	res, err = f.GenerateText(context.Background(), "vision", "vision prompt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res != "vision_resp" {
+		t.Errorf("expected vision_resp, got %s", res)
+	}
+	if p1.callCount != p1CallsInit {
+		t.Errorf("p1 should NOT be called for vision (unsupported profile)")
+	}
+	if p2.callCount != 1 {
+		t.Errorf("p2 should be called for vision")
 	}
 }
