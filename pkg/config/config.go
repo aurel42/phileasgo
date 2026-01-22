@@ -87,28 +87,32 @@ type LLMConfig struct {
 
 // ProviderConfig holds configuration for a single LLM provider.
 type ProviderConfig struct {
-	Type     string            `yaml:"type"`     // "gemini", "groq", "openai"
-	Key      string            `yaml:"-"`        // API Key (Loaded from Env)
-	Profiles map[string]string `yaml:"profiles"` // Map of intent -> model
+	Type     string            `yaml:"type"`      // "gemini", "groq", "openai"
+	Key      string            `yaml:"-"`         // API Key (Loaded from Env)
+	Profiles map[string]string `yaml:"profiles"`  // Map of intent -> model
+	FreeTier bool              `yaml:"free_tier"` // Whether this is a free tier (usually shared)
 }
 
 // EdgeTTSConfig holds settings for Edge TTS.
 type EdgeTTSConfig struct {
-	VoiceID string `yaml:"voice"` // e.g. "en-US-AvaMultilingualNeural"
+	VoiceID  string `yaml:"voice"`     // e.g. "en-US-AvaMultilingualNeural"
+	FreeTier bool   `yaml:"free_tier"` // Default true for Edge
 }
 
 // FishAudioConfig holds settings for Fish Audio TTS.
 type FishAudioConfig struct {
-	Key     string `yaml:"-"`     // API Key
-	VoiceID string `yaml:"voice"` // Reference ID
-	Model   string `yaml:"model"` // Model ID (e.g. "s1")
+	Key      string `yaml:"-"`         // API Key
+	VoiceID  string `yaml:"voice"`     // Reference ID
+	Model    string `yaml:"model"`     // Model ID (e.g. "s1")
+	FreeTier bool   `yaml:"free_tier"` // Default depends on plan
 }
 
 // AzureSpeechConfig holds settings for Azure Speech TTS.
 type AzureSpeechConfig struct {
-	Key     string `yaml:"-"`
-	Region  string `yaml:"-"`
-	VoiceID string `yaml:"voice"`
+	Key      string `yaml:"-"`
+	Region   string `yaml:"-"`
+	VoiceID  string `yaml:"voice"`
+	FreeTier bool   `yaml:"free_tier"`
 }
 
 // TTSConfig holds Text-To-Speech settings.
@@ -241,7 +245,8 @@ func DefaultConfig() *Config {
 		TTS: TTSConfig{
 			Engine: "windows-sapi",
 			EdgeTTS: EdgeTTSConfig{
-				VoiceID: "en-US-AvaMultilingualNeural",
+				VoiceID:  "en-US-AvaMultilingualNeural",
+				FreeTier: true,
 			},
 			FishAudio: FishAudioConfig{
 				VoiceID: "e58b0d7efca34eb38d5c4985e378abcb",
@@ -312,6 +317,7 @@ func DefaultConfig() *Config {
 						"thumbnails":     "gemini-2.5-flash-lite",
 						"screenshot":     "gemini-2.5-flash-lite",
 					},
+					FreeTier: true,
 				},
 			},
 			Fallback: []string{"gemini"},

@@ -7,12 +7,12 @@ interface OverlayTelemetryBarProps {
 
 interface Stats {
     providers?: {
-        wikidata?: { api_success: number; api_zero: number; api_errors: number; hit_rate: number };
-        wikipedia?: { api_success: number; api_errors: number; hit_rate: number };
-        gemini?: { api_success: number; api_errors: number };
-        'edge-tts'?: { api_success: number; api_zero: number; api_errors: number };
-        'azure-speech'?: { api_success: number; api_zero: number; api_errors: number };
-        [key: string]: { api_success: number; api_zero?: number; api_errors: number; hit_rate?: number } | undefined;
+        wikidata?: { api_success: number; api_zero: number; api_errors: number; hit_rate: number; free_tier?: boolean };
+        wikipedia?: { api_success: number; api_errors: number; hit_rate: number; free_tier?: boolean };
+        gemini?: { api_success: number; api_errors: number; free_tier?: boolean };
+        'edge-tts'?: { api_success: number; api_zero: number; api_errors: number; free_tier?: boolean };
+        'azure-speech'?: { api_success: number; api_zero: number; api_errors: number; free_tier?: boolean };
+        [key: string]: { api_success: number; api_zero?: number; api_errors: number; hit_rate?: number; free_tier?: boolean } | undefined;
     };
     system?: { memory_alloc_mb: number; memory_max_mb: number; goroutines: number };
     tracking?: { active_pois: number };
@@ -170,8 +170,8 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                         fontFamily: 'monospace',
                         fontSize: '14px',
                         display: 'grid',
-                        gridTemplateColumns: 'max-content 1fr',
-                        columnGap: '16px',
+                        gridTemplateColumns: 'max-content 1fr 24px',
+                        columnGap: '12px',
                         rowGap: '2px',
                         textAlign: 'left'
                     }}>
@@ -184,10 +184,14 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
 
                                 const label = key.toUpperCase().replace('-', ' ');
                                 return (
-                                    <>
-                                        <div style={{ color: '#ccc' }}>{label}</div>
-                                        <div style={{ textAlign: 'right' }}>{data.api_success}</div>
-                                    </>
+                                    <div key={key} style={{ display: 'contents' }}>
+                                        <div style={{ color: '#ccc', whiteSpace: 'nowrap' }}>
+                                            {label}
+                                            {data.free_tier === false && <span style={{ marginLeft: '4px' }}>💵</span>}
+                                        </div>
+                                        <div style={{ textAlign: 'right', paddingRight: '4px' }}>{data.api_success}</div>
+                                        <div style={{ width: '24px' }}></div>
+                                    </div>
                                 );
                             })}
                     </div>
@@ -200,7 +204,7 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                         fontSize: '14px',
                         display: 'grid',
                         gridTemplateColumns: 'max-content 1fr',
-                        columnGap: '16px',
+                        columnGap: '12px',
                         rowGap: '2px',
                         textAlign: 'left'
                     }}>

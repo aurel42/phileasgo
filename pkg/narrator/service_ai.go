@@ -1,7 +1,6 @@
 package narrator
 
 import (
-	"context"
 	"log/slog"
 	"sync"
 	"time"
@@ -89,7 +88,6 @@ type AIService struct {
 	currentImagePath  string              // Added field
 
 	// Generation State
-	genCancelFunc context.CancelFunc
 
 	// Pending Manual Override (Queued)
 	pendingManualID       string

@@ -279,7 +279,10 @@ export const InfoPanel = ({
 
                         return (
                             <div className="flex-card stat-card" key={key}>
-                                <div className="label">{label}</div>
+                                <div className="label">
+                                    {label}
+                                    {data.free_tier === false && <span style={{ marginLeft: '4px', fontSize: '10px' }}>💵</span>}
+                                </div>
                                 <div className="value">
                                     <span className="stat-success">{data.api_success}</span>
                                     <span className="stat-neutral"> / </span>

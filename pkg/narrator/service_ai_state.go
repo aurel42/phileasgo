@@ -11,41 +11,11 @@ import (
 // handleGenerationState manages the busy state and cancellation logic.
 func (s *AIService) handleGenerationState(manual bool) error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.generating {
-		if manual {
-			slog.Info("Narrator: Forcing generation, canceling previous job")
-			if s.genCancelFunc != nil {
-				s.genCancelFunc()
-			}
-			s.mu.Unlock()
-
-			// Busy wait for cleanup
-			timeout := time.After(5 * time.Second)
-			ticker := time.NewTicker(100 * time.Millisecond)
-			defer ticker.Stop()
-
-		WaitLoop:
-			for {
-				select {
-				case <-timeout:
-					return fmt.Errorf("timeout waiting for previous generation to cancel")
-				case <-ticker.C:
-					s.mu.RLock()
-					stillGen := s.generating
-					s.mu.RUnlock()
-					if !stillGen {
-						break WaitLoop
-					}
-				}
-			}
-			s.mu.Lock()
-		} else {
-			s.mu.Unlock()
-			return fmt.Errorf("narrator already generating")
-		}
+		return fmt.Errorf("narrator already generating")
 	}
 	s.generating = true
-	s.mu.Unlock()
 	return nil
 }
 

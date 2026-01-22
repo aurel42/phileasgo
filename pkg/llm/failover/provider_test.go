@@ -251,7 +251,8 @@ func TestIsUnrecoverable(t *testing.T) {
 		{nil, false},
 		{fmt.Errorf("401 unauthorized"), true},
 		{fmt.Errorf("403 forbidden"), true},
-		{fmt.Errorf("400 bad request"), true},
+		{fmt.Errorf("400 bad request"), false},
+		{fmt.Errorf("429 too many requests"), false},
 		{fmt.Errorf("random error"), false},
 		{fmt.Errorf("invalid_api_key"), true},
 	}

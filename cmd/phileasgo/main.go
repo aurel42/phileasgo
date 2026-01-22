@@ -208,6 +208,10 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 	wikiClient := wikidata.NewClient(reqClient, slog.With("component", "wikidata_client"))
 	smartClassifier := classifier.NewClassifier(st, wikiClient, catCfg, tr)
 	wpClient := wikipedia.NewClient(reqClient)
+
+	tr.SetFreeTier("wikidata", true)
+	tr.SetFreeTier("wikipedia", true)
+
 	wikiSvc := wikidata.NewService(st, simClient, tr, smartClassifier, reqClient, geoSvc, poiMgr, cfg.Wikidata, cfg.Narrator.TargetLanguage)
 
 	return &CoreServices{

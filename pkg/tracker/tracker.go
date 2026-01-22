@@ -19,6 +19,7 @@ type ProviderStats struct {
 	APISuccess    int64
 	APIFailures   int64
 	APIZeroResult int64
+	FreeTier      bool
 }
 
 // New creates a new Tracker.
@@ -69,6 +70,11 @@ func (t *Tracker) TrackAPIZero(provider string) {
 	atomic.AddInt64(&t.getStats(provider).APIZeroResult, 1)
 }
 
+// SetFreeTier sets the free tier status for a provider.
+func (t *Tracker) SetFreeTier(provider string, free bool) {
+	t.getStats(provider).FreeTier = free
+}
+
 // GetSnapshot returns a copy of the current stats.
 func (t *Tracker) Snapshot() map[string]ProviderStats {
 	t.mu.RLock()
@@ -82,6 +88,7 @@ func (t *Tracker) Snapshot() map[string]ProviderStats {
 			APISuccess:    atomic.LoadInt64(&v.APISuccess),
 			APIFailures:   atomic.LoadInt64(&v.APIFailures),
 			APIZeroResult: atomic.LoadInt64(&v.APIZeroResult),
+			FreeTier:      v.FreeTier,
 		}
 	}
 	return result

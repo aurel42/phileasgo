@@ -193,7 +193,7 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		}
 
 		// Last candidate, retry with backoff
-		res, err = f.retryLast(c.p, c.name, fn)
+		res, err = f.retryLast(ctx, c.p, c.name, fn)
 		if err != nil {
 			f.logRequest(c.name, callName, prompt, "", err)
 		} else {
@@ -205,7 +205,7 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 	return nil, fmt.Errorf("all LLM providers exhausted for profile %q", callName)
 }
 
-func (f *Provider) retryLast(p llm.Provider, name string, fn func(llm.Provider) (any, error)) (any, error) {
+func (f *Provider) retryLast(ctx context.Context, p llm.Provider, name string, fn func(llm.Provider) (any, error)) (any, error) {
 	var lastErr error
 	delay := 1 * time.Second
 	for attempt := 1; attempt <= 3; attempt++ {
@@ -222,7 +222,12 @@ func (f *Provider) retryLast(p llm.Provider, name string, fn func(llm.Provider) 
 		}
 
 		slog.Warn("Last LLM provider failed, retrying with backoff", "provider", name, "attempt", attempt, "next_delay", delay, "error", err)
-		time.Sleep(delay)
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(delay):
+		}
 		delay *= 2
 	}
 	return nil, fmt.Errorf("last provider exhausted after 3 retries: %w", lastErr)
@@ -280,7 +285,9 @@ func isUnrecoverable(err error) bool {
 	msg := strings.ToLower(err.Error())
 	// 401: Unauthorized (Invalid Key)
 	// 403: Forbidden (Disabled Key / Restricted Access)
-	// 400: Bad Request (Malformed structure - no point in retrying)
-	return strings.Contains(msg, "401") || strings.Contains(msg, "403") || strings.Contains(msg, "400") ||
-		strings.Contains(msg, "unauthorized") || strings.Contains(msg, "forbidden") || strings.Contains(msg, "invalid_api_key")
+	// Note: 429 (Too Many Requests) and 400 (Bad Request) are NOT fatal.
+	// 400 might be a model-specific issue or a transient prompt error that doesn't warrant disabling the provider.
+	return strings.Contains(msg, "401") || strings.Contains(msg, "403") ||
+		strings.Contains(msg, "unauthorized") || strings.Contains(msg, "forbidden") || strings.Contains(msg, "invalid_api_key") ||
+		strings.Contains(msg, "context canceled") || strings.Contains(msg, "context deadline exceeded")
 }

@@ -2,11 +2,9 @@ package narrator
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
-	"strings"
 	"time"
 )
 
@@ -27,54 +25,15 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 		tel = &t
 	}
 
-	loc := s.geoSvc.GetLocation(tel.Latitude, tel.Longitude)
+	// 4. Enqueue for Priority Generation
+	s.enqueueGeneration(&GenerationJob{
+		Type:      model.NarrativeTypeScreenshot,
+		ImagePath: imagePath,
+		Manual:    true,
+		CreatedAt: time.Now(),
+		Telemetry: tel,
+	})
 
-	// Prepare Prompt
-	data := map[string]any{
-		"City":        loc.CityName,
-		"Region":      loc.Admin1Name,
-		"Country":     loc.CountryCode,
-		"MaxWords":    s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords), // Consistent with GenerationRequest target
-		"TripSummary": s.getTripSummary(),
-		"Lat":         fmt.Sprintf("%.3f", tel.Latitude),
-		"Lon":         fmt.Sprintf("%.3f", tel.Longitude),
-		"Alt":         fmt.Sprintf("%.0f", tel.AltitudeAGL),
-	}
-
-	prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
-	if err != nil {
-		slog.Error("Narrator: Failed to render screenshot prompt", "error", err)
-		return
-	}
-
-	// 4. Generate Async (Unified Pipeline)
-	go func() {
-		// Use a detached context for generation
-		genCtx := context.Background()
-
-		req := GenerationRequest{
-			Type:      model.NarrativeTypeScreenshot,
-			Prompt:    prompt,
-			Title:     "Screenshot Analysis",
-			SafeID:    "screenshot_" + time.Now().Format("150405"),
-			ImagePath: imagePath,
-			MaxWords:  s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords), // Target for multimodal description
-			Manual:    true,                                                                  // Screenshots are user-initiated
-		}
-
-		slog.Info("Narrator: Generating Screenshot Narrative", "image", imagePath)
-
-		narrative, err := s.GenerateNarrative(genCtx, &req)
-		if err != nil {
-			slog.Error("Narrator: Screenshot generation failed", "image", imagePath, "error", err)
-			return
-		}
-
-		// Filter markdown artifacts
-		narrative.Script = strings.ReplaceAll(narrative.Script, "*", "")
-
-		// Enqueue (High Priority)
-		s.enqueuePlayback(narrative, true)
-		go s.ProcessPlaybackQueue(genCtx)
-	}()
+	// 5. Kick the worker
+	go s.ProcessGenerationQueue(context.Background())
 }

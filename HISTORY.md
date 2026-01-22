@@ -1,5 +1,19 @@
 ﻿# Release History
 
+## v0.3.5 (2026-01-22)
+- **Fix**: **Screenshot Narration Regression**
+  - Redesigned priority handling to use the `generationQueue` instead of cancelling active jobs.
+  - Manual requests (screenshots, manual POIs) now wait for the current generation to finish naturally and start immediately after.
+- **Fix**: **LLM Failover Reliability**
+  - Made the failover provider's retry loop context-aware, preventing blocking waits during cancellation or shutdown.
+  - Added strict handling for `context canceled` to avoid unintended retries on stopped requests.
+- **Fix**: **Queue Worker Coordination**
+  - Resolved an issue where `ProcessGenerationQueue` could skip jobs when the generator was busy.
+  - Added self-perpetuating triggers to ensure the queue is always drained as soon as a job completes.
+- **Refactor**: **Clean Narrator Pipeline**
+  - Removed deprecated cancellation logic and `genCancelFunc` field.
+  - Resolved multiple linting issues related to unused variables and imports.
+
 ## v0.3.4 (2026-01-22)
 - **Feature**: **Binary Release Preparation**
   - Added `release-binary` target to Makefile for automated packaging.

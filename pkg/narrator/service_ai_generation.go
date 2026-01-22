@@ -12,17 +12,10 @@ import (
 
 // GenerateNarrative creates a narrative from a standardized request.
 func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationRequest) (*model.Narrative, error) {
-	// 1. Sync State Check & Cancellation
+	// 1. Sync State Check
 	if err := s.handleGenerationState(req.Manual); err != nil {
 		return nil, err
 	}
-
-	// Create cancellable context
-	genCtx, cancel := context.WithCancel(ctx)
-	s.mu.Lock()
-	s.genCancelFunc = cancel
-	s.mu.Unlock()
-
 	startTime := time.Now()
 
 	// Defer Cleanup
@@ -30,10 +23,8 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		s.updateLatency(time.Since(startTime))
 		s.mu.Lock()
 		s.generating = false
-		s.genCancelFunc = nil
 		s.generatingPOI = nil
 		s.mu.Unlock()
-		cancel()
 	}()
 
 	// 2. Set Active POI (if applicable) for UI feedback
@@ -54,7 +45,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 	var err error
 	if req.ImagePath != "" {
 		// Multimodal: send prompt + image
-		script, err = s.llm.GenerateImageText(genCtx, profile, req.Prompt, req.ImagePath)
+		script, err = s.llm.GenerateImageText(ctx, profile, req.Prompt, req.ImagePath)
 		if err != nil {
 			return nil, fmt.Errorf("LLM image generation failed: %w", err)
 		}
@@ -62,7 +53,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		script = strings.ReplaceAll(script, "*", "")
 	} else {
 		// Text-only generation
-		script, err = s.generateScript(genCtx, profile, req.Prompt)
+		script, err = s.generateScript(ctx, profile, req.Prompt)
 		if err != nil {
 			return nil, fmt.Errorf("LLM generation failed: %w", err)
 		}
@@ -79,7 +70,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		limit := int(float64(req.MaxWords) * 1.30) // 30% Buffer
 		if wordCount > limit {
 			slog.Warn("Narrator: Script exceeded limit, attempting rescue", "requested", req.MaxWords, "actual", wordCount)
-			rescued, err := s.rescueScript(genCtx, script, req.MaxWords)
+			rescued, err := s.rescueScript(ctx, script, req.MaxWords)
 			if err == nil {
 				// Re-extract TITLE from rescued script if needed
 				resTitle, resScript := s.extractTitleFromScript(rescued)
@@ -103,7 +94,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		safeID = "gen_" + time.Now().Format("150405")
 	}
 
-	audioPath, format, err := s.synthesizeAudio(genCtx, script, safeID)
+	audioPath, format, err := s.synthesizeAudio(ctx, script, safeID)
 	if err != nil {
 		s.handleTTSError(err)
 		return nil, fmt.Errorf("TTS synthesis failed: %w", err)

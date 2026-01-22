@@ -2,6 +2,7 @@ package narrator
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -141,10 +142,11 @@ func (s *AIService) HasPendingGeneration() bool {
 	return len(s.generationQueue) > 0
 }
 
-// ProcessGenerationQueue processes the generation queue.
 func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 	s.mu.Lock()
-	if len(s.generationQueue) == 0 {
+	// Serialization: Only one generation at a time.
+	// If already generating, the current GenerateNarrative will kick this again on finish.
+	if s.generating || len(s.generationQueue) == 0 {
 		s.mu.Unlock()
 		return
 	}
@@ -179,11 +181,32 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 			}
 
 		case model.NarrativeTypeScreenshot:
-			// Screenshot prompt logic moved to PlayImage directly for now,
-			// but if we support queuing generation jobs for vision, it would go here.
-			// Currently PlayImage starts its own goroutine.
-			slog.Warn("Narrator: ProcessPriorityQueue received unexpected screenshot job")
-			return
+			loc := s.geoSvc.GetLocation(job.Telemetry.Latitude, job.Telemetry.Longitude)
+			data := map[string]any{
+				"City":        loc.CityName,
+				"Region":      loc.Admin1Name,
+				"Country":     loc.CountryCode,
+				"MaxWords":    s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
+				"TripSummary": s.getTripSummary(),
+				"Lat":         fmt.Sprintf("%.3f", job.Telemetry.Latitude),
+				"Lon":         fmt.Sprintf("%.3f", job.Telemetry.Longitude),
+				"Alt":         fmt.Sprintf("%.0f", job.Telemetry.AltitudeAGL),
+			}
+			prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
+			if err != nil {
+				slog.Error("Narrator: Failed to render screenshot prompt", "error", err)
+				return
+			}
+
+			req = &GenerationRequest{
+				Type:      model.NarrativeTypeScreenshot,
+				Prompt:    prompt,
+				Title:     "Screenshot Analysis",
+				SafeID:    "screenshot_" + time.Now().Format("150405"),
+				ImagePath: job.ImagePath,
+				MaxWords:  s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
+				Manual:    true,
+			}
 
 		default:
 			slog.Warn("Narrator: ProcessPriorityQueue received unsupported job type", "type", job.Type)
@@ -193,11 +216,17 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 		n, err := s.GenerateNarrative(genCtx, req)
 		if err != nil {
 			slog.Error("Narrator: Priority generation failed", "type", job.Type, "error", err)
+			// Trigger next even on failure
+			s.ProcessGenerationQueue(genCtx)
 			return
 		}
 
+		// Enqueue & Trigger
 		s.enqueuePlayback(n, true)
 		go s.ProcessPlaybackQueue(genCtx)
+
+		// Self-perpetuation: Trigger next queued item
+		s.ProcessGenerationQueue(genCtx)
 	}()
 }
 

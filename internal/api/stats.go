@@ -30,6 +30,7 @@ type ProviderStatsDTO struct {
 	APIZeroResult int64 `json:"api_zero"`
 	APIFailures   int64 `json:"api_errors"`
 	HitRate       int64 `json:"hit_rate"`
+	FreeTier      bool  `json:"free_tier"`
 }
 
 type SystemStats struct {
@@ -91,6 +92,7 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			APIZeroResult: stats.APIZeroResult,
 			APIFailures:   stats.APIFailures,
 			HitRate:       hitRate,
+			FreeTier:      stats.FreeTier,
 		}
 	}
 

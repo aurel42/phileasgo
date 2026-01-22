@@ -55,6 +55,10 @@ func NewLLMProvider(cfg config.LLMConfig, logPath string, rc *request.Client, t 
 
 		providers = append(providers, sub)
 		names = append(names, name)
+
+		if t != nil {
+			t.SetFreeTier(name, pCfg.FreeTier)
+		}
 	}
 
 	// Wrap in Failover Provider with unified logging and names
@@ -63,16 +67,30 @@ func NewLLMProvider(cfg config.LLMConfig, logPath string, rc *request.Client, t 
 
 // NewTTSProvider returns a TTS provider based on configuration.
 func NewTTSProvider(cfg *config.TTSConfig, targetLang string, t *tracker.Tracker) (tts.Provider, error) {
+	var prov tts.Provider
+	var err error
+	var free bool
+
 	switch cfg.Engine {
 	case "sapi", "windows-sapi":
-		return sapi.NewProvider(t), nil
+		prov = sapi.NewProvider(t)
+		free = true // Local is always free
 	case "edge", "edge-tts":
-		return edgetts.NewProvider(t), nil
+		prov = edgetts.NewProvider(t)
+		free = cfg.EdgeTTS.FreeTier
 	case "fish-audio", "fishaudio":
-		return fishaudio.NewProvider(cfg.FishAudio, t), nil
+		prov = fishaudio.NewProvider(cfg.FishAudio, t)
+		free = cfg.FishAudio.FreeTier
 	case "azure", "azure-speech":
-		return azure.NewProvider(cfg.AzureSpeech, targetLang, t), nil
+		prov = azure.NewProvider(cfg.AzureSpeech, targetLang, t)
+		free = cfg.AzureSpeech.FreeTier
 	default:
 		return nil, fmt.Errorf("unknown tts engine: %s", cfg.Engine)
 	}
+
+	if t != nil {
+		t.SetFreeTier(cfg.Engine, free)
+	}
+
+	return prov, err
 }
