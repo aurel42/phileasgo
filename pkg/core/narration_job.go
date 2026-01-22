@@ -460,91 +460,108 @@ func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 	// If LOS is disabled or checker unavailable, use simple best candidate
 	if !j.cfg.Terrain.LineOfSight || j.losChecker == nil {
-		slog.Debug("NarrationJob: LOS disabled or no checker", "los_enabled", j.cfg.Terrain.LineOfSight, "checker_nil", j.losChecker == nil)
-		// Use dynamic config here too: Get top 1 respecting filter
-		var minScore *float64
-		if j.getFilterMode() != "adaptive" {
-			val := j.getMinScore()
-			minScore = &val
-		}
-		cands := j.poiMgr.GetNarrationCandidates(1, minScore, t.IsOnGround)
-		if len(cands) > 0 {
-			return cands[0]
+		return j.getBestCandidateFallback(t)
+	}
+
+	minScore := j.getPOIQueryThreshold()
+	candidates := j.poiMgr.GetNarrationCandidates(1000, minScore, t.IsOnGround)
+	if len(candidates) == 0 {
+		if j.lastCheckedCount != -1 {
+			slog.Debug("NarrationJob: No candidates in range")
+			j.lastCheckedCount = -1
 		}
 		return nil
 	}
 
-	// Get ALL candidates sorted by score (no arbitrary limit)
-	// We pass nil for minScore because we want to filter ourselves later?
-	// Actually no, we should filter at source if possible to reduce count,
-	// BUT we need to potentially check adaptive mode inside the loop OR we just pass the threshold here.
-	// Since checking LOS is expensive, filtering by score FIRST is good.
-	// Wait, if adaptive mode is ON, minScore is effectively nil.
-	// If adaptive mode is OFF, minScore is set.
-	// So we can compute minScore and pass it!
-	var minScore *float64
-	if j.getFilterMode() != "adaptive" {
-		val := j.getMinScore()
-		minScore = &val
-	}
-
-	candidates := j.poiMgr.GetNarrationCandidates(1000, minScore, t.IsOnGround)
 	slog.Debug("NarrationJob: LOS checking candidates", "count", len(candidates), "aircraft_alt_ft", t.AltitudeMSL)
 
 	aircraftPos := geo.Point{Lat: t.Latitude, Lon: t.Longitude}
 	aircraftAltFt := t.AltitudeMSL
 
-	// Dynamic Config reading (once per run)
-	// threshold := j.getMinScore()
-	// isAdaptive := j.getFilterMode() == "adaptive"
-
 	checkedCount := 0
 	for i, poi := range candidates {
-		// Optimization: Score threshold already applied by GetNarrationCandidates
-		// Only adaptive vs fixed logic was handled there too via minScore arg.
-
 		// Also skip if not playable
 		if !j.isPlayable(poi) {
 			continue
 		}
 
 		// RARELY FILTER (Frequency 1): Ensure we only pick "Lone Wolves"
-		if j.getNarrationFrequency() == 1 {
-			analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
-			if ok && narrator.DetermineSkewStrategy(poi, analyzer, t.IsOnGround) != narrator.StrategyMaxSkew {
-				// Skip this candidate as it doesn't meet the "Rarely" criteria
-				continue
-			}
+		if !j.isRarelyEligible(poi, t) {
+			continue
 		}
 
 		checkedCount++
 
-		// Get POI ground elevation (meters -> feet)
-		poiElevM, err := j.losChecker.GetElevation(poi.Lat, poi.Lon)
-		if err != nil {
-			slog.Debug("NarrationJob: LOS elevation error", "poi", poi.DisplayName(), "error", err)
-			continue // Skip if we can't get elevation
-		}
-		poiAltFt := poiElevM * 3.28084 // meters to feet
-
-		poiPos := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
-
-		// Check LOS with 0.5km step size
-		isVisible := j.losChecker.IsVisible(aircraftPos, poiPos, aircraftAltFt, poiAltFt, 0.5)
-		if i < 5 { // Log first 5 candidates only to avoid spam
-			slog.Debug("NarrationJob: LOS check", "poi", poi.DisplayName(), "score", fmt.Sprintf("%.2f", poi.Score), "visible", isVisible, "poi_elev_ft", poiAltFt)
-		}
-		if isVisible {
-			slog.Debug("NarrationJob: Selected visible POI", "poi", poi.DisplayName(), "score", fmt.Sprintf("%.2f", poi.Score))
-			return poi // First visible POI wins
+		if j.checkPOIInLOS(poi, aircraftPos, aircraftAltFt, i) {
+			return poi
 		}
 	}
 
+	j.logBlockedStatus(candidates, checkedCount)
+	return nil // All blocked
+}
+
+func (j *NarrationJob) getBestCandidateFallback(t *sim.Telemetry) *model.POI {
+	slog.Debug("NarrationJob: LOS disabled or no checker", "los_enabled", j.cfg.Terrain.LineOfSight, "checker_nil", j.losChecker == nil)
+	minScore := j.getPOIQueryThreshold()
+	cands := j.poiMgr.GetNarrationCandidates(1, minScore, t.IsOnGround)
+	if len(cands) > 0 {
+		return cands[0]
+	}
+	return nil
+}
+
+func (j *NarrationJob) getPOIQueryThreshold() *float64 {
+	if j.getFilterMode() != "adaptive" {
+		val := j.getMinScore()
+		return &val
+	}
+	return nil
+}
+
+func (j *NarrationJob) isRarelyEligible(poi *model.POI, t *sim.Telemetry) bool {
+	if j.getNarrationFrequency() != 1 {
+		return true
+	}
+	analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
+	if !ok {
+		return true
+	}
+	return narrator.DetermineSkewStrategy(poi, analyzer, t.IsOnGround) == narrator.StrategyMaxSkew
+}
+
+func (j *NarrationJob) checkPOIInLOS(poi *model.POI, aircraftPos geo.Point, aircraftAltFt float64, index int) bool {
+	// Get POI ground elevation (meters -> feet)
+	poiElevM, err := j.losChecker.GetElevation(poi.Lat, poi.Lon)
+	if err != nil {
+		slog.Debug("NarrationJob: LOS elevation error", "poi", poi.DisplayName(), "error", err)
+		return false
+	}
+	poiAltFt := poiElevM * 3.28084 // meters to feet
+	poiPos := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
+
+	// Check LOS with 0.5km step size
+	isVisible := j.losChecker.IsVisible(aircraftPos, poiPos, aircraftAltFt, poiAltFt, 0.5)
+
+	if index < 5 { // Log first 5 candidates only to avoid spam
+		slog.Debug("NarrationJob: LOS check", "poi", poi.DisplayName(), "score", fmt.Sprintf("%.2f", poi.Score), "visible", isVisible, "poi_elev_ft", poiAltFt)
+	}
+
+	if isVisible {
+		slog.Debug("NarrationJob: Selected visible POI", "poi", poi.DisplayName(), "score", fmt.Sprintf("%.2f", poi.Score))
+	}
+	return isVisible
+}
+
+func (j *NarrationJob) logBlockedStatus(candidates []*model.POI, checkedCount int) {
 	if checkedCount != j.lastCheckedCount {
-		slog.Warn("NarrationJob: All POIs blocked by LOS or Filter", "checked", checkedCount, "total_candidates", len(candidates))
+		if checkedCount == 0 {
+			slog.Debug("NarrationJob: All candidates filtered by cooldown or rules", "total", len(candidates))
+		} else {
+			slog.Info("NarrationJob: All candidates blocked by LOS", "checked", checkedCount, "total", len(candidates))
+		}
 		j.lastCheckedCount = checkedCount
 	}
-	return nil // All blocked
 }
 
 func (j *NarrationJob) isLocationConsistent(t *sim.Telemetry) bool {

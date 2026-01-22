@@ -1,4 +1,11 @@
 ﻿# Release History
+ 
+## v0.2.138 (2026-01-22)
+- **Fix**: **LOS Log Refinements**
+  - Resolved a confusing log message "All POIs blocked by LOS or Filter" when zero candidates were in range.
+  - **Logic**: No POI candidates now correctly logs as a single `DEBUG` message.
+  - **Log Levels**: Downgraded mountain-blocked POI visibility warnings from `WARN` to `INFO`.
+  - **Refactor**: Split the complex `getVisibleCandidate` logic into smaller, maintainable helper functions to reduce cyclomatic complexity and satisfy linting rules.
 
 ## v0.2.137 (2026-01-21)
 - **Narrator**: **Word Count & Profile Synchronization**
