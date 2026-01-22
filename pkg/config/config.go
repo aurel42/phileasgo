@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
@@ -87,7 +88,7 @@ type LLMConfig struct {
 // ProviderConfig holds configuration for a single LLM provider.
 type ProviderConfig struct {
 	Type     string            `yaml:"type"`     // "gemini", "groq", "openai"
-	Key      string            `yaml:"key"`      // API Key
+	Key      string            `yaml:"-"`        // API Key (Loaded from Env)
 	Profiles map[string]string `yaml:"profiles"` // Map of intent -> model
 }
 
@@ -98,15 +99,15 @@ type EdgeTTSConfig struct {
 
 // FishAudioConfig holds settings for Fish Audio TTS.
 type FishAudioConfig struct {
-	Key     string `yaml:"key"`   // API Key
+	Key     string `yaml:"-"`     // API Key
 	VoiceID string `yaml:"voice"` // Reference ID
 	Model   string `yaml:"model"` // Model ID (e.g. "s1")
 }
 
 // AzureSpeechConfig holds settings for Azure Speech TTS.
 type AzureSpeechConfig struct {
-	Key     string `yaml:"key"`
-	Region  string `yaml:"region"` // e.g., "eastus"
+	Key     string `yaml:"-"`
+	Region  string `yaml:"-"`
 	VoiceID string `yaml:"voice"`
 }
 
@@ -395,8 +396,12 @@ func Load(path string) (*Config, error) {
 			return nil, fmt.Errorf("failed to parse config file: %w", err)
 		}
 
-		// Load from Env if empty (as a fallback, but do NOT save back to disk)
-		overrideFromEnv(cfg)
+		// Load .env files (local first, then default)
+		// We ignore errors here because it's valid to rely solely on system env vars
+		_ = godotenv.Load(".env.local", ".env")
+
+		// Load secrets from Env
+		loadSecretsFromEnv(cfg)
 
 		return cfg, nil
 	}
@@ -474,28 +479,34 @@ func GenerateDefault(path string) error {
 	return Save(path, DefaultConfig())
 }
 
-func overrideFromEnv(cfg *Config) {
+func loadSecretsFromEnv(cfg *Config) {
+	// LLM Providers
+	// We iterate over the configured providers and look for specific Env Vars
 	for name, p := range cfg.LLM.Providers {
-		if p.Key == "" && p.Type == "gemini" {
+		switch p.Type {
+		case "gemini":
 			if key := os.Getenv("GEMINI_API_KEY"); key != "" {
 				p.Key = key
-				cfg.LLM.Providers[name] = p
+			}
+		case "groq":
+			if key := os.Getenv("GROQ_API_KEY"); key != "" {
+				p.Key = key
 			}
 		}
+		// Update the map because p is a copy
+		cfg.LLM.Providers[name] = p
 	}
-	if cfg.TTS.FishAudio.Key == "" {
-		if key := os.Getenv("FISH_AUDIO_API_KEY"); key != "" {
-			cfg.TTS.FishAudio.Key = key
-		}
+
+	// TTS - Fish Audio
+	if key := os.Getenv("FISH_API_KEY"); key != "" {
+		cfg.TTS.FishAudio.Key = key
 	}
-	if cfg.TTS.AzureSpeech.Key == "" {
-		if key := os.Getenv("AZURE_SPEECH_KEY"); key != "" {
-			cfg.TTS.AzureSpeech.Key = key
-		}
+
+	// TTS - Azure Speech
+	if key := os.Getenv("SPEECH_KEY"); key != "" {
+		cfg.TTS.AzureSpeech.Key = key
 	}
-	if cfg.TTS.AzureSpeech.Region == "" {
-		if region := os.Getenv("AZURE_SPEECH_REGION"); region != "" {
-			cfg.TTS.AzureSpeech.Region = region
-		}
+	if region := os.Getenv("SPEECH_REGION"); region != "" {
+		cfg.TTS.AzureSpeech.Region = region
 	}
 }

@@ -161,7 +161,7 @@ func run(ctx context.Context, configPath string) error {
 	// Startup Probes
 	probes := []probe.Probe{
 		{
-			Name:     "LLM Provider (Gemini)",
+			Name:     "LLM Providers",
 			Check:    narratorSvc.LLMProvider().HealthCheck,
 			Critical: true,
 		},

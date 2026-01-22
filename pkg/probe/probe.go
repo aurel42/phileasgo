@@ -57,7 +57,6 @@ func AnalyzeResults(results []Result) error {
 	var criticalErrors []error
 
 	slog.Info("Startup Checks Summary")
-	slog.Info("----------------------------------------------------------------")
 
 	for _, r := range results {
 		status := "PASS"
@@ -76,7 +75,6 @@ func AnalyzeResults(results []Result) error {
 			slog.Info(msg)
 		}
 	}
-	slog.Info("----------------------------------------------------------------")
 
 	if len(criticalErrors) > 0 {
 		return errors.Join(criticalErrors...)
