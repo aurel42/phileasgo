@@ -11,6 +11,8 @@ import (
 )
 
 func TestNewLLMProvider(t *testing.T) {
+	t.Setenv("TEST_MODE", "true")
+
 	// Create a dummy tracker instance
 	tracker := tracker.New()
 	rc := request.New(nil, tracker, request.ClientConfig{

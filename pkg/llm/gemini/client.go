@@ -65,7 +65,11 @@ func NewClient(cfg config.ProviderConfig, logPath string, rc *request.Client, t 
 
 		// Validate Model Availability
 		if err := c.validateModel(context.Background()); err != nil {
-			slog.Warn("Gemini model validation failed (proceeding anyway)", "error", err)
+			if os.Getenv("TEST_MODE") == "true" {
+				slog.Warn("Gemini model validation failed (proceeding due to TEST_MODE)", "error", err)
+			} else {
+				return nil, fmt.Errorf("gemini model validation failed: %w", err)
+			}
 		}
 	}
 
@@ -398,49 +402,51 @@ func truncateParagraphs(text string, maxLen int) string {
 
 // validateModel checks if the configured model is available for the API key.
 func (c *Client) validateModel(ctx context.Context) error {
-	// Ensure model name has 'models/' prefix
-	name := c.modelName
-	if !strings.HasPrefix(name, "models/") {
-		name = "models/" + name
+	modelsToCheck := make(map[string]bool)
+	modelsToCheck[c.modelName] = true
+	for _, m := range c.profiles {
+		modelsToCheck[m] = true
 	}
 
-	// Try to get the specific model (1 API call)
-	_, err := c.genaiClient.Models.Get(ctx, name, nil)
-	if err == nil {
-		slog.Debug("Gemini model validation success", "model", c.modelName)
+	var missingModels []string
+	for model := range modelsToCheck {
+		name := model
+		if !strings.HasPrefix(name, "models/") {
+			name = "models/" + name
+		}
+		_, err := c.genaiClient.Models.Get(ctx, name, nil)
+		if err != nil {
+			missingModels = append(missingModels, model)
+		}
+	}
+
+	if len(missingModels) == 0 {
 		return nil
 	}
 
-	slog.Warn("Gemini model validation failed, fetching available models...", "model", c.modelName, "error", err)
-
-	// Fetch available models for recovery
+	// Fetch available models for the user
 	iter, listErr := c.genaiClient.Models.List(ctx, nil)
-	if listErr != nil {
-		slog.Warn("Failed to list models for recovery", "error", listErr)
-		return nil // Proceed anyway
+	var availableInfo string
+	if listErr == nil {
+		var availableModels []string
+		for {
+			resp, nextErr := iter.Next(ctx)
+			if nextErr == iterator.Done {
+				break
+			}
+			if nextErr != nil {
+				break
+			}
+			if strings.Contains(strings.ToLower(resp.Name), "gemini") {
+				availableModels = append(availableModels, resp.Name)
+			}
+		}
+		if len(availableModels) > 0 {
+			availableInfo = "\nAvailable models for this key: " + strings.Join(availableModels, ", ")
+		}
 	}
 
-	var availableModels []string
-	for {
-		resp, nextErr := iter.Next(ctx)
-		if nextErr == iterator.Done {
-			break
-		}
-		if nextErr != nil {
-			break
-		}
-		if strings.Contains(strings.ToLower(resp.Name), "gemini") {
-			availableModels = append(availableModels, resp.Name)
-		}
-	}
-
-	slog.Error("Configured model not found", "configured", c.modelName)
-	slog.Error("Available 'gemini' models for this key:")
-	for _, m := range availableModels {
-		slog.Error("- " + m)
-	}
-
-	return nil // Proceed anyway (lazy validation on generation)
+	return fmt.Errorf("configured models %v not found or unauthorized.%s", missingModels, availableInfo)
 }
 
 // HealthCheck verifies that the provider is configured and reachable.
