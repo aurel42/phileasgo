@@ -147,6 +147,10 @@ The web UI shows:
 - Nearby points of interest
 - Narration status and controls
 
+For streaming: point the browser to http://localhost:1920/overlay for a transparent overlay. The elements can be turned on/off in phileas.yaml.
+
+Note: on your first flight, the Wikidata QID hierarchy cache table is populated. This will result in a high number of Wikidata API calls and is nothing to worry about. As long as your database (data/phileas.db) is present, we will rarely ask for any piece of information more than once. If you want to make it easier on Phileas, don't start your first flight in the middle of a metropolitan area.
+
 ## Building from Source
 
 - [LittleNavMap MSFS POIs](https://flightsim.to/file/81114/littlenavmap-msfs-poi-s) - MSFS-specific landmarks

@@ -58,7 +58,11 @@ func (f *Provider) GenerateText(ctx context.Context, name, prompt string) (strin
 // GenerateJSON implements llm.Provider.
 func (f *Provider) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
 	_, err := f.execute(ctx, name, prompt, func(p llm.Provider) (any, error) {
-		return nil, p.GenerateJSON(ctx, name, prompt, target)
+		err := p.GenerateJSON(ctx, name, prompt, target)
+		if err != nil {
+			return nil, err
+		}
+		return target, nil
 	})
 	return err
 }

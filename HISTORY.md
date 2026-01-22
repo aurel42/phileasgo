@@ -1,12 +1,20 @@
 ﻿# Release History
 
+## v0.3.4 (2026-01-22)
+- **Feature**: **Binary Release Preparation**
+  - Added `release-binary` target to Makefile for automated packaging.
+  - Transparently handles SimConnect DLL and UI asset embedding.
+- **Feature**: **Installation Helper Improvements**
+  - `install.ps1` now offers to automatically create and open `.env.local` if missing.
+- **Fix**: **LLM Logging**
+  - Resolved an issue where JSON responses were logged as `<nil>` in `llm.log`.
+
 ## v0.3.3 (2026-01-22)
 - **Fix**: **Beacon Immersion**
   - Added strict suppression of beacon spawning when the aircraft is on the ground (`sim.Telemetry.IsOnGround`).
 - **Feature**: **Variety Scoring Configuration**
   - Made `NoveltyBoost` and `GroupPenalty` configurable in `phileas.yaml`.
   - Tuned default values to allow better variety in high-density areas like the Alps.
-
 
 ## v0.3.2 (2026-01-22)
 - **Fix**: **Playback Queue Race Condition**

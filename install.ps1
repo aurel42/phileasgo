@@ -122,12 +122,25 @@ if (-not (Test-Path $configFile)) {
     Write-Host "Config file already exists - skipping." -ForegroundColor Gray
 }
 
+# .env Setup
+if (-not (Test-Path ".env") -and -not (Test-Path ".env.local")) {
+    if (Test-Path ".env.template") {
+        Write-Host ""
+        $choice = Read-Host "No environment file (.env) detected. Would you like to create .env.local and configure your API keys? (y/n)"
+        if ($choice -eq "y") {
+            Copy-Item ".env.template" ".env.local"
+            Write-Host ".env.local created. Opening in Notepad..." -ForegroundColor Green
+            Start-Process notepad.exe ".env.local"
+        }
+    }
+}
+
 # API Key configuration reminder
 Write-Host ""
 Write-Host "=== Configuration ===" -ForegroundColor Yellow
-Write-Host "Edit configs/phileas.yaml to add your API keys:"
-Write-Host "  - Gemini API key (REQUIRED for narration)" -ForegroundColor White
-Write-Host "  - Azure TTS credentials (optional - edge-tts is used by default)" -ForegroundColor Gray
+Write-Host "Edit .env.local or configs/phileas.yaml to add your API keys:"
+Write-Host "  - GEMINI_API_KEY (REQUIRED for narration)" -ForegroundColor White
+Write-Host "  - Azure/Fish Audio keys (optional)" -ForegroundColor Gray
 Write-Host ""
 
 Write-Host "Installation complete!" -ForegroundColor Green
