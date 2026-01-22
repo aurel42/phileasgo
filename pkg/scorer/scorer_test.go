@@ -24,6 +24,8 @@ func setupScorer() *Scorer {
 		VarietyPenaltyFirst: 0.1,
 		VarietyPenaltyLast:  0.5,
 		VarietyPenaltyNum:   3,
+		NoveltyBoost:        1.3,
+		GroupPenalty:        0.5,
 	}
 
 	catCfg := &config.CategoriesConfig{

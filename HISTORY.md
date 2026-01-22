@@ -1,5 +1,13 @@
 ﻿# Release History
 
+## v0.3.3 (2026-01-22)
+- **Fix**: **Beacon Immersion**
+  - Added strict suppression of beacon spawning when the aircraft is on the ground (`sim.Telemetry.IsOnGround`).
+- **Feature**: **Variety Scoring Configuration**
+  - Made `NoveltyBoost` and `GroupPenalty` configurable in `phileas.yaml`.
+  - Tuned default values to allow better variety in high-density areas like the Alps.
+
+
 ## v0.3.2 (2026-01-22)
 - **Fix**: **Playback Queue Race Condition**
   - Resolved a bug where system-selected POIs could get stuck in the queue if generation finished after the narrator went idle.

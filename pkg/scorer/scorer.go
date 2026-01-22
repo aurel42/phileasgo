@@ -243,7 +243,7 @@ func (s *Scorer) calculateContentScore(poi *model.POI) (score float64, logs []st
 
 func (s *Scorer) calculateVarietyScore(poi *model.POI, history []string) (multiplier float64, logs []string) {
 	if len(history) == 0 {
-		return 1.3, []string{"Novelty Boost (No History): x1.30"}
+		return s.config.NoveltyBoost, []string{fmt.Sprintf("Novelty Boost (No History): x%.2f", s.config.NoveltyBoost)}
 	}
 
 	foundIdx := -1
@@ -264,8 +264,8 @@ func (s *Scorer) calculateVarietyScore(poi *model.POI, history []string) (multip
 	}
 
 	// If not found in history, OR found but outside penalty window
-	boost := 1.3
-	logs = append(logs, fmt.Sprintf("Novelty Boost: x%.1f", boost))
+	boost := s.config.NoveltyBoost
+	logs = append(logs, fmt.Sprintf("Novelty Boost: x%.2f", boost))
 	multiplier = boost
 
 	// Category Group Check (Last Played)
@@ -275,7 +275,7 @@ func (s *Scorer) calculateVarietyScore(poi *model.POI, history []string) (multip
 		lastGroup := s.catConfig.GetGroup(lastCat)
 
 		if candGroup != "" && lastGroup != "" && candGroup == lastGroup {
-			groupPenalty := s.config.VarietyPenaltyLast
+			groupPenalty := s.config.GroupPenalty
 			multiplier *= groupPenalty
 			logs = append(logs, fmt.Sprintf("Group Penalty (%s): x%.2f", candGroup, groupPenalty))
 		}

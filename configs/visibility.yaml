@@ -9,23 +9,23 @@ visibility:
     - altitude: 1000
       distances: { S: 4.0, M: 5.0, L: 4.0, XL: 8.0 }
     - altitude: 1500
-      distances: { S: 3.8, M: 5.5, L: 5.6, XL: 9.6 }
+      distances: { S: 4.4, M: 5.5, L: 5.6, XL: 9.6 }
     - altitude: 2000
-      distances: { S: 3.6, M: 6.0, L: 7.2, XL: 12.0 }
+      distances: { S: 4.8, M: 6.0, L: 7.2, XL: 12.0 }
     - altitude: 2500
-      distances: { S: 3.4, M: 6.5, L: 8.8, XL: 13.6 }
+      distances: { S: 5.2, M: 6.5, L: 8.8, XL: 13.6 }
     - altitude: 3000
-      distances: { S: 3.0, M: 7.0, L: 10.4, XL: 16.0 }
+      distances: { S: 5.4, M: 7.0, L: 10.4, XL: 16.0 }
     - altitude: 3500
-      distances: { S: 3.0, M: 7.5, L: 11.6, XL: 17.6 }
+      distances: { S: 5.6, M: 7.5, L: 11.6, XL: 17.6 }
     - altitude: 4000
-      distances: { S: 3.0, M: 8.0, L: 12.8, XL: 19.2 }
+      distances: { S: 5.8, M: 8.0, L: 12.8, XL: 19.2 }
     - altitude: 4500
-      distances: { S: 3.0, M: 8.5, L: 14.0, XL: 20.8 }
+      distances: { S: 6.0, M: 8.5, L: 14.0, XL: 20.8 }
     - altitude: 5000
-      distances: { S: 2.8, M: 9.0, L: 15.2, XL: 22.4 }
+      distances: { S: 4.0, M: 9.0, L: 15.2, XL: 22.4 }
     - altitude: 5500
-      distances: { S: 2.6, M: 9.5, L: 16.0, XL: 24.0 }
+      distances: { S: 3.0, M: 9.5, L: 16.0, XL: 24.0 }
     - altitude: 6000
       distances: { S: 2.4, M: 10.0, L: 16.8, XL: 25.6 }
     - altitude: 6500

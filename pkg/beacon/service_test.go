@@ -356,3 +356,33 @@ func TestComputeFormationOffsets(t *testing.T) {
 		}
 	}
 }
+
+func TestSetTarget_OnGround(t *testing.T) {
+	mock := &MockClient{
+		Tel: sim.Telemetry{
+			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 10, AltitudeAGL: 0, Heading: 90, IsOnGround: true,
+		},
+	}
+	cfg := &config.BeaconConfig{
+		Enabled:           true,
+		FormationEnabled:  true,
+		MinSpawnAltitude:  config.Distance(304.8),
+	}
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
+
+	// Set Target while on ground
+	err := svc.SetTarget(context.Background(), 45.0, -72.0)
+	if err != nil {
+		t.Fatalf("SetTarget failed: %v", err)
+	}
+
+	// Expect ZERO spawns
+	if len(mock.Spawns) != 0 {
+		t.Errorf("Expected 0 spawns while on ground, got %d", len(mock.Spawns))
+	}
+
+	// Ensure system is still marked active
+	if !svc.active {
+		t.Error("Service should be active even if spawns are suppressed")
+	}
+}

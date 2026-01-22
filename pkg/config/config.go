@@ -217,6 +217,8 @@ type ScorerConfig struct {
 	VarietyPenaltyFirst float64 `yaml:"variety_penalty_first"`
 	VarietyPenaltyLast  float64 `yaml:"variety_penalty_last"`
 	VarietyPenaltyNum   int     `yaml:"variety_penalty_num"`
+	NoveltyBoost        float64 `yaml:"novelty_boost"`
+	GroupPenalty        float64 `yaml:"group_penalty"`
 }
 
 // LogSettings holds settings for a specific logger.
@@ -294,6 +296,8 @@ func DefaultConfig() *Config {
 			VarietyPenaltyFirst: 0.1,
 			VarietyPenaltyLast:  0.5,
 			VarietyPenaltyNum:   3,
+			NoveltyBoost:        1.3,
+			GroupPenalty:        0.5,
 		},
 		LLM: LLMConfig{
 			Providers: map[string]ProviderConfig{

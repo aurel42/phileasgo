@@ -135,13 +135,19 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64) error {
 	// 2. Select Title
 	title := titlesToTry[0] // TODO: Try loop if fails? (Spawn blocks now so we could)
 
-	// 3. Spawning Logic based on AGL
-	// If below MinSpawnAltitude AGL (Config):
+	// 3. Spawning Logic based on AGL and Ground State
+	// - If aircraft is ON GROUND: Do not spawn anything.
+	// - If below MinSpawnAltitude AGL (Config):
 	// - Spawn target at MSL + MinSpawnAltitude
 	// - Do NOT spawn formation
-	// If above MinSpawnAltitude AGL:
+	// - If above MinSpawnAltitude AGL:
 	// - Spawn target at MSL
 	// - Spawn formation (if enabled)
+	if tel.IsOnGround {
+		s.logger.Info("Aircraft is on ground, skipping beacon spawn")
+		s.active = true // System is active but balloons are suppressed
+		return nil
+	}
 
 	var spawnFormation bool
 	s.isHoldingAlt = false // Reset holding state
