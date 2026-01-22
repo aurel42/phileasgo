@@ -1,5 +1,17 @@
 ﻿# Release History
  
+## v0.3.0 (2026-01-22)
+- **Feature**: **Multi-Provider LLM Support (Groq & OpenAI)**
+  - Introducing a flexible, multi-provider LLM architecture.
+  - **Groq Support**: Added native support for Groq's high-speed inference engine via `type: groq`.
+  - **Generic OpenAI**: Added a reusable `type: openai` provider compatible with any standard Chat Completions API (Mistral, Ollama, standard proxies).
+  - **Failover**: All providers are fully integrated into the failover chain with centralized logging and stats tracking.
+  - **Config**: Updated `phileas.yaml` with examples for new providers.
+- **Refactor**: **System Reliability**
+  - Centralized JSON cleaning utilities to share robustness logic across all providers.
+  - Removed internal complexity from Gemini client, making it a pure API wrapper.
+  - Achieved >80% test coverage for the new provider implementations.
+
 ## v0.2.138 (2026-01-22)
 - **Fix**: **LOS Log Refinements**
   - Resolved a confusing log message "All POIs blocked by LOS or Filter" when zero candidates were in range.
