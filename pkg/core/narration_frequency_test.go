@@ -10,7 +10,15 @@ import (
 	"time"
 )
 
-// TestNarrationJob_Frequency_Strategies verifies the 5 frequency levels.
+// Note: mockNarratorService and other mocks are shared with narration_job_test.go if in the same package,
+// but usually tests in the same package can share types.
+// However, if they are redefined, I should update them.
+// Let's assume they are shared since it's the same package 'core'.
+// But the error said isActive is missing in narration_frequency_test.go at line 133.
+// This implies it's using the same struct.
+
+// If it's using the same struct, then my fix to narration_job_test.go should fix it.
+// Wait, I see tt.isPlaying but tt.isActive might be needed in the struct literal?
 func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 	// Base Config
 	cfg := config.DefaultConfig()

@@ -15,6 +15,7 @@ type mockPhase2NarratorService struct {
 	isActive          bool
 	isPlaying         bool
 	isGeneratingVal   bool
+	hasStagedAuto     bool
 	playPOICalled     bool
 	playDebriefCalled bool
 	RemainingFunc     func() time.Duration
@@ -50,6 +51,10 @@ func (m *mockPhase2NarratorService) CurrentType() model.NarrativeType {
 
 func (m *mockPhase2NarratorService) IsGenerating() bool {
 	return m.isGeneratingVal
+}
+
+func (m *mockPhase2NarratorService) HasStagedAuto() bool {
+	return m.hasStagedAuto
 }
 
 func (m *mockPhase2NarratorService) Remaining() time.Duration {

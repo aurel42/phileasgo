@@ -13,6 +13,7 @@ import (
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/geo"
+	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/scorer"
 	"phileasgo/pkg/sim"
@@ -123,10 +124,10 @@ func (m *Manager) upsertInternal(ctx context.Context, p *model.POI, shouldSave b
 		if err := m.store.SavePOI(ctx, p); err != nil {
 			return fmt.Errorf("%w: failed to save POI %s: %v", ErrStoreFailure, p.WikidataID, err)
 		}
-		m.logger.Debug("Upserted POI", "qid", p.WikidataID, "name", p.DisplayName())
+		logging.Trace(m.logger, "Upserted POI", "qid", p.WikidataID, "name", p.DisplayName())
 	} else if isNew {
 		// Only log hydration for genuinely new POIs, not duplicates from overlapping tiles
-		m.logger.Debug("Tracked POI (hydrated)", "qid", p.WikidataID, "name", p.DisplayName())
+		logging.Trace(m.logger, "Tracked POI (hydrated)", "qid", p.WikidataID, "name", p.DisplayName())
 	}
 
 	return nil
@@ -499,7 +500,7 @@ func (m *Manager) performScoringPass(ctx context.Context, simClient sim.Client, 
 		predictedPos := geo.Point{Lat: telemetry.PredictedLatitude, Lon: telemetry.PredictedLongitude}
 		predDistMeters := geo.Distance(currentPos, predictedPos)
 		predDistNM := predDistMeters / 1852.0
-		m.logger.Debug("Scoring: Prediction offset",
+		logging.Trace(m.logger, "Scoring: Prediction offset",
 			"dist_nm", fmt.Sprintf("%.2f", predDistNM),
 			"groundspeed_kts", fmt.Sprintf("%.0f", telemetry.GroundSpeed),
 		)

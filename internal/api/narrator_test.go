@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 )
@@ -55,7 +56,13 @@ func TestNarratorHandler_HandleStatus_Logging(t *testing.T) {
 	logger := slog.New(handler)
 	originalLogger := slog.Default()
 	slog.SetDefault(logger)
+	slog.SetDefault(logger)
 	defer slog.SetDefault(originalLogger)
+
+	// Enable trace for this test
+	originalTrace := logging.EnableTrace
+	logging.EnableTrace = true
+	defer func() { logging.EnableTrace = originalTrace }()
 
 	mockAudio := &MockAudioService{}
 	mockNarrator := &MockNarratorService{}

@@ -63,6 +63,28 @@ func (s *AIService) IsGenerating() bool {
 	return s.generating || len(s.generationQueue) > 0
 }
 
+// HasStagedAuto returns true if an automatic POI or Essay is currently generating or in the playback queue.
+func (s *AIService) HasStagedAuto() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// 1. Is actively generating an auto-job?
+	// Note: s.generatingPOI tracks the current POI being generated, but we rely on queue checks below.
+
+	// Simplest check: if we are generating OR have items in generation queue OR have auto items in playback queue.
+	if s.generating || len(s.generationQueue) > 0 {
+		return true
+	}
+
+	for _, n := range s.playbackQueue {
+		if !n.Manual && (n.Type == model.NarrativeTypePOI || n.Type == model.NarrativeTypeEssay) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // IsPlaying returns true if narrator is currently playing audio (or checking busy state).
 func (s *AIService) IsPlaying() bool {
 	return s.audio.IsBusy()

@@ -2,6 +2,8 @@ package wikidata
 
 import (
 	"context"
+
+	"phileasgo/pkg/logging"
 )
 
 func (p *Pipeline) filterExistingPOIs(ctx context.Context, rawArticles []Article, qids []string) []Article {
@@ -54,7 +56,7 @@ func (p *Pipeline) filterSeenArticles(ctx context.Context, rawArticles []Article
 	}
 
 	if len(rawArticles) != len(filtered) {
-		p.logger.Debug("Filtered seen articles", "count", len(rawArticles)-len(filtered))
+		logging.Trace(p.logger, "Filtered seen articles", "count", len(rawArticles)-len(filtered))
 	}
 
 	return filtered
@@ -68,7 +70,7 @@ func (p *Pipeline) classifyAndFilterArticles(ctx context.Context, rawArticles []
 
 	ignoredQIDs := p.classifyInChunks(ctx, rawArticles, candidates)
 	if len(ignoredQIDs) > 0 {
-		p.logger.Debug("Classification ignored articles", "count", len(ignoredQIDs))
+		logging.Trace(p.logger, "Classification ignored articles", "count", len(ignoredQIDs))
 	}
 
 	return p.filterByQIDs(rawArticles, ignoredQIDs)
@@ -235,7 +237,7 @@ func (p *Pipeline) checkPOIStatus(a *Article, dc DimClassifier) (isPOI, rescued 
 		}
 		a.DimensionMultiplier = dc.GetMultiplier(h, l, area)
 		if a.DimensionMultiplier > 1.0 {
-			p.logger.Debug("Dimension Multiplier applied", "qid", a.QID, "mult", a.DimensionMultiplier)
+			logging.Trace(p.logger, "Dimension Multiplier applied", "qid", a.QID, "mult", a.DimensionMultiplier)
 		}
 	}
 
@@ -252,7 +254,7 @@ func (p *Pipeline) assignRescueCategory(a *Article, h, l, area float64) {
 		p.logger.Debug("Rescued article by Height", "title", a.LocalTitles, "qid", a.QID)
 	case l > 0:
 		a.Category = "Length"
-		p.logger.Debug("Rescued article by Length", "title", a.LocalTitles, "qid", a.QID)
+		logging.Trace(p.logger, "Rescued article by Length", "title", a.LocalTitles, "qid", a.QID)
 	default:
 		a.Category = "Landmark"
 	}

@@ -135,7 +135,11 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 		return err
 	}
 
+	// Enqueue & Trigger
 	s.enqueuePlayback(narrative, false)
+	// FIX: Ensure processing continues/restarts if playing finished while generating
+	go s.ProcessPlaybackQueue(context.Background())
+
 	return nil
 }
 

@@ -112,10 +112,11 @@ func (j *NarrationJob) CanPreparePOI(t *sim.Telemetry) bool {
 	}
 
 	// 2. Narrator Activity Check (Base)
-	// If generating, we are busy.
-	if j.narrator.IsGenerating() {
+	// If already have an auto-narration staged or generating, we are busy.
+	if j.narrator.HasStagedAuto() {
 		return false
 	}
+
 	// Also check Pause / Cooldown logic
 	if !j.checkNarratorReady() {
 		return false
@@ -131,8 +132,8 @@ func (j *NarrationJob) CanPrepareEssay(t *sim.Telemetry) bool {
 	if !j.checkPreConditions(t) {
 		return false
 	}
-	// 2. State Check - essays require complete silence
-	if j.narrator.IsPaused() || j.narrator.IsGenerating() || j.narrator.IsPlaying() {
+	// 2. State Check - essays require complete silence and no staged content
+	if j.narrator.IsPaused() || j.narrator.HasStagedAuto() || j.narrator.IsPlaying() {
 		return false
 	}
 	// 3. Essay Logic

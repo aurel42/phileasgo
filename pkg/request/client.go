@@ -12,6 +12,7 @@ import (
 
 	"bytes"
 	"phileasgo/pkg/cache"
+	"phileasgo/pkg/logging"
 	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/version"
 	"strings"
@@ -345,7 +346,7 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 			return nil, req.Context().Err()
 		}
 
-		slog.Debug("Network Request", "host", req.URL.Host, "path", req.URL.Path, "attempt", attempt+1, "max", c.retries)
+		logging.TraceDefault("Network Request", "host", req.URL.Host, "path", req.URL.Path, "attempt", attempt+1, "max", c.retries)
 		resp, err := c.httpClient.Do(req)
 
 		if err != nil {

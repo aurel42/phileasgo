@@ -1,16 +1,19 @@
 ﻿# Release History
 
-## v0.3.2 (Draft)
+## v0.3.2 (2026-01-22)
+- **Fix**: **Playback Queue Race Condition**
+  - Resolved a bug where system-selected POIs could get stuck in the queue if generation finished after the narrator went idle.
+  - Added explicit queue processor triggering in the pipelining flow.
+- **Feature**: **TRACE Log Level**
+  - Introduced a new `TRACE` level (controlled by `logging.EnableTrace`) to reduce log noise in `DEBUG` mode.
+  - Moved high-frequency tile checks, hydrated POI tracking, and scoring instrumentation to the TRACE level.
 - **Feature**: **Environment-Based Secret Management**
   - Migrated all API keys and service secrets to environment variables.
   - Added `.env.template` to the repository to streamline setup and protect user secrets.
-  - PhileasGo now looks for `.env.local` or standard environment variables for all provider keys.
 - **Refactor**: **EdgeTTS Decoupling**
-  - Removed all hardcoded handshake "secrets" (User-Agent, Tokens, URLs) from the binary.
-  - These values are now configurable via environment variables, allowing the community to update handshake signatures without waiting for a new release if Microsoft changes their Edge TTS API requirements.
+  - Removed hardcoded handshake "secrets" from the binary; these are now configurable via environment variables.
 - **Documentation**: **Groq & Fallback Chains**
-  - Added comprehensive documentation for Groq’s free tier and easy sign-up process.
-  - Added instructions for configuring LLM fallback chains (e.g., `["groq", "gemini"]`) to gracefully handle rate limits during peak hours.
+  - Added instructions for configuring LLM fallback chains and Groq setup.
 
 ## v0.3.1 (2026-01-22)
 - **Fix**: **Gemini Stats Tracking**

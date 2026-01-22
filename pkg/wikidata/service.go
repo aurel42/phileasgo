@@ -11,6 +11,7 @@ import (
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/geo"
+	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/poi"
 	"phileasgo/pkg/request"
@@ -229,7 +230,7 @@ func (s *Service) processTick(ctx context.Context) {
 		s.recentTiles[key] = time.Now() // Mark before fetch
 		s.recentMu.Unlock()
 
-		s.logger.Debug("Checking tile",
+		logging.Trace(s.logger, "Checking tile",
 			"key", key,
 			"dist_km", fmt.Sprintf("%.1f", c.Dist),
 			"cost", fmt.Sprintf("%.1f", c.Cost),
@@ -271,10 +272,10 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
 
 	cachedBody, _, ok := s.store.GetGeodataCache(ctx, key)
 	if ok && len(cachedBody) > 0 {
-		s.logger.Debug("Cache Hit (Optimized)", "key", key)
+		logging.Trace(s.logger, "Cache Hit (Optimized)", "key", key)
 		processed, rescued, err := s.pipeline.ProcessTileData(ctx, cachedBody, centerLat, centerLon, false)
 		if err == nil {
-			s.logger.Debug("Processed cached tile",
+			logging.Trace(s.logger, "Processed cached tile",
 				"key", key,
 				"saved", len(processed),
 				"rescued", rescued)

@@ -18,6 +18,8 @@ import (
 type mockNarratorService struct {
 	narrator.StubService
 	isPlaying         bool
+	isGenerating      bool
+	hasStagedAuto     bool
 	isActive          bool
 	isPaused          bool
 	playEssayCalled   bool
@@ -30,7 +32,8 @@ type mockNarratorService struct {
 
 func (m *mockNarratorService) IsPlaying() bool                  { return m.isPlaying }
 func (m *mockNarratorService) IsActive() bool                   { return m.isActive }
-func (m *mockNarratorService) IsGenerating() bool               { return false }
+func (m *mockNarratorService) IsGenerating() bool               { return m.isGenerating }
+func (m *mockNarratorService) HasStagedAuto() bool              { return m.hasStagedAuto }
 func (m *mockNarratorService) IsPaused() bool                   { return m.isPaused }
 func (m *mockNarratorService) CurrentTitle() string             { return "" }
 func (m *mockNarratorService) CurrentType() model.NarrativeType { return "" }
@@ -629,6 +632,8 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 	tests := []struct {
 		name              string
 		isPlaying         bool
+		isGenerating      bool
+		hasStagedAuto     bool
 		remaining         time.Duration
 		avgLatency        time.Duration
 		expectShouldFire  bool
@@ -671,13 +676,33 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 			expectPrepareNext: true,
 			expectPlayPOI:     false,
 		},
+		{
+			name:              "Playing - Timing Good but Already Staged (Blocked)",
+			isPlaying:         true,
+			hasStagedAuto:     true,
+			remaining:         2 * time.Second,
+			avgLatency:        12 * time.Second,
+			expectShouldFire:  false,
+			expectPrepareNext: false,
+			expectPlayPOI:     false,
+		},
+		{
+			name:              "Staged Only (No playing) - Blocked",
+			isPlaying:         false,
+			hasStagedAuto:     true,
+			expectShouldFire:  false,
+			expectPrepareNext: false,
+			expectPlayPOI:     false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockN := &mockNarratorService{
-				isPlaying: tt.isPlaying,
-				isActive:  tt.isPlaying, // Active if playing
+				isPlaying:     tt.isPlaying,
+				isActive:      tt.isPlaying || tt.isGenerating || tt.hasStagedAuto,
+				isGenerating:  tt.isGenerating,
+				hasStagedAuto: tt.hasStagedAuto,
 			}
 			// Setup Mocks
 			mockN.RemainingFunc = func() time.Duration { return tt.remaining }

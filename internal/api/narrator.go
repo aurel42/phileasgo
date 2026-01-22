@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sync"
 
+	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 )
@@ -142,7 +143,7 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	// Check if state changed
 	h.statusMu.Lock()
 	if !reflect.DeepEqual(h.lastStatusResponse, &resp) {
-		slog.Debug("Narrator state changed", "old", h.lastStatusResponse, "new", resp)
+		logging.TraceDefault("Narrator state changed", "old", h.lastStatusResponse, "new", resp)
 		// Create a copy to store
 		stored := resp
 		h.lastStatusResponse = &stored

@@ -34,6 +34,8 @@ type Service interface {
 	PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error
 	// GetPreparedPOI returns the POI currently staged or generating, if any.
 	GetPreparedPOI() *model.POI
+	// HasStagedAuto returns true if an automatic POI or Essay is currently generating or queued.
+	HasStagedAuto() bool
 	// HasPendingManualOverride returns true if a user-requested POI is queued.
 	HasPendingManualOverride() bool
 	// GetPendingManualOverride returns and clears the pending manual override.
@@ -177,6 +179,11 @@ func (s *StubService) PrepareNextNarrative(ctx context.Context, poiID, strategy 
 // GetPreparedPOI returns the POI being prepared (stub: nil).
 func (s *StubService) GetPreparedPOI() *model.POI {
 	return nil
+}
+
+// HasStagedAuto returns true if an automatic narration is staged (stub: false).
+func (s *StubService) HasStagedAuto() bool {
+	return false
 }
 
 // HasPendingManualOverride returns true if pending (stub: false).
