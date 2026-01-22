@@ -11,6 +11,11 @@
   - Centralized JSON cleaning utilities to share robustness logic across all providers.
   - Removed internal complexity from Gemini client, making it a pure API wrapper.
   - Achieved >80% test coverage for the new provider implementations.
+- **Refactor**: **Sparse Profile Support & Dynamic Routing**
+  - **Smart Failover**: The `Failover` provider now intelligently inspects provider capabilities (`HasProfile`) before routing requests.
+  - **Sparse Profiles**: Allows specialized providers (e.g., Vision-only) to coexist with general-purpose providers without static chain configuration.
+  - **Dynamic Chains**: Removed rigid chain building logic from `factory.go`; the system now auto-discovers the best available path for each request (Text, JSON, Image).
+  - **Simplification**: `NewAIService` now accepts a single flat list of providers, reducing configuration complexity.
 
 ## v0.2.138 (2026-01-22)
 - **Fix**: **LOS Log Refinements**

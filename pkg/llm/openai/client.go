@@ -242,10 +242,3 @@ func (c *Client) resolveModel(intent string) (string, error) {
 	}
 	return "", fmt.Errorf("profile %q not configured", intent)
 }
-
-func (c *Client) validateModel(ctx context.Context) error {
-	if len(c.profiles) == 0 {
-		return fmt.Errorf("no profiles configured")
-	}
-	return nil
-}

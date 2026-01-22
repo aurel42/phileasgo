@@ -205,6 +205,23 @@ func TestOpenAI_ResolveModel(t *testing.T) {
 	}
 }
 
+func TestOpenAI_HasProfile(t *testing.T) {
+	cfg := config.ProviderConfig{
+		Profiles: map[string]string{
+			"narration": "pro-model",
+		},
+	}
+	rc := request.New(nil, tracker.New(), request.ClientConfig{})
+	c, _ := NewClient(cfg, "http://localhost", rc)
+
+	if !c.HasProfile("narration") {
+		t.Errorf("expected HasProfile to return true for 'narration'")
+	}
+	if c.HasProfile("vision") {
+		t.Errorf("expected HasProfile to return false for 'vision'")
+	}
+}
+
 func TestOpenAI_UnmarshalError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`invalid json`))
