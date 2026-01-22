@@ -18,12 +18,6 @@ import (
 	"phileasgo/pkg/tts"
 )
 
-const (
-	edgeBaseURL        = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1"
-	trustedClientToken = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
-	edgeOrigin         = "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold"
-)
-
 // Provider implements tts.Provider for Microsoft Edge TTS.
 type Provider struct {
 	tracker *tracker.Tracker
@@ -81,11 +75,22 @@ func (p *Provider) Synthesize(ctx context.Context, text, voice, outputPath strin
 }
 
 func (p *Provider) dial(ctx context.Context) (*websocket.Conn, error) {
+	edgeOrigin := os.Getenv("EDGE_TTS_ORIGIN")
+	if edgeOrigin == "" {
+		return nil, fmt.Errorf("EDGE_TTS_ORIGIN environment variable is required")
+	}
+
 	header := http.Header{}
 	header.Set("Origin", edgeOrigin)
 	header.Set("Pragma", "no-cache")
 	header.Set("Cache-Control", "no-cache")
-	header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0")
+
+	// User-Agent from env (required)
+	userAgent := os.Getenv("EDGE_TTS_USER_AGENT")
+	if userAgent == "" {
+		return nil, fmt.Errorf("EDGE_TTS_USER_AGENT environment variable is required")
+	}
+	header.Set("User-Agent", userAgent)
 	header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
 	header.Set("Accept-Language", "en-US,en;q=0.9")
 
@@ -94,8 +99,20 @@ func (p *Provider) dial(ctx context.Context) (*websocket.Conn, error) {
 	header.Set("Cookie", fmt.Sprintf("muid=%s", muid))
 
 	// Sec-MS-GEC Generation
-	token := p.generateSecMSGec()
-	version := "1-132.0.2957.127"
+	trustedClientToken := os.Getenv("EDGE_TTS_TRUSTED_CLIENT_TOKEN")
+	if trustedClientToken == "" {
+		return nil, fmt.Errorf("EDGE_TTS_TRUSTED_CLIENT_TOKEN environment variable is required")
+	}
+	token := p.generateSecMSGec(trustedClientToken)
+	version := os.Getenv("EDGE_TTS_SEC_MS_GEC_VERSION")
+	if version == "" {
+		return nil, fmt.Errorf("EDGE_TTS_SEC_MS_GEC_VERSION environment variable is required")
+	}
+
+	edgeBaseURL := os.Getenv("EDGE_TTS_BASE_URL")
+	if edgeBaseURL == "" {
+		return nil, fmt.Errorf("EDGE_TTS_BASE_URL environment variable is required")
+	}
 
 	url := fmt.Sprintf("%s?TrustedClientToken=%s&Sec-MS-GEC=%s&Sec-MS-GEC-Version=%s",
 		edgeBaseURL, trustedClientToken, token, version)
@@ -116,7 +133,7 @@ func (p *Provider) dial(ctx context.Context) (*websocket.Conn, error) {
 	return nil, fmt.Errorf("websocket dial failed after retries: %w", dialErr)
 }
 
-func (p *Provider) generateSecMSGec() string {
+func (p *Provider) generateSecMSGec(trustedClientToken string) string {
 	// Logic from python's drm.py:
 	// ticks = unix_timestamp + 11644473600
 	// ticks -= ticks % 300

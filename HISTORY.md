@@ -1,5 +1,17 @@
 ﻿# Release History
- 
+
+## v0.3.2 (Draft)
+- **Feature**: **Environment-Based Secret Management**
+  - Migrated all API keys and service secrets to environment variables.
+  - Added `.env.template` to the repository to streamline setup and protect user secrets.
+  - PhileasGo now looks for `.env.local` or standard environment variables for all provider keys.
+- **Refactor**: **EdgeTTS Decoupling**
+  - Removed all hardcoded handshake "secrets" (User-Agent, Tokens, URLs) from the binary.
+  - These values are now configurable via environment variables, allowing the community to update handshake signatures without waiting for a new release if Microsoft changes their Edge TTS API requirements.
+- **Documentation**: **Groq & Fallback Chains**
+  - Added comprehensive documentation for Groq’s free tier and easy sign-up process.
+  - Added instructions for configuring LLM fallback chains (e.g., `["groq", "gemini"]`) to gracefully handle rate limits during peak hours.
+
 ## v0.3.1 (2026-01-22)
 - **Fix**: **Gemini Stats Tracking**
   - Moved API success/failure tracking from the centralized failover provider to individual LLM providers.

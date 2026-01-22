@@ -68,7 +68,7 @@ func TestVoices(t *testing.T) {
 
 func TestGenerateSecMSGec(t *testing.T) {
 	p := NewProvider(tracker.New())
-	token := p.generateSecMSGec()
+	token := p.generateSecMSGec("6A5AA1D4EAFF4E9FB37E23D68491D6F4")
 	if len(token) == 0 {
 		t.Error("Generated token should not be empty")
 	}

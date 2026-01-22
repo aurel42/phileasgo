@@ -6,7 +6,8 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 
 ## Features
 
-- **AI Tour Guide**: Generates context-aware, real-time briefings for landmarks using Google Gemini. It knows where you are, your heading, and effectively "sees" the terrain.
+- **AI Tour Guide**: Generates context-aware, real-time briefings for landmarks using LLMs. It knows where you are, your heading, and effectively "sees" the terrain.
+- **Multi-Provider LLM Support**: Supports Google Gemini, Groq, and any OpenAI-compatible API (Mistral, Ollama, etc.).
 - **Terrain & Visibility Awareness**: 
     - **Line-of-Sight (LOS)**: Uses ETOPO1 global elevation data to verify visibility. Phileas will rarely point out landmarks hidden behind mountain ranges.
 - **Smart POI Prioritization**:
@@ -29,12 +30,23 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 
 - Windows 10/11
 - Microsoft Flight Simulator 2024
-- Google Gemini API key (**required**)
+- An LLM API key (Gemini or Groq recommended)
 - Azure TTS credentials (optional - Edge TTS works without configuration)
+
+## LLM Providers
+
+PhileasGo supports multiple LLM providers. You only need **one** of the following:
+
+| Provider | Cost | Notes |
+|----------|------|-------|
+| **Groq** | Free tier available | Recommended for getting started. Obtaining an API key is painless—just sign up at [console.groq.com](https://console.groq.com) and create a key. The free tier is generous enough for casual use. |
+| **Gemini** | Pay-per-use (very cheap) | Google's Gemini models. Using `gemini-2.5-flash-lite` costs ~$0.20/day with heavy use. |
+| **OpenAI-compatible** | Varies | Any OpenAI Chat Completions API (Mistral, Ollama, local models, proxies). |
+
+If you have access to a paid tier from one provider, and a free tier from another provider, configure a fallback chain in phileas.yaml (e.g., `llm.fallback: ["groq", "gemini"]`). Should you hit the quotas for the free tier, PhileasGo will use the next provider in the chain. This is particularly useful for Groq, which has a generous free tier but can be rate-limited during peak hours.
 
 ## Limitations
 
-- Support for other LLMs is missing. At the time of the creation of Phileas, I only had access to Gemini. The LLM is used to create a script for the tour guide based on the information from Wikipedia and to add regional categories on the fly. The bulk of the requests can be handled by a cheap LLM model like gemini-2.5-flash-lite, resulting in negligible cost (even with extensive testing, I'm billed about 20 cents/day; I also tested gemini-pro-latest and, for maybe marginally better results, I got billed several Euros/day).
 - Support for MSFS2020 is missing. I only tested MSFS2024, and I'm pretty sure the balloons have a different name in MSFS2020, so the markers wouldn't work. Should be an easy fix if someone is interested.
 
 ## Installation
@@ -46,7 +58,7 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
    .\install.ps1
    ```
    (alternatively, right-click install.ps1 and select "Run with PowerShell")
-4. Edit `configs/phileas.yaml` and add your Gemini API key
+4. Copy `.env.template` to `.env.local` and add your API keys (see below)
 
 The install script will:
 - Create necessary data and log directories
@@ -55,28 +67,47 @@ The install script will:
 - Prompt you to manually download and place MSFS POI data (Master.csv)
 - Generate the default configuration file if missing
 
+### API Key Configuration
+
+API keys are configured via environment variables in a `.env.local` file (not committed to git):
+
+```bash
+# Copy the template
+cp .env.template .env.local
+
+# Edit .env.local with your keys
+```
+
+The `.env.template` file shows all available options:
+
+```bash
+# LLM Providers (you need at least one)
+GEMINI_API_KEY=your_gemini_key_here
+GROQ_API_KEY=your_groq_key_here
+
+# TTS Providers (optional - Edge TTS works without keys)
+FISH_API_KEY=
+SPEECH_KEY=
+SPEECH_REGION=
+```
+
+> **Tip**: For the easiest setup, just get a free Groq API key from [console.groq.com](https://console.groq.com).
+
 ## Configuration
 
 PhileasGo is designed to be highly configurable. All configuration files are located in the `configs/` directory.
 
 ### Main Configuration (`phileas.yaml`)
 
-Edit `configs/phileas.yaml` to configure API keys and system settings:
+Edit `configs/phileas.yaml` to configure system settings:
 
 ```yaml
-llm:
-  gemini_key: "YOUR_GEMINI_API_KEY"  # Required
-
 tts:
   engine: "edge-tts"  # Default, no additional config needed
   # options: "windows-sapi", "edge-tts", "fish-audio", "azure-speech"
-  
-  # Or use Azure:
-  # engine: "azure-speech"
-  # azure_speech: 
-  #   key: "YOUR_AZURE_KEY"
-  #   region: "eastus"
 ```
+
+> **Note**: API keys are configured in `.env.local`, not in `phileas.yaml`. See [API Key Configuration](#api-key-configuration) above.
 
 ### Advanced Customization
 
