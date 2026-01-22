@@ -231,7 +231,7 @@ func (s *Service) processTick(ctx context.Context) {
 		s.recentMu.Unlock()
 
 		logging.Trace(s.logger, "Checking tile",
-			"key", key,
+			"tile", key,
 			"dist_km", fmt.Sprintf("%.1f", c.Dist),
 			"cost", fmt.Sprintf("%.1f", c.Cost),
 			"redundant", c.IsRedundant,
@@ -256,7 +256,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
 	s.inflightMu.Lock()
 	if s.inflightTiles[key] {
 		s.inflightMu.Unlock()
-		s.logger.Debug("Skipping in-flight tile", "key", key)
+		s.logger.Debug("Skipping in-flight tile", "tile", key)
 		return true // Treat as "fast" / no-op to avoid blocking loop, or false? True is safer to keep loop going.
 	}
 	s.inflightTiles[key] = true
@@ -272,15 +272,15 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
 
 	cachedBody, _, ok := s.store.GetGeodataCache(ctx, key)
 	if ok && len(cachedBody) > 0 {
-		logging.Trace(s.logger, "Cache Hit (Optimized)", "key", key)
+		logging.Trace(s.logger, "Cache Hit (Optimized)", "tile", key)
 		processed, rescued, err := s.pipeline.ProcessTileData(ctx, cachedBody, centerLat, centerLon, false)
 		if err == nil {
 			logging.Trace(s.logger, "Processed cached tile",
-				"key", key,
+				"tile", key,
 				"saved", len(processed),
 				"rescued", rescued)
 		} else {
-			s.logger.Warn("Failed to process cached tile", "key", key, "error", err)
+			s.logger.Warn("Failed to process cached tile", "tile", key, "error", err)
 		}
 		return true // Cache Hit = Fast
 	}
@@ -313,7 +313,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
 	processed, rescued, err := s.pipeline.ProcessTileData(ctx, []byte(rawJSON), centerLat, centerLon, false)
 	if err == nil {
 		s.logger.Debug("Fetched and Saved new tile",
-			"key", c.Tile.Key(),
+			"tile", c.Tile.Key(),
 			"raw", len(articles),
 			"saved", len(processed),
 			"rescued", rescued)
