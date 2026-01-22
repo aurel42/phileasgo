@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/llm"
 )
 
 func TestHealthCheck(t *testing.T) {
@@ -94,7 +95,7 @@ func TestCleanJSONBlock(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := cleanJSONBlock(tt.input)
+			got := llm.CleanJSONBlock(tt.input)
 			if got != tt.want {
 				t.Errorf("cleanJSONBlock() = %q, want %q", got, tt.want)
 			}

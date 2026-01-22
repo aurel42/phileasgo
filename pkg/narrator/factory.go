@@ -6,6 +6,8 @@ import (
 	"phileasgo/pkg/llm"
 	"phileasgo/pkg/llm/failover"
 	"phileasgo/pkg/llm/gemini"
+	"phileasgo/pkg/llm/groq"
+	"phileasgo/pkg/llm/openai"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/tts"
@@ -36,6 +38,13 @@ func NewLLMProvider(cfg config.LLMConfig, logPath string, rc *request.Client, t 
 		switch pCfg.Type {
 		case "gemini":
 			sub, err = gemini.NewClient(pCfg, rc)
+		case "groq":
+			sub, err = groq.NewClient(pCfg, rc)
+		case "openai":
+			// For generic openai, we use fixed URL for now.
+			// Generic OpenAI support is primarily for self-hosted or other standard proxies.
+			url := "https://api.openai.com/v1/chat/completions"
+			sub, err = openai.NewClient(pCfg, url, rc)
 		default:
 			return nil, fmt.Errorf("unknown llm provider type: %s", pCfg.Type)
 		}

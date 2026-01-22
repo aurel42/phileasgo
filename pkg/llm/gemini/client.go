@@ -13,6 +13,7 @@ import (
 	"google.golang.org/genai"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/llm"
 	"phileasgo/pkg/request"
 )
 
@@ -142,7 +143,7 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 	}
 
 	// Sanitize Markdown JSON blocks if present
-	cleaned := cleanJSONBlock(text)
+	cleaned := llm.CleanJSONBlock(text)
 
 	if err := json.Unmarshal([]byte(cleaned), target); err != nil {
 		return fmt.Errorf("failed to unmarshal JSON response: %w. Response: %s", err, cleaned)
@@ -215,36 +216,6 @@ func getResponseText(resp *genai.GenerateContentResponse) (string, error) {
 		}
 	}
 	return sb.String(), nil
-}
-
-func cleanJSONBlock(text string) string {
-	text = strings.TrimSpace(text)
-
-	// Look for ```json start
-	start := strings.Index(text, "```json")
-	if start != -1 {
-		text = text[start+len("```json"):]
-		// Find end of block
-		end := strings.LastIndex(text, "```")
-		if end != -1 {
-			text = text[:end]
-		}
-		return strings.TrimSpace(text)
-	}
-
-	// Look for generic ``` start
-	start = strings.Index(text, "```")
-	if start != -1 {
-		text = text[start+len("```"):]
-		// Find end of block
-		end := strings.LastIndex(text, "```")
-		if end != -1 {
-			text = text[:end]
-		}
-		return strings.TrimSpace(text)
-	}
-
-	return text
 }
 
 // validateModel checks if the configured model is available for the API key.
