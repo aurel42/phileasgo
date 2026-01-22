@@ -98,6 +98,36 @@ func TestLoad(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "LLM_Env_Override",
+			setup: func() {
+				t.Setenv("GEMINI_API_KEY", "env_secret_key")
+				// Provide config with empty key for gemini
+				err := os.WriteFile(configPath, []byte("llm:\n  providers:\n    p1:\n      type: gemini\n      key: \"\"\n"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup test file: %v", err)
+				}
+			},
+			validate: func(t *testing.T, cfg *Config) {
+				p1, ok := cfg.LLM.Providers["p1"]
+				if !ok {
+					t.Fatal("provider p1 missing")
+				}
+				if p1.Key != "env_secret_key" {
+					t.Errorf("expected Key 'env_secret_key', got '%s'", p1.Key)
+				}
+			},
+			checkFile: func(t *testing.T) {
+				// Env overrides should NOT be saved to disk
+				content, err := os.ReadFile(configPath)
+				if err != nil {
+					t.Fatalf("failed to read config file: %v", err)
+				}
+				if strings.Contains(string(content), "env_secret_key") {
+					t.Error("environment secret should NOT be persisted to config file")
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
