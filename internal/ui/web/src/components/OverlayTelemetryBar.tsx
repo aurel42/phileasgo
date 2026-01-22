@@ -118,10 +118,7 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
         );
     }
 
-    const wdStats = stats?.providers?.wikidata || { api_success: 0 };
-    const wpStats = stats?.providers?.wikipedia || { api_success: 0 };
-    const geminiStats = stats?.providers?.gemini || { api_success: 0 };
-    const ttsStats = stats?.providers?.['edge-tts'] || stats?.providers?.['azure-speech'] || { api_success: 0 };
+
 
     return (
         <div className="overlay-telemetry-bar">
@@ -167,7 +164,7 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                     )}
                 </div>
 
-                {/* APIs (Vertical matching Tracking) */}
+                {/* APIs (Dynamic List) */}
                 <div className="stat-box" style={{ minWidth: '160px', alignItems: 'flex-start' }}>
                     <div className="stat-value" style={{
                         fontFamily: 'monospace',
@@ -178,19 +175,22 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                         rowGap: '2px',
                         textAlign: 'left'
                     }}>
-                        <div style={{ color: '#ccc' }}>Wikidata API</div>
-                        <div style={{ textAlign: 'right' }}>{wdStats.api_success}</div>
+                        {stats?.providers && Object.entries(stats.providers)
+                            .sort(([keyA], [keyB]) => keyA.localeCompare(keyB)) // Optional: Alphabetical sort
+                            .map(([key, data]) => {
+                                if (!data) return null;
+                                // Filter empty stats (0 success AND 0 errors)
+                                if (data.api_success === 0 && data.api_errors === 0) return null;
 
-                        <div style={{ color: '#ccc' }}>Wikipedia</div>
-                        <div style={{ textAlign: 'right' }}>{wpStats.api_success}</div>
-
-                        <div style={{ color: '#ccc' }}>LLM <span style={{ fontSize: '0.85em', opacity: 0.8 }}>({config.llm_provider || '?'})</span></div>
-                        <div style={{ textAlign: 'right' }}>{geminiStats.api_success}</div>
-
-                        <div style={{ color: '#ccc' }}>TTS <span style={{ fontSize: '0.85em', opacity: 0.8 }}>({config.tts_engine || '?'})</span></div>
-                        <div style={{ textAlign: 'right' }}>{ttsStats.api_success}</div>
+                                const label = key.toUpperCase().replace('-', ' ');
+                                return (
+                                    <>
+                                        <div style={{ color: '#ccc' }}>{label}</div>
+                                        <div style={{ textAlign: 'right' }}>{data.api_success}</div>
+                                    </>
+                                );
+                            })}
                     </div>
-
                 </div>
 
                 {/* System Stats (Vertical matching Tracking) */}

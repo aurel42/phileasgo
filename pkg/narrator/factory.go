@@ -37,7 +37,7 @@ func NewLLMProvider(cfg config.LLMConfig, logPath string, rc *request.Client, t 
 
 		switch pCfg.Type {
 		case "gemini":
-			sub, err = gemini.NewClient(pCfg, rc)
+			sub, err = gemini.NewClient(pCfg, rc, t)
 		case "groq":
 			sub, err = groq.NewClient(pCfg, rc)
 		case "openai":

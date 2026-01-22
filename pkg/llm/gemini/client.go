@@ -17,6 +17,7 @@ import (
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm"
 	"phileasgo/pkg/request"
+	"phileasgo/pkg/tracker"
 )
 
 // Client implements llm.Provider for Google Gemini.
@@ -25,6 +26,7 @@ type Client struct {
 	apiKey      string
 	profiles    map[string]string // Map intent -> modelName
 	rc          *request.Client
+	tracker     *tracker.Tracker
 
 	// Temperature settings for narration (base + jitter with bell curve)
 	temperatureBase   float32
@@ -34,9 +36,10 @@ type Client struct {
 }
 
 // NewClient creates a new Gemini client.
-func NewClient(cfg config.ProviderConfig, rc *request.Client) (*Client, error) {
+func NewClient(cfg config.ProviderConfig, rc *request.Client, t *tracker.Tracker) (*Client, error) {
 	c := &Client{
 		rc:                rc,
+		tracker:           t,
 		apiKey:            cfg.Key,
 		profiles:          cfg.Profiles,
 		temperatureBase:   1.0, // Defaults
@@ -115,6 +118,9 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 	// Create content part for prompt
 	resp, err := client.Models.GenerateContent(ctx, modelName, genai.Text(prompt), config)
 	if err != nil {
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure("gemini")
+		}
 		return "", fmt.Errorf("generate text error: %w", err)
 	}
 
@@ -125,7 +131,14 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 
 	text, err := getResponseText(resp)
 	if err != nil {
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure("gemini")
+		}
 		return "", err
+	}
+
+	if c.tracker != nil {
+		c.tracker.TrackAPISuccess("gemini")
 	}
 
 	return text, nil
@@ -151,11 +164,17 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 
 	resp, err := client.Models.GenerateContent(ctx, modelName, genai.Text(prompt), config)
 	if err != nil {
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure("gemini")
+		}
 		return fmt.Errorf("generate json error: %w", err)
 	}
 
 	text, err := getResponseText(resp)
 	if err != nil {
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure("gemini")
+		}
 		return err
 	}
 
@@ -163,7 +182,14 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 	cleaned := llm.CleanJSONBlock(text)
 
 	if err := json.Unmarshal([]byte(cleaned), target); err != nil {
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure("gemini")
+		}
 		return fmt.Errorf("failed to unmarshal JSON response: %w. Response: %s", err, cleaned)
+	}
+
+	if c.tracker != nil {
+		c.tracker.TrackAPISuccess("gemini")
 	}
 
 	return nil
@@ -219,10 +245,25 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 
 	resp, err := client.Models.GenerateContent(ctx, modelName, contents, config)
 	if err != nil {
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure("gemini")
+		}
 		return "", fmt.Errorf("generate image text error: %w", err)
 	}
 
-	return getResponseText(resp)
+	text, err := getResponseText(resp)
+	if err != nil {
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure("gemini")
+		}
+		return "", err
+	}
+
+	if c.tracker != nil {
+		c.tracker.TrackAPISuccess("gemini")
+	}
+
+	return text, nil
 }
 
 func getResponseText(resp *genai.GenerateContentResponse) (string, error) {

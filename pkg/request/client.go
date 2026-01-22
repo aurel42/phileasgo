@@ -171,6 +171,9 @@ func normalizeProvider(host string) string {
 	if strings.HasSuffix(host, "googleapis.com") {
 		return "gemini"
 	}
+	if strings.HasSuffix(host, "groq.com") {
+		return "groq"
+	}
 	return host
 }
 

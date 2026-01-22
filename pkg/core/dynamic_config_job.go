@@ -126,7 +126,6 @@ func (j *DynamicConfigJob) Run(ctx context.Context, t *sim.Telemetry) {
 
 		var response struct {
 			Subclasses []struct {
-				QID              string `json:"qid"`
 				Name             string `json:"name"`
 				Category         string `json:"category"`
 				SpecificCategory string `json:"specific_category"`
@@ -145,10 +144,10 @@ func (j *DynamicConfigJob) Run(ctx context.Context, t *sim.Telemetry) {
 			return
 		}
 
-		// Validate QIDs
+		// Validate QIDs (Lookup by name since we don't trust LLM QIDs)
 		suggestions := make(map[string]string)
 		for _, sub := range response.Subclasses {
-			suggestions[sub.Name] = sub.QID
+			suggestions[sub.Name] = "" // Empty QID triggers lookup
 		}
 
 		validated := j.validator.ValidateBatch(ctx, suggestions)

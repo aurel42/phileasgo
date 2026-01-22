@@ -50,7 +50,7 @@ func TestHealthCheck(t *testing.T) {
 			// Let's manually construct the client struct to test HealthCheck logic if possible,
 			// OR use NewClient. NewClient doesn't error, it returns a client.
 
-			c, _ := NewClient(cfg, nil)
+			c, _ := NewClient(cfg, nil, nil)
 			err := c.HealthCheck(context.Background())
 
 			if (err != nil) != tt.wantError {

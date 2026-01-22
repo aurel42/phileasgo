@@ -1,5 +1,18 @@
 ﻿# Release History
  
+## v0.3.1 (2026-01-22)
+- **Fix**: **Gemini Stats Tracking**
+  - Moved API success/failure tracking from the centralized failover provider to individual LLM providers.
+  - Gemini client now directly tracks `gemini` stats, eliminating double-counting and clutter from a generic `llm` stat.
+- **Fix**: **Groq Request Tracking**
+  - Added `groq.com` domain normalization in the request client for accurate per-provider stats.
+- **Narrator**: **Rescue Script Headroom**
+  - Increased the word limit passed to the rescue script mechanism from 1.0x to **1.5x** of the original `MaxWords`.
+  - Gives the rescue LLM more flexibility to preserve interesting content while still trimming contaminated output.
+- **Fix**: **Dynamic Config QID Handling**
+  - The LLM-suggested QIDs for new subclasses are no longer trusted. The system now triggers a lookup by name instead.
+  - Prevents invalid or hallucinated QIDs from polluting the classification hierarchy.
+
 ## v0.3.0 (2026-01-22)
 - **Feature**: **Multi-Provider LLM Support (Groq & OpenAI)**
   - Introducing a flexible, multi-provider LLM architecture.

@@ -178,7 +178,7 @@ func (s *AIService) extractTitleFromScript(script string) (title, cleanScript st
 func (s *AIService) rescueScript(ctx context.Context, script string, maxWords int) (string, error) {
 	prompt, err := s.prompts.Render("context/rescue_script.tmpl", map[string]any{
 		"Script":   script,
-		"MaxWords": maxWords,
+		"MaxWords": int(float64(maxWords) * 1.5), // Give rescue 50% more headroom
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to render rescue prompt: %w", err)

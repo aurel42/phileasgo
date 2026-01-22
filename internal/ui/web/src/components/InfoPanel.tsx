@@ -53,7 +53,6 @@ export const InfoPanel = ({
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
     const [simSource, setSimSource] = useState<string>('mock');
-    const [ttsEngine, setTtsEngine] = useState<string>('edge-tts');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [stats, setStats] = useState<any>(null);
     const { status: narratorStatus } = useNarrator();
@@ -92,9 +91,6 @@ export const InfoPanel = ({
             .then(r => r.json())
             .then(data => {
                 setSimSource(data.sim_source || 'mock');
-                if (data.tts_engine) {
-                    setTtsEngine(data.tts_engine);
-                }
             })
             .catch(e => console.error("Failed to fetch config", e));
     }, []);
@@ -166,14 +162,6 @@ export const InfoPanel = ({
 
     const agl = Math.round(telemetry.AltitudeAGL);
     const msl = Math.round(telemetry.AltitudeMSL);
-
-    const wdStats = stats?.providers?.wikidata || { api_success: 0, api_zero: 0, api_errors: 0, hit_rate: 0 };
-    const wpStats = stats?.providers?.wikipedia || { api_success: 0, api_zero: 0, api_errors: 0, hit_rate: 0 };
-    const geminiStats = stats?.providers?.gemini || { api_success: 0, api_zero: 0, api_errors: 0, hit_rate: 0 };
-
-    // Normalize engine name for stats lookup (config usually returns 'azure-speech' or 'edge-tts')
-    // We strictly use what the config returns, assuming stats uses the same key.
-    const ttsStats = stats?.providers?.[ttsEngine] || { api_success: 0, api_zero: 0, api_errors: 0, hit_rate: 0 };
 
     const sysMem = stats?.system?.memory_alloc_mb || 0;
     const sysMemMax = stats?.system?.memory_max_mb || 0;
@@ -276,66 +264,38 @@ export const InfoPanel = ({
                     </div>
                 </div>
 
-                {/* Wikidata */}
-                <div className="flex-card stat-card">
-                    <div className="label">WIKIDATA</div>
-                    <div className="value">
-                        <span className="stat-success">{wdStats.api_success}</span>
-                        <span className="stat-neutral"> / </span>
-                        <span className="stat-neutral">{wdStats.api_zero}</span>
-                        <span className="stat-neutral"> / </span>
-                        <span className="stat-error">{wdStats.api_errors}</span>
-                    </div>
-                    <span className="stat-neutral" style={{ fontSize: '10px' }}>{wdStats.hit_rate}% Hit</span>
-                </div>
+                {/* Dynamic API Stats */}
+                {stats?.providers && Object.entries(stats.providers)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    .map(([key, data]: [string, any]) => {
+                        // Filter empty stats (0 success AND 0 errors)
+                        if (data.api_success === 0 && data.api_errors === 0) return null;
 
-                {/* Wikipedia */}
-                <div className="flex-card stat-card">
-                    <div className="label">WIKIPEDIA</div>
-                    <div className="value">
-                        <span className="stat-success">{wpStats.api_success}</span>
-                        <span className="stat-neutral"> / </span>
-                        <span className="stat-error">{wpStats.api_errors}</span>
-                    </div>
-                    <span className="stat-neutral" style={{ fontSize: '10px' }}>{wpStats.hit_rate}% Hit</span>
-                </div>
+                        const label = key.toUpperCase().replace('-', ' ');
+                        const hasCacheActivity = (data.cache_hits || 0) + (data.cache_misses || 0) > 0;
+                        const hitRate = hasCacheActivity && data.hit_rate !== undefined ? `${data.hit_rate}% Hit` : null;
 
-                {/* Gemini */}
-                <div className="flex-card stat-card">
-                    <div className="label">GEMINI</div>
-                    <div className="value">
-                        <span className="stat-success">{geminiStats.api_success}</span>
-                        <span className="stat-neutral"> / </span>
-                        <span className="stat-error">{geminiStats.api_errors}</span>
-                    </div>
-                </div>
-
-                {/* Edge TTS */}
-                <div className="flex-card stat-card">
-                    <div className="label">{ttsEngine.replace(/-/g, ' ').toUpperCase()}</div>
-                    <div className="value">
-                        <span className="stat-success">{ttsStats.api_success}</span>
-                        <span className="stat-neutral"> / </span>
-                        <span className="stat-neutral">{ttsStats.api_zero}</span>
-                        <span className="stat-neutral"> / </span>
-                        <span className="stat-error">{ttsStats.api_errors}</span>
-                    </div>
-                </div>
-
-                {/* Fallback Edge TTS (if active and not primary) */}
-                {ttsEngine !== 'edge-tts' && stats?.providers?.['edge-tts'] &&
-                    (stats.providers['edge-tts'].api_success > 0 || stats.providers['edge-tts'].api_errors > 0) && (
-                        <div className="flex-card stat-card">
-                            <div className="label">EDGE TTS (FALLBACK)</div>
-                            <div className="value">
-                                <span className="stat-success">{stats.providers['edge-tts'].api_success}</span>
-                                <span className="stat-neutral"> / </span>
-                                <span className="stat-neutral">{stats.providers['edge-tts'].api_zero}</span>
-                                <span className="stat-neutral"> / </span>
-                                <span className="stat-error">{stats.providers['edge-tts'].api_errors}</span>
+                        return (
+                            <div className="flex-card stat-card" key={key}>
+                                <div className="label">{label}</div>
+                                <div className="value">
+                                    <span className="stat-success">{data.api_success}</span>
+                                    <span className="stat-neutral"> / </span>
+                                    {/* Only show 'zero' results if relevant (e.g. not present for all APIs) */}
+                                    {data.api_zero !== undefined && (
+                                        <>
+                                            <span className="stat-neutral">{data.api_zero}</span>
+                                            <span className="stat-neutral"> / </span>
+                                        </>
+                                    )}
+                                    <span className="stat-error">{data.api_errors}</span>
+                                </div>
+                                {hitRate && <span className="stat-neutral" style={{ fontSize: '10px' }}>{hitRate}</span>}
                             </div>
-                        </div>
-                    )}
+                        );
+                    })}
             </div>
 
 

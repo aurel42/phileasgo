@@ -228,13 +228,9 @@ func (f *Provider) trackStats(providerName string, success bool) {
 	if f.tracker == nil {
 		return
 	}
-	if success {
-		f.tracker.TrackAPISuccess(providerName)
-		f.tracker.TrackAPISuccess("llm") // Global stat
-	} else {
-		f.tracker.TrackAPIFailure(providerName)
-		f.tracker.TrackAPIFailure("llm") // Global stat
-	}
+	// Tracking is now handled by individual providers or the request client.
+	// We no longer track global "llm" stats to prevent double counting and clutter.
+
 }
 
 func (f *Provider) logRequest(providerName, callName, prompt, response string, err error) {

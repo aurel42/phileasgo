@@ -21,7 +21,7 @@ func TestIntegration_GenerateText(t *testing.T) {
 		Profiles: map[string]string{
 			"IntegrationTest": "gemini-2.0-flash", // Use profile for dummy "IntegrationTest" intent
 		},
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestIntegration_GenerateJSON(t *testing.T) {
 		Profiles: map[string]string{
 			"IntegrationTest": "gemini-2.0-flash", // Use profile for dummy "IntegrationTest" intent
 		},
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
