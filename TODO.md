@@ -17,3 +17,4 @@ X expand blind spot to 360°
 X OBS overlay
 - add info about next city or town to script prompt, and find a good way to make use of it
 - auto-update edge-tts user agent and key from locally installed Edge
+- API counters for all LLMs

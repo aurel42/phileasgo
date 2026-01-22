@@ -37,50 +37,39 @@ type Client struct {
 }
 
 // NewClient creates a new Gemini client.
-func NewClient(cfg config.LLMConfig, logPath string, rc *request.Client, t *tracker.Tracker) (*Client, error) {
-	c := &Client{rc: rc, tracker: t, logPath: logPath}
-	if err := c.Configure(cfg); err != nil {
-		return nil, err
+func NewClient(cfg config.ProviderConfig, logPath string, rc *request.Client, t *tracker.Tracker) (*Client, error) {
+	c := &Client{
+		rc:                rc,
+		tracker:           t,
+		logPath:           logPath,
+		apiKey:            cfg.Key,
+		modelName:         cfg.Model,
+		profiles:          cfg.Profiles,
+		temperatureBase:   1.0, // Defaults
+		temperatureJitter: 0.3,
 	}
-	return c, nil
-}
-
-// Configure updates the client with new settings.
-func (c *Client) Configure(cfg config.LLMConfig) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.apiKey = cfg.Key
-	c.modelName = cfg.Model
-	c.profiles = cfg.Profiles
 
 	if c.modelName == "" {
 		c.modelName = "gemini-2.0-flash"
 	}
 
-	if c.apiKey == "" {
-		// Can't initialize without key.
-		c.genaiClient = nil
-		return nil
+	if c.apiKey != "" {
+		// Create new client
+		client, err := genai.NewClient(context.Background(), &genai.ClientConfig{
+			APIKey: c.apiKey,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create genai client: %w", err)
+		}
+		c.genaiClient = client
+
+		// Validate Model Availability
+		if err := c.validateModel(context.Background()); err != nil {
+			slog.Warn("Gemini model validation failed (proceeding anyway)", "error", err)
+		}
 	}
 
-	// Create new client
-	client, err := genai.NewClient(context.Background(), &genai.ClientConfig{
-		APIKey: c.apiKey,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create genai client: %w", err)
-	}
-	c.genaiClient = client
-
-	// Validate Model Availability
-	if err := c.validateModel(context.Background()); err != nil {
-		slog.Warn("Gemini model validation failed (proceeding anyway)", "error", err)
-		// We do NOT return error here, to allow startup even if API is flaky/rate-limited.
-		// If the key/model is truly invalid, actual generation calls will fail later.
-	}
-
-	return nil
+	return c, nil
 }
 
 // Close cleans up resources.

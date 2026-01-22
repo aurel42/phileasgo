@@ -78,11 +78,17 @@ type BeaconConfig struct {
 	AltitudeFloor     Distance `yaml:"altitude_floor"`
 }
 
-// LLMConfig holds settings for the Large Language Model provider.
+// LLMConfig holds settings for the Large Language Model providers.
 type LLMConfig struct {
-	Provider string            `yaml:"provider"` // "gemini", "mock", etc.
-	Model    string            `yaml:"model"`    // "gemini-2.0-flash"
+	Providers map[string]ProviderConfig `yaml:"providers"` // Map of named providers
+	Fallback  []string                  `yaml:"fallback"`  // Ordered list of providers for failover
+}
+
+// ProviderConfig holds configuration for a single LLM provider.
+type ProviderConfig struct {
+	Type     string            `yaml:"type"`     // "gemini", "groq", "openai"
 	Key      string            `yaml:"key"`      // API Key
+	Model    string            `yaml:"model"`    // Default model name
 	Profiles map[string]string `yaml:"profiles"` // Map of intent -> model
 }
 
@@ -290,17 +296,22 @@ func DefaultConfig() *Config {
 			VarietyPenaltyNum:   3,
 		},
 		LLM: LLMConfig{
-			Provider: "gemini",
-			Model:    "gemini-2.5-flash-lite", // gemini-2.0-flash deprecated
-			Key:      "",
-			Profiles: map[string]string{
-				"essay":          "gemini-2.5-flash",
-				"narration":      "gemini-2.5-flash-lite",
-				"dynamic_config": "gemini-2.5-flash",
-				"script_rescue":  "gemini-2.5-flash-lite", // Script rescue uses cheap model
-				"thumbnails":     "gemini-2.5-flash-lite",
-				"screenshot":     "gemini-2.5-flash-lite", // Vision model
+			Providers: map[string]ProviderConfig{
+				"gemini": {
+					Type:  "gemini",
+					Model: "gemini-2.5-flash-lite",
+					Key:   "",
+					Profiles: map[string]string{
+						"essay":          "gemini-2.5-flash",
+						"narration":      "gemini-2.5-flash-lite",
+						"dynamic_config": "gemini-2.5-flash",
+						"script_rescue":  "gemini-2.5-flash-lite",
+						"thumbnails":     "gemini-2.5-flash-lite",
+						"screenshot":     "gemini-2.5-flash-lite",
+					},
+				},
 			},
+			Fallback: []string{"gemini"},
 		},
 		Narrator: NarratorConfig{
 			AutoNarrate:               true,
@@ -387,26 +398,7 @@ func Load(path string) (*Config, error) {
 		}
 
 		// Load from Env if empty (as a fallback, but do NOT save back to disk)
-		if cfg.LLM.Key == "" {
-			if key := os.Getenv("GEMINI_API_KEY"); key != "" {
-				cfg.LLM.Key = key
-			}
-		}
-		if cfg.TTS.FishAudio.Key == "" {
-			if key := os.Getenv("FISH_AUDIO_API_KEY"); key != "" {
-				cfg.TTS.FishAudio.Key = key
-			}
-		}
-		if cfg.TTS.AzureSpeech.Key == "" {
-			if key := os.Getenv("AZURE_SPEECH_KEY"); key != "" {
-				cfg.TTS.AzureSpeech.Key = key
-			}
-		}
-		if cfg.TTS.AzureSpeech.Region == "" {
-			if region := os.Getenv("AZURE_SPEECH_REGION"); region != "" {
-				cfg.TTS.AzureSpeech.Region = region
-			}
-		}
+		overrideFromEnv(cfg)
 
 		return cfg, nil
 	}
@@ -482,4 +474,30 @@ func GenerateDefault(path string) error {
 
 	// Write default config
 	return Save(path, DefaultConfig())
+}
+
+func overrideFromEnv(cfg *Config) {
+	for name, p := range cfg.LLM.Providers {
+		if p.Key == "" && p.Type == "gemini" {
+			if key := os.Getenv("GEMINI_API_KEY"); key != "" {
+				p.Key = key
+				cfg.LLM.Providers[name] = p
+			}
+		}
+	}
+	if cfg.TTS.FishAudio.Key == "" {
+		if key := os.Getenv("FISH_AUDIO_API_KEY"); key != "" {
+			cfg.TTS.FishAudio.Key = key
+		}
+	}
+	if cfg.TTS.AzureSpeech.Key == "" {
+		if key := os.Getenv("AZURE_SPEECH_KEY"); key != "" {
+			cfg.TTS.AzureSpeech.Key = key
+		}
+	}
+	if cfg.TTS.AzureSpeech.Region == "" {
+		if region := os.Getenv("AZURE_SPEECH_REGION"); region != "" {
+			cfg.TTS.AzureSpeech.Region = region
+		}
+	}
 }

@@ -15,9 +15,10 @@ func TestIntegration_GenerateText(t *testing.T) {
 		t.Skip("Skipping integration test: GEMINI_API_KEY not set")
 	}
 
-	c, err := gemini.NewClient(config.LLMConfig{
+	c, err := gemini.NewClient(config.ProviderConfig{
 		Key:   key,
 		Model: "gemini-2.0-flash",
+		Type:  "gemini",
 	}, "test_gemini.log", nil, nil)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
@@ -40,9 +41,10 @@ func TestIntegration_GenerateJSON(t *testing.T) {
 		t.Skip("Skipping integration test: GEMINI_API_KEY not set")
 	}
 
-	c, err := gemini.NewClient(config.LLMConfig{
+	c, err := gemini.NewClient(config.ProviderConfig{
 		Key:   key,
 		Model: "gemini-2.0-flash",
+		Type:  "gemini",
 	}, "test_gemini.log", nil, nil)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)

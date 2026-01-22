@@ -125,10 +125,10 @@ func TestHealthCheck(t *testing.T) {
 			}
 
 			// Minimal config for test
-			cfg := config.LLMConfig{
-				Key:      tt.apiKey,
-				Model:    "gemini-pro",
-				Provider: "gemini",
+			cfg := config.ProviderConfig{
+				Key:   tt.apiKey,
+				Model: "gemini-pro",
+				Type:  "gemini",
 			}
 
 			// We need a dummy tracker and cache for the deps

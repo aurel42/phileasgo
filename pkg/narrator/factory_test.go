@@ -28,15 +28,25 @@ func TestNewLLMProvider(t *testing.T) {
 		{
 			name: "Gemini Provider",
 			cfg: config.LLMConfig{
-				Provider: "gemini",
-				Key:      "dummy",
+				Providers: map[string]config.ProviderConfig{
+					"gemini": {
+						Type: "gemini",
+						Key:  "dummy",
+					},
+				},
+				Fallback: []string{"gemini"},
 			},
 			wantErr: false,
 		},
 		{
 			name: "Unknown Provider",
 			cfg: config.LLMConfig{
-				Provider: "unknown",
+				Providers: map[string]config.ProviderConfig{
+					"unknown": {
+						Type: "unknown",
+					},
+				},
+				Fallback: []string{"unknown"},
 			},
 			wantErr: true,
 		},

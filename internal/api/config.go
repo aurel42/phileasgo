@@ -143,7 +143,7 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 		ShowPOIInfo:         h.appCfg.Overlay.POIInfo,
 		ShowInfoBar:         h.appCfg.Overlay.InfoBar,
 		ShowLogLine:         h.appCfg.Overlay.LogLine,
-		LLMProvider:         h.appCfg.LLM.Provider,
+		LLMProvider:         h.getPrimaryLLMProvider(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -275,4 +275,11 @@ func (h *ConfigHandler) updateFilterMode(ctx context.Context, val string) {
 			slog.Info("Config updated", "filter_mode", val)
 		}
 	}
+}
+
+func (h *ConfigHandler) getPrimaryLLMProvider() string {
+	if len(h.appCfg.LLM.Fallback) > 0 {
+		return h.appCfg.LLM.Fallback[0]
+	}
+	return "none"
 }

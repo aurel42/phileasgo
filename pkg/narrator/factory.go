@@ -16,11 +16,23 @@ import (
 
 // NewLLMProvider returns an LLM provider based on configuration.
 func NewLLMProvider(cfg config.LLMConfig, logPath string, rc *request.Client, t *tracker.Tracker) (llm.Provider, error) {
-	switch cfg.Provider {
+	if len(cfg.Fallback) == 0 {
+		return nil, fmt.Errorf("no llm providers configured in fallback list")
+	}
+
+	// For now (Phase 1), just return the first one.
+	// Later we will wrap it in FailoverProvider.
+	firstName := cfg.Fallback[0]
+	pCfg, ok := cfg.Providers[firstName]
+	if !ok {
+		return nil, fmt.Errorf("provider %q not found in config", firstName)
+	}
+
+	switch pCfg.Type {
 	case "gemini":
-		return gemini.NewClient(cfg, logPath, rc, t)
+		return gemini.NewClient(pCfg, logPath, rc, t)
 	default:
-		return nil, fmt.Errorf("unknown llm provider: %s", cfg.Provider)
+		return nil, fmt.Errorf("unknown llm provider type: %s", pCfg.Type)
 	}
 }
 
