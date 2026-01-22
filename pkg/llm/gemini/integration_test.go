@@ -19,7 +19,7 @@ func TestIntegration_GenerateText(t *testing.T) {
 		Key:   key,
 		Model: "gemini-2.0-flash",
 		Type:  "gemini",
-	}, "test_gemini.log", nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestIntegration_GenerateJSON(t *testing.T) {
 		Key:   key,
 		Model: "gemini-2.0-flash",
 		Type:  "gemini",
-	}, "test_gemini.log", nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}

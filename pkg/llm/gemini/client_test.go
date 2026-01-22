@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/llm"
 )
 
 func TestTruncateParagraphs(t *testing.T) {
@@ -82,7 +83,7 @@ aé
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := truncateParagraphs(tt.input, tt.maxLen)
+			got := llm.TruncateParagraphs(tt.input, tt.maxLen)
 			// Normalized line endings for comparison just in case
 			got = strings.ReplaceAll(got, "\r\n", "\n")
 			want := strings.ReplaceAll(tt.want, "\r\n", "\n")
@@ -137,7 +138,7 @@ func TestHealthCheck(t *testing.T) {
 			// Let's manually construct the client struct to test HealthCheck logic if possible,
 			// OR use NewClient. NewClient doesn't error, it returns a client.
 
-			c, _ := NewClient(cfg, "", nil, nil)
+			c, _ := NewClient(cfg, nil)
 			err := c.HealthCheck(context.Background())
 
 			if (err != nil) != tt.wantError {
@@ -181,7 +182,7 @@ func TestWordWrap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := wordWrap(tt.input, tt.width); got != tt.want {
+			if got := llm.WordWrap(tt.input, tt.width); got != tt.want {
 				t.Errorf("wordWrap() = %q, want %q", got, tt.want)
 			}
 		})

@@ -169,7 +169,7 @@ type ScreenshotConfig struct {
 type LogConfig struct {
 	Server   LogSettings `yaml:"server"`
 	Requests LogSettings `yaml:"requests"`
-	Gemini   LogSettings `yaml:"gemini"`
+	LLM      LogSettings `yaml:"llm"`
 	TTS      LogSettings `yaml:"tts"`
 }
 
@@ -257,8 +257,8 @@ func DefaultConfig() *Config {
 				Path:  "./logs/requests.log",
 				Level: "INFO",
 			},
-			Gemini: LogSettings{
-				Path:  "./logs/gemini.log",
+			LLM: LogSettings{
+				Path:  "./logs/llm.log",
 				Level: "INFO",
 			},
 			TTS: LogSettings{

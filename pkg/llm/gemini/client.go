@@ -6,17 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"google.golang.org/api/iterator"
 	"google.golang.org/genai"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/request"
-	"phileasgo/pkg/tracker"
 )
 
 // Client implements llm.Provider for Google Gemini.
@@ -26,8 +23,6 @@ type Client struct {
 	modelName   string
 	profiles    map[string]string // Map intent -> modelName
 	rc          *request.Client
-	tracker     *tracker.Tracker
-	logPath     string
 
 	// Temperature settings for narration (base + jitter with bell curve)
 	temperatureBase   float32
@@ -37,11 +32,9 @@ type Client struct {
 }
 
 // NewClient creates a new Gemini client.
-func NewClient(cfg config.ProviderConfig, logPath string, rc *request.Client, t *tracker.Tracker) (*Client, error) {
+func NewClient(cfg config.ProviderConfig, rc *request.Client) (*Client, error) {
 	c := &Client{
 		rc:                rc,
-		tracker:           t,
-		logPath:           logPath,
 		apiKey:            cfg.Key,
 		modelName:         cfg.Model,
 		profiles:          cfg.Profiles,
@@ -107,12 +100,7 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 
 	// Create content part for prompt
 	resp, err := client.Models.GenerateContent(ctx, modelName, genai.Text(prompt), config)
-
 	if err != nil {
-		c.logPrompt(name, prompt, fmt.Sprintf("ERROR: %v", err))
-		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
-		}
 		return "", fmt.Errorf("generate text error: %w", err)
 	}
 
@@ -123,17 +111,9 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 
 	text, err := getResponseText(resp)
 	if err != nil {
-		c.logPrompt(name, prompt, fmt.Sprintf("TEXT_PARSE_ERROR: %v", err))
-		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
-		}
 		return "", err
 	}
 
-	c.logPrompt(name, prompt, text)
-	if c.tracker != nil {
-		c.tracker.TrackAPISuccess("gemini")
-	}
 	return text, nil
 }
 
@@ -153,38 +133,22 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 
 	resp, err := client.Models.GenerateContent(ctx, modelName, genai.Text(prompt), config)
 	if err != nil {
-		c.logPrompt(name, prompt, fmt.Sprintf("ERROR: %v", err))
-		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
-		}
 		return fmt.Errorf("generate json error: %w", err)
 	}
 
 	text, err := getResponseText(resp)
 	if err != nil {
-		c.logPrompt(name, prompt, fmt.Sprintf("TEXT_PARSE_ERROR: %v", err))
-		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
-		}
 		return err
 	}
 
 	// Sanitize Markdown JSON blocks if present
 	cleaned := cleanJSONBlock(text)
-	c.logPrompt(name, prompt, cleaned)
 
 	if err := json.Unmarshal([]byte(cleaned), target); err != nil {
-		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
-		}
 		return fmt.Errorf("failed to unmarshal JSON response: %w. Response: %s", err, cleaned)
 	}
 
-	if c.tracker != nil {
-		c.tracker.TrackAPISuccess("gemini")
-	}
 	return nil
-
 }
 
 // GenerateImageText sends a prompt + image and returns the text response.
@@ -233,51 +197,10 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 
 	resp, err := client.Models.GenerateContent(ctx, modelName, contents, config)
 	if err != nil {
-		c.logPrompt(name, prompt+" [IMAGE: "+imagePath+"]", fmt.Sprintf("ERROR: %v", err))
-		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
-		}
 		return "", fmt.Errorf("generate image text error: %w", err)
 	}
 
-	text, err := getResponseText(resp)
-	if err != nil {
-		c.logPrompt(name, prompt+" [IMAGE: "+imagePath+"]", fmt.Sprintf("TEXT_PARSE_ERROR: %v", err))
-		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
-		}
-		return "", err
-	}
-
-	c.logPrompt(name, prompt+" [IMAGE: "+imagePath+"]", text)
-	if c.tracker != nil {
-		c.tracker.TrackAPISuccess("gemini")
-	}
-	return text, nil
-}
-
-func (c *Client) logPrompt(name, prompt, response string) {
-	if c.logPath == "" {
-		return
-	}
-
-	if err := os.MkdirAll(filepath.Dir(c.logPath), 0o755); err != nil {
-		return
-	}
-
-	f, err := os.OpenFile(c.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	wrappedResponse := wordWrap(response, 80)
-	truncatedPrompt := truncateParagraphs(prompt, 80) // Truncate WP article paragraphs
-	entry := fmt.Sprintf("[%s] PROMPT: %s\nPROMPT_TEXT:\n%s\n\nRESPONSE:\n%s\n%s\n",
-		timestamp, name, truncatedPrompt, wrappedResponse, strings.Repeat("-", 80))
-
-	_, _ = f.WriteString(entry)
+	return getResponseText(resp)
 }
 
 func getResponseText(resp *genai.GenerateContentResponse) (string, error) {
@@ -322,82 +245,6 @@ func cleanJSONBlock(text string) string {
 	}
 
 	return text
-}
-
-func wordWrap(text string, width int) string {
-	if width <= 0 {
-		return text
-	}
-
-	var result strings.Builder
-	lines := strings.Split(text, "\n")
-	for i, line := range lines {
-		if i > 0 {
-			result.WriteString("\n")
-		}
-
-		words := strings.Fields(line)
-		if len(words) == 0 {
-			continue
-		}
-
-		currentLineLength := 0
-		for j, word := range words {
-			if j > 0 {
-				if currentLineLength+len(word)+1 > width {
-					result.WriteString("\n")
-					currentLineLength = 0
-				} else {
-					result.WriteString(" ")
-					currentLineLength++
-				}
-			}
-			result.WriteString(word)
-			currentLineLength += len(word)
-		}
-	}
-	return result.String()
-}
-
-// truncateParagraphs truncates each line at maxLen characters and filters empty lines.
-// Used for logging prompts (WP articles) to gemini.log.
-// truncateParagraphs truncates lines within the Wikipedia article block to maxLen
-// and removes empty lines within that block. The rest of the prompt is preserved as-is.
-func truncateParagraphs(text string, maxLen int) string {
-	lines := strings.Split(text, "\n")
-	var result []string
-	inWikiBlock := false
-
-	for _, line := range lines {
-		// Detect block boundaries (case-insensitive just in case)
-		lowerLine := strings.ToLower(line)
-		if strings.Contains(lowerLine, "<start of wikipedia article>") {
-			inWikiBlock = true
-			result = append(result, line)
-			continue
-		}
-		if strings.Contains(lowerLine, "<end of wikipedia article>") {
-			inWikiBlock = false
-			result = append(result, line)
-			continue
-		}
-
-		if inWikiBlock {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "" {
-				continue // Filter empty lines inside wiki block
-			}
-			runes := []rune(trimmed)
-			if len(runes) > maxLen {
-				trimmed = string(runes[:maxLen]) + "..."
-			}
-			result = append(result, trimmed)
-		} else {
-			// Outside wiki block: preserve line EXACTLY as is (including empty lines)
-			result = append(result, line)
-		}
-	}
-	return strings.Join(result, "\n")
 }
 
 // validateModel checks if the configured model is available for the API key.

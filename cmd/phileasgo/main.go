@@ -221,7 +221,7 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 }
 
 func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store) (*narrator.AIService, *prompts.Manager, error) {
-	llmProv, err := narrator.NewLLMProvider(cfg.LLM, cfg.Log.Gemini.Path, svcs.ReqClient, tr)
+	llmProv, err := narrator.NewLLMProvider(cfg.LLM, cfg.Log.LLM.Path, svcs.ReqClient, tr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize LLM provider: %w", err)
 	}

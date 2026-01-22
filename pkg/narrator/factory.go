@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm"
+	"phileasgo/pkg/llm/failover"
 	"phileasgo/pkg/llm/gemini"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
@@ -14,26 +15,41 @@ import (
 	"phileasgo/pkg/tts/sapi"
 )
 
-// NewLLMProvider returns an LLM provider based on configuration.
+// NewLLMProvider returns an LLM provider based on configuration, wrapped in a failover chain.
 func NewLLMProvider(cfg config.LLMConfig, logPath string, rc *request.Client, t *tracker.Tracker) (llm.Provider, error) {
 	if len(cfg.Fallback) == 0 {
 		return nil, fmt.Errorf("no llm providers configured in fallback list")
 	}
 
-	// For now (Phase 1), just return the first one.
-	// Later we will wrap it in FailoverProvider.
-	firstName := cfg.Fallback[0]
-	pCfg, ok := cfg.Providers[firstName]
-	if !ok {
-		return nil, fmt.Errorf("provider %q not found in config", firstName)
+	var providers []llm.Provider
+	var names []string
+
+	for _, name := range cfg.Fallback {
+		pCfg, ok := cfg.Providers[name]
+		if !ok {
+			return nil, fmt.Errorf("provider %q not found in config", name)
+		}
+
+		var sub llm.Provider
+		var err error
+
+		switch pCfg.Type {
+		case "gemini":
+			sub, err = gemini.NewClient(pCfg, rc)
+		default:
+			return nil, fmt.Errorf("unknown llm provider type: %s", pCfg.Type)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize provider %q: %w", name, err)
+		}
+
+		providers = append(providers, sub)
+		names = append(names, name)
 	}
 
-	switch pCfg.Type {
-	case "gemini":
-		return gemini.NewClient(pCfg, logPath, rc, t)
-	default:
-		return nil, fmt.Errorf("unknown llm provider type: %s", pCfg.Type)
-	}
+	// Wrap in Failover Provider with unified logging and stats
+	return failover.New(providers, names, logPath, t)
 }
 
 // NewTTSProvider returns a TTS provider based on configuration.
