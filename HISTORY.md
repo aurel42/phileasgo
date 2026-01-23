@@ -1,5 +1,13 @@
 ﻿# Release History
 
+## v0.3.9 (2026-01-23)
+- **Fix**: **Ignored Category Propagation**
+  - Resolved a persistent bug where POIs from ignored categories (e.g., dioceses, administrative entities) slipped through classification.
+  - **Root Cause**: When BFS found an ignored category at depth 2+, only the article QID was marked as `__IGNORED__`, not the intermediate hierarchy nodes.
+  - **Solution**: `searchHierarchy` now propagates `__IGNORED__` to ALL traversed nodes in the BFS path, preventing stale cache entries from bypassing ignore rules.
+- **Testing**: Added "Ignored Category (Depth 2 with Propagation)" test case to verify the fix.
+- **Tools**: Added `cmd/experiments/check_classification` debug script to diagnose classification issues.
+
 ## v0.3.8 (2026-01-23)
 - **Feature**: **Smart LLM Backoff**
   - Implemented an incremental skip strategy for transient errors (like 429).

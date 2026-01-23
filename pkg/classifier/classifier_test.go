@@ -164,7 +164,8 @@ func TestClassifier_CachingLevels(t *testing.T) {
 			},
 		},
 		IgnoredCategories: map[string]string{
-			"Q56061": "Administrative Territorial Entity",
+			"Q56061":    "Administrative Territorial Entity",
+			"Q51041800": "Religious administrative entity",
 		},
 	}
 
@@ -302,6 +303,24 @@ func TestClassifier_CachingLevels(t *testing.T) {
 			expectSingle:  1, // P31 only
 			expectDBClass: 1, // Hit Q_STALE_CLASS -> "__IGNORED__"
 			expectDBHier:  0,
+		},
+		{
+			name: "Ignored Category (Depth 2 with Propagation)",
+			qid:  "Q_DIOCESE",
+			setupClient: func(c *MockClient) {
+				// Q_DIOCESE -> instance of Q_DIOCESE_TYPE
+				// Q_DIOCESE_TYPE -> subclass of [Q_MID1, Q_MID2]
+				// Q_MID1 -> subclass of Q51041800 (ignored)
+				c.Claims["Q_DIOCESE"] = map[string][]string{"P31": {"Q_DIOCESE_TYPE"}}
+				c.Claims["Q_DIOCESE_TYPE"] = map[string][]string{"P279": {"Q_MID1", "Q_MID2"}}
+				c.Claims["Q_MID1"] = map[string][]string{"P279": {"Q51041800"}} // Q51041800 is in ignored
+				c.Claims["Q_MID2"] = map[string][]string{"P279": {"Q_OTHER"}}
+			},
+			expectIgnored: true,
+			expectSingle:  2, // P31 + P279 for Q_DIOCESE_TYPE
+			expectHBatch:  1, // BFS batch fetch for Q_MID1, Q_MID2
+			expectDBClass: 1, // Miss Q_DIOCESE_TYPE
+			expectDBHier:  3, // Q_DIOCESE_TYPE, Q_MID1, Q_MID2
 		},
 	}
 

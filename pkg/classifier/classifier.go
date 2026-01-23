@@ -234,7 +234,6 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 
 // searchHierarchy performs the BFS traversal for hierarchy discovery.
 func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses []string, label string) (*model.ClassificationResult, error) {
-	// BFS Queue
 	// BFS Queue (Layered)
 	visited := make(map[string]bool)
 	visited[qid] = true
@@ -242,8 +241,12 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 		visited[s] = true
 	}
 
+	// Track all traversed nodes so we can propagate __IGNORED__ to entire path
+	var allTraversed []string
+	allTraversed = append(allTraversed, subclasses...)
+
 	queue := subclasses
-	maxDepth := 4 // Increased from 3 to catch deeper ignored categories
+	maxDepth := 4
 	currentDepth := 1
 
 	for len(queue) > 0 && currentDepth <= maxDepth {
@@ -255,6 +258,8 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 			match, parents, foundInDB := c.checkCacheOrDB(ctx, id)
 			if match != "" {
 				if match == "__IGNORED__" {
+					// Propagate ignored to all traversed nodes
+					c.propagateIgnored(ctx, allTraversed)
 					return c.finalizeIgnored(ctx, qid, subclasses, label)
 				}
 				return c.finalizeMatch(ctx, qid, match, subclasses, label)
@@ -280,9 +285,13 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 			return c.finalizeMatch(ctx, qid, matchedCat, subclasses, label)
 		}
 		if ignoredCat != "" {
-			// Mark as ignored in cache and return result
+			// Propagate ignored to all traversed nodes in the BFS path
+			c.propagateIgnored(ctx, allTraversed)
 			return c.finalizeIgnored(ctx, qid, subclasses, label)
 		}
+
+		// Track newly discovered nodes for potential ignored propagation
+		allTraversed = append(allTraversed, nextQueue...)
 
 		queue = nextQueue
 		currentDepth++
@@ -291,6 +300,17 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 	// Result: Miss if we exit loop
 	_ = c.store.SaveClassification(ctx, qid, "", subclasses, label)
 	return nil, nil
+}
+
+// propagateIgnored marks all nodes in the BFS path as __IGNORED__ to prevent
+// future traversals from having to re-discover the same ignored chain.
+func (c *Classifier) propagateIgnored(ctx context.Context, nodes []string) {
+	for _, node := range nodes {
+		// Update node to __IGNORED__ (upsert - will update if exists)
+		if err := c.store.SaveClassification(ctx, node, "__IGNORED__", nil, ""); err != nil {
+			slog.Warn("Failed to propagate ignored to node", "node", node, "error", err)
+		}
+	}
 }
 
 // buildNextLayer processes current queue and parents to produce next queue layer.

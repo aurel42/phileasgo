@@ -1,54 +1,58 @@
 visibility:
-  # Altitude in feet -> Max visible distance in NM for each size
-  # Sizes: S (Small), M (Medium), L (Large), XL (Extra Large)
+  # Altitude in feet -> Max visible distance in NM
+  # Changes:
+  # - S: Sweet spot 2-4k, invisible > 6k
+  # - M: Sweet spot 4-6k, invisible > 12k
+  # - L: Sweet spot 8-12k, squared growth from low alt
+  # - XL: Squared growth from low alt, high peak maintained
   table:
     - altitude: 0
-      distances: { S: 1.0, M: 1.0, L: 2.4, XL: 3.2 }
+      distances: { S: 0.5, M: 0.8, L: 1.2, XL: 1.5 }
     - altitude: 500
-      distances: { S: 2.0, M: 3.0, L: 2.4, XL: 3.6 }
+      distances: { S: 1.5, M: 1.2, L: 1.5, XL: 2.0 }
     - altitude: 1000
-      distances: { S: 4.0, M: 5.0, L: 4.0, XL: 6.0 }
+      distances: { S: 2.5, M: 1.8, L: 1.8, XL: 2.5 }
     - altitude: 1500
-      distances: { S: 4.4, M: 5.5, L: 5.0, XL: 9.0 }
+      distances: { S: 3.5, M: 2.2, L: 2.2, XL: 3.2 }
     - altitude: 2000
-      distances: { S: 4.8, M: 6.0, L: 7.0, XL: 10.0 }
+      distances: { S: 4.5, M: 3.0, L: 2.6, XL: 4.0 }
     - altitude: 2500
-      distances: { S: 5.2, M: 6.5, L: 8.0, XL: 11.0 }
+      distances: { S: 4.5, M: 4.0, L: 3.2, XL: 5.0 }
     - altitude: 3000
-      distances: { S: 5.4, M: 7.0, L: 10.0, XL: 12.0 }
+      distances: { S: 4.5, M: 5.0, L: 3.8, XL: 6.0 }
     - altitude: 3500
-      distances: { S: 5.6, M: 7.5, L: 11.0, XL: 14.0 }
+      distances: { S: 4.5, M: 6.0, L: 4.4, XL: 7.2 }
     - altitude: 4000
-      distances: { S: 5.8, M: 8.0, L: 12.0, XL: 16.0 }
+      distances: { S: 4.5, M: 7.5, L: 5.2, XL: 8.5 }
     - altitude: 4500
-      distances: { S: 6.0, M: 8.5, L: 14.0, XL: 19.0 }
+      distances: { S: 3.0, M: 7.5, L: 6.0, XL: 9.8 }
     - altitude: 5000
-      distances: { S: 4.0, M: 9.0, L: 15.0, XL: 22.0 }
+      distances: { S: 0.0, M: 7.5, L: 7.0, XL: 11.2 }
     - altitude: 5500
-      distances: { S: 3.0, M: 9.5, L: 16.0, XL: 24.0 }
+      distances: { S: 0.0, M: 7.5, L: 8.0, XL: 12.8 }
     - altitude: 6000
-      distances: { S: 2.4, M: 10.0, L: 16.8, XL: 25.6 }
+      distances: { S: 0.0, M: 7.5, L: 9.5, XL: 14.5 }
     - altitude: 6500
-      distances: { S: 2.0, M: 10.0, L: 17.6, XL: 26.8 }
+      distances: { S: 0.0, M: 6.5, L: 11.0, XL: 16.2 }
     - altitude: 7000
-      distances: { S: 1.6, M: 10.0, L: 18.4, XL: 28.0 }
+      distances: { S: 0.0, M: 5.5, L: 12.5, XL: 18.0 }
     - altitude: 7500
-      distances: { S: 1.0, M: 10.0, L: 18.8, XL: 29.2 }
+      distances: { S: 0.0, M: 4.0, L: 14.0, XL: 20.0 }
     - altitude: 8000
-      distances: { S: 0.0, M: 10.0, L: 19.2, XL: 30.4 }
+      distances: { S: 0.0, M: 3.0, L: 15.5, XL: 22.0 }
     - altitude: 8500
-      distances: { S: 0.0, M: 8.0, L: 19.6, XL: 31.2 }
+      distances: { S: 0.0, M: 2.0, L: 15.8, XL: 24.0 }
     - altitude: 9000
-      distances: { S: 0.0, M: 6.0, L: 20.0, XL: 32.0 }
+      distances: { S: 0.0, M: 0.0, L: 16.0, XL: 26.0 }
     - altitude: 9500
-      distances: { S: 0.0, M: 4.0, L: 20.4, XL: 33.6 }
+      distances: { S: 0.0, M: 0.0, L: 16.0, XL: 28.0 }
     - altitude: 10000
-      distances: { S: 0.0, M: 2.0, L: 20.8, XL: 35.2 }
+      distances: { S: 0.0, M: 0.0, L: 16.0, XL: 30.0 }
     - altitude: 15000
-      distances: { S: 0.0, M: 0.0, L: 20.8, XL: 37.6 }
+      distances: { S: 0.0, M: 0.0, L: 14.0, XL: 36.0 }
     - altitude: 20000
-      distances: { S: 0.0, M: 0.0, L: 20.8, XL: 40.0 }
+      distances: { S: 0.0, M: 0.0, L: 12.0, XL: 40.0 }
     - altitude: 30000
-      distances: { S: 0.0, M: 0.0, L: 24.0, XL: 40.0 }
+      distances: { S: 0.0, M: 0.0, L: 10.0, XL: 35.0 }
     - altitude: 100000
       distances: { S: 0.0, M: 0.0, L: 0.0, XL: 0.0 }
