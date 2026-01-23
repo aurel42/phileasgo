@@ -20,6 +20,7 @@ type Provider struct {
 	names     []string
 	disabled  map[int]bool
 	logPath   string
+	enabled   bool
 	tracker   *tracker.Tracker
 	mu        sync.RWMutex
 }
@@ -27,7 +28,7 @@ type Provider struct {
 // New creates a new Provider with failover and unified logging.
 // providers: ordered list of all initialized providers (global fallback chain).
 // names: names corresponding to the provider list.
-func New(providers []llm.Provider, names []string, logPath string, t *tracker.Tracker) (*Provider, error) {
+func New(providers []llm.Provider, names []string, logPath string, enabled bool, t *tracker.Tracker) (*Provider, error) {
 	if len(providers) == 0 {
 		return nil, fmt.Errorf("at least one provider required for failover")
 	}
@@ -40,6 +41,7 @@ func New(providers []llm.Provider, names []string, logPath string, t *tracker.Tr
 		names:     names,
 		disabled:  make(map[int]bool),
 		logPath:   logPath,
+		enabled:   enabled,
 		tracker:   t,
 	}, nil
 }
@@ -243,7 +245,7 @@ func (f *Provider) trackStats(providerName string, success bool) {
 }
 
 func (f *Provider) logRequest(providerName, callName, prompt, response string, err error) {
-	if f.logPath == "" {
+	if f.logPath == "" || !f.enabled {
 		return
 	}
 

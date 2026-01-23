@@ -25,7 +25,7 @@ func TestInit(t *testing.T) {
 	}
 
 	// Run Init
-	cleanup, err := Init(cfg)
+	cleanup, err := Init(cfg, nil)
 	if err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}

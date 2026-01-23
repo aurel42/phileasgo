@@ -16,6 +16,7 @@ type Config struct {
 	Request  RequestConfig  `yaml:"request"`
 	TTS      TTSConfig      `yaml:"tts"`
 	Log      LogConfig      `yaml:"log"`
+	History  HistoryConfig  `yaml:"history"`
 	DB       DBConfig       `yaml:"db"`
 	Server   ServerConfig   `yaml:"server"`
 	Ticker   TickerConfig   `yaml:"ticker"`
@@ -173,8 +174,12 @@ type ScreenshotConfig struct {
 type LogConfig struct {
 	Server   LogSettings `yaml:"server"`
 	Requests LogSettings `yaml:"requests"`
-	LLM      LogSettings `yaml:"llm"`
-	TTS      LogSettings `yaml:"tts"`
+}
+
+// HistoryConfig holds interaction history settings.
+type HistoryConfig struct {
+	LLM HistorySettings `yaml:"llm"`
+	TTS HistorySettings `yaml:"tts"`
 }
 
 // DBConfig holds database settings.
@@ -231,6 +236,12 @@ type LogSettings struct {
 	Level string `yaml:"level"`
 }
 
+// HistorySettings holds settings for interaction history logs.
+type HistorySettings struct {
+	Path    string `yaml:"path"`
+	Enabled bool   `yaml:"enabled"`
+}
+
 // DefaultConfig returns the default configuration.
 func DefaultConfig() *Config {
 	return &Config{
@@ -264,13 +275,15 @@ func DefaultConfig() *Config {
 				Path:  "./logs/requests.log",
 				Level: "INFO",
 			},
-			LLM: LogSettings{
-				Path:  "./logs/llm.log",
-				Level: "INFO",
+		},
+		History: HistoryConfig{
+			LLM: HistorySettings{
+				Path:    "./logs/llm.log",
+				Enabled: true,
 			},
-			TTS: LogSettings{
-				Path:  "./logs/tts.log",
-				Level: "INFO",
+			TTS: HistorySettings{
+				Path:    "./logs/tts.log",
+				Enabled: true,
 			},
 		},
 		DB: DBConfig{
@@ -535,8 +548,8 @@ func expandPaths(cfg *Config) {
 	cfg.DB.Path = expandEnv(cfg.DB.Path)
 	cfg.Log.Server.Path = expandEnv(cfg.Log.Server.Path)
 	cfg.Log.Requests.Path = expandEnv(cfg.Log.Requests.Path)
-	cfg.Log.LLM.Path = expandEnv(cfg.Log.LLM.Path)
-	cfg.Log.TTS.Path = expandEnv(cfg.Log.TTS.Path)
+	cfg.History.LLM.Path = expandEnv(cfg.History.LLM.Path)
+	cfg.History.TTS.Path = expandEnv(cfg.History.TTS.Path)
 	cfg.Narrator.Screenshot.Path = expandEnv(cfg.Narrator.Screenshot.Path)
 	if cfg.Terrain.ElevationFile != "" {
 		cfg.Terrain.ElevationFile = expandEnv(cfg.Terrain.ElevationFile)

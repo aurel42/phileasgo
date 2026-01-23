@@ -10,6 +10,7 @@ import (
 
 var (
 	logPath = "logs/tts.log"
+	enabled = true
 	mu      sync.RWMutex
 )
 
@@ -20,12 +21,24 @@ func SetLogPath(path string) {
 	logPath = path
 }
 
+// SetEnabled enables or disables TTS logging.
+func SetEnabled(en bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	enabled = en
+}
+
 // Log appends the TTS prompt and status to the configured log file.
 // This is a shared helper for all TTS providers to ensure consistent debugging visibility.
 func Log(provider, prompt string, status int, err error) {
 	mu.RLock()
+	en := enabled
 	path := logPath
 	mu.RUnlock()
+
+	if !en {
+		return
+	}
 
 	_ = os.MkdirAll(filepath.Dir(path), 0o755)
 

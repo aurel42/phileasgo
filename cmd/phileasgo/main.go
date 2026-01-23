@@ -71,14 +71,15 @@ func run(ctx context.Context, configPath string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	cleanupLogs, err := logging.Init(&appCfg.Log)
+	cleanupLogs, err := logging.Init(&appCfg.Log, &appCfg.History)
 	if err != nil {
 		return fmt.Errorf("failed to initialize logging: %w", err)
 	}
 	defer cleanupLogs()
 
-	// Configure TTS Logging
-	tts.SetLogPath(appCfg.Log.TTS.Path)
+	// Configure History Logging
+	tts.SetLogPath(appCfg.History.TTS.Path)
+	tts.SetEnabled(appCfg.History.TTS.Enabled)
 
 	slog.Info("PhileasGo Started", "version", version.Version)
 
@@ -225,7 +226,7 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 }
 
 func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store) (*narrator.AIService, *prompts.Manager, error) {
-	llmProv, err := narrator.NewLLMProvider(cfg.LLM, cfg.Log.LLM.Path, svcs.ReqClient, tr)
+	llmProv, err := narrator.NewLLMProvider(cfg.LLM, cfg.History.LLM, svcs.ReqClient, tr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize LLM provider: %w", err)
 	}

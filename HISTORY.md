@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.3.7 (2026-01-23)
+- **Feature**: **Configurable History Logging**
+  - Added support for enabling/disabling LLM and TTS history logs via configuration.
+  - History log paths are now configurable, allowing users to move them outside the default directory.
+- **Fix**: **LLM Failover Robustness**
+  - Refined the failover provider to treat 400 (Bad Request) and 429 (Too Many Requests) as recoverable errors, preventing unintended provider disabling.
+  - Improved retry logic for exhausted providers in the chain.
+- **Refactor**: **Log Rotation Handling**
+  - Updated the logging system to handle optional history logs during startup rotation.
+
 ## v0.3.6 (2026-01-23)
 - **Feature**: **Environment Variable Expansion in Paths**
   - Added support for `%VAR%` (Windows) and `$VAR` (Unix) syntax in all configuration paths.

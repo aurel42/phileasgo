@@ -17,9 +17,19 @@ var RequestLogger *slog.Logger
 
 // Init initializes the logging system based on configuration.
 // It returns a cleanup function to close log files.
-func Init(cfg *config.LogConfig) (func(), error) {
-	// Rotate all log files at startup
-	rotatePaths(cfg.Server.Path, cfg.Requests.Path, cfg.LLM.Path, cfg.TTS.Path)
+func Init(cfg *config.LogConfig, hCfg *config.HistoryConfig) (func(), error) {
+	// Rotate standard log files at startup
+	rotatePaths(cfg.Server.Path, cfg.Requests.Path)
+
+	// Rotate history files only if enabled
+	if hCfg != nil {
+		if hCfg.LLM.Enabled {
+			rotatePaths(hCfg.LLM.Path)
+		}
+		if hCfg.TTS.Enabled {
+			rotatePaths(hCfg.TTS.Path)
+		}
+	}
 
 	var closers []io.Closer
 

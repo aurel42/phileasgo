@@ -56,7 +56,11 @@ func TestNewLLMProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewLLMProvider(tt.cfg, tmpLog, rc, tracker)
+			hCfg := config.HistorySettings{
+				Path:    tmpLog,
+				Enabled: true,
+			}
+			_, err := NewLLMProvider(tt.cfg, hCfg, rc, tracker)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewLLMProvider() error = %v, wantErr %v", err, tt.wantErr)
 			}

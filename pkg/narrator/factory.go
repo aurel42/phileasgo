@@ -18,7 +18,7 @@ import (
 )
 
 // NewLLMProvider returns an LLM provider based on configuration, wrapped in a failover chain.
-func NewLLMProvider(cfg config.LLMConfig, logPath string, rc *request.Client, t *tracker.Tracker) (llm.Provider, error) {
+func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *request.Client, t *tracker.Tracker) (llm.Provider, error) {
 	if len(cfg.Fallback) == 0 {
 		return nil, fmt.Errorf("no llm providers configured in fallback list")
 	}
@@ -62,7 +62,7 @@ func NewLLMProvider(cfg config.LLMConfig, logPath string, rc *request.Client, t 
 	}
 
 	// Wrap in Failover Provider with unified logging and names
-	return failover.New(providers, names, logPath, t)
+	return failover.New(providers, names, hCfg.Path, hCfg.Enabled, t)
 }
 
 // NewTTSProvider returns a TTS provider based on configuration.

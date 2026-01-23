@@ -51,7 +51,7 @@ func TestFailover_SuccessFirst(t *testing.T) {
 	p1 := &mockProvider{responses: []string{"resp1"}, errors: []error{nil}}
 	p2 := &mockProvider{responses: []string{"resp2"}, errors: []error{nil}}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", true, nil)
 	res, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if err != nil {
@@ -69,7 +69,7 @@ func TestFailover_FailoverOnRetryable(t *testing.T) {
 	p1 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("429 too many requests")}}
 	p2 := &mockProvider{responses: []string{"resp2"}, errors: []error{nil}}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", true, nil)
 	res, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if err != nil {
@@ -90,7 +90,7 @@ func TestFailover_CircuitBreakerOnFatal(t *testing.T) {
 	p1 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("401 unauthorized")}}
 	p2 := &mockProvider{responses: []string{"resp2"}, errors: []error{nil}}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", true, nil)
 
 	// First call triggers circuit break
 	_, err := f.GenerateText(context.Background(), "test", "prompt")
@@ -126,7 +126,7 @@ func TestFailover_CircuitBreakerOnFatal(t *testing.T) {
 func TestFailover_NoDisableLastProvider(t *testing.T) {
 	p1 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("401 unauthorized")}}
 
-	f, _ := New([]llm.Provider{p1}, []string{"p1"}, "", nil)
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, "", true, nil)
 	_, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if err == nil {
@@ -151,7 +151,7 @@ func TestFailover_RetryLast(t *testing.T) {
 		errors:    []error{fmt.Errorf("429"), fmt.Errorf("429"), nil},
 	}
 
-	f, _ := New([]llm.Provider{p1}, []string{"p1"}, "", nil)
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, "", true, nil)
 	res, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if err != nil {
@@ -169,7 +169,7 @@ func TestFailover_ExhaustAll(t *testing.T) {
 	p1 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("429")}}
 	p2 := &mockProvider{responses: []string{"", "", "", ""}, errors: []error{fmt.Errorf("429"), fmt.Errorf("429"), fmt.Errorf("429"), fmt.Errorf("429")}}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", true, nil)
 	_, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if !strings.Contains(err.Error(), "exhausted after 3 retries") {
@@ -179,7 +179,7 @@ func TestFailover_ExhaustAll(t *testing.T) {
 
 func TestFailover_JSON_Success(t *testing.T) {
 	p1 := &mockProvider{responses: []string{"{}"}, errors: []error{nil}}
-	f, _ := New([]llm.Provider{p1}, []string{"p1"}, "", nil)
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, "", true, nil)
 	err := f.GenerateJSON(context.Background(), "test", "prompt", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -191,7 +191,7 @@ func TestFailover_JSON_Success(t *testing.T) {
 
 func TestFailover_ImageText_Success(t *testing.T) {
 	p1 := &mockProvider{responses: []string{"image desc"}, errors: []error{nil}}
-	f, _ := New([]llm.Provider{p1}, []string{"p1"}, "", nil)
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, "", true, nil)
 	res, err := f.GenerateImageText(context.Background(), "test", "prompt", "path/to/img")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -205,7 +205,7 @@ func TestFailover_HealthCheck(t *testing.T) {
 	p1 := &mockProvider{healthErr: fmt.Errorf("failed")}
 	p2 := &mockProvider{healthErr: nil}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", true, nil)
 
 	// Scenario: p1 fails healthcheck, p2 succeeds
 	err := f.HealthCheck(context.Background())
@@ -232,12 +232,12 @@ func TestFailover_HealthCheck(t *testing.T) {
 }
 
 func TestFailover_New_Errors(t *testing.T) {
-	_, err := New(nil, nil, "", nil)
+	_, err := New(nil, nil, "", true, nil)
 	if err == nil {
 		t.Error("expected error for nil providers")
 	}
 
-	_, err = New([]llm.Provider{&mockProvider{}}, []string{"p1", "p2"}, "", nil)
+	_, err = New([]llm.Provider{&mockProvider{}}, []string{"p1", "p2"}, "", true, nil)
 	if err == nil {
 		t.Error("expected error for mismatched counts")
 	}
@@ -270,7 +270,7 @@ func TestFailover_Logging(t *testing.T) {
 	logPath := filepath.Join(tmpDir, "llm.log")
 
 	p1 := &mockProvider{responses: []string{"success_resp"}, errors: []error{nil}}
-	f, _ := New([]llm.Provider{p1}, []string{"p1"}, logPath, nil)
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, logPath, true, nil)
 
 	// Test Successful Log
 	_, _ = f.GenerateText(context.Background(), "SuccessCall", "Prompt text")
@@ -288,7 +288,7 @@ func TestFailover_Logging(t *testing.T) {
 
 	// Test Error Log
 	p2 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("fatal 401")}}
-	f2, _ := New([]llm.Provider{p2}, []string{"p2"}, logPath, nil)
+	f2, _ := New([]llm.Provider{p2}, []string{"p2"}, logPath, true, nil)
 	_, _ = f2.GenerateText(context.Background(), "FailCall", "Fail Prompt")
 
 	content, _ = os.ReadFile(logPath)
@@ -321,7 +321,7 @@ func TestFailover_ProfileSparse(t *testing.T) {
 	}
 
 	// Global chain: P1 -> P2
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", true, nil)
 
 	// Call narration (supported by P1)
 	res, err := f.GenerateText(context.Background(), "narration", "text prompt")
