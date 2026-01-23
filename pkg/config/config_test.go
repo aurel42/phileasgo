@@ -133,7 +133,7 @@ func TestLoad(t *testing.T) {
 			setup: func() {
 				t.Setenv("PHILEAS_HOME", "/home/phileas")
 				t.Setenv("APP_DATA", "/app/data")
-				err := os.WriteFile(configPath, []byte("db:\n  path: \"$PHILEAS_HOME/db.sqlite\"\nnarrator:\n  screenshot:\n    path: \"%APP_DATA%/screenshots\"\n"), 0o644)
+				err := os.WriteFile(configPath, []byte("db:\n  path: \"$PHILEAS_HOME/db.sqlite\"\nnarrator:\n  screenshot:\n    paths: [\"%APP_DATA%/screenshots\"]\n"), 0o644)
 				if err != nil {
 					t.Fatalf("failed to setup test file: %v", err)
 				}
@@ -144,8 +144,8 @@ func TestLoad(t *testing.T) {
 					t.Errorf("expected DB path '%s', got '%s'", expectedDB, cfg.DB.Path)
 				}
 				expectedScreenshot := "/app/data/screenshots"
-				if cfg.Narrator.Screenshot.Path != expectedScreenshot {
-					t.Errorf("expected Screenshot path '%s', got '%s'", expectedScreenshot, cfg.Narrator.Screenshot.Path)
+				if len(cfg.Narrator.Screenshot.Paths) == 0 || cfg.Narrator.Screenshot.Paths[0] != expectedScreenshot {
+					t.Errorf("expected Screenshot path '%s', got '%v'", expectedScreenshot, cfg.Narrator.Screenshot.Paths)
 				}
 			},
 			checkFile: func(t *testing.T) {
@@ -184,6 +184,30 @@ func TestLoad(t *testing.T) {
 				// This shouldn't be reached as Load should return error
 			},
 			expectedError: true,
+		},
+		{
+			name: "Secrets_Env_Override",
+			setup: func() {
+				t.Setenv("FISH_API_KEY", "fish_secret")
+				t.Setenv("SPEECH_KEY", "azure_secret")
+				t.Setenv("SPEECH_REGION", "eastus")
+				err := os.WriteFile(configPath, []byte("tts:\n  engine: edge-tts\n"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup test file: %v", err)
+				}
+			},
+			validate: func(t *testing.T, cfg *Config) {
+				if cfg.TTS.FishAudio.Key != "fish_secret" {
+					t.Errorf("expected FishAudio Key 'fish_secret', got '%s'", cfg.TTS.FishAudio.Key)
+				}
+				if cfg.TTS.AzureSpeech.Key != "azure_secret" {
+					t.Errorf("expected AzureSpeech Key 'azure_secret', got '%s'", cfg.TTS.AzureSpeech.Key)
+				}
+				if cfg.TTS.AzureSpeech.Region != "eastus" {
+					t.Errorf("expected AzureSpeech Region 'eastus', got '%s'", cfg.TTS.AzureSpeech.Region)
+				}
+			},
+			checkFile: func(t *testing.T) {},
 		},
 	}
 

@@ -1,5 +1,19 @@
 ﻿# Release History
 
+## v0.3.11 (2026-01-23)
+- **Feature**: **Multiple Screenshot Paths**
+  - Added support for monitoring multiple directories for new screenshots simultaneously.
+  - Useful for users alternating between standard MSFS screenshots and VR-specific folders (e.g. OpenXR Toolkit).
+  - Updated `phileas.yaml` with example configurations for multiple paths.
+- **API**: **Multi-Path Image Serving**
+  - Enhanced the ImageHandler to validate and serve images from any of the configured screenshot directories.
+- **Testing**: **Coverage Improvements**
+  - Achieved **81.4%** statement coverage for `pkg/config` (up from ~66%).
+  - Achieved **90.2%** statement coverage for `pkg/watcher` with new table-driven tests.
+  - Added comprehensive tests for categories, interests, and environment secrets overrides.
+- **Refactor**: Improved robustness of the configuration loader and screenshot monitoring logic.
+
+
 ## v0.3.10 (2026-01-23)
 - **Feature**: **Multi-Horizon POI Deferral**
   - Implemented an intelligent deferral mechanism that predicts the aircraft's position at +1, +3, +5, and +10 minutes.

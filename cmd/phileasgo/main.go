@@ -358,11 +358,11 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 	var screenWatcher *watcher.Service
 	if cfg.Narrator.Screenshot.Enabled {
 		var err error
-		screenWatcher, err = watcher.NewService(cfg.Narrator.Screenshot.Path)
+		screenWatcher, err = watcher.NewService(cfg.Narrator.Screenshot.Paths)
 		if err != nil {
 			slog.Warn("Failed to initialize screenshot watcher", "error", err)
 		} else {
-			slog.Info("Screenshot watcher started", "path", cfg.Narrator.Screenshot.Path)
+			slog.Info("Screenshot watcher started", "paths", cfg.Narrator.Screenshot.Paths)
 		}
 	}
 

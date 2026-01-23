@@ -929,7 +929,7 @@ func TestNarrationJob_ScreenshotDetection(t *testing.T) {
 	simC := &mockJobSimClient{state: sim.StateActive}
 
 	// Create real watcher pointing to temp dir
-	w, err := watcher.NewService(tmpDir)
+	w, err := watcher.NewService([]string{tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to create watcher: %v", err)
 	}

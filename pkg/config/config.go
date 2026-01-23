@@ -166,8 +166,8 @@ type DebriefConfig struct {
 
 // ScreenshotConfig holds settings for screenshot monitoring.
 type ScreenshotConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Path    string `yaml:"path"` // Defaults to user's Pictures/Screenshots if empty
+	Enabled bool     `yaml:"enabled"`
+	Paths   []string `yaml:"paths"` // Multi-path support (e.g. MSFS, Steam, ReShade)
 }
 
 // LogConfig holds logging settings.
@@ -366,7 +366,7 @@ func DefaultConfig() *Config {
 			},
 			Screenshot: ScreenshotConfig{
 				Enabled: true,
-				Path:    "", // Auto-detect
+				Paths:   []string{}, // Auto-detect in main if empty
 			},
 			AudioEffects: AudioEffectsConfig{
 				Headset:    false,
@@ -557,7 +557,9 @@ func expandPaths(cfg *Config) {
 	cfg.Log.Requests.Path = expandEnv(cfg.Log.Requests.Path)
 	cfg.History.LLM.Path = expandEnv(cfg.History.LLM.Path)
 	cfg.History.TTS.Path = expandEnv(cfg.History.TTS.Path)
-	cfg.Narrator.Screenshot.Path = expandEnv(cfg.Narrator.Screenshot.Path)
+	for i, p := range cfg.Narrator.Screenshot.Paths {
+		cfg.Narrator.Screenshot.Paths[i] = expandEnv(p)
+	}
 	if cfg.Terrain.ElevationFile != "" {
 		cfg.Terrain.ElevationFile = expandEnv(cfg.Terrain.ElevationFile)
 	}

@@ -9,17 +9,17 @@ import (
 
 // ImageHandler handles serving allowed images (screenshots).
 type ImageHandler struct {
-	snapshotPath string
+	allowedPaths []string
 }
 
 // NewImageHandler creates a new ImageHandler.
 func NewImageHandler(cfg *config.Config) *ImageHandler {
-	path := cfg.Narrator.Screenshot.Path
-	if path == "" {
-		slog.Info("ImageHandler: No screenshot path configured, relying on valid absolute paths from backend")
+	paths := cfg.Narrator.Screenshot.Paths
+	if len(paths) == 0 {
+		slog.Info("ImageHandler: No screenshot paths configured, relying on valid absolute paths from backend")
 	}
 	return &ImageHandler{
-		snapshotPath: path,
+		allowedPaths: paths,
 	}
 }
 
