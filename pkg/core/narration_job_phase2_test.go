@@ -104,6 +104,9 @@ func (m *mockPhase2NarratorService) SkipCooldown()                       {}
 func (m *mockPhase2NarratorService) ShouldSkipCooldown() bool            { return false }
 func (m *mockPhase2NarratorService) ResetSkipCooldown()                  {}
 func (m *mockPhase2NarratorService) ReplayLast(ctx context.Context) bool { return false }
+func (m *mockPhase2NarratorService) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
+	return true
+}
 func TestPhase2_CanPreparePOI(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.AutoNarrate = true

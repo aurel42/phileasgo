@@ -1,5 +1,18 @@
 ﻿# Release History
 
+## v0.3.12 (2026-01-23)
+- **Feature**: **Border Crossing Narrations**
+  - Added support for automatic border crossing announcements when flying between countries or states/provinces.
+  - Implemented `BorderJob` for efficient detection of geographic boundary transitions.
+  - Integrated standard "International Waters" (XZ) handling for transoceanic flights.
+- **Narrator**: **Enhanced Border Context**
+  - Expanded `border.tmpl` context to include `TripSummary` and `TTSInstructions`.
+  - Optimized queue limits to handle border narrations as distinct high-priority events.
+- **Testing**: **Robustness & Coverage**
+  - Achieved **94.7%** statement coverage for `BorderJob` with comprehensive boundary scenarios.
+  - Achieved **80.0%** statement coverage for `PlayBorder` logic.
+  - Resolved a long-standing non-deterministic race condition in the narrator's pipeline flow tests.
+
 ## v0.3.11 (2026-01-23)
 - **Feature**: **Multiple Screenshot Paths**
   - Added support for monitoring multiple directories for new screenshots simultaneously.
@@ -12,7 +25,6 @@
   - Achieved **90.2%** statement coverage for `pkg/watcher` with new table-driven tests.
   - Added comprehensive tests for categories, interests, and environment secrets overrides.
 - **Refactor**: Improved robustness of the configuration loader and screenshot monitoring logic.
-
 
 ## v0.3.10 (2026-01-23)
 - **Feature**: **Multi-Horizon POI Deferral**

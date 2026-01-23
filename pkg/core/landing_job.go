@@ -8,11 +8,6 @@ import (
 	"phileasgo/pkg/sim"
 )
 
-// Debriefer interface for triggering the debrief.
-type Debriefer interface {
-	PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool
-}
-
 // LandingJob detects when the aircraft lands and triggers a debrief.
 type LandingJob struct {
 	BaseJob

@@ -45,6 +45,10 @@ type GenerationJob struct {
 	Strategy  string // e.g., "funny", "historic"
 	CreatedAt time.Time
 	Telemetry *sim.Telemetry
+
+	// For Border Crossings
+	From string
+	To   string
 }
 
 // ScriptEntry represents a previously generated narration script.

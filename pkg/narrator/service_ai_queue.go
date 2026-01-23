@@ -95,23 +95,28 @@ func checkQueueLimits(queue []*model.Narrative, nType string, manual bool) bool 
 		return false
 	}
 
-	var manualPOIs, screenshots, debriefs, essays int
+	var manualPOIs, screenshots, debriefs, essays, borders int
 	for _, n := range queue {
 		switch n.Type {
-		case "poi":
+		case model.NarrativeTypePOI:
 			if n.Manual {
 				manualPOIs++
 			}
-		case "screenshot":
+		case model.NarrativeTypeScreenshot:
 			screenshots++
-		case "debrief":
+		case model.NarrativeTypeDebrief:
 			debriefs++
-		case "essay":
+		case model.NarrativeTypeEssay:
 			essays++
+		case model.NarrativeTypeBorder:
+			borders++
 		}
 	}
 
 	if nType == "poi" && manual && manualPOIs >= 1 {
+		return false
+	}
+	if nType == "border" && borders >= 1 {
 		return false
 	}
 	if nType == "screenshot" && screenshots >= 1 {
@@ -206,6 +211,44 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 				ImagePath: job.ImagePath,
 				MaxWords:  s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
 				Manual:    true,
+			}
+
+		case model.NarrativeTypeBorder:
+			data := struct {
+				TourGuideName   string
+				Persona         string
+				Accent          string
+				From            string
+				To              string
+				MaxWords        int
+				Language_name   string
+				Language_code   string
+				TripSummary     string
+				TTSInstructions string
+			}{
+				TourGuideName: "Ava", // TODO: Config
+				Persona:       "Intelligent, fascinating",
+				Accent:        "Neutral",
+				From:          job.From,
+				To:            job.To,
+				MaxWords:      30, // Short statement
+				Language_name: "English",
+				Language_code: "en-US",
+				TripSummary:   s.getTripSummary(),
+			}
+			data.TTSInstructions = s.fetchTTSInstructions(data)
+			prompt, err := s.prompts.Render("narrator/border.tmpl", data)
+			if err != nil {
+				slog.Error("Narrator: Failed to render border prompt", "error", err)
+				return
+			}
+			req = &GenerationRequest{
+				Type:     model.NarrativeTypeBorder,
+				Prompt:   prompt,
+				Title:    "Border Crossing",
+				SafeID:   "border_" + time.Now().Format("150405"),
+				MaxWords: data.MaxWords,
+				Manual:   true,
 			}
 
 		default:

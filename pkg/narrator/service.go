@@ -49,6 +49,8 @@ type Service interface {
 	// PlayEssay triggers a regional essay narration.
 	PlayEssay(ctx context.Context, tel *sim.Telemetry) bool
 	// PlayDebrief triggers a post-landing debrief.
+	// PlayBorder triggers a border crossing announcement.
+	PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool
 	PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool
 	// SkipCooldown forces the cooldown to expire immediately.
 	SkipCooldown()
@@ -234,6 +236,14 @@ func (s *StubService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	slog.Info("Narrator stub: debrief requested")
+	return true
+}
+
+// PlayBorder triggers a border crossing announcement (stub).
+func (s *StubService) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	slog.Info("Narrator stub: border announcement requested", "from", from, "to", to)
 	return true
 }
 

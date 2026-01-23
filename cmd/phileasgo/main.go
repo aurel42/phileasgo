@@ -336,7 +336,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 }
 
 func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc *narrator.AIService, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker) *core.Scheduler {
-	sched := core.NewScheduler(cfg, simClient, apiHandler, narratorSvc)
+	sched := core.NewScheduler(cfg, simClient, apiHandler, narratorSvc, svcs.WikiSvc.GeoService())
 	sched.AddJob(core.NewDistanceJob("DistanceSync", 5000, func(c context.Context, t sim.Telemetry) {
 		_ = st.MarkEntitiesSeen(c, map[string][]string{})
 	}))

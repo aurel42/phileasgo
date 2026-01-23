@@ -12,12 +12,13 @@ const (
 	NarrativeTypeEssay      NarrativeType = "essay"
 	NarrativeTypeScreenshot NarrativeType = "screenshot"
 	NarrativeTypeDebrief    NarrativeType = "debrief"
+	NarrativeTypeBorder     NarrativeType = "border"
 )
 
 // Narrative represents a prepared narration ready for playback.
 type Narrative struct {
 	ID                string        `json:"id"`
-	Type              NarrativeType `json:"type"` // "poi", "screenshot", "essay", "debrief"
+	Type              NarrativeType `json:"type"` // "poi", "screenshot", "essay", "debrief", "border"
 	Title             string        `json:"title"`
 	Script            string        `json:"script"`
 	AudioPath         string        `json:"audio_path"`

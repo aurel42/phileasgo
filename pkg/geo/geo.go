@@ -188,8 +188,8 @@ func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
 
 	if minDistSq == math.MaxFloat64 {
 		return model.LocationInfo{
-			CityName:    "Unknown",
-			CountryCode: "US", // Default fallback
+			CityName:    "International Waters",
+			CountryCode: "XZ", // UN code for International Waters
 		}
 	}
 

@@ -43,3 +43,40 @@ func TestDistance(t *testing.T) {
 		})
 	}
 }
+
+func TestGetLocation(t *testing.T) {
+	// We can't easily load the real data in a unit test without the files,
+	// but we can test the fallback logic on an empty service.
+	s := &Service{
+		grid: make(map[int][]City),
+	}
+
+	// 1. Fallback (International Waters)
+	loc := s.GetLocation(0, 0)
+	if loc.CityName != "International Waters" {
+		t.Errorf("Expected 'International Waters', got %s", loc.CityName)
+	}
+	if loc.CountryCode != "XZ" {
+		t.Errorf("Expected 'XZ', got %s", loc.CountryCode)
+	}
+
+	// 2. Exact Match (Simulation)
+	c := City{
+		Name:        "TestCity",
+		Lat:         10,
+		Lon:         20,
+		CountryCode: "TC",
+		Admin1Code:  "01",
+		Admin1Name:  "TestRegion",
+	}
+	key := s.getGridKey(10, 20)
+	s.grid[key] = []City{c}
+
+	loc = s.GetLocation(10.001, 20.001)
+	if loc.CityName != "TestCity" {
+		t.Errorf("Expected 'TestCity', got %s", loc.CityName)
+	}
+	if loc.Admin1Name != "TestRegion" {
+		t.Errorf("Expected 'TestRegion', got %s", loc.Admin1Name)
+	}
+}

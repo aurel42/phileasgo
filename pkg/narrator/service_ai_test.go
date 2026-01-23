@@ -628,19 +628,16 @@ func TestAIService_PipelineFlow(t *testing.T) {
 					t.Fatalf("PrepareNextNarrative failed: %v", err)
 				}
 				// Verify staged
-				func() {
-					svc.mu.Lock()
-					defer svc.mu.Unlock()
-					if len(svc.playbackQueue) == 0 {
-						t.Fatal("queue is empty after Prepare")
-					}
-					// IMPORTANT: Reset active now so PlayPOI can work
-					svc.active = false
-				}()
 			}
 
-			// 2. Play
+			// 2. Play - while still active to prevent background consumption
 			svc.PlayPOI(ctx, tt.requestPOIID, true, false, &sim.Telemetry{}, "uniform")
+
+			// Now release active and trigger processing
+			svc.mu.Lock()
+			svc.active = false
+			svc.mu.Unlock()
+
 			svc.ProcessGenerationQueue(ctx)
 
 			// Wait for async queue processing

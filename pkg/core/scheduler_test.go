@@ -8,8 +8,22 @@ import (
 	"time"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 )
+
+type mockSchedGeoProvider struct{}
+
+func (m *mockSchedGeoProvider) GetLocation(lat, lon float64) model.LocationInfo {
+	return model.LocationInfo{}
+}
+
+type mockSchedNarrator struct{}
+
+func (m *mockSchedNarrator) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool { return true }
+func (m *mockSchedNarrator) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
+	return true
+}
 
 // mockSimClient implements sim.Client
 type mockSimClient struct {
@@ -43,7 +57,7 @@ func TestScheduler_JobExecution(t *testing.T) {
 	cfg.Ticker.TelemetryLoop = config.Duration(10 * time.Millisecond) // Fast loop
 
 	mockSim := &mockSimClient{}
-	sched := NewScheduler(cfg, mockSim, nil, nil)
+	sched := NewScheduler(cfg, mockSim, nil, &mockSchedNarrator{}, &mockSchedGeoProvider{})
 
 	// job fired latch
 	var firedCount int32
@@ -153,7 +167,7 @@ func TestScheduler_SkipsTelemetryWhenInactive(t *testing.T) {
 
 	mockSim := &mockStatefulSimClient{state: sim.StateInactive}
 	sink := &mockSink{}
-	sched := NewScheduler(cfg, mockSim, sink, nil)
+	sched := NewScheduler(cfg, mockSim, sink, &mockSchedNarrator{}, &mockSchedGeoProvider{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

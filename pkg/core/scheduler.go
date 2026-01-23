@@ -24,23 +24,27 @@ type Scheduler struct {
 	jobs        []Job
 	resettables []SessionResettable
 	lastTickPos geo.Point
-	debriefer   Debriefer
+	narrator    Borderrer // Renamed from debriefer for generalized use
 }
 
 // NewScheduler creates a new Scheduler.
-func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink, debriefer Debriefer) *Scheduler {
+func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink, n Borderrer, g LocationProvider) *Scheduler {
 	s := &Scheduler{
 		cfg:         cfg,
 		sim:         simClient,
 		sink:        sink,
 		jobs:        []Job{},
 		resettables: []SessionResettable{},
-		debriefer:   debriefer,
+		narrator:    n,
 	}
 
 	// Register Core Jobs
 	// Landing Job
-	s.AddJob(NewLandingJob(debriefer))
+	s.AddJob(NewLandingJob(n.(Debriefer)))
+	// Border Job
+	borderJob := NewBorderJob(n, g)
+	s.AddJob(borderJob)
+	s.AddResettable(borderJob)
 
 	return s
 }

@@ -3,10 +3,24 @@ package core
 import (
 	"context"
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 	"testing"
 	"time"
 )
+
+type mockTeleportGeoProvider struct{}
+
+func (m *mockTeleportGeoProvider) GetLocation(lat, lon float64) model.LocationInfo {
+	return model.LocationInfo{}
+}
+
+type mockTeleportNarrator struct{}
+
+func (m *mockTeleportNarrator) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool { return true }
+func (m *mockTeleportNarrator) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
+	return true
+}
 
 type mockResettable struct {
 	resetCalled bool
@@ -25,7 +39,7 @@ func TestScheduler_TeleportDetection(t *testing.T) {
 	// It has SetTelemetry helper
 	mockSim := &mockSimClient{}
 
-	sched := NewScheduler(cfg, mockSim, nil, nil)
+	sched := NewScheduler(cfg, mockSim, nil, &mockTeleportNarrator{}, &mockTeleportGeoProvider{})
 
 	mr1 := &mockResettable{}
 	mr2 := &mockResettable{}
