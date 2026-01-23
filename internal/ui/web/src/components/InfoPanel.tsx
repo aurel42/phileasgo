@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { Telemetry } from '../types/telemetry';
 import { useNarrator } from '../hooks/useNarrator';
 import packageJson from '../../package.json';
@@ -30,6 +30,12 @@ interface InfoPanelProps {
     onConfigOpenChange: (isOpen: boolean) => void;
 }
 
+interface Geography {
+    city: string;
+    region?: string;
+    country: string;
+}
+
 export const InfoPanel = ({
     telemetry, status, isRetrying, units, onUnitsChange,
     showCacheLayer, onCacheLayerChange,
@@ -55,7 +61,12 @@ export const InfoPanel = ({
     const [simSource, setSimSource] = useState<string>('mock');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [stats, setStats] = useState<any>(null);
+    const [location, setLocation] = useState<Geography | null>(null);
     const { status: narratorStatus } = useNarrator();
+
+    // Use ref to access latest telemetry in interval without resetting it
+    const telemetryRef = useRef(telemetry);
+    useEffect(() => { telemetryRef.current = telemetry; }, [telemetry]);
 
     useEffect(() => {
         const fetchVersion = () => {
@@ -71,18 +82,31 @@ export const InfoPanel = ({
                 .catch(e => console.error("Failed to fetch stats", e));
         }
 
+        const fetchLocation = () => {
+            const t = telemetryRef.current;
+            if (!t) return;
+            fetch(`/api/geography?lat=${t.Latitude}&lon=${t.Longitude}`)
+                .then(r => r.json())
+                .then(data => setLocation(data))
+                .catch(() => { });
+        };
+
         // Initial fetch
         fetchVersion();
         fetchStats();
+        fetchLocation();
 
-        // Then poll every 5 seconds to detect backend restart with new version
+        // Then poll
         const interval = setInterval(() => {
             fetchVersion();
             fetchStats();
         }, 5000);
 
+        const locInterval = setInterval(fetchLocation, 10000);
+
         return () => {
             clearInterval(interval);
+            clearInterval(locInterval);
         };
     }, []);
 
@@ -223,7 +247,24 @@ export const InfoPanel = ({
                 {/* 3. COORDS */}
                 <div className="flex-card" style={{ flex: '2 1 200px' }}> {/* Give coords more width pref */}
                     <div className="label">POSITION</div>
-                    <div className="value" style={{ fontSize: '14px', fontFamily: 'monospace' }}>
+                    {location?.city && (
+                        <>
+                            <div className="value" style={{ fontSize: '16px', color: '#fff', fontFamily: 'Inter, sans-serif', fontWeight: 600, marginTop: '4px' }}>
+                                {location.city === 'Unknown' ? (
+                                    <span>Far from civilization</span>
+                                ) : (
+                                    <>
+                                        <span style={{ color: '#ddd', fontWeight: 400, marginRight: '6px', fontSize: '14px' }}>near</span>
+                                        {location.city}
+                                    </>
+                                )}
+                            </div>
+                            <div style={{ color: '#eee', fontSize: '14px', marginTop: '2px', fontFamily: 'Inter, sans-serif' }}>
+                                {location.region ? `${location.region}, ` : ''}{location.country}
+                            </div>
+                        </>
+                    )}
+                    <div className="value" style={{ fontSize: '13px', fontFamily: 'monospace', color: '#ccc', marginTop: location?.city ? '8px' : '0' }}>
                         {telemetry.Latitude.toFixed(4)}, {telemetry.Longitude.toFixed(4)}
                     </div>
                     {telemetry.APStatus && (

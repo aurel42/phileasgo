@@ -71,6 +71,9 @@ type Client struct {
 
 	// Watchdog
 	lastMessageTime time.Time
+
+	// Ground Track Calculation
+	trackBuf *geo.TrackBuffer
 }
 
 // NewClient creates a new SimConnect client.
@@ -95,6 +98,7 @@ func NewClient(appName, dllPath string) (*Client, error) {
 		reconnectInt:     5 * time.Second,
 		predictionWindow: 60 * time.Second,
 		pendingSpawns:    make(map[uint32]chan uint32),
+		trackBuf:         geo.NewTrackBuffer(5),
 	}
 
 	// Load DLL
@@ -499,16 +503,27 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 				predLat, predLon = data.Latitude, data.Longitude
 			}
 
+			// Calculate TrackTrue (Ground Track)
+			currentPos := geo.Point{Lat: data.Latitude, Lon: data.Longitude}
+			trackTrue := data.Heading // Default
+
+			isOnGround := data.OnGround != 0 || data.AltitudeAGL < 50
+			if isOnGround {
+				c.trackBuf.Reset()
+			} else {
+				trackTrue = c.trackBuf.Push(currentPos, data.Heading)
+			}
+
 			c.telemetry = sim.Telemetry{
 				Latitude:           data.Latitude,
 				Longitude:          data.Longitude,
 				AltitudeMSL:        data.AltitudeMSL,
 				AltitudeAGL:        data.AltitudeAGL,
-				Heading:            data.Heading,
+				Heading:            trackTrue,
 				GroundSpeed:        data.GroundSpeed,
 				PredictedLatitude:  predLat,
 				PredictedLongitude: predLon,
-				IsOnGround:         data.OnGround != 0 || data.AltitudeAGL < 50,
+				IsOnGround:         isOnGround,
 				APStatus:           formatAPStatus(data),
 			}
 			c.telemetry.FlightStage = sim.DetermineFlightStage(&c.telemetry)

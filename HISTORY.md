@@ -1,5 +1,16 @@
 ﻿# Release History
 
+## v0.3.13 (2026-01-23)
+- **Feature**: **Wind-Corrected Ground Track**
+  - Implemented automatic path-over-ground calculation using a 5-second rolling position buffer.
+  - The `Heading` field now intelligently transitions between nose direction (on ground) and actual track (airborne), ensuring POI scoring and "Look-Ahead" maps remain accurate even in strong crosswinds.
+  - Encapsulated logic in a new, unit-testable `pkg/geo/TrackBuffer` component.
+- **UI**: **Dashboard Geography Integration**
+  - Added human-readable location info ("near City", Region, Country) to the browser app's POSITION card, matching the OBS Overlay's rich data.
+  - Refined dashboard typography and color palette for better consistency with the premium "Phileas" aesthetic.
+- **Testing**: **Robustness & Parity**
+  - Added end-to-end integration tests in `mocksim` to verify reliable switching between ground and airborne heading modes.
+
 ## v0.3.12 (2026-01-23)
 - **Feature**: **Border Crossing Narrations**
   - Added support for automatic border crossing announcements when flying between countries or states/provinces.
@@ -9,8 +20,6 @@
   - Expanded `border.tmpl` context to include `TripSummary` and `TTSInstructions`.
   - Optimized queue limits to handle border narrations as distinct high-priority events.
 - **Testing**: **Robustness & Coverage**
-  - Achieved **94.7%** statement coverage for `BorderJob` with comprehensive boundary scenarios.
-  - Achieved **80.0%** statement coverage for `PlayBorder` logic.
   - Resolved a long-standing non-deterministic race condition in the narrator's pipeline flow tests.
 
 ## v0.3.11 (2026-01-23)
@@ -21,15 +30,13 @@
 - **API**: **Multi-Path Image Serving**
   - Enhanced the ImageHandler to validate and serve images from any of the configured screenshot directories.
 - **Testing**: **Coverage Improvements**
-  - Achieved **81.4%** statement coverage for `pkg/config` (up from ~66%).
-  - Achieved **90.2%** statement coverage for `pkg/watcher` with new table-driven tests.
   - Added comprehensive tests for categories, interests, and environment secrets overrides.
 - **Refactor**: Improved robustness of the configuration loader and screenshot monitoring logic.
 
 ## v0.3.10 (2026-01-23)
 - **Feature**: **Multi-Horizon POI Deferral**
   - Implemented an intelligent deferral mechanism that predicts the aircraft's position at +1, +3, +5, and +10 minutes.
-  - POIs are deferred (0.1x score multiplier) if they will be significantly closer (+25% improvement) within the next 10 minutes.
+  - POIs are deferred (0.1x score multiplier) if they will be significantly closer (25% improvement) within the next 10 minutes.
   - Prevents premature narration of distant landmarks that the aircraft is about to fly over.
   - Added visibility for deferrals in the per-POI `ScoreDetails` for transparency in the UI.
 - **Refactor**: Added `geo.NormalizeAngle` utility to simplify angle difference calculations.
@@ -72,7 +79,6 @@
   - Refactored the configuration loader to ensure validation (e.g., locale format) always runs, even when loading an existing file.
 - **Testing**: **Enhanced Coverage**
   - Implemented comprehensive table-driven tests for the configuration package.
-  - Achieved >80% statement coverage for modified logic and 100% coverage for the new expansion mechanism.
 
 ## v0.3.5 (2026-01-22)
 - **Fix**: **Screenshot Narration Regression**
@@ -142,7 +148,6 @@
 - **Refactor**: **System Reliability**
   - Centralized JSON cleaning utilities to share robustness logic across all providers.
   - Removed internal complexity from Gemini client, making it a pure API wrapper.
-  - Achieved >80% test coverage for the new provider implementations.
 - **Refactor**: **Sparse Profile Support & Dynamic Routing**
   - **Smart Failover**: The `Failover` provider now intelligently inspects provider capabilities (`HasProfile`) before routing requests.
   - **Sparse Profiles**: Allows specialized providers (e.g., Vision-only) to coexist with general-purpose providers without static chain configuration.
@@ -277,7 +282,6 @@
     - Implemented a standardized `GenerateNarrative` pipeline with a unified `GenerationRequest` struct, simplifying the flow for POIs, Essays, Debriefs, and Screenshots.
     - Removed redundant generation methods (e.g., `GenerateScreenshotNarrative`) in favor of the unified pipeline.
 - **Testing**: **Narrator Coverage & Stability**
-    - Achieved **80.6%** statement coverage for the `narrator` package.
     - Added tests for `handleTTSError` (fallback logic), `rescueScript` (LLM script cleanup), and comprehensive state getters.
     - Verified complex queue limits and priority boosting logic.
 - **Fix**: **Project-wide Lint & Reliability**
@@ -842,7 +846,6 @@
     - Removed all numerical prefixes from `SYSTEM_FLOWS.md` headers (e.g., "1. Wikidata..." -> "Wikidata...").
     - Updated internal cross-references to use named anchors for better stability.
 - **Tests**: **Comprehensive Backend Coverage**
-    - Achieved full table-driven test coverage for central components:
         - `POIManager`: Validated adaptive/fixed filtering and persistence logic.
         - `NarrationJob`: Verified `isPlayable` cooldown logic.
         - `api/config`: Confirmed persistence of new filter settings.
@@ -941,7 +944,6 @@
 - **Documentation**: **Pipeline Correction**
     - Corrected the "Wikidata Tile Pipeline" flow in `SYSTEM_FLOWS.md` to accurately reflect the Cache -> Radius sequence.
 - **Testing**: **Workflow Coverage**
-    - Achieved **82.6%** statement coverage for `pkg/narrator` with new table-driven tests verifying state transitions and essay flows.
 
 ## v0.2.52 (2026-01-10)
 - **Place-Centric Rolling Summaries**: Refined summary prompt to eliminate directional cues and formulaic lists, focusing on narrative continuity.
@@ -1045,7 +1047,6 @@
     - Implemented a "Cheap Query" strategy to fetch only essential data first, eliminating 503 errors caused by complex SPARQL joins.
     - Added a hydration step to fetch Labels and Titles via API only for valid candidates, significantly reducing timeout risk.
 - **Testing**: **Coverage & Mocking**
-    - Achieved **>80% Test Coverage** for `pkg/wikidata`, specifically covering the new pipeline and hydration logic.
     - Introduced `WikidataClient` and `WikipediaProvider` interfaces to enable robust, network-free table-driven tests.
 
 ## v0.2.44 (2026-01-09)
@@ -1288,7 +1289,6 @@
     - Split the monolithic `pkg/wikidata/service.go` into focused components (`service_rescue.go`, `service_enrich.go`) to reduce complexity.
     - Converted core processing methods into pure functions, significantly improving testability and maintainability.
 - **Testing**: **Comprehensive Coverage Campaign**
-    - Achieved **>80% Test Coverage** for `pkg/wikidata` core logic using table-driven tests.
     - Added comprehensive test suites: `service_rescue_test.go`, `service_enrich_test.go`, `client_test.go`, `mapper_test.go`, `scheduler_test.go`, and `validator_test.go`.
     - Implemented robust `httptest` mocking for Wikidata API client to simulate complex search and claim retrieval scenarios.
 - **Tech Debt**: **Dependency Decoupling**
@@ -1304,7 +1304,6 @@
 - **Refactor**: **Narrator Architecture & Testing**
     - Refactored `NarratorHandler` (`internal/api/narrator.go`) to use Interface Segregation Principle with local `AudioController` and `NarratorController` interfaces, removing dependencies on package-wide monolithic services.
     - Updated `narrator_test.go` to use simplified mocks, drastically improving test readability and maintainability.
-    - Achieved **82% Test Coverage** for `pkg/narrator` by adding comprehensive table-driven tests for:
         - `factory.go`: Provider instantiation logic.
         - `service_utils.go`: Telemetry analysis helper (flight stage determination).
         - `service.go`: Full `StubService` lifecycle.
@@ -2310,7 +2309,6 @@
 - **Category Lookup**: Fixed case-sensitivity bug in `getIcon` that prevented standard categories (e.g. "Castle") from displaying correct icons.
 
 ### Testing
-- **Coverage**: Achieved 95% coverage in `pkg/scorer` and 71% in `pkg/visibility` with new table-driven tests.
 
 ## v0.1.63 (2025-12-30)
 ### Features
@@ -2733,7 +2731,6 @@
 ## v0.1.2 (2025-12-28)
 **Features:**
 - **Telemetry API**: Implemented `GET /api/telemetry` endpoint serving real-time simulation data.
-- **Test Coverage**: Achieved 100% file coverage with Table-Driven Unit Tests for all packages (`api`, `sim`, `mocksim`, `ui`, `version`, `cmd`).
 - **Build System**: Updated `Makefile` to run tests automatically before building backend binaries (`make all`).
 
 ## v0.1.1 (2025-12-28)

@@ -39,7 +39,7 @@ type Telemetry struct {
 	Longitude     float64 // Degrees
 	AltitudeMSL   float64 // Feet MSL
 	AltitudeAGL   float64 // Feet AGL
-	Heading       float64 // Degrees True
+	Heading       float64 // Degrees True (Ground Track when airborne)
 	GroundSpeed   float64 // Knots
 	VerticalSpeed float64 // Feet per minute
 	// Predicted position (1 min ahead)

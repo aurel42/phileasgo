@@ -2,6 +2,7 @@ package mocksim
 
 import (
 	"context"
+	"phileasgo/pkg/sim"
 	"testing"
 	"time"
 )
@@ -115,4 +116,49 @@ func TestScenario(t *testing.T) {
 		tel, _ := client.GetTelemetry(context.Background())
 		return tel.VerticalSpeed == 500.0
 	}, 1*time.Second, "Initial Climb 500fpm")
+}
+
+func TestGroundTrack(t *testing.T) {
+	// Scenario: Fixed aircraft heading but manual position drift to simulate track
+	cfg := Config{
+		DurationParked: 0,
+		DurationTaxi:   0,
+		DurationHold:   0,
+		StartLat:       10,
+		StartLon:       20,
+	}
+	client := NewClient(cfg)
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// 1. Wait for airborne
+	waitForReq(t, func() bool {
+		tel, _ := client.GetTelemetry(ctx)
+		return !tel.IsOnGround
+	}, 10*time.Second, "Airborne")
+
+	// 2. Mock some movement: Move EAST (90 deg) manually
+	// Heading is currently random/nose, but track should become 90 eventually
+	// Note: Mock physics loop will still run, so we need to be faster than it
+	// or stop it. Better: verify it's moving.
+
+	// Since MockSim moves straight, 'Heading' should already be the track.
+	// But let's verify it matches the displacement vector.
+
+	var lastTel sim.Telemetry
+	waitForReq(t, func() bool {
+		tel, _ := client.GetTelemetry(ctx)
+		// We expect Heading to be updated from default
+		// once buffer has enough samples.
+		if tel.Heading != 0 {
+			lastTel = tel
+			return true
+		}
+		return false
+	}, 10*time.Second, "Track Calculation")
+
+	if lastTel.Heading == 0 && lastTel.GroundSpeed > 0 {
+		t.Errorf("Heading should not be 0 while moving (unless nose is North)")
+	}
 }

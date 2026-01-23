@@ -80,3 +80,46 @@ func TestGetLocation(t *testing.T) {
 		t.Errorf("Expected 'TestRegion', got %s", loc.Admin1Name)
 	}
 }
+
+func TestBearing(t *testing.T) {
+	tests := []struct {
+		name string
+		p1   Point
+		p2   Point
+		want float64
+	}{
+		{
+			name: "North",
+			p1:   Point{Lat: 10, Lon: 20},
+			p2:   Point{Lat: 11, Lon: 20},
+			want: 0,
+		},
+		{
+			name: "East",
+			p1:   Point{Lat: 10, Lon: 20},
+			p2:   Point{Lat: 10, Lon: 21},
+			want: 90,
+		},
+		{
+			name: "South",
+			p1:   Point{Lat: 10, Lon: 20},
+			p2:   Point{Lat: 9, Lon: 20},
+			want: 180,
+		},
+		{
+			name: "West",
+			p1:   Point{Lat: 10, Lon: 20},
+			p2:   Point{Lat: 10, Lon: 19},
+			want: 270,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Bearing(tt.p1, tt.p2)
+			if math.Abs(got-tt.want) > 0.1 {
+				t.Errorf("Bearing() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -58,6 +58,9 @@ type MockClient struct {
 	groundAlt        float64
 	safeAltReached   bool
 	elevation        *terrain.ElevationProvider
+
+	// Ground Track Calculation
+	trackBuf *geo.TrackBuffer
 }
 
 // NewClient creates a new mock simulator client.
@@ -80,6 +83,7 @@ func NewClient(cfg Config) *MockClient {
 		groundAlt:    cfg.StartAlt,
 		stateStart:   time.Now(),
 		lastTurnTime: time.Now(),
+		trackBuf:     geo.NewTrackBuffer(5),
 	}
 
 	m.wg.Add(1)
@@ -223,13 +227,26 @@ func (m *MockClient) update() {
 	}
 
 	// Always update IsOnGround based on state and altitude
+	isOnGround := true
 	if m.state == StageAirborne {
-		m.tel.IsOnGround = m.tel.AltitudeMSL-m.groundAlt < 50
+		isOnGround = m.tel.AltitudeMSL-m.groundAlt < 50
 		m.tel.AltitudeAGL = math.Max(0, m.tel.AltitudeMSL-m.groundAlt)
 	} else {
-		m.tel.IsOnGround = true
 		m.tel.AltitudeAGL = 0
 	}
+
+	// Calculate TrackTrue (Ground Track)
+	currentPos := geo.Point{Lat: m.tel.Latitude, Lon: m.tel.Longitude}
+	trackTrue := m.tel.Heading // Default
+
+	if isOnGround {
+		m.trackBuf.Reset()
+	} else {
+		trackTrue = m.trackBuf.Push(currentPos, m.tel.Heading)
+	}
+
+	m.tel.IsOnGround = isOnGround
+	m.tel.Heading = trackTrue
 	m.tel.FlightStage = sim.DetermineFlightStage(&m.tel)
 }
 
