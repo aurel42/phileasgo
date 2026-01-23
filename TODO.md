@@ -19,3 +19,4 @@ X OBS overlay
 - auto-update edge-tts user agent and key from locally installed Edge
 X API counters for all LLMs
 - fix beacon balloons hidden by terrain when flying parallel to high terrain
+- support multiple screenshot paths (e.g. VR, pancake)

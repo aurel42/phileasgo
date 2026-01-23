@@ -16,14 +16,16 @@ const (
 
 // Narrative represents a prepared narration ready for playback.
 type Narrative struct {
-	ID             string        `json:"id"`
-	Type           NarrativeType `json:"type"` // "poi", "screenshot", "essay", "debrief"
-	Title          string        `json:"title"`
-	Script         string        `json:"script"`
-	AudioPath      string        `json:"audio_path"`
-	Format         string        `json:"format"`   // e.g., "mp3"
-	Duration       time.Duration `json:"duration"` // Actual audio duration
-	RequestedWords int           `json:"requested_words"`
+	ID                string        `json:"id"`
+	Type              NarrativeType `json:"type"` // "poi", "screenshot", "essay", "debrief"
+	Title             string        `json:"title"`
+	Script            string        `json:"script"`
+	AudioPath         string        `json:"audio_path"`
+	Format            string        `json:"format"`   // e.g., "mp3"
+	Duration          time.Duration `json:"duration"` // Actual audio duration
+	GenerationLatency time.Duration `json:"generation_latency"`
+	PredictedLatency  time.Duration `json:"predicted_latency"`
+	RequestedWords    int           `json:"requested_words"`
 
 	// Context Fields (Nullable/Optional)
 	POI        *POI   `json:"poi,omitempty"`        // nil for non-POI narratives

@@ -1,5 +1,17 @@
 ﻿# Release History
 
+## v0.3.8 (2026-01-23)
+- **Feature**: **Smart LLM Backoff**
+  - Implemented an incremental skip strategy for transient errors (like 429).
+  - Providers are skipped for $N$ subsequent requests after $N$ failures, reducing overhead on exhausted quotas.
+- **Reporting**: **Enhanced Narration Stats**
+  - Added actual generation time (`acc_gen_time`) and predicted duration (`next_prediction`) to narration logs.
+- **Refactor**: **Log Hygiene**
+  - Downgraded "Trip summary updated" logs to `DEBUG` to reduce distraction in standard logs.
+- **Fix**: **Test Stability**
+  - Resolved a race condition in the narrator test suite's pipeline flow verification.
+
+
 ## v0.3.7 (2026-01-23)
 - **Feature**: **Configurable History Logging**
   - Added support for enabling/disabling LLM and TTS history logs via configuration.

@@ -201,6 +201,8 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error
 		"requested_len", n.RequestedWords,
 		"words", genWords,
 		"audio_duration", duration,
+		"acc_gen_time", fmt.Sprintf("%.1fs", n.GenerationLatency.Seconds()),
+		"next_prediction", fmt.Sprintf("%.1fs", n.PredictedLatency.Seconds()),
 	)
 
 	// Update History (Trip Summary) - only for POIs and screenshots

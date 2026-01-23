@@ -618,6 +618,11 @@ func TestAIService_PipelineFlow(t *testing.T) {
 
 			// 1. Stage if needed
 			if tt.stagedPOIID != "" {
+				// Prevent immediate consumption by marking service as active
+				svc.mu.Lock()
+				svc.active = true
+				svc.mu.Unlock()
+
 				err := svc.PrepareNextNarrative(ctx, tt.stagedPOIID, "uniform", &sim.Telemetry{})
 				if err != nil {
 					t.Fatalf("PrepareNextNarrative failed: %v", err)
@@ -629,6 +634,8 @@ func TestAIService_PipelineFlow(t *testing.T) {
 					if len(svc.playbackQueue) == 0 {
 						t.Fatal("queue is empty after Prepare")
 					}
+					// IMPORTANT: Reset active now so PlayPOI can work
+					svc.active = false
 				}()
 			}
 

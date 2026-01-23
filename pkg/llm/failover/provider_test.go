@@ -352,3 +352,79 @@ func TestFailover_ProfileSparse(t *testing.T) {
 		t.Errorf("p2 should be called for vision")
 	}
 }
+
+func TestFailover_SmartBackoff(t *testing.T) {
+	// P1 will fail twice with 429, then eventually succeed
+	// Sequence of calls we expect to P1:
+	// 1. Fail (sf=1, sr=0) -> Skip next
+	// 2. [Skipped]
+	// 3. Fail (sf=2, sr=0) -> Skip next 2
+	// 4. [Skipped]
+	// 5. [Skipped]
+	// 6. Success -> Reset
+	p1 := &mockProvider{
+		responses: []string{"", "", "p1_success"},
+		errors:    []error{fmt.Errorf("429"), fmt.Errorf("429"), nil},
+	}
+	// P2 will always succeed
+	p2 := &mockProvider{
+		responses: []string{"p2_1", "p2_2", "p2_3", "p2_4", "p2_5", "p2_6"},
+		errors:    []error{nil, nil, nil, nil, nil, nil},
+	}
+
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, "", true, nil)
+
+	// Call 1: P1 tried, fails. P2 called. (P1 calls: 1, P2 calls: 1)
+	res, _ := f.GenerateText(context.Background(), "narration", "p")
+	if res != "p2_1" {
+		t.Errorf("Call 1: expected p2_1, got %s", res)
+	}
+
+	// Call 2: P1 skipped (sr:0 < sf:1). P2 called. (P1 calls: 1, P2 calls: 2)
+	res, _ = f.GenerateText(context.Background(), "narration", "p")
+	if res != "p2_2" {
+		t.Errorf("Call 2: expected p2_2, got %s", res)
+	}
+	if p1.callCount != 1 {
+		t.Errorf("Call 2: expected p1 count 1 (skipped), got %d", p1.callCount)
+	}
+
+	// Call 3: P1 tried (sr:1 < sf:1 is false), fails. P2 called. (P1 calls: 2, P2 calls: 3)
+	// sf becomes 2, sr reset to 0.
+	res, _ = f.GenerateText(context.Background(), "narration", "p")
+	if res != "p2_3" {
+		t.Errorf("Call 3: expected p2_3, got %s", res)
+	}
+	if p1.callCount != 2 {
+		t.Errorf("Call 3: expected p1 count 2, got %d", p1.callCount)
+	}
+
+	// Call 4: P1 skipped (sr:0 < sf:2). P2 called. (P1 calls: 2, P2 calls: 4)
+	res, _ = f.GenerateText(context.Background(), "narration", "p")
+	if res != "p2_4" {
+		t.Errorf("Call 4: expected p2_4, got %s", res)
+	}
+
+	// Call 5: P1 skipped (sr:1 < sf:2). P2 called. (P1 calls: 2, P2 calls: 5)
+	res, _ = f.GenerateText(context.Background(), "narration", "p")
+	if res != "p2_5" {
+		t.Errorf("Call 5: expected p2_5, got %s", res)
+	}
+
+	// Call 6: P1 tried (sr:2 < sf:2 false), succeeds. (P1 calls: 3, P2 calls: 5)
+	res, _ = f.GenerateText(context.Background(), "narration", "p")
+	if res != "p1_success" {
+		t.Errorf("Call 6: expected p1_success, got %s", res)
+	}
+	if p2.callCount != 5 {
+		t.Errorf("Call 6: expected p2 count 5, got %d", p2.callCount)
+	}
+
+	// Call 7: P1 tried immediately (reset).
+	res, _ = f.GenerateText(context.Background(), "narration", "p")
+	// Since P1 is out of mocked responses, it might fail or we should add more.
+	// But we just want to see it was called.
+	if p1.callCount != 4 {
+		t.Errorf("Call 7: expected p1 count 4, got %d", p1.callCount)
+	}
+}

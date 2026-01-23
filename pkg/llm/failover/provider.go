@@ -19,10 +19,16 @@ type Provider struct {
 	providers []llm.Provider
 	names     []string
 	disabled  map[int]bool
+	backoffs  map[string]*backoffState // key: providerName:profileName
 	logPath   string
 	enabled   bool
 	tracker   *tracker.Tracker
 	mu        sync.RWMutex
+}
+
+type backoffState struct {
+	subsequentFailures int
+	skippedRequests    int
 }
 
 // New creates a new Provider with failover and unified logging.
@@ -40,6 +46,7 @@ func New(providers []llm.Provider, names []string, logPath string, enabled bool,
 		providers: providers,
 		names:     names,
 		disabled:  make(map[int]bool),
+		backoffs:  make(map[string]*backoffState),
 		logPath:   logPath,
 		enabled:   enabled,
 		tracker:   t,
@@ -158,12 +165,26 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		return nil, fmt.Errorf("no active provider supports profile %q", callName)
 	}
 
-	lastIndex := len(candidates) - 1
-
 	for idx, c := range candidates {
+		// 3. Check Smart Backoff
+		backoffKey := c.name + ":" + callName
+		f.mu.Lock()
+		bs, exists := f.backoffs[backoffKey]
+		if exists && bs.skippedRequests < bs.subsequentFailures {
+			bs.skippedRequests++
+			slog.Debug("LLM Provider in backoff, skipping", "provider", c.name, "profile", callName, "skipped", bs.skippedRequests, "target", bs.subsequentFailures)
+			f.mu.Unlock()
+			continue
+		}
+		f.mu.Unlock()
+
 		res, err := fn(c.p)
 		if err == nil {
-			// SUCCESS
+			// SUCCESS - Reset Backoff
+			f.mu.Lock()
+			delete(f.backoffs, backoffKey)
+			f.mu.Unlock()
+
 			f.trackStats(c.name, true)
 			f.logRequest(c.name, callName, prompt, fmt.Sprintf("%v", res), nil)
 			return res, nil
@@ -174,7 +195,7 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		f.logRequest(c.name, callName, prompt, "", err)
 
 		isFatal := isUnrecoverable(err)
-		isLast := idx == lastIndex
+		isLast := idx == len(candidates)-1
 
 		if isFatal {
 			if !isLast {
@@ -188,9 +209,19 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 			return nil, err
 		}
 
-		// Retryable error
+		// Retryable error: apply backoff increment
+		f.mu.Lock()
+		bs, exists = f.backoffs[backoffKey]
+		if !exists {
+			bs = &backoffState{}
+			f.backoffs[backoffKey] = bs
+		}
+		bs.subsequentFailures++
+		bs.skippedRequests = 0
+		f.mu.Unlock()
+
 		if !isLast {
-			slog.Info("LLM Provider failed (retryable), falling back", "provider", c.name, "next", candidates[idx+1].name, "error", err)
+			slog.Info("LLM Provider failed (retryable), falling back", "provider", c.name, "next", candidates[idx+1].name, "error", err, "backoff_failures", bs.subsequentFailures)
 			continue // Try next immediately
 		}
 
@@ -199,6 +230,10 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		if err != nil {
 			f.logRequest(c.name, callName, prompt, "", err)
 		} else {
+			// Success on retry: reset backoff
+			f.mu.Lock()
+			delete(f.backoffs, backoffKey)
+			f.mu.Unlock()
 			f.logRequest(c.name, callName, prompt, fmt.Sprintf("%v", res), nil)
 		}
 		return res, err

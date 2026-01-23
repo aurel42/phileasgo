@@ -292,7 +292,7 @@ func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript
 	s.tripSummary = strings.TrimSpace(newSummary)
 	s.mu.Unlock()
 
-	slog.Info("Narrator: Trip summary updated", "length", len(s.tripSummary))
+	slog.Debug("Narrator: Trip summary updated", "length", len(s.tripSummary))
 }
 
 func (s *AIService) getTripSummary() string {

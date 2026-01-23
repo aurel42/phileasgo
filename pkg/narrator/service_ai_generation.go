@@ -17,10 +17,12 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		return nil, err
 	}
 	startTime := time.Now()
+	predicted := s.AverageLatency()
 
 	// Defer Cleanup
 	defer func() {
-		s.updateLatency(time.Since(startTime))
+		actual := time.Since(startTime)
+		s.updateLatency(actual)
 		s.mu.Lock()
 		s.generating = false
 		s.generatingPOI = nil
@@ -114,6 +116,10 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		Format:         format,
 		RequestedWords: req.MaxWords,
 		Manual:         req.Manual,
+		CreatedAt:      time.Now(),
+
+		GenerationLatency: time.Since(startTime),
+		PredictedLatency:  predicted,
 
 		// Context passthrough
 		POI:       req.POI,
