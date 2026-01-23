@@ -64,6 +64,17 @@ func Bearing(p1, p2 Point) float64 {
 	return math.Mod(brng*(180.0/math.Pi)+360.0, 360.0)
 }
 
+// NormalizeAngle normalizes an angle difference to the range [-180, 180].
+func NormalizeAngle(angleDeg float64) float64 {
+	for angleDeg > 180 {
+		angleDeg -= 360
+	}
+	for angleDeg < -180 {
+		angleDeg += 360
+	}
+	return angleDeg
+}
+
 // City represents a city from cities1000.txt
 type City struct {
 	Name        string

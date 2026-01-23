@@ -1,12 +1,20 @@
 ﻿# Release History
 
+## v0.3.10 (2026-01-23)
+- **Feature**: **Multi-Horizon POI Deferral**
+  - Implemented an intelligent deferral mechanism that predicts the aircraft's position at +1, +3, +5, and +10 minutes.
+  - POIs are deferred (0.1x score multiplier) if they will be significantly closer (+25% improvement) within the next 10 minutes.
+  - Prevents premature narration of distant landmarks that the aircraft is about to fly over.
+  - Added visibility for deferrals in the per-POI `ScoreDetails` for transparency in the UI.
+- **Refactor**: Added `geo.NormalizeAngle` utility to simplify angle difference calculations.
+- **Testing**: Added `pkg/scorer/deferral_test.go` with comprehensive flight scenarios.
+
 ## v0.3.9 (2026-01-23)
 - **Fix**: **Ignored Category Propagation**
   - Resolved a persistent bug where POIs from ignored categories (e.g., dioceses, administrative entities) slipped through classification.
   - **Root Cause**: When BFS found an ignored category at depth 2+, only the article QID was marked as `__IGNORED__`, not the intermediate hierarchy nodes.
   - **Solution**: `searchHierarchy` now propagates `__IGNORED__` to ALL traversed nodes in the BFS path, preventing stale cache entries from bypassing ignore rules.
 - **Testing**: Added "Ignored Category (Depth 2 with Propagation)" test case to verify the fix.
-- **Tools**: Added `cmd/experiments/check_classification` debug script to diagnose classification issues.
 
 ## v0.3.8 (2026-01-23)
 - **Feature**: **Smart LLM Backoff**

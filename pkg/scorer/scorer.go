@@ -66,17 +66,37 @@ func (s *Scorer) NewSession(input *ScoringInput) Session {
 		lowestElev = 0
 	}
 
+	// Pre-calculate future positions for deferral logic: +1, +3, +5, +10 minutes
+	var futurePositions []geo.Point
+	if s.config.DeferralEnabled && input.Telemetry.GroundSpeed > 10 {
+		horizons := []float64{1, 3, 5, 10} // minutes
+		futurePositions = make([]geo.Point, len(horizons))
+		tel := input.Telemetry
+		speedMetersPerMin := (tel.GroundSpeed * 1852.0) / 60.0 // knots → m/min
+
+		for i, mins := range horizons {
+			distMeters := speedMetersPerMin * mins
+			futurePositions[i] = geo.DestinationPoint(
+				geo.Point{Lat: tel.Latitude, Lon: tel.Longitude},
+				distMeters,
+				tel.Heading,
+			)
+		}
+	}
+
 	return &DefaultSession{
-		scorer:     s,
-		input:      input,
-		lowestElev: float64(lowestElev),
+		scorer:          s,
+		input:           input,
+		lowestElev:      float64(lowestElev),
+		futurePositions: futurePositions,
 	}
 }
 
 type DefaultSession struct {
-	scorer     *Scorer
-	input      *ScoringInput
-	lowestElev float64
+	scorer          *Scorer
+	input           *ScoringInput
+	lowestElev      float64
+	futurePositions []geo.Point // Pre-calculated positions at +1, +3, +5, +10 min
 }
 
 // Calculate updates the Score, ScoreDetails, and IsVisible fields of the POI.
@@ -125,8 +145,65 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 	score *= varietyScore
 	logs = append(logs, varietyLogs...)
 
+	// 4. Deferral Check: Will we be 25%+ closer in +3/+5/+10 min vs +1 min?
+	if len(sess.futurePositions) == 4 {
+		deferralPenalty, deferralMsg := sess.checkDeferral(poiPoint, state.Heading)
+		if deferralPenalty < 1.0 {
+			score *= deferralPenalty
+			logs = append(logs, deferralMsg)
+		}
+	}
+
 	poi.Score = score
 	poi.ScoreDetails = strings.Join(logs, "\n")
+}
+
+// checkDeferral checks if we'll be significantly closer to the POI in the future.
+// Returns multiplier (1.0 if no deferral, 0.1 if deferred) and a concise log message.
+func (sess *DefaultSession) checkDeferral(poiPoint geo.Point, heading float64) (multiplier float64, msg string) {
+	// Calculate distances at all 4 horizons (+1, +3, +5, +10 min)
+	var distances [4]float64
+	for i, pos := range sess.futurePositions {
+		// Check if POI is behind aircraft at this position (outside ±90° cone)
+		bearingToPOI := geo.Bearing(pos, poiPoint)
+		angleDiff := geo.NormalizeAngle(bearingToPOI - heading)
+
+		if math.Abs(angleDiff) > 90 {
+			distances[i] = math.Inf(1) // Behind = infinite (we've passed it)
+		} else {
+			distances[i] = geo.Distance(pos, poiPoint) / 1852.0 // meters → NM
+		}
+	}
+
+	// dist[0] = +1min, dist[1:] = +3, +5, +10 min
+	distNow := distances[0]
+	if math.IsInf(distNow, 1) {
+		return 1.0, "" // Already behind at +1min, no deferral
+	}
+
+	// Find minimum future distance (+3, +5, +10 min)
+	minFuture := math.Inf(1)
+	for _, d := range distances[1:] {
+		if d < minFuture {
+			minFuture = d
+		}
+	}
+
+	// Defer if future distance is threshold% or less of current distance
+	threshold := sess.scorer.config.DeferralThreshold
+	if threshold <= 0 {
+		threshold = 0.75 // Default: defer if 25%+ closer
+	}
+
+	if minFuture < threshold*distNow {
+		multiplier := sess.scorer.config.DeferralMultiplier
+		if multiplier <= 0 {
+			multiplier = 0.1
+		}
+		return multiplier, fmt.Sprintf("Defer: x%.1f (%.1fnm -> %.1fnm)", multiplier, distNow, minFuture)
+	}
+
+	return 1.0, ""
 }
 
 // LowestElevation returns the calculated lowest elevation (valley floor) in meters for this session.

@@ -228,6 +228,10 @@ type ScorerConfig struct {
 	VarietyPenaltyNum   int     `yaml:"variety_penalty_num"`
 	NoveltyBoost        float64 `yaml:"novelty_boost"`
 	GroupPenalty        float64 `yaml:"group_penalty"`
+	// Deferral settings: wait for optimal viewing moment
+	DeferralEnabled    bool    `yaml:"deferral_enabled"`    // Enable deferral logic
+	DeferralThreshold  float64 `yaml:"deferral_threshold"`  // Defer if future dist < threshold * current (default 0.75 = 25% closer)
+	DeferralMultiplier float64 `yaml:"deferral_multiplier"` // Score multiplier when deferred (default 0.1)
 }
 
 // LogSettings holds settings for a specific logger.
@@ -316,6 +320,9 @@ func DefaultConfig() *Config {
 			VarietyPenaltyNum:   3,
 			NoveltyBoost:        1.3,
 			GroupPenalty:        0.5,
+			DeferralEnabled:     true,
+			DeferralThreshold:   0.75, // Defer if future dist < 75% of current
+			DeferralMultiplier:  0.1,  // 10% score when deferred
 		},
 		LLM: LLMConfig{
 			Providers: map[string]ProviderConfig{
