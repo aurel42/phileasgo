@@ -128,6 +128,63 @@ func TestLoad(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Path_Env_Expansion",
+			setup: func() {
+				t.Setenv("PHILEAS_HOME", "/home/phileas")
+				t.Setenv("APP_DATA", "/app/data")
+				err := os.WriteFile(configPath, []byte("db:\n  path: \"$PHILEAS_HOME/db.sqlite\"\nnarrator:\n  screenshot:\n    path: \"%APP_DATA%/screenshots\"\n"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup test file: %v", err)
+				}
+			},
+			validate: func(t *testing.T, cfg *Config) {
+				expectedDB := "/home/phileas/db.sqlite"
+				if cfg.DB.Path != expectedDB {
+					t.Errorf("expected DB path '%s', got '%s'", expectedDB, cfg.DB.Path)
+				}
+				expectedScreenshot := "/app/data/screenshots"
+				if cfg.Narrator.Screenshot.Path != expectedScreenshot {
+					t.Errorf("expected Screenshot path '%s', got '%s'", expectedScreenshot, cfg.Narrator.Screenshot.Path)
+				}
+			},
+			checkFile: func(t *testing.T) {
+				// Original raw paths with variables should be preserved on disk
+				content, err := os.ReadFile(configPath)
+				if err != nil {
+					t.Fatalf("failed to read config file: %v", err)
+				}
+				if !strings.Contains(string(content), "$PHILEAS_HOME") {
+					t.Error("config file should persist raw $VAR path")
+				}
+				if !strings.Contains(string(content), "%APP_DATA%") {
+					t.Error("config file should persist raw %VAR% path")
+				}
+			},
+		},
+		{
+			name: "Invalid_YAML",
+			setup: func() {
+				err := os.WriteFile(configPath, []byte("narrator: [not a map]"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup test file: %v", err)
+				}
+			},
+			expectedError: true,
+		},
+		{
+			name: "Invalid_Locale",
+			setup: func() {
+				err := os.WriteFile(configPath, []byte("narrator:\n  target_language: invalid\n"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup test file: %v", err)
+				}
+			},
+			validate: func(t *testing.T, cfg *Config) {
+				// This shouldn't be reached as Load should return error
+			},
+			expectedError: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -147,5 +204,26 @@ func TestLoad(t *testing.T) {
 				tt.checkFile(t)
 			}
 		})
+	}
+}
+
+func TestGenerateDefault(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "default_config.yaml")
+
+	err := GenerateDefault(configPath)
+	if err != nil {
+		t.Fatalf("GenerateDefault() error = %v", err)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		t.Error("GenerateDefault() did not create file")
+	}
+
+	// Running again should not fail
+	err = GenerateDefault(configPath)
+	if err != nil {
+		t.Errorf("GenerateDefault() error on second run = %v", err)
 	}
 }

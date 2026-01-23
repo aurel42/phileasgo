@@ -405,21 +405,23 @@ func Load(path string) (*Config, error) {
 		if err := yaml.Unmarshal(data, cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config file: %w", err)
 		}
-
-		// Load .env files (local first, then default)
-		// We ignore errors here because it's valid to rely solely on system env vars
-		_ = godotenv.Load(".env.local", ".env")
-
-		// Load secrets from Env
-		loadSecretsFromEnv(cfg)
-
-		return cfg, nil
+	} else {
+		// If file does not exist, save defaults
+		if err := Save(path, cfg); err != nil {
+			return nil, fmt.Errorf("failed to save config file: %w", err)
+		}
 	}
 
-	// If file does not exist, save defaults
-	if err := Save(path, cfg); err != nil {
-		return nil, fmt.Errorf("failed to save config file: %w", err)
-	}
+	// Post-processing and Validation
+	// Load .env files (local first, then default)
+	// We ignore errors here because it's valid to rely solely on system env vars
+	_ = godotenv.Load(".env.local", ".env")
+
+	// Load secrets from Env
+	loadSecretsFromEnv(cfg)
+
+	// Expand environment variables in paths
+	expandPaths(cfg)
 
 	// Validate TargetLanguage format (xx-YY)
 	if !isValidLocale(cfg.Narrator.TargetLanguage) {
@@ -518,5 +520,25 @@ func loadSecretsFromEnv(cfg *Config) {
 	}
 	if region := os.Getenv("SPEECH_REGION"); region != "" {
 		cfg.TTS.AzureSpeech.Region = region
+	}
+}
+
+var winEnvRegex = regexp.MustCompile(`%([^%]+)%`)
+
+func expandEnv(s string) string {
+	// Convert %VAR% to $VAR for os.ExpandEnv
+	s = winEnvRegex.ReplaceAllString(s, `${$1}`)
+	return os.ExpandEnv(s)
+}
+
+func expandPaths(cfg *Config) {
+	cfg.DB.Path = expandEnv(cfg.DB.Path)
+	cfg.Log.Server.Path = expandEnv(cfg.Log.Server.Path)
+	cfg.Log.Requests.Path = expandEnv(cfg.Log.Requests.Path)
+	cfg.Log.LLM.Path = expandEnv(cfg.Log.LLM.Path)
+	cfg.Log.TTS.Path = expandEnv(cfg.Log.TTS.Path)
+	cfg.Narrator.Screenshot.Path = expandEnv(cfg.Narrator.Screenshot.Path)
+	if cfg.Terrain.ElevationFile != "" {
+		cfg.Terrain.ElevationFile = expandEnv(cfg.Terrain.ElevationFile)
 	}
 }

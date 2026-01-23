@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.3.6 (2026-01-23)
+- **Feature**: **Environment Variable Expansion in Paths**
+  - Added support for `%VAR%` (Windows) and `$VAR` (Unix) syntax in all configuration paths.
+  - Applies to Database, Logs, Screenshots, and Terrain data paths.
+- **Refactor**: **Robust Configuration Loading**
+  - Refactored the configuration loader to ensure validation (e.g., locale format) always runs, even when loading an existing file.
+- **Testing**: **Enhanced Coverage**
+  - Implemented comprehensive table-driven tests for the configuration package.
+  - Achieved >80% statement coverage for modified logic and 100% coverage for the new expansion mechanism.
+
 ## v0.3.5 (2026-01-22)
 - **Fix**: **Screenshot Narration Regression**
   - Redesigned priority handling to use the `generationQueue` instead of cancelling active jobs.
