@@ -66,10 +66,10 @@ func (s *Scorer) NewSession(input *ScoringInput) Session {
 		lowestElev = 0
 	}
 
-	// Pre-calculate future positions for deferral logic: +1, +3, +5, +10 minutes
+	// Pre-calculate future positions for deferral logic: +1, +3, +5, +10, +15 minutes
 	var futurePositions []geo.Point
 	if s.config.DeferralEnabled && input.Telemetry.GroundSpeed > 10 {
-		horizons := []float64{1, 3, 5, 10} // minutes
+		horizons := []float64{1, 3, 5, 10, 15} // minutes
 		futurePositions = make([]geo.Point, len(horizons))
 		tel := input.Telemetry
 		speedMetersPerMin := (tel.GroundSpeed * 1852.0) / 60.0 // knots → m/min
@@ -96,7 +96,7 @@ type DefaultSession struct {
 	scorer          *Scorer
 	input           *ScoringInput
 	lowestElev      float64
-	futurePositions []geo.Point // Pre-calculated positions at +1, +3, +5, +10 min
+	futurePositions []geo.Point // Pre-calculated positions at +1, +3, +5, +10, +15 min
 }
 
 // Calculate updates the Score, ScoreDetails, and IsVisible fields of the POI.
@@ -145,8 +145,8 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 	score *= varietyScore
 	logs = append(logs, varietyLogs...)
 
-	// 4. Deferral Check: Will we be 25%+ closer in +3/+5/+10 min vs +1 min?
-	if len(sess.futurePositions) == 4 {
+	// 4. Deferral Check: Will we be 25%+ closer in the future?
+	if len(sess.futurePositions) > 0 {
 		deferralPenalty, deferralMsg := sess.checkDeferral(poiPoint, state.Heading)
 		if deferralPenalty < 1.0 {
 			score *= deferralPenalty
@@ -161,46 +161,63 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 // checkDeferral checks if we'll be significantly closer to the POI in the future.
 // Returns multiplier (1.0 if no deferral, 0.1 if deferred) and a concise log message.
 func (sess *DefaultSession) checkDeferral(poiPoint geo.Point, heading float64) (multiplier float64, msg string) {
-	// Calculate distances at all 4 horizons (+1, +3, +5, +10 min)
-	var distances [4]float64
-	for i, pos := range sess.futurePositions {
-		// Check if POI is behind aircraft at this position (outside ±90° cone)
-		bearingToPOI := geo.Bearing(pos, poiPoint)
-		angleDiff := geo.NormalizeAngle(bearingToPOI - heading)
+	// Horizons: 0=1m, 1=3m, 2=5m, 3=10m, 4=15m
+	if len(sess.futurePositions) != 5 {
+		return 1.0, ""
+	}
 
-		if math.Abs(angleDiff) > 90 {
-			distances[i] = math.Inf(1) // Behind = infinite (we've passed it)
-		} else {
-			distances[i] = geo.Distance(pos, poiPoint) / 1852.0 // meters → NM
+	// Helper to find min valid distance in a slice of indices
+	minDist := func(indices []int) float64 {
+		minD := math.Inf(1)
+		for _, idx := range indices {
+			if idx >= len(sess.futurePositions) {
+				continue
+			}
+			pos := sess.futurePositions[idx]
+			// Check if POI is behind aircraft at this position (outside ±90° cone)
+			bearingToPOI := geo.Bearing(pos, poiPoint)
+			angleDiff := geo.NormalizeAngle(bearingToPOI - heading)
+
+			if math.Abs(angleDiff) > 90 {
+				// Behind means the distance is effectively infinite for our purposes
+				continue
+			}
+			d := geo.Distance(pos, poiPoint) / 1852.0 // meters → NM
+			if d < minD {
+				minD = d
+			}
 		}
+		return minD
 	}
 
-	// dist[0] = +1min, dist[1:] = +3, +5, +10 min
-	distNow := distances[0]
-	if math.IsInf(distNow, 1) {
-		return 1.0, "" // Already behind at +1min, no deferral
+	// Group 1: Close (1m, 3m) -> indices 0, 1
+	bestClose := minDist([]int{0, 1})
+
+	// Group 2: Far (5m, 10m, 15m) -> indices 2, 3, 4
+	bestFar := minDist([]int{2, 3, 4})
+
+	// If all "Close" positions are behind or invalid, we can't compare.
+	if math.IsInf(bestClose, 1) {
+		return 1.0, ""
 	}
 
-	// Find minimum future distance (+3, +5, +10 min)
-	minFuture := math.Inf(1)
-	for _, d := range distances[1:] {
-		if d < minFuture {
-			minFuture = d
-		}
+	// If all "Far" positions are behind or invalid, we are moving away/past it.
+	if math.IsInf(bestFar, 1) {
+		return 1.0, ""
 	}
 
-	// Defer if future distance is threshold% or less of current distance
+	// Defer if bestFar is significantly closer than bestClose
 	threshold := sess.scorer.config.DeferralThreshold
 	if threshold <= 0 {
 		threshold = 0.75 // Default: defer if 25%+ closer
 	}
 
-	if minFuture < threshold*distNow {
+	if bestFar < threshold*bestClose {
 		multiplier := sess.scorer.config.DeferralMultiplier
 		if multiplier <= 0 {
 			multiplier = 0.1
 		}
-		return multiplier, fmt.Sprintf("Defer: x%.1f (%.1fnm -> %.1fnm)", multiplier, distNow, minFuture)
+		return multiplier, fmt.Sprintf("Defer: x%.1f (%.1fnm -> %.1fnm)", multiplier, bestClose, bestFar)
 	}
 
 	return 1.0, ""

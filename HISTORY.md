@@ -1,5 +1,14 @@
 ﻿# Release History
 
+## v0.3.21 (2026-01-24)
+- **Feature**: **Smart Deferral Refinement**
+  - Updated the POI deferral logic to intelligently distinguish between short-term (1-3m) and mid-term (5-15m) proximity.
+  - **Logic**: Penalty is now only applied if the aircraft is predicted to be significantly closer (>25%) in the mid-term (5-15m) compared to the best short-term (1-3m) position.
+  - **Horizons**: Added prediction support for **+15 minutes**, expanding the planning window.
+  - **Fix**: Resolved "Behind Check" logic where passing a POI at t=1 could incorrectly invalidate future valid approach angles.
+- **Testing**: **Coverage**
+  - Added comprehensive table-driven tests for tangent approaches, flyovers, and complex geometric scenarios.
+
 ## v0.3.20 (2026-01-24)
 - **Fix**: **Classification Priority Logic**
   - Resolved a bug where `ClassifyBatch` incorrectly classified POIs as `__IGNORED__` if an ignored instance (e.g. "County Seat") was encountered before a valid one (e.g. "City").
