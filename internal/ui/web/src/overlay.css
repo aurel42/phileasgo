@@ -227,3 +227,60 @@ html.overlay-mode {
     color: #666;
     margin-left: 2px;
 }
+
+/* Config Status in Overlay */
+.overlay-config-status {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 15px;
+}
+
+.config-box {
+    border-right: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    min-width: 140px;
+}
+
+.config-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+}
+
+.config-label {
+    min-width: 54px;
+    color: #888;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.config-item .icon {
+    width: 12px;
+    text-align: center;
+}
+
+.config-item .pips {
+    display: flex;
+    gap: 2px;
+}
+
+.config-item .pip {
+    width: 3px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 1px;
+}
+
+.config-item .pip.active {
+    background: #4a9eff;
+    box-shadow: 0 0 3px #4a9eff;
+}
+
+.config-item .pip.active.high {
+    background: #ffaa00;
+}

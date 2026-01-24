@@ -222,7 +222,7 @@ func (h *ConfigHandler) updateSimSource(ctx context.Context, val string) error {
 	if err := h.store.SetState(ctx, "sim_source", val); err != nil {
 		return err
 	}
-	slog.Info("Config updated", "sim_source", val)
+	slog.Debug("Config updated", "sim_source", val)
 	return nil
 }
 
@@ -233,7 +233,7 @@ func (h *ConfigHandler) updateUnits(ctx context.Context, val string) error {
 	if err := h.store.SetState(ctx, "units", val); err != nil {
 		return err
 	}
-	slog.Info("Config updated", "units", val)
+	slog.Debug("Config updated", "units", val)
 	return nil
 }
 
@@ -245,7 +245,7 @@ func (h *ConfigHandler) updateBoolState(ctx context.Context, key string, val boo
 	if err := h.store.SetState(ctx, key, strVal); err != nil {
 		slog.Error("Failed to save state", "key", key, "error", err)
 	} else {
-		slog.Info("Config updated", key, strVal)
+		slog.Debug("Config updated", key, strVal)
 	}
 }
 
@@ -254,7 +254,7 @@ func (h *ConfigHandler) updateFloatState(ctx context.Context, key string, val fl
 	if err := h.store.SetState(ctx, key, strVal); err != nil {
 		slog.Error("Failed to save state", "key", key, "error", err)
 	} else {
-		slog.Info("Config updated", key, strVal)
+		slog.Debug("Config updated", key, strVal)
 	}
 }
 
@@ -263,7 +263,7 @@ func (h *ConfigHandler) updateIntState(ctx context.Context, key string, val int)
 	if err := h.store.SetState(ctx, key, strVal); err != nil {
 		slog.Error("Failed to save state", "key", key, "error", err)
 	} else {
-		slog.Info("Config updated", key, strVal)
+		slog.Debug("Config updated", key, strVal)
 	}
 }
 
@@ -272,7 +272,7 @@ func (h *ConfigHandler) updateFilterMode(ctx context.Context, val string) {
 		if err := h.store.SetState(ctx, "filter_mode", val); err != nil {
 			slog.Error("Failed to save state", "key", "filter_mode", "error", err)
 		} else {
-			slog.Info("Config updated", "filter_mode", val)
+			slog.Debug("Config updated", "filter_mode", val)
 		}
 	}
 }

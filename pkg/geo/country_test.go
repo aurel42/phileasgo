@@ -1,6 +1,9 @@
 package geo
 
 import (
+	"encoding/json"
+	"math"
+	"os"
 	"testing"
 
 	"github.com/paulmach/orb"
@@ -93,17 +96,28 @@ func TestCountryService_MaritimeZones(t *testing.T) {
 		wantZone string
 	}{
 		{
-			name: "Mid Pacific - International Waters",
-			lat:  0,
-			lon:  -160, // Far from any land
-			// Might be EEZ of some Pacific island, check actual result
-			wantZone: ZoneInternational, // May need adjustment
+			name:     "Mid Pacific - International Waters",
+			lat:      0,
+			lon:      -160,
+			wantZone: ZoneInternational,
 		},
 		{
 			name:     "North Atlantic - International Waters",
 			lat:      45,
 			lon:      -40,
 			wantZone: ZoneInternational,
+		},
+		{
+			name:     "Near UK Coast - Territorial",
+			lat:      50.5,
+			lon:      0.0,
+			wantZone: ZoneTerritorial,
+		},
+		{
+			name:     "Further in Biscay - EEZ",
+			lat:      46.0,
+			lon:      -8.0,
+			wantZone: ZoneEEZ,
 		},
 	}
 
@@ -114,12 +128,8 @@ func TestCountryService_MaritimeZones(t *testing.T) {
 
 			result := cs.GetCountryAtPoint(tt.lat, tt.lon)
 
-			// For international waters, the zone check is most important
-			if tt.wantZone == ZoneInternational && result.Zone != ZoneInternational {
-				// This test might fail if there are islands nearby
-				// Just log for informational purposes
-				t.Logf("Expected international waters but got: zone=%s, country=%s, distance=%.0fm",
-					result.Zone, result.CountryName, result.DistanceM)
+			if result.Zone != tt.wantZone {
+				t.Errorf("%s: Zone = %v, want %v (dist=%.0fm)", tt.name, result.Zone, tt.wantZone, result.DistanceM)
 			}
 		})
 	}
@@ -150,38 +160,156 @@ func TestCountryService_Cache(t *testing.T) {
 
 func TestContainsPoint(t *testing.T) {
 	// Test with a simple triangle polygon
-	triangle := []Point{
-		{0, 0},
-		{10, 0},
-		{5, 10},
-		{0, 0}, // Closed ring
-	}
+	triangle := orb.Ring{{0, 0}, {10, 0}, {5, 10}, {0, 0}}
+	poly := orb.Polygon{triangle}
+	multiPoly := orb.MultiPolygon{poly}
 
 	tests := []struct {
 		name   string
-		point  Point
+		geom   orb.Geometry
+		point  orb.Point
 		inside bool
 	}{
-		{"Center", Point{5, 3}, true},
-		{"Outside left", Point{-1, 5}, false},
-		{"Outside right", Point{11, 5}, false},
-		{"Outside top", Point{5, 11}, false},
+		{"Polygon Center", poly, orb.Point{5, 3}, true},
+		{"Polygon Outside", poly, orb.Point{-1, 5}, false},
+		{"MultiPolygon Center", multiPoly, orb.Point{5, 3}, true},
+		{"MultiPolygon Outside", multiPoly, orb.Point{11, 5}, false},
+		{"Point (unsupported)", orb.Point{0, 0}, orb.Point{0, 0}, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Convert to orb types
-			ring := make([]orb.Point, len(triangle))
-			for i, p := range triangle {
-				ring[i] = orb.Point{p.Lon, p.Lat}
-			}
-			poly := orb.Polygon{ring}
-			point := orb.Point{tt.point.Lon, tt.point.Lat}
-
-			got := containsPoint(poly, point)
+			got := containsPoint(tt.geom, tt.point)
 			if got != tt.inside {
-				t.Errorf("containsPoint(%v) = %v, want %v", tt.point, got, tt.inside)
+				t.Errorf("%s: containsPoint() = %v, want %v", tt.name, got, tt.inside)
 			}
 		})
+	}
+}
+
+func TestGetISOCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		props    map[string]interface{}
+		wantCode string
+	}{
+		{"Standard ISO_A2", map[string]interface{}{"ISO_A2": "FR"}, "FR"},
+		{"Fallback from -99", map[string]interface{}{"ISO_A2": "-99", "ISO_A2_EH": "KO"}, "KO"},
+		{"Missing ISO_A2", map[string]interface{}{"ISO_A2_EH": "KO"}, "KO"},
+		{"Empty", map[string]interface{}{}, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getISOCode(tt.props)
+			if got != tt.wantCode {
+				t.Errorf("getISOCode() = %v, want %v", got, tt.wantCode)
+			}
+		})
+	}
+}
+
+func TestGetStringProp(t *testing.T) {
+	tests := []struct {
+		name     string
+		props    map[string]interface{}
+		key      string
+		wantCode string
+	}{
+		{"String value", map[string]interface{}{"NAME": "France"}, "NAME", "France"},
+		{"Missing key", map[string]interface{}{"NAME": "France"}, "CODE", ""},
+		{"Non-string value", map[string]interface{}{"ID": 123}, "ID", ""},
+		{"JSON Number", map[string]interface{}{"ID": json.Number("123")}, "ID", "123"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getStringProp(tt.props, tt.key)
+			if got != tt.wantCode {
+				t.Errorf("getStringProp() = %v, want %v", got, tt.wantCode)
+			}
+		})
+	}
+}
+
+func TestDistanceToGeometry(t *testing.T) {
+	p := orb.Point{0, 5}
+	poly := orb.Polygon{{{10, 0}, {10, 10}, {20, 10}, {20, 0}, {10, 0}}}
+	multiPoly := orb.MultiPolygon{poly}
+
+	d1 := distanceToGeometry(p, poly)
+	if d1 != 10 {
+		t.Errorf("Polygon distance = %v, want 10", d1)
+	}
+
+	d2 := distanceToGeometry(p, multiPoly)
+	if d2 != 10 {
+		t.Errorf("MultiPolygon distance = %v, want 10", d2)
+	}
+
+	d3 := distanceToGeometry(p, orb.Point{0, 0})
+	if d3 != math.MaxFloat64 {
+		t.Errorf("Unsupported distance = %v, want max", d3)
+	}
+}
+
+func TestDistanceToSegment(t *testing.T) {
+	p := orb.Point{5, 5}
+	a := orb.Point{0, 0}
+	b := orb.Point{10, 0}
+
+	// Closest is a
+	d1 := distanceToSegment(orb.Point{-5, 0}, a, b)
+	if d1 != 5 {
+		t.Errorf("Dist to start = %v, want 5", d1)
+	}
+
+	// Closest is b
+	d2 := distanceToSegment(orb.Point{15, 0}, a, b)
+	if d2 != 5 {
+		t.Errorf("Dist to end = %v, want 5", d2)
+	}
+
+	// Closest is segment itself
+	d3 := distanceToSegment(p, a, b)
+	if d3 != 5 {
+		t.Errorf("Dist to segment = %v, want 5", d3)
+	}
+
+	// Degenerate segment
+	d4 := distanceToSegment(p, a, a)
+	if d4 != math.Sqrt(50) {
+		t.Errorf("Dist to point segment = %v, want sqrt(50)", d4)
+	}
+}
+
+func TestNewCountryService_Errors(t *testing.T) {
+	_, err := NewCountryService("nonexistent.geojson")
+	if err == nil {
+		t.Error("Want error for nonexistent file, got nil")
+	}
+
+	// Invalid JSON
+	tmpFile, _ := os.CreateTemp("", "invalid.geojson")
+	defer os.Remove(tmpFile.Name())
+	_ = os.WriteFile(tmpFile.Name(), []byte("invalid"), 0o644)
+
+	_, err = NewCountryService(tmpFile.Name())
+	if err == nil {
+		t.Error("Want error for invalid JSON, got nil")
+	}
+}
+
+func TestDegreesToMeters(t *testing.T) {
+	// Near equator, 1 degree lat ≈ 111km
+	m1 := degreesToMeters(1, 0)
+	if math.Abs(m1-111320) > 100 {
+		t.Errorf("degreesToMeters(1, 0) = %v, want ~111320", m1)
+	}
+
+	// Near 60 deg lat, cos(60)=0.5, 1 deg lon ≈ 55km
+	m2 := degreesToMeters(1, 60)
+	if math.Abs(m2-55660) > 100 {
+		t.Errorf("degreesToMeters(1, 60) = %v, want ~55660", m2)
 	}
 }

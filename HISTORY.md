@@ -1,5 +1,17 @@
 ﻿# Release History
 
+## v0.3.15 (2026-01-24)
+- **UI**: **Visualization & Branding Refinement**
+  - Integrated simulation status (🟢/🟠/🔴) directly into the dashboard's configuration pill.
+  - Relocated the configuration pill to the footer version card for a cleaner profile.
+  - Removed redundant header branding ("PHILEAS HUD") to focus on cockpit data.
+  - Refined the OBS Overlay configuration box with left-aligned labels, matching instrument-style aesthetics, and consistent typography.
+  - Improved dashboard layout by integrating the flight stage indicator (AIR/GROUND) into the Position card.
+- **Testing**: **Coverage & Quality**
+  - Significantly improved test coverage for `pkg/geo` (74.6%) and `pkg/model` (100.0%) using robust table-driven tests for maritime zones, ISO matching, and naming logic.
+  - Resolved TypeScript build failures caused by unused/shadowed variables during UI refactoring.
+  - Verified stability with a full `make test` suite pass.
+
 ## v0.3.14 (2026-01-24)
 - **Fix**: **International Date Line Crossing**
   - Resolved a critical bug where the Wikidata tile scheduler stopped discovering POIs when flying near the International Date Line (±180° longitude).

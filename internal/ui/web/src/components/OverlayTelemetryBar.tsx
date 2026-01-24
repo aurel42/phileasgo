@@ -233,6 +233,37 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                     </div>
                 </div>
 
+                <div className="stat-box config-box">
+                    <div className="overlay-config-status">
+                        <div className="config-item">
+                            <span className="config-label">SIM</span>
+                            <span style={{ fontSize: '10px' }}>
+                                {telemetry.SimState === 'active' ? '🟢' : telemetry.SimState === 'inactive' ? '🟠' : '🔴'}
+                            </span>
+                        </div>
+                        <div className="config-item">
+                            <span className="config-label">{config.filter_mode === 'adaptive' ? 'ADAPTIVE' : 'FIXED'}</span>
+                            <span className="icon">{config.filter_mode === 'adaptive' ? '⚡' : '🎯'}</span>
+                        </div>
+                        <div className="config-item">
+                            <span className="config-label">FRQ</span>
+                            <div className="pips">
+                                {[1, 2, 3, 4, 5].map(v => (
+                                    <div key={v} className={`pip ${v <= (config.narration_frequency || 0) ? 'active' : ''} ${v > 3 && v <= (config.narration_frequency || 0) ? 'high' : ''}`} />
+                                ))}
+                            </div>
+                        </div>
+                        <div className="config-item">
+                            <span className="config-label">LEN</span>
+                            <div className="pips">
+                                {[1, 2, 3, 4, 5].map(v => (
+                                    <div key={v} className={`pip ${v <= (config.text_length || 0) ? 'active' : ''} ${v > 4 && v <= (config.text_length || 0) ? 'high' : ''}`} />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div> {/* End of stats-row */}
 
             {/* Log Line (Outside of flow, absolute positioned in CSS) */}

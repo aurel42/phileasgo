@@ -132,6 +132,51 @@ body {
   color: var(--error);
 }
 
+/* Config Visualization Pill */
+.config-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+}
+
+.config-pill-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.config-mode-icon {
+  font-size: 10px;
+  opacity: 0.9;
+}
+
+.pip-container {
+  display: flex;
+  gap: 2px;
+}
+
+.pip {
+  width: 4px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1px;
+}
+
+.pip.active {
+  background: var(--accent);
+  box-shadow: 0 0 4px var(--accent);
+}
+
+.pip.active.high {
+  background: #ffaa00;
+  box-shadow: 0 0 4px #ffaa00;
+}
+
 
 /* Grid Cards */
 .hud-grid {

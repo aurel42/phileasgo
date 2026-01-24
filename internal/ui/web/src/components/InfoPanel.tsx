@@ -36,6 +36,42 @@ interface Geography {
     country: string;
 }
 
+const ConfigPills = ({ mode, frequency, length, simState }: { mode: string, frequency: number, length: number, simState: string }) => {
+    const statusInfo = {
+        active: { icon: '🟢', color: '#4caf50' },
+        inactive: { icon: '🟠', color: '#ff9800' },
+        disconnected: { icon: '🔴', color: '#f44336' },
+    }[simState] || { icon: '⚪', color: '#888' };
+
+    return (
+        <div className="config-pill" style={{ background: 'transparent', border: 'none', padding: 0 }}>
+            <div className="config-pill-item" title={`Sim Status: ${simState}`}>
+                <span style={{ color: statusInfo.color, fontSize: '10px' }}>{statusInfo.icon}</span>
+            </div>
+            <div className="config-pill-item">
+                <span className="config-mode-icon">{mode === 'adaptive' ? '⚡' : '🎯'}</span>
+                <span style={{ color: '#888' }}>{mode === 'adaptive' ? 'ADAPTIVE' : 'FIXED'}</span>
+            </div>
+            <div className="config-pill-item">
+                <span style={{ color: '#666' }}>FRQ</span>
+                <div className="pip-container">
+                    {[1, 2, 3, 4, 5].map(v => (
+                        <div key={v} className={`pip ${v <= frequency ? 'active' : ''} ${v > 3 && v <= frequency ? 'high' : ''}`} />
+                    ))}
+                </div>
+            </div>
+            <div className="config-pill-item">
+                <span style={{ color: '#666' }}>LEN</span>
+                <div className="pip-container">
+                    {[1, 2, 3, 4, 5].map(v => (
+                        <div key={v} className={`pip ${v <= length ? 'active' : ''} ${v > 4 && v <= length ? 'high' : ''}`} />
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const InfoPanel = ({
     telemetry, status, isRetrying, units, onUnitsChange,
     showCacheLayer, onCacheLayerChange,
@@ -178,11 +214,6 @@ export const InfoPanel = ({
 
     // Determine status display based on SimState from telemetry
     const simState = telemetry.SimState || 'disconnected';
-    const statusInfo = {
-        active: { label: 'Active', className: 'connected' },
-        inactive: { label: 'Paused', className: 'paused' },
-        disconnected: { label: 'Disconnected', className: 'error' },
-    }[simState] || { label: 'Unknown', className: '' };
 
     const agl = Math.round(telemetry.AltitudeAGL);
     const msl = Math.round(telemetry.AltitudeMSL);
@@ -245,8 +276,16 @@ export const InfoPanel = ({
                 </div>
 
                 {/* 3. COORDS */}
-                <div className="flex-card" style={{ flex: '2 1 200px' }}> {/* Give coords more width pref */}
+                <div className="flex-card" style={{ flex: '2 1 200px', position: 'relative' }}> {/* Give coords more width pref */}
                     <div className="label">POSITION</div>
+
+                    {/* Flight Stage Pill (Absolute positioned in corner) */}
+                    {simState !== 'disconnected' && (
+                        <div className={`flight-stage ${telemetry.IsOnGround ? '' : 'active'}`} style={{ position: 'absolute', top: '8px', right: '8px', fontSize: '9px', padding: '2px 6px' }}>
+                            {telemetry.FlightStage || (telemetry.IsOnGround ? 'GROUND' : 'AIR')}
+                        </div>
+                    )}
+
                     {location?.city && (
                         <>
                             <div className="value" style={{ fontSize: '16px', color: '#fff', fontFamily: 'Inter, sans-serif', fontWeight: 600, marginTop: '4px' }}>
@@ -276,21 +315,6 @@ export const InfoPanel = ({
 
 
 
-                {/* 5. FLIGHT STAGE & CONNECTION */}
-                <div className="flex-card" style={{ flex: '1 1 80px', alignItems: 'center', justifyContent: 'center' }}>
-                    {/* Combined Stage and Connection Status */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                        {simState !== 'disconnected' && (
-                            <div className={`flight-stage ${telemetry.IsOnGround ? '' : 'active'}`} style={{ marginBottom: '4px' }}>
-                                {telemetry.FlightStage || (telemetry.IsOnGround ? 'GROUND' : 'AIR')}
-                            </div>
-                        )}
-                        <div className="status-pill" style={{ padding: '2px 6px', fontSize: '9px', background: 'transparent', border: 'none' }}>
-                            <span className={`status-dot ${statusInfo.className}`} style={{ width: '6px', height: '6px' }}></span>
-                            <span style={{ color: statusInfo.className === 'connected' ? '#4caf50' : '#888' }}>{statusInfo.label}</span>
-                        </div>
-                    </div>
-                </div>
             </div>
 
 
@@ -597,7 +621,7 @@ export const InfoPanel = ({
             </div>
 
             <div className="hud-footer">
-                <div className="hud-card footer">
+                <div className="hud-card footer" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     {versionMatch ? (
                         <div className="version-info clean">{frontendVersion}</div>
                     ) : (
@@ -605,6 +629,7 @@ export const InfoPanel = ({
                             ⚠ Frontend: {frontendVersion} / Backend: {backendVersion || '...'}
                         </div>
                     )}
+                    <ConfigPills mode={filterMode} frequency={narrationFrequency} length={textLength} simState={simState} />
                 </div>
             </div>
         </div >
