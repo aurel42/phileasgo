@@ -87,7 +87,8 @@ type City struct {
 
 // Service provides reverse geocoding.
 type Service struct {
-	grid map[int][]City
+	grid       map[int][]City
+	countrySvc *CountryService // Optional: for accurate country boundary detection
 }
 
 // NewService loads cities and builds the spatial index.
@@ -155,9 +156,20 @@ func NewService(citiesPath, admin1Path string) (*Service, error) {
 	return s, nil
 }
 
+// SetCountryService sets the optional CountryService for accurate country detection.
+func (s *Service) SetCountryService(cs *CountryService) {
+	s.countrySvc = cs
+}
+
 // GetLocation returns the nearest city and country information.
 func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
-	// Search current cell and 8 neighbors
+	// 1. Get country and zone from CountryService (if available)
+	var countryResult CountryResult
+	if s.countrySvc != nil {
+		countryResult = s.countrySvc.GetCountryAtPoint(lat, lon)
+	}
+
+	// 2. Find nearest city for city name and admin1 info
 	originLatKey := int(math.Floor(lat))
 	originLonKey := int(math.Floor(lon))
 
@@ -186,19 +198,48 @@ func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
 		}
 	}
 
-	if minDistSq == math.MaxFloat64 {
-		return model.LocationInfo{
-			CityName:    "International Waters",
-			CountryCode: "XZ", // UN code for International Waters
+	// 3. Build result
+	result := model.LocationInfo{
+		Zone: countryResult.Zone,
+	}
+
+	// Use CountryService for country info if available
+	if s.countrySvc != nil {
+		result.CountryCode = countryResult.CountryCode
+		result.CountryName = countryResult.CountryName
+
+		// For non-land zones, don't use city-based admin info
+		if countryResult.Zone != ZoneLand {
+			// Still provide the city name for context
+			if minDistSq != math.MaxFloat64 {
+				result.CityName = bestCity.Name
+			}
+			return result
 		}
 	}
 
-	return model.LocationInfo{
-		CityName:    bestCity.Name,
-		CountryCode: bestCity.CountryCode,
-		Admin1Code:  bestCity.Admin1Code,
-		Admin1Name:  bestCity.Admin1Name,
+	// Fall back to city-based country detection if no CountryService
+	if minDistSq == math.MaxFloat64 {
+		result.CityName = "International Waters"
+		result.CountryCode = "XZ"
+		result.Zone = ZoneInternational
+		return result
 	}
+
+	// Use city data
+	result.CityName = bestCity.Name
+	if result.CountryCode == "" {
+		result.CountryCode = bestCity.CountryCode
+	}
+	result.Admin1Code = bestCity.Admin1Code
+	result.Admin1Name = bestCity.Admin1Name
+
+	// Default to land zone if not set
+	if result.Zone == "" {
+		result.Zone = ZoneLand
+	}
+
+	return result
 }
 
 // GetCountry returns the country code for the nearest city to the given coordinates.

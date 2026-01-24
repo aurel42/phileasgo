@@ -155,7 +155,14 @@ func (s *Scheduler) checkRedundancy(curr HexTile, recentTiles map[string]bool) b
 }
 
 func calculateBearing(lat1, lon1, lat2, lon2 float64) float64 {
-	dLon := (lon2 - lon1) * math.Pi / 180.0
+	// Normalize longitude difference to [-180, 180] for dateline crossing
+	dLonDeg := lon2 - lon1
+	if dLonDeg > 180 {
+		dLonDeg -= 360
+	} else if dLonDeg < -180 {
+		dLonDeg += 360
+	}
+	dLon := dLonDeg * math.Pi / 180.0
 	lat1Rad := lat1 * math.Pi / 180.0
 	lat2Rad := lat2 * math.Pi / 180.0
 

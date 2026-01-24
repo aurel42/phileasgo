@@ -199,6 +199,14 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize geo service: %w", err)
 	}
+
+	// Initialize CountryService for accurate country boundary detection (embedded data)
+	countrySvc, err := geo.NewCountryServiceEmbedded()
+	if err != nil {
+		slog.Warn("CountryService not available", "error", err)
+	} else {
+		geoSvc.SetCountryService(countrySvc)
+	}
 	reqClient := request.New(st, tr, request.ClientConfig{
 		Retries:   cfg.Request.Retries,
 		Timeout:   time.Duration(cfg.Request.Timeout),

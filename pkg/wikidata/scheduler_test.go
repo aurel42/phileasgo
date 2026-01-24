@@ -19,6 +19,8 @@ func TestCalculateBearing(t *testing.T) {
 		{"South", 1, 0, 0, 0, 180},
 		{"West", 0, 1, 0, 0, 270},
 		{"Same", 0, 0, 0, 0, 0},
+		{"Dateline East (crossing from -179 to +179)", 0, -179, 0, 179, 270}, // Should go West
+		{"Dateline West (crossing from +179 to -179)", 0, 179, 0, -179, 90},  // Should go East
 	}
 
 	for _, tt := range tests {

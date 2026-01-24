@@ -54,9 +54,11 @@ type POI struct {
 type LocationInfo struct {
 	CityName    string `json:"city_name"`
 	CountryCode string `json:"country_code"`
+	CountryName string `json:"country_name"` // Full country name (e.g., "Russia")
 	Admin1Code  string `json:"admin1_code"`
 	Admin1Name  string `json:"admin1_name"`
 	RegionName  string `json:"region_name"` // For future use
+	Zone        string `json:"zone"`        // "land", "territorial", "eez", "international"
 }
 
 // DisplayName returns the best available name for the POI.

@@ -36,15 +36,40 @@ func (h *GeographyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	loc := h.geoSvc.GetLocation(lat, lon)
-	region := loc.Admin1Code
-	if loc.Admin1Name != "" {
+
+	// Determine display values based on zone
+	var country, region string
+	switch loc.Zone {
+	case geo.ZoneLand:
+		country = loc.CountryName
+		if country == "" {
+			country = loc.CountryCode // Fallback
+		}
 		region = loc.Admin1Name
+		if region == "" {
+			region = loc.Admin1Code
+		}
+	case geo.ZoneTerritorial:
+		country = loc.CountryName
+		if country == "" {
+			country = loc.CountryCode
+		}
+		region = "Territorial Waters"
+	case geo.ZoneEEZ:
+		country = loc.CountryName
+		if country == "" {
+			country = loc.CountryCode
+		}
+		region = "Exclusive Economic Zone"
+	default: // ZoneInternational or empty
+		country = "International Waters"
+		region = ""
 	}
 
 	resp := GeographyResponse{
 		City:    loc.CityName,
 		Region:  region,
-		Country: loc.CountryCode,
+		Country: country,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

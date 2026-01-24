@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.3.14 (2026-01-24)
+- **Fix**: **International Date Line Crossing**
+  - Resolved a critical bug where the Wikidata tile scheduler stopped discovering POIs when flying near the International Date Line (±180° longitude).
+  - **Root Cause**: `DistKm()` and `calculateBearing()` did not normalize longitude differences, causing tiles across the date line to appear ~40,000 km away instead of a few km.
+  - **Solution**: Added longitude normalization to [-180, 180] in both functions.
+- **Testing**: Added comprehensive test cases for dateline crossing scenarios.
+- **Tooling**: **Natural Earth GeoJSON Download Script**
+  - Added `cmd/slim_geojson/download.ps1` to automate downloading and slimming country boundary data.
+  - Integrated into Makefile as a file-target dependency for `build-app`.
+
 ## v0.3.13 (2026-01-23)
 - **Feature**: **Wind-Corrected Ground Track**
   - Implemented automatic path-over-ground calculation using a 5-second rolling position buffer.

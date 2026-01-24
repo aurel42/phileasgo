@@ -8,6 +8,7 @@ require (
 	github.com/gopxl/beep/v2 v2.1.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
+	github.com/paulmach/orb v0.12.0
 	github.com/stretchr/testify v1.11.1
 	github.com/uber/h3-go/v4 v4.4.0
 	google.golang.org/api v0.258.0
@@ -37,6 +38,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	go.mongodb.org/mongo-driver v1.11.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
 	go.opentelemetry.io/otel v1.38.0 // indirect

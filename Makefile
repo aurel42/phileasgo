@@ -8,9 +8,12 @@ all: build-web test build
 
 build: build-web build-app
 
-build-app:
+build-app: pkg/geo/countries.geojson
 	powershell -ExecutionPolicy Bypass -File scripts/copy_simconnect.ps1
 	go build -o $(APP_NAME).exe $(CMD_PATH)
+
+pkg/geo/countries.geojson:
+	powershell -ExecutionPolicy Bypass -File cmd/slim_geojson/download.ps1
 
 build-web:
 	cd $(WEB_PATH) && npm install && npm run build

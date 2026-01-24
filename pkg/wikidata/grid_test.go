@@ -191,6 +191,27 @@ func TestDistKm(t *testing.T) {
 			want: 111.132 * 0.5,
 			tol:  1.0,
 		},
+		{
+			name: "Dateline crossing (west to east)",
+			p1:   [2]float64{0, -179.5},
+			p2:   [2]float64{0, 179.5},
+			want: 111.132, // 1 degree apart
+			tol:  1.0,
+		},
+		{
+			name: "Dateline crossing (east to west)",
+			p1:   [2]float64{0, 179.5},
+			p2:   [2]float64{0, -179.5},
+			want: 111.132, // 1 degree apart
+			tol:  1.0,
+		},
+		{
+			name: "Dateline crossing at high lat (Chukotka)",
+			p1:   [2]float64{65.5, -179.7},
+			p2:   [2]float64{65.5, 179.0},
+			want: 111.132 * 1.3 * 0.42, // ~1.3 deg at lat 65.5 (cos ~0.42)
+			tol:  10.0,
+		},
 	}
 
 	for _, tt := range tests {

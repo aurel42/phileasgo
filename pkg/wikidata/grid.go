@@ -149,6 +149,13 @@ func (g *Grid) Parent(t HexTile, res int) HexTile {
 // DistKm calculates approximate distance between two points (Haversine approx for small distances).
 func DistKm(lat1, lon1, lat2, lon2 float64) float64 {
 	dLat := (lat2 - lat1) * 111.132
-	dLon := (lon2 - lon1) * 111.132 * math.Cos((lat1+lat2)*math.Pi/360.0)
+	// Normalize longitude difference to [-180, 180] for dateline crossing
+	dLonDeg := lon2 - lon1
+	if dLonDeg > 180 {
+		dLonDeg -= 360
+	} else if dLonDeg < -180 {
+		dLonDeg += 360
+	}
+	dLon := dLonDeg * 111.132 * math.Cos((lat1+lat2)*math.Pi/360.0)
 	return math.Sqrt(dLat*dLat + dLon*dLon)
 }
