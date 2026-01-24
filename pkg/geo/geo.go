@@ -169,12 +169,19 @@ func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
 		countryResult = s.countrySvc.GetCountryAtPoint(lat, lon)
 	}
 
-	// 2. Find nearest city for city name and admin1 info
+	// 2. Search for cities
+	bestCity, bestLegalCity, minDistSq := s.searchCities(lat, lon, countryResult.CountryCode)
+
+	// 3. Build result
+	return s.assembleLocationInfo(lat, lon, countryResult, bestCity, bestLegalCity, minDistSq)
+}
+
+func (s *Service) searchCities(lat, lon float64, legalCountryCode string) (bestCity, bestLegalCity *City, minDistSq float64) {
 	originLatKey := int(math.Floor(lat))
 	originLonKey := int(math.Floor(lon))
 
-	var bestCity City
-	minDistSq := math.MaxFloat64
+	minDistSq = math.MaxFloat64
+	minLegalDistSq := math.MaxFloat64
 
 	for dLat := -2; dLat <= 2; dLat++ {
 		for dLon := -2; dLon <= 2; dLon++ {
@@ -184,49 +191,54 @@ func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
 				continue
 			}
 
-			for _, city := range cities {
-				// Euclidean distance squared is enough for comparison
-				dLat := city.Lat - lat
-				dLon := city.Lon - lon
-				distSq := dLat*dLat + dLon*dLon
+			for i := range cities {
+				city := &cities[i]
+				distSq := (city.Lat-lat)*(city.Lat-lat) + (city.Lon-lon)*(city.Lon-lon)
 
+				// Track absolute nearest city
 				if distSq < minDistSq {
 					minDistSq = distSq
 					bestCity = city
 				}
+
+				// Track nearest city in the legal country (if known)
+				if legalCountryCode != "" && city.CountryCode == legalCountryCode {
+					if distSq < minLegalDistSq {
+						minLegalDistSq = distSq
+						bestLegalCity = city
+					}
+				}
 			}
 		}
 	}
+	return bestCity, bestLegalCity, minDistSq
+}
 
-	// 3. Build result
+func (s *Service) assembleLocationInfo(lat, lon float64, countryResult CountryResult, bestCity, bestLegalCity *City, minDistSq float64) model.LocationInfo {
 	result := model.LocationInfo{
-		Zone: countryResult.Zone,
+		Zone:        countryResult.Zone,
+		CountryCode: countryResult.CountryCode,
+		CountryName: countryResult.CountryName,
 	}
 
-	// Use CountryService for country info if available
-	if s.countrySvc != nil {
-		result.CountryCode = countryResult.CountryCode
-		result.CountryName = countryResult.CountryName
-
-		// For non-land zones, don't use city-based admin info
-		if countryResult.Zone != ZoneLand {
-			// Still provide the city name for context
-			if minDistSq != math.MaxFloat64 {
-				result.CityName = bestCity.Name
-			}
-			return result
+	// Handle non-land zones
+	if s.countrySvc != nil && countryResult.Zone != ZoneLand && countryResult.Zone != "" {
+		if minDistSq != math.MaxFloat64 && bestCity != nil {
+			result.CityName = bestCity.Name
 		}
-	}
-
-	// Fall back to city-based country detection if no CountryService
-	if minDistSq == math.MaxFloat64 {
-		result.CityName = ""
-		result.CountryCode = "XZ"
-		result.Zone = ZoneInternational
 		return result
 	}
 
-	// Use city data
+	// Fallback for missing city
+	if minDistSq == math.MaxFloat64 || bestCity == nil {
+		if result.CountryCode == "" {
+			result.CountryCode = "XZ"
+			result.Zone = ZoneInternational
+		}
+		return result
+	}
+
+	// Absolute nearest city context (for display)
 	result.CityName = bestCity.Name
 	result.CityAdmin1Name = bestCity.Admin1Name
 	result.CityCountryCode = bestCity.CountryCode
@@ -234,14 +246,21 @@ func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
 		result.CityCountryName = s.countrySvc.GetCountryName(bestCity.CountryCode)
 	}
 
+	// Legal Country Fallback
 	if result.CountryCode == "" {
 		result.CountryCode = bestCity.CountryCode
 		result.CountryName = result.CityCountryName
 	}
-	result.Admin1Code = bestCity.Admin1Code
-	result.Admin1Name = bestCity.Admin1Name
 
-	// Default to land zone if not set
+	// Populate legal Admin1 (locked to legal country)
+	if bestLegalCity != nil {
+		result.Admin1Code = bestLegalCity.Admin1Code
+		result.Admin1Name = bestLegalCity.Admin1Name
+	} else if bestCity.CountryCode == result.CountryCode {
+		result.Admin1Code = bestCity.Admin1Code
+		result.Admin1Name = bestCity.Admin1Name
+	}
+
 	if result.Zone == "" {
 		result.Zone = ZoneLand
 	}

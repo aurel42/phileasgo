@@ -157,6 +157,14 @@ type NarratorConfig struct {
 	Debrief                   DebriefConfig      `yaml:"debrief"`
 	Screenshot                ScreenshotConfig   `yaml:"screenshot"`
 	AudioEffects              AudioEffectsConfig `yaml:"audio_effects"`
+	Border                    BorderConfig       `yaml:"border"`
+}
+
+// BorderConfig holds settings for border crossing announcements.
+type BorderConfig struct {
+	Enabled        bool     `yaml:"enabled"`
+	CooldownAny    Duration `yaml:"cooldown_any"`
+	CooldownRepeat Duration `yaml:"cooldown_repeat"`
 }
 
 // DebriefConfig holds settings for landing debriefs.
@@ -372,6 +380,11 @@ func DefaultConfig() *Config {
 				Headset:    false,
 				LowCutoff:  400.0,
 				HighCutoff: 3500.0,
+			},
+			Border: BorderConfig{
+				Enabled:        true,
+				CooldownAny:    Duration(4 * time.Minute),
+				CooldownRepeat: Duration(15 * time.Minute),
 			},
 		},
 		Sim: SimConfig{

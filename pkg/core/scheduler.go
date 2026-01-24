@@ -42,7 +42,7 @@ func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink, 
 	// Landing Job
 	s.AddJob(NewLandingJob(n.(Debriefer)))
 	// Border Job
-	borderJob := NewBorderJob(n, g)
+	borderJob := NewBorderJob(cfg, n, g)
 	s.AddJob(borderJob)
 	s.AddResettable(borderJob)
 

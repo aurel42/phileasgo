@@ -173,3 +173,58 @@ func TestBearing(t *testing.T) {
 		})
 	}
 }
+
+func TestGetLocation_Admin1CountryLock(t *testing.T) {
+	s := &Service{
+		grid: make(map[int][]City),
+	}
+
+	// 1. City in France (The standard "near" city)
+	s.grid[s.getGridKey(48, 7)] = []City{{
+		Name:        "FrenchCity",
+		Lat:         48.0,
+		Lon:         7.0,
+		CountryCode: "FR",
+		Admin1Name:  "Grand Est",
+	}}
+
+	// 2. City in Germany (The legal region city, further away)
+	s.grid[s.getGridKey(48, 8)] = []City{{
+		Name:        "GermanCity",
+		Lat:         48.0,
+		Lon:         8.0,
+		CountryCode: "DE",
+		Admin1Name:  "Baden-Württemberg",
+	}}
+
+	// Mock CountryService: We are legally in Germany
+	s.countrySvc = &CountryService{
+		features: &geojson.FeatureCollection{
+			Features: []*geojson.Feature{
+				{
+					Properties: map[string]interface{}{"ISO_A2": "DE", "NAME": "Germany"},
+					Geometry:   orb.Polygon{{{6.0, 47.0}, {9.0, 47.0}, {9.0, 49.0}, {6.0, 49.0}, {6.0, 47.0}}},
+				},
+			},
+		},
+	}
+
+	// POSITION: 48.05, 7.1 (Very close to FrenchCity, further from GermanCity)
+	loc := s.GetLocation(48.05, 7.1)
+
+	// Verification
+	if loc.CountryCode != "DE" {
+		t.Errorf("Expected legal country 'DE', got %s", loc.CountryCode)
+	}
+	if loc.CityName != "FrenchCity" {
+		t.Errorf("Expected city context 'FrenchCity', got %s", loc.CityName)
+	}
+	if loc.CityAdmin1Name != "Grand Est" {
+		t.Errorf("Expected city admin 'Grand Est', got %s", loc.CityAdmin1Name)
+	}
+
+	// CRITICAL FIX CHECK: Admin1Name should be from the German city, not the French one!
+	if loc.Admin1Name != "Baden-Württemberg" {
+		t.Errorf("Expected legal region 'Baden-Württemberg', got %s", loc.Admin1Name)
+	}
+}

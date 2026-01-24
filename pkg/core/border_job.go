@@ -2,9 +2,11 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 )
@@ -12,20 +14,25 @@ import (
 // BorderJob checks for border crossings (country/region change) every 15s.
 type BorderJob struct {
 	BaseJob
-	narrator     Borderrer
-	geo          LocationProvider
-	lastLocation model.LocationInfo
-	cooldown     time.Duration
-	lastCheck    time.Time
+	narrator             Borderrer
+	geo                  LocationProvider
+	cfg                  *config.Config
+	lastLocation         model.LocationInfo
+	cooldown             time.Duration
+	lastCheck            time.Time
+	lastAnnouncementTime time.Time
+	repeatCooldowns      map[string]time.Time // Key: "from->to", Value: Last trigger time
 }
 
 // NewBorderJob creates a new BorderJob.
-func NewBorderJob(n Borderrer, g LocationProvider) *BorderJob {
+func NewBorderJob(cfg *config.Config, n Borderrer, g LocationProvider) *BorderJob {
 	return &BorderJob{
-		BaseJob:  NewBaseJob("BorderJob"),
-		narrator: n,
-		geo:      g,
-		cooldown: 15 * time.Second,
+		BaseJob:         NewBaseJob("BorderJob"),
+		narrator:        n,
+		geo:             g,
+		cfg:             cfg,
+		cooldown:        15 * time.Second,
+		repeatCooldowns: make(map[string]time.Time),
 	}
 }
 
@@ -84,13 +91,36 @@ func (j *BorderJob) trigger(ctx context.Context, from, to string, t *sim.Telemet
 	if to == "XZ" {
 		to = "International Waters"
 	}
-	slog.Info("BorderJob: Border crossing detected!", "from", from, "to", to)
-	j.narrator.PlayBorder(ctx, from, to, t)
+
+	// 1. Check Global Cooldown
+	cooldownAny := time.Duration(j.cfg.Narrator.Border.CooldownAny)
+	if time.Since(j.lastAnnouncementTime) < cooldownAny {
+		slog.Debug("BorderJob: Global cooldown active, suppressing announcement", "from", from, "to", to, "remain", cooldownAny-time.Since(j.lastAnnouncementTime))
+		return
+	}
+
+	// 2. Check Repeat Cooldown
+	pairKey := fmt.Sprintf("%s->%s", from, to)
+	cooldownRepeat := time.Duration(j.cfg.Narrator.Border.CooldownRepeat)
+	if lastRepeat, ok := j.repeatCooldowns[pairKey]; ok {
+		if time.Since(lastRepeat) < cooldownRepeat {
+			slog.Debug("BorderJob: Repeat cooldown active for pair, suppressing announcement", "pair", pairKey, "remain", cooldownRepeat-time.Since(lastRepeat))
+			return
+		}
+	}
+
+	slog.Info("BorderJob: Border crossing detected!", "from", from, "to", to, "lat", t.Latitude, "lon", t.Longitude)
+	if j.narrator.PlayBorder(ctx, from, to, t) {
+		j.lastAnnouncementTime = time.Now()
+		j.repeatCooldowns[pairKey] = time.Now()
+	}
 }
 
 // SessionResettable implementation
 func (j *BorderJob) ResetSession(ctx context.Context) {
 	j.lastLocation = model.LocationInfo{}
 	j.lastCheck = time.Time{}
+	j.lastAnnouncementTime = time.Time{}
+	j.repeatCooldowns = make(map[string]time.Time)
 	slog.Debug("BorderJob: Session reset")
 }

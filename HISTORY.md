@@ -1,15 +1,20 @@
 ﻿# Release History
 
+## v0.3.18 (2026-01-24)
+- **Configurable Border Cooldowns**: Added new settings to manage the frequency of border crossing announcements, preventing repetitive notifications.
+- **Fixed Spurious Border Warnings**: Resolved a coordinate-caching issue that caused false country-change alerts near international boundaries.
+- **Improved System Reliability**: Optimized core geographic resolution logic to reduce complexity and resolve potential nil-pointer exceptions.
+
 ## v0.3.17 (2026-01-24)
 - **Feature**: **Dual-Context Cross-Border Display**
   - **INTRODUCED** a persistent dual-context display in border regions.
-  - The UI now explicitly shows "near [City], [Region], [Country]" for the nearest landmark alongside a separate "in [Legal Country]" indicator when they differ.
+  - The UI now explicitly shows "near [City], [Region], [Country]" alongside a separate "in [Legal Country]" indicator when they differ.
 - **Fix**: **Border Crossing Detection**
   - Resolved an issue where border announcements failed to trigger in rural areas.
   - Decoupled detection logic from city names, ensuring crossings are detected immediately regardless of local metadata availability.
 - **Narrator**: **Border Profile Automation**
   - Added a dedicated "border" LLM profile to `phileas.yaml`.
-  - Border announcements are now correctly routed to specific models (e.g. `groq/compound-mini`) for faster turnaround.
+  - Border announcements are now correctly routed to specific models (e.g. `groq/compound-mini`).
 - **Geo**: **Remote Area Location Polish**
   - Improved `GetLocation` to return clean results in remote areas, avoiding "near Unknown" in favor of just legal country context where appropriate.
 

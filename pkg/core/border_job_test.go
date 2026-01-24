@@ -2,9 +2,11 @@ package core
 
 import (
 	"context"
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 	"testing"
+	"time"
 )
 
 type mockBorderNarrator struct {
@@ -31,7 +33,7 @@ func (m *mockBorderGeo) GetLocation(lat, lon float64) model.LocationInfo {
 func TestBorderJob_InternationalWatersTranslation(t *testing.T) {
 	narrator := &mockBorderNarrator{}
 	geo := &mockBorderGeo{}
-	job := NewBorderJob(narrator, geo)
+	job := NewBorderJob(config.DefaultConfig(), narrator, geo)
 
 	// 1. Land to Sea
 	job.lastLocation = model.LocationInfo{CountryCode: "FR", CityName: "Paris"}
@@ -47,6 +49,7 @@ func TestBorderJob_InternationalWatersTranslation(t *testing.T) {
 	}
 
 	// 2. Sea to Land
+	job.lastAnnouncementTime = time.Time{}
 	job.lastLocation = model.LocationInfo{CountryCode: "XZ", CityName: "International Waters"}
 	geo.loc = model.LocationInfo{CountryCode: "UK", CityName: "London"}
 
@@ -63,7 +66,7 @@ func TestBorderJob_InternationalWatersTranslation(t *testing.T) {
 func TestBorderJob_Admin1Change(t *testing.T) {
 	narrator := &mockBorderNarrator{}
 	geo := &mockBorderGeo{}
-	job := NewBorderJob(narrator, geo)
+	job := NewBorderJob(config.DefaultConfig(), narrator, geo)
 
 	// 1. Same Country, Different State
 	job.lastLocation = model.LocationInfo{CountryCode: "US", Admin1Name: "California", CityName: "SF"}
@@ -82,7 +85,7 @@ func TestBorderJob_Admin1Change(t *testing.T) {
 func TestBorderJob_Concurrency(t *testing.T) {
 	narrator := &mockBorderNarrator{}
 	geo := &mockBorderGeo{}
-	job := NewBorderJob(narrator, geo)
+	job := NewBorderJob(config.DefaultConfig(), narrator, geo)
 
 	// Lock the job manually
 	if !job.TryLock() {
@@ -111,7 +114,7 @@ func TestBorderJob_Concurrency(t *testing.T) {
 func TestBorderJob_BootstrapWithoutCity(t *testing.T) {
 	narrator := &mockBorderNarrator{}
 	geo := &mockBorderGeo{}
-	job := NewBorderJob(narrator, geo)
+	job := NewBorderJob(config.DefaultConfig(), narrator, geo)
 
 	// 1. Initial location has NO city, but YES country/state
 	geo.loc = model.LocationInfo{CountryCode: "DE", Admin1Name: "Bavaria", CityName: ""}
@@ -142,7 +145,7 @@ func TestBorderJob_BootstrapWithoutCity(t *testing.T) {
 func TestBorderJob_EmptyToNamedState(t *testing.T) {
 	narrator := &mockBorderNarrator{}
 	geo := &mockBorderGeo{}
-	job := NewBorderJob(narrator, geo)
+	job := NewBorderJob(config.DefaultConfig(), narrator, geo)
 
 	// 1. Initial location in a country where Admin1 is unknown/empty (e.g. crossing from waters)
 	geo.loc = model.LocationInfo{CountryCode: "XZ", Admin1Name: "", CityName: ""}
@@ -160,11 +163,82 @@ func TestBorderJob_EmptyToNamedState(t *testing.T) {
 	}
 
 	// 3. Cross into a named state in same country (if prior was unknown)
+	job.lastAnnouncementTime = time.Time{}
 	job.lastLocation = model.LocationInfo{CountryCode: "US", Admin1Name: "", CityName: ""}
 	geo.loc = model.LocationInfo{CountryCode: "US", Admin1Name: "New Jersey", CityName: ""}
 	job.Run(context.Background(), &sim.Telemetry{})
 
 	if narrator.calls != 2 {
 		t.Errorf("Expected 2nd call for state change from empty to 'New Jersey', got %d", narrator.calls)
+	}
+}
+
+func TestBorderJob_Cooldowns(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Narrator.Border.CooldownAny = config.Duration(1 * time.Minute)
+	cfg.Narrator.Border.CooldownRepeat = config.Duration(5 * time.Minute)
+
+	narrator := &mockBorderNarrator{}
+	geo := &mockBorderGeo{}
+	job := NewBorderJob(cfg, narrator, geo)
+
+	ctx := context.Background()
+	tel := &sim.Telemetry{}
+
+	// 1. First crossing (Global)
+	job.lastLocation = model.LocationInfo{CountryCode: "A"}
+	geo.loc = model.LocationInfo{CountryCode: "B"}
+	job.Run(ctx, tel)
+	if narrator.calls != 1 {
+		t.Fatalf("Expected 1st call, got %d", narrator.calls)
+	}
+
+	// 2. Immediate crossing elsewhere (Should be suppressed by GLOBAL cooldown)
+	job.lastLocation = geo.loc
+	geo.loc = model.LocationInfo{CountryCode: "C"}
+	job.Run(ctx, tel)
+	if narrator.calls != 1 {
+		t.Errorf("Expected 1 call (suppressed by global), got %d", narrator.calls)
+	}
+
+	// 3. Wait for global cooldown, then cross back to A (REPETITIVE crossing)
+	job.lastAnnouncementTime = time.Now().Add(-2 * time.Minute)
+	job.lastLocation = geo.loc
+	geo.loc = model.LocationInfo{CountryCode: "B"}
+	job.Run(ctx, tel)
+	if narrator.calls != 2 {
+		t.Errorf("Expected 2 calls (global passed), got %d", narrator.calls)
+	}
+
+	// 4. Repeated crossing B -> C (Should be suppressed by REPEAT cooldown)
+	job.lastAnnouncementTime = time.Now().Add(-10 * time.Minute) // Bypass global
+	job.lastLocation = geo.loc
+	geo.loc = model.LocationInfo{CountryCode: "C"}
+	// Let's make it actually trigger first.
+	job.lastAnnouncementTime = time.Now().Add(-10 * time.Minute) // Long ago
+	job.repeatCooldowns = make(map[string]time.Time)             // Clear
+	job.lastLocation = model.LocationInfo{CountryCode: "A"}
+	geo.loc = model.LocationInfo{CountryCode: "B"}
+	job.Run(ctx, tel) // Call 3: A -> B
+	if narrator.calls != 3 {
+		t.Errorf("Expected 3 calls, got %d", narrator.calls)
+	}
+
+	// 5. Cross back B -> A
+	job.lastAnnouncementTime = time.Now().Add(-10 * time.Minute)
+	job.lastLocation = geo.loc
+	geo.loc = model.LocationInfo{CountryCode: "A"}
+	job.Run(ctx, tel) // Call 4: B -> A
+	if narrator.calls != 4 {
+		t.Errorf("Expected 4 calls, got %d", narrator.calls)
+	}
+
+	// 6. Immediate repeat A -> B (Suppressed by REPEAT cooldown even if global passes)
+	job.lastAnnouncementTime = time.Now().Add(-10 * time.Minute)
+	job.lastLocation = geo.loc
+	geo.loc = model.LocationInfo{CountryCode: "B"}
+	job.Run(ctx, tel)
+	if narrator.calls != 4 {
+		t.Errorf("Expected 4 calls (suppressed by repeat), got %d", narrator.calls)
 	}
 }

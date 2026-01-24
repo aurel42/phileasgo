@@ -92,7 +92,7 @@ func newCountryServiceFromData(data []byte) (*CountryService, error) {
 func (s *CountryService) GetCountryAtPoint(lat, lon float64) CountryResult {
 	// Check cache first
 	s.mu.RLock()
-	if time.Since(s.lastTime) < s.cacheTTL {
+	if time.Since(s.lastTime) < s.cacheTTL && s.lastLat == lat && s.lastLon == lon {
 		result := s.lastResult
 		s.mu.RUnlock()
 		return result
