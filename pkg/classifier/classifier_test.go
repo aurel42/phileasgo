@@ -322,6 +322,28 @@ func TestClassifier_CachingLevels(t *testing.T) {
 			expectDBClass: 1, // Miss Q_DIOCESE_TYPE
 			expectDBHier:  3, // Q_DIOCESE_TYPE, Q_MID1, Q_MID2
 		},
+		{
+			name: "Mixed Instances (Regression for Batched Priority)",
+			qid:  "Q_MIXED_BATCH",
+			setupClient: func(c *MockClient) {
+				// Q_MIXED -> Has 2 P31s:
+				// 1. Q_IGNORED (e.g. County Seat) -> Ignored
+				// 2. Q_VALID (e.g. City) -> Aerodrome (for simplicity of test config match)
+				// The bug was that if Q_IGNORED came first, it returned Ignored immediately.
+				c.Claims["Q_MIXED_BATCH"] = map[string][]string{"P31": {"Q_AGNORED", "Q_VALID"}}
+
+				// Path for Q_AGNORED -> Q56061 (Ignored)
+				c.Claims["Q_AGNORED"] = map[string][]string{"P279": {"Q56061"}}
+
+				// Path for Q_VALID -> Q62447 (Aerodrome - Matched)
+				c.Claims["Q_VALID"] = map[string][]string{"P279": {"Q62447"}}
+			},
+			expectedCat:   "Aerodrome",
+			expectSingle:  3, // P31 (Mixed) + P279 (AGNORED) + P279 (VALID)
+			expectHBatch:  0, // Simple depth 1 matches
+			expectDBClass: 2, // Miss Q_AGNORED, Q_VALID
+			expectDBHier:  2, // Miss Q_AGNORED, Q_VALID
+		},
 	}
 
 	for i := range tests {

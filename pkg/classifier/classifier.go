@@ -107,19 +107,37 @@ func (c *Classifier) Explain(ctx context.Context, qid string) (*ExplanationResul
 		return &ExplanationResult{Reason: "No P31 instances found"}, nil
 	}
 
-	// 2. Check each
+	// 2. Check each - Prioritize MATCH over IGNORE
+	var bestRes *model.ClassificationResult
+	var bestInst string
+
 	for _, inst := range targets {
 		res, err := c.classifyHierarchyNode(ctx, inst)
 		if err != nil {
 			return nil, err
 		}
 		if res != nil {
-			return &ExplanationResult{
-				Category: res.Category,
-				Size:     res.Size,
-				Reason:   fmt.Sprintf("Matched via instance %s", inst),
-			}, nil
+			if !res.Ignored {
+				// Found proper match
+				return &ExplanationResult{
+					Category: res.Category,
+					Size:     res.Size,
+					Reason:   fmt.Sprintf("Matched via instance %s", inst),
+				}, nil
+			}
+			// Track ignored result as fallback
+			if bestRes == nil {
+				bestRes = res
+				bestInst = inst
+			}
 		}
+	}
+
+	if bestRes != nil {
+		return &ExplanationResult{
+			Ignored: true,
+			Reason:  fmt.Sprintf("Ignored via instance %s", bestInst),
+		}, nil
 	}
 
 	return &ExplanationResult{Reason: fmt.Sprintf("Traversed %d instances, no category match found", len(targets))}, nil
@@ -137,20 +155,29 @@ func (c *Classifier) ClassifyBatch(ctx context.Context, entities map[string]wiki
 		}
 
 		// 2. Classify based on pre-fetched P31 instances
-		found := false
+		// Prioritize MATCH over IGNORE
+		var bestRes *model.ClassificationResult
 		for _, inst := range meta.Claims["P31"] {
 			res, err := c.classifyHierarchyNode(ctx, inst)
 			if err != nil {
 				continue
 			}
 			if res != nil {
-				results[qid] = res
-				found = true
-				break
+				if !res.Ignored {
+					// Found a real match! Set immediately and break
+					bestRes = res
+					break
+				}
+				// Keep track of ignore result, but keep looking for a real match
+				if bestRes == nil {
+					bestRes = res
+				}
 			}
 		}
 
-		if !found {
+		if bestRes != nil {
+			results[qid] = bestRes
+		} else {
 			results[qid] = nil
 		}
 	}

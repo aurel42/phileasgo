@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.3.20 (2026-01-24)
+- **Fix**: **Classification Priority Logic**
+  - Resolved a bug where `ClassifyBatch` incorrectly classified POIs as `__IGNORED__` if an ignored instance (e.g. "County Seat") was encountered before a valid one (e.g. "City").
+  - The classifier now correctly evaluates all instances, strictly prioritizing valid category matches over ignored ones.
+
 ## v0.3.19 (2026-01-24)
 - **Optimization**: Implemented "Proximity-Aware Country Lookup" to reduce steady-flight border checks from O(N) to O(1).
 - **Performance**: Upgraded `CountryService` cache to use multi-slot coordinate quantization (~1km tiles) for reliable, jitter-free lookups.
