@@ -172,43 +172,70 @@ const MapContent = ({ lat, lon, heading, pois, currentNarratedId, preparingId, u
 export const OverlayMiniMap = ({ lat, lon, heading, pois, currentNarratedId, preparingId, units }: OverlayMiniMapProps) => {
     const [map, setMap] = useState<L.Map | null>(null);
 
-    // Fixed zoom for mini-map (zoom 9 shows ~150km, good for 20nm ring visibility)
-    const FIXED_ZOOM = 9;
-
-    // Re-center map with heading-based offset (preferring space in front)
+    // Re-center map and adapt zoom
     useEffect(() => {
-        if (map) {
-            // Calculate offset in pixels (25% of smaller map dimension)
-            const mapSize = map.getSize();
-            const offsetPx = Math.min(mapSize.x, mapSize.y) * 0.25;
+        if (!map) return;
 
-            // Convert heading to radians
-            const hdgRad = heading * (Math.PI / 180);
+        // 1. Identify "non-blue" POIs (those to be considered for zoom)
+        // Matches POIMarker color logic: Blue is played and not highlighted/preparing.
+        // We consider anything that is NOT pure "blue".
+        const nonBluePois = pois.filter(p => {
+            const isPlaying = p.wikidata_id === currentNarratedId;
+            const isPreparing = p.wikidata_id === preparingId;
+            const isPlayed = p.last_played && p.last_played !== "0001-01-01T00:00:00Z";
 
-            // Calculate pixel offset from aircraft position
-            // Forward direction in map coordinates (y is inverted)
-            const dx = offsetPx * Math.sin(hdgRad);
-            const dy = -offsetPx * Math.cos(hdgRad);
+            // Non-blue = currently playing, or preparing, or not yet played
+            return isPlaying || isPreparing || !isPlayed;
+        });
 
-            // Project aircraft position to screen coordinates
-            const aircraftPoint = map.project([lat, lon], FIXED_ZOOM);
+        // 2. Determine optimal zoom level
+        let targetZoom = 10; // Default fallback
+        if (nonBluePois.length > 0) {
+            // Calculate symmetric bounds to keep aircraft at the "virtual center" for zoom calculation
+            const maxLatDiff = Math.max(...nonBluePois.map(p => Math.abs(p.lat - lat)));
+            const maxLonDiff = Math.max(...nonBluePois.map(p => Math.abs(p.lon - lon)));
 
-            // Add offset to get new center point of the map
-            // We want the map center to be "in front" of the aircraft
-            const centerPoint = L.point(aircraftPoint.x + dx, aircraftPoint.y + dy);
+            // Add a small minimum buffer (e.g. 0.01 deg ~1km) to avoid infinity/division by zero issues
+            const latBuffer = Math.max(maxLatDiff, 0.01);
+            const lonBuffer = Math.max(maxLonDiff, 0.01);
 
-            // Unproject back to lat/lon
-            const centerLatLng = map.unproject(centerPoint, FIXED_ZOOM);
+            const symmetricBounds = L.latLngBounds(
+                [lat - latBuffer, lon - lonBuffer],
+                [lat + latBuffer, lon + lonBuffer]
+            );
 
-            map.panTo(centerLatLng, { animate: true, duration: 0.1 });
+            // getBoundsZoom returns the zoom level that fits these bounds with padding
+            targetZoom = map.getBoundsZoom(symmetricBounds, false, L.point(60, 60));
+            targetZoom = Math.min(targetZoom, 12); // Cap zoom to avoid extreme close-ups
         }
-    }, [lat, lon, heading, map]);
+
+        // 3. Apply heading-based offset ALWAYS (consistent 25% shift)
+        const mapSize = map.getSize();
+        const offsetPx = Math.min(mapSize.x, mapSize.y) * 0.25;
+        const hdgRad = heading * (Math.PI / 180);
+
+        // Calculate pixel offset (relative to determined targetZoom)
+        const dx = offsetPx * Math.sin(hdgRad);
+        const dy = -offsetPx * Math.cos(hdgRad);
+
+        // Project aircraft, apply offset, and unproject to find the visible map center
+        const aircraftPoint = map.project([lat, lon], targetZoom);
+        const centerPoint = L.point(aircraftPoint.x + dx, aircraftPoint.y + dy);
+        const centerLatLng = map.unproject(centerPoint, targetZoom);
+
+        // Update the map view
+        map.setView(centerLatLng, targetZoom, {
+            animate: true,
+            duration: nonBluePois.length > 0 ? 0.5 : 0.1
+        });
+
+    }, [lat, lon, heading, map, pois, currentNarratedId, preparingId]);
 
     return (
         <div className="overlay-minimap">
             <MapContainer
                 center={[lat, lon]}
-                zoom={FIXED_ZOOM}
+                zoom={10}
                 style={{ height: '100%', width: '100%', background: 'transparent' }}
                 zoomControl={false}
                 dragging={false}

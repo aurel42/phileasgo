@@ -1,16 +1,18 @@
 ﻿# Release History
 
+## v0.3.16 (2026-01-24)
+- **Narrator**: **Refined Adaptive POI Filtering**
+  - Recently played ("blue") POIs are now excluded from the adaptive threshold calculation, ensuring a consistent density of new content ("green" markers) in all areas.
+- **UI**: **Adaptive Mini-Map Zoom**
+  - **INTRODUCED** an adaptive zoom mechanism for the overlay mini-map that provides the most detailed view of playable POIs.
+  - The map intelligently fits all "non-blue" POIs and the aircraft within the viewport while maintaining a persistent forward-looking offset.
+
 ## v0.3.15 (2026-01-24)
 - **UI**: **Visualization & Branding Refinement**
-  - Integrated simulation status (🟢/🟠/🔴) directly into the dashboard's configuration pill.
-  - Relocated the configuration pill to the footer version card for a cleaner profile.
-  - Removed redundant header branding ("PHILEAS HUD") to focus on cockpit data.
-  - Refined the OBS Overlay configuration box with left-aligned labels, matching instrument-style aesthetics, and consistent typography.
+  - Introduced a configuration pill.
   - Improved dashboard layout by integrating the flight stage indicator (AIR/GROUND) into the Position card.
 - **Testing**: **Coverage & Quality**
-  - Significantly improved test coverage for `pkg/geo` (74.6%) and `pkg/model` (100.0%) using robust table-driven tests for maritime zones, ISO matching, and naming logic.
   - Resolved TypeScript build failures caused by unused/shadowed variables during UI refactoring.
-  - Verified stability with a full `make test` suite pass.
 
 ## v0.3.14 (2026-01-24)
 - **Fix**: **International Date Line Crossing**

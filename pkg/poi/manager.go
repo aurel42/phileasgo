@@ -323,44 +323,41 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// 1. Separate "Played" (Blue markers) from "Candidates"
+	// 1. Separate "Played" (Blue markers) from "Playable Candidates"
 	var played []*model.POI
-	var visibleCandidates []*model.POI
+	var playableVisible []*model.POI
 
 	for _, p := range m.trackedPOIs {
-		// UI explicitly does NOT filter by ground/air state to allow seeing what's around you on the ground map.
 		// Only show played items if they are still within the "Recent History" window (TTL).
 		// Once expired, they drop off the "Played" list and must compete by score again.
 		if !m.isPlayable(p) {
 			played = append(played, p)
-		}
-		if p.IsVisible {
-			visibleCandidates = append(visibleCandidates, p)
+		} else if p.IsVisible {
+			playableVisible = append(playableVisible, p)
 		}
 	}
 
-	// 2. Calculate Effective Threshold
+	// 2. Calculate Effective Threshold (Only based on Playable candidates)
 	effectiveThreshold := minScore
-	if filterMode == "adaptive" && len(visibleCandidates) > 0 {
+	if filterMode == "adaptive" && len(playableVisible) > 0 {
 		// Sort by score descending to find the cutoff
-		sort.Slice(visibleCandidates, func(i, j int) bool {
-			return visibleCandidates[i].Score > visibleCandidates[j].Score
+		sort.Slice(playableVisible, func(i, j int) bool {
+			return playableVisible[i].Score > playableVisible[j].Score
 		})
 
-		if len(visibleCandidates) > targetCount {
-			effectiveThreshold = visibleCandidates[targetCount-1].Score
+		if len(playableVisible) > targetCount {
+			effectiveThreshold = playableVisible[targetCount-1].Score
 		} else {
-			effectiveThreshold = -math.MaxFloat64 // All visible qualify
+			effectiveThreshold = -math.MaxFloat64 // All playable qualify
 		}
-
 	}
 
-	// 3. Assemble final list: All Played OR (Visible AND Score >= Threshold)
+	// 3. Assemble final list: All Recently Played OR (Visible AND Playable AND Score >= Threshold)
 	resultMap := make(map[string]*model.POI)
 	for _, p := range played {
 		resultMap[p.WikidataID] = p
 	}
-	for _, p := range visibleCandidates {
+	for _, p := range playableVisible {
 		if p.Score >= effectiveThreshold {
 			resultMap[p.WikidataID] = p
 		}
