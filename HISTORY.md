@@ -1,13 +1,17 @@
 ﻿# Release History
 
+## v0.3.22 (2026-01-24)
+- **Feat**: Platform-aware release filenames (e.g. `windows-x64`) for better distribution.
+- **Refine**: Improved maritime border logic to ignore EEZ and territorial waters, only announcing international water crossings.
+- **Tuning**: Significantly boosted POI visibility distances at low to mid-altitudes (1,500ft - 6,000ft).
+- **Fix**: Adjusted "Behind Check" logic to correctly handle POIs passed at close range.
+
 ## v0.3.21 (2026-01-24)
 - **Feature**: **Smart Deferral Refinement**
   - Updated the POI deferral logic to intelligently distinguish between short-term (1-3m) and mid-term (5-15m) proximity.
   - **Logic**: Penalty is now only applied if the aircraft is predicted to be significantly closer (>25%) in the mid-term (5-15m) compared to the best short-term (1-3m) position.
   - **Horizons**: Added prediction support for **+15 minutes**, expanding the planning window.
   - **Fix**: Resolved "Behind Check" logic where passing a POI at t=1 could incorrectly invalidate future valid approach angles.
-- **Testing**: **Coverage**
-  - Added comprehensive table-driven tests for tangent approaches, flyovers, and complex geometric scenarios.
 
 ## v0.3.20 (2026-01-24)
 - **Fix**: **Classification Priority Logic**

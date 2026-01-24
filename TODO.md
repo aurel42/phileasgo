@@ -21,3 +21,4 @@ X API counters for all LLMs
 - fix beacon balloons hidden by terrain when flying parallel to high terrain
 X support multiple screenshot paths (e.g. VR, pancake)
 X feature: notification when crossing state or country borders, entering international waters, etc (new narrative type "remark"?)
+- handle "area" POIs (like lakes, cities) better, also "length" POIs like rivers and roads

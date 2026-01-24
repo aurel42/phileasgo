@@ -52,6 +52,14 @@ func (j *BorderJob) Run(ctx context.Context, t *sim.Telemetry) {
 	// 1. Get current location
 	curr := j.geo.GetLocation(t.Latitude, t.Longitude)
 
+	// Refinement: skip announcements for intermediary maritime zones (EEZ/Territorial)
+	// We do not treat entering these zones as a "border crossing" themselves, and we
+	// don't update lastLocation to ensure we trigger correctly when finally hitting
+	// Land or International Waters.
+	if curr.Zone == "territorial" || curr.Zone == "eez" {
+		return
+	}
+
 	// Detect Change
 	if j.lastLocation.CountryCode == "" {
 		// Initial setup, no change detected

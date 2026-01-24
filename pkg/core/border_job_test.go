@@ -250,3 +250,54 @@ func TestBorderJob_Cooldowns(t *testing.T) {
 		t.Errorf("Expected 4 calls (suppressed by repeat), got %d", narrator.calls)
 	}
 }
+
+func TestBorderJob_MaritimeRestrictions(t *testing.T) {
+	narrator := &mockBorderNarrator{}
+	geo := &mockBorderGeo{}
+	job := NewBorderJob(config.DefaultConfig(), narrator, geo)
+
+	// 1. Land (FR) to Territorial (FR) -> Should be ignored
+	job.lastLocation = model.LocationInfo{CountryCode: "FR", Admin1Name: "Normandy", Zone: "land"}
+	geo.loc = model.LocationInfo{CountryCode: "FR", Admin1Name: "", Zone: "territorial"}
+	job.Run(context.Background(), &sim.Telemetry{})
+	if narrator.calls != 0 {
+		t.Errorf("Expected 0 calls for territorial waters, got %d", narrator.calls)
+	}
+	if job.lastLocation.Admin1Name != "Normandy" {
+		t.Errorf("Expected lastLocation to remain Normandy, got %s", job.lastLocation.Admin1Name)
+	}
+
+	// 2. Territorial (FR) to International -> Should trigger FR -> International
+	geo.loc = model.LocationInfo{CountryCode: "XZ", Admin1Name: "", Zone: "international"}
+	job.Run(context.Background(), &sim.Telemetry{})
+	if narrator.calls != 1 {
+		t.Fatalf("Expected 1 call when entering international waters, got %d", narrator.calls)
+	}
+	if narrator.lastFrom != "FR" {
+		t.Errorf("Expected from 'FR', got '%s'", narrator.lastFrom)
+	}
+	if narrator.lastTo != "International Waters" {
+		t.Errorf("Expected to 'International Waters', got '%s'", narrator.lastTo)
+	}
+
+	// 3. International to EEZ (UK) -> Should be ignored
+	job.lastAnnouncementTime = time.Time{} // reset cooldown
+	geo.loc = model.LocationInfo{CountryCode: "UK", Admin1Name: "", Zone: "eez"}
+	job.Run(context.Background(), &sim.Telemetry{})
+	if narrator.calls != 1 {
+		t.Errorf("Expected no new calls when entering EEZ, got %d", narrator.calls)
+	}
+
+	// 4. EEZ (UK) to Land (UK) -> Should trigger International -> UK
+	geo.loc = model.LocationInfo{CountryCode: "UK", Admin1Name: "Kent", Zone: "land"}
+	job.Run(context.Background(), &sim.Telemetry{})
+	if narrator.calls != 2 {
+		t.Errorf("Expected 2nd call when hitting land, got %d", narrator.calls)
+	}
+	if narrator.lastFrom != "International Waters" {
+		t.Errorf("Expected from 'International Waters', got '%s'", narrator.lastFrom)
+	}
+	if narrator.lastTo != "UK" {
+		t.Errorf("Expected to 'UK', got '%s'", narrator.lastTo)
+	}
+}

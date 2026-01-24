@@ -48,9 +48,10 @@ clean-logs:
 	powershell -Command "if (Test-Path logs\\requests.log) { Remove-Item -Force logs\\requests.log }"
 
 VERSION=$(shell grep "const Version =" pkg/version/version.go | sed 's/.*"\(.*\)".*/\1/')
+PLATFORM=windows-x64
 
 release-binary: clean build
 	powershell -Command "if (Test-Path release) { Remove-Item -Recurse -Force release }"
 	powershell -Command "New-Item -ItemType Directory -Path release | Out-Null"
-	powershell -Command "Compress-Archive -Path $(APP_NAME).exe, README.md, HISTORY.md, .env.template, install.ps1, configs -DestinationPath release/$(APP_NAME)-$(VERSION).zip -Force"
-	@echo Release created: release/$(APP_NAME)-$(VERSION).zip
+	powershell -Command "Compress-Archive -Path $(APP_NAME).exe, README.md, HISTORY.md, .env.template, install.ps1, configs -DestinationPath release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip -Force"
+	@echo Release created: release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip
