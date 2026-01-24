@@ -2,6 +2,7 @@ package geo
 
 import (
 	"math"
+	"os"
 	"testing"
 
 	"github.com/paulmach/orb"
@@ -227,4 +228,108 @@ func TestGetLocation_Admin1CountryLock(t *testing.T) {
 	if loc.Admin1Name != "Baden-Württemberg" {
 		t.Errorf("Expected legal region 'Baden-Württemberg', got %s", loc.Admin1Name)
 	}
+}
+
+func TestNewService(t *testing.T) {
+	// Create temporary cities file
+	citiesFile, err := os.CreateTemp("", "cities.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(citiesFile.Name())
+
+	citiesData := "1\tParis\tParis\t\t48.8566\t2.3522\tP\tPPLC\tFR\t\t11\t\t\t\t2148271\t\t35\tEurope/Paris\t2026-01-24\n"
+	if _, err := citiesFile.WriteString(citiesData); err != nil {
+		t.Fatal(err)
+	}
+	citiesFile.Close()
+
+	// Create temporary admin1 file
+	admin1File, err := os.CreateTemp("", "admin1.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(admin1File.Name())
+
+	admin1Data := "FR.11\tÎle-de-France\tIle-de-France\t3012874\n"
+	if _, err := admin1File.WriteString(admin1Data); err != nil {
+		t.Fatal(err)
+	}
+	admin1File.Close()
+
+	// Test NewService
+	s, err := NewService(citiesFile.Name(), admin1File.Name())
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	if len(s.grid) == 0 {
+		t.Error("Grid is empty")
+	}
+
+	// Test GetLocation using the loaded data
+	loc := s.GetLocation(48.8, 2.3)
+	if loc.CityName != "Paris" {
+		t.Errorf("CityName = %v, want Paris", loc.CityName)
+	}
+	if loc.Admin1Name != "Île-de-France" {
+		t.Errorf("Admin1Name = %v, want Île-de-France", loc.Admin1Name)
+	}
+
+	// Test GetCountry
+	code := s.GetCountry(48.8, 2.3)
+	if code != "FR" {
+		t.Errorf("GetCountry = %v, want FR", code)
+	}
+
+	// Test SetCountryService
+	cs, _ := NewCountryServiceEmbedded()
+	s.SetCountryService(cs)
+	if s.countrySvc != cs {
+		t.Error("SetCountryService failed")
+	}
+}
+
+func TestGeoHelpers(t *testing.T) {
+	// Test NormalizeAngle
+	tests := []struct {
+		angle float64
+		want  float64
+	}{
+		{370, 10},
+		{-10, -10}, // Implementation returns [-180, 180]
+		{0, 0},
+		{360, 0},
+	}
+	for _, tt := range tests {
+		if got := NormalizeAngle(tt.angle); got != tt.want {
+			t.Errorf("NormalizeAngle(%v) = %v, want %v", tt.angle, got, tt.want)
+		}
+	}
+
+	// Test DestinationPoint
+	p1 := Point{Lat: 0, Lon: 0}
+	p2 := DestinationPoint(p1, 111320, 90) // dist, bearing
+	if math.Abs(p2.Lat-0) > 0.01 {
+		t.Errorf("DestinationPoint Lat = %v, want 0", p2.Lat)
+	}
+	if math.Abs(p2.Lon-1) > 0.01 {
+		t.Errorf("DestinationPoint Lon = %v, want 1", p2.Lon)
+	}
+}
+
+func TestService_ReorderFeatures(t *testing.T) {
+	// Setup service with mock country service
+	// We can't easily mock the internal CountryService from here without interfaces,
+	// but we can verify it doesn't panic when countrySvc is nil (default)
+	s := &Service{}
+	s.ReorderFeatures(0, 0) // Should be safe no-op
+
+	// Now with a real embedded service
+	cs, err := NewCountryServiceEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetCountryService(cs)
+	s.ReorderFeatures(51, 0) // Should trigger reorder without panic
 }

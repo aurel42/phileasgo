@@ -26,4 +26,5 @@ type Borderrer interface {
 // LocationProvider interface for reverse geocoding.
 type LocationProvider interface {
 	GetLocation(lat, lon float64) model.LocationInfo
+	ReorderFeatures(lat, lon float64)
 }

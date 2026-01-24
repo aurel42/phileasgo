@@ -15,7 +15,14 @@ import (
 type mockSchedGeoProvider struct{}
 
 func (m *mockSchedGeoProvider) GetLocation(lat, lon float64) model.LocationInfo {
-	return model.LocationInfo{}
+	return model.LocationInfo{
+		CityName:    "London",
+		CountryCode: "GB",
+	}
+}
+
+func (m *mockSchedGeoProvider) ReorderFeatures(lat, lon float64) {
+	// no-op
 }
 
 type mockSchedNarrator struct{}

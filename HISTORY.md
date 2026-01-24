@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.3.19 (2026-01-24)
+- **Optimization**: Implemented "Proximity-Aware Country Lookup" to reduce steady-flight border checks from O(N) to O(1).
+- **Performance**: Upgraded `CountryService` cache to use multi-slot coordinate quantization (~1km tiles) for reliable, jitter-free lookups.
+- **Fix**: Resolved structural issues in `CountryService` to ensure stability.
+
 ## v0.3.18 (2026-01-24)
 - **Configurable Border Cooldowns**: Added new settings to manage the frequency of border crossing announcements, preventing repetitive notifications.
 - **Fixed Spurious Border Warnings**: Resolved a coordinate-caching issue that caused false country-change alerts near international boundaries.

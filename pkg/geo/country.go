@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -44,17 +45,18 @@ type CountryResult struct {
 	DistanceM   float64 // Distance to nearest coast in meters (0 if on land)
 }
 
+type cacheEntry struct {
+	result       CountryResult
+	lastAccessed time.Time
+}
+
 // CountryService provides country boundary detection using GeoJSON polygons.
 type CountryService struct {
 	features *geojson.FeatureCollection
 
 	// Cache for expensive lookups
-	mu         sync.RWMutex
-	lastResult CountryResult
-	lastLat    float64
-	lastLon    float64
-	lastTime   time.Time
-	cacheTTL   time.Duration
+	mu    sync.RWMutex
+	cache map[string]*cacheEntry
 }
 
 // NewCountryServiceEmbedded creates a CountryService using embedded GeoJSON data.
@@ -81,36 +83,119 @@ func newCountryServiceFromData(data []byte) (*CountryService, error) {
 
 	slog.Info("CountryService: Loaded country boundaries", "features", len(fc.Features))
 
-	return &CountryService{
+	s := &CountryService{
 		features: fc,
-		cacheTTL: 15 * time.Second,
-	}, nil
+		cache:    make(map[string]*cacheEntry),
+	}
+
+	// Start background pruning
+	go s.startPruner()
+
+	return s, nil
+}
+
+func (s *CountryService) startPruner() {
+	ticker := time.NewTicker(30 * time.Second)
+	for range ticker.C {
+		s.pruneCache()
+	}
+}
+
+func (s *CountryService) pruneCache() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	count := 0
+	for key, entry := range s.cache {
+		if now.Sub(entry.lastAccessed) > 30*time.Second {
+			delete(s.cache, key)
+			count++
+		}
+	}
+	if count > 0 {
+		slog.Debug("CountryService: Pruned cache", "removed", count, "remaining", len(s.cache))
+	}
+}
+
+// ReorderFeatures sorts the internal country list by proximity to the given point.
+// This optimizes subsequent lookups by checking the most likely countries first.
+func (s *CountryService) ReorderFeatures(lat, lon float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	point := orb.Point{lon, lat}
+
+	// Helper to get approx center of a feature for sorting
+	getCenter := func(g orb.Geometry) orb.Point {
+		// Use Bound center as a fast approximation
+		b := g.Bound()
+		return orb.Point{(b.Min[0] + b.Max[0]) / 2, (b.Min[1] + b.Max[1]) / 2}
+	}
+
+	sort.Slice(s.features.Features, func(i, j int) bool {
+		c1 := getCenter(s.features.Features[i].Geometry)
+		c2 := getCenter(s.features.Features[j].Geometry)
+
+		d1 := planar.Distance(point, c1)
+		d2 := planar.Distance(point, c2)
+
+		return d1 < d2
+	})
+
+	// Log top 5 for verification
+	logLimit := 5
+	if len(s.features.Features) < logLimit {
+		logLimit = len(s.features.Features)
+	}
+	topList := make([]string, 0, logLimit)
+	for i := 0; i < logLimit; i++ {
+		code := getISOCode(s.features.Features[i].Properties)
+		topList = append(topList, code)
+	}
+
+	slog.Info("CountryService: Reordered features by proximity",
+		"lat", lat,
+		"lon", lon,
+		"top_5", fmt.Sprintf("%v", topList))
 }
 
 // GetCountryAtPoint returns the country at the given coordinates.
-// Results are cached for 15 seconds to avoid expensive polygon lookups.
+// Results are cached using ~1km (0.01 degree) quantization and 30s TTL.
 func (s *CountryService) GetCountryAtPoint(lat, lon float64) CountryResult {
-	// Check cache first
-	s.mu.RLock()
-	if time.Since(s.lastTime) < s.cacheTTL && s.lastLat == lat && s.lastLon == lon {
-		result := s.lastResult
-		s.mu.RUnlock()
+	key := fmt.Sprintf("%.2f,%.2f", lat, lon)
+
+	// Check cache
+	s.mu.Lock() // Using Lock because we update lastAccessed
+	if s.cache == nil {
+		s.cache = make(map[string]*cacheEntry)
+	}
+	if entry, ok := s.cache[key]; ok {
+		entry.lastAccessed = time.Now()
+		result := entry.result
+		s.mu.Unlock()
 		return result
 	}
-	s.mu.RUnlock()
+	s.mu.Unlock()
 
 	// Cache miss - perform lookup
 	result := s.lookupCountry(lat, lon)
 
 	// Update cache
 	s.mu.Lock()
-	s.lastResult = result
-	s.lastLat = lat
-	s.lastLon = lon
-	s.lastTime = time.Now()
+	s.cache[key] = &cacheEntry{
+		result:       result,
+		lastAccessed: time.Now(),
+	}
 	s.mu.Unlock()
-
 	return result
+}
+
+// ResetCache clears all entries from the cache.
+func (s *CountryService) ResetCache() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cache = make(map[string]*cacheEntry)
 }
 
 // GetCountryName returns the full name of a country given its ISO code.

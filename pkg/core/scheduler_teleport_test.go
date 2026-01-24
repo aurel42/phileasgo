@@ -12,7 +12,11 @@ import (
 type mockTeleportGeoProvider struct{}
 
 func (m *mockTeleportGeoProvider) GetLocation(lat, lon float64) model.LocationInfo {
-	return model.LocationInfo{}
+	return model.LocationInfo{CountryCode: "Teleportia"}
+}
+
+func (m *mockTeleportGeoProvider) ReorderFeatures(lat, lon float64) {
+	// no-op
 }
 
 type mockTeleportNarrator struct{}

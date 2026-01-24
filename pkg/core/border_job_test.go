@@ -22,12 +22,20 @@ func (m *mockBorderNarrator) PlayBorder(ctx context.Context, from, to string, te
 	return true
 }
 
+func (m *mockBorderNarrator) ReorderFeatures(lat, lon float64) {
+	// no-op
+}
+
 type mockBorderGeo struct {
 	loc model.LocationInfo
 }
 
 func (m *mockBorderGeo) GetLocation(lat, lon float64) model.LocationInfo {
 	return m.loc
+}
+
+func (m *mockBorderGeo) ReorderFeatures(lat, lon float64) {
+	// no-op
 }
 
 func TestBorderJob_InternationalWatersTranslation(t *testing.T) {

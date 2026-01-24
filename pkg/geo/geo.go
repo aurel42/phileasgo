@@ -161,6 +161,13 @@ func (s *Service) SetCountryService(cs *CountryService) {
 	s.countrySvc = cs
 }
 
+// ReorderFeatures delegates to the underlying CountryService to optimize lookup based on proximity.
+func (s *Service) ReorderFeatures(lat, lon float64) {
+	if s.countrySvc != nil {
+		s.countrySvc.ReorderFeatures(lat, lon)
+	}
+}
+
 // GetLocation returns the nearest city and country information.
 func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
 	// 1. Get country and zone from CountryService (if available)

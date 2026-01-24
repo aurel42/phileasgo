@@ -18,24 +18,26 @@ type TelemetrySink interface {
 
 // Scheduler manages the central heartbeat and scheduled jobs.
 type Scheduler struct {
-	cfg         *config.Config
-	sim         sim.Client
-	sink        TelemetrySink
-	jobs        []Job
-	resettables []SessionResettable
-	lastTickPos geo.Point
-	narrator    Borderrer // Renamed from debriefer for generalized use
+	cfg              *config.Config
+	sim              sim.Client
+	sink             TelemetrySink
+	jobs             []Job
+	resettables      []SessionResettable
+	lastTickPos      geo.Point
+	narrator         Borderrer // Renamed from debriefer for generalized use
+	locationProvider LocationProvider
 }
 
 // NewScheduler creates a new Scheduler.
 func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink, n Borderrer, g LocationProvider) *Scheduler {
 	s := &Scheduler{
-		cfg:         cfg,
-		sim:         simClient,
-		sink:        sink,
-		jobs:        []Job{},
-		resettables: []SessionResettable{},
-		narrator:    n,
+		cfg:              cfg,
+		sim:              simClient,
+		sink:             sink,
+		jobs:             []Job{},
+		resettables:      []SessionResettable{},
+		narrator:         n,
+		locationProvider: g,
 	}
 
 	// Register Core Jobs
@@ -109,7 +111,12 @@ func (s *Scheduler) tick(ctx context.Context) {
 	// 2.5 Teleport Detection
 	// Check if we moved exceptionally far in a single tick (teleport/map change)
 	currPos := geo.Point{Lat: tel.Latitude, Lon: tel.Longitude}
-	if s.lastTickPos != (geo.Point{}) {
+	if s.lastTickPos == (geo.Point{}) {
+		// First valid tick - Initialize optimizations
+		if s.locationProvider != nil {
+			s.locationProvider.ReorderFeatures(currPos.Lat, currPos.Lon)
+		}
+	} else {
 		distM := geo.Distance(s.lastTickPos, currPos)
 		thresholdM := float64(s.cfg.Sim.TeleportThreshold)
 		if thresholdM <= 0 {
@@ -121,6 +128,10 @@ func (s *Scheduler) tick(ctx context.Context) {
 			// Trigger Reset
 			for _, r := range s.resettables {
 				r.ResetSession(ctx)
+			}
+			// Optimize lookup for new area
+			if s.locationProvider != nil {
+				s.locationProvider.ReorderFeatures(currPos.Lat, currPos.Lon)
 			}
 		}
 	}
