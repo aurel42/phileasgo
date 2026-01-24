@@ -45,9 +45,10 @@ func (j *BorderJob) Run(ctx context.Context, t *sim.Telemetry) {
 	// 1. Get current location
 	curr := j.geo.GetLocation(t.Latitude, t.Longitude)
 
-	// 2. Detect Change
-	if j.lastLocation.CityName == "" {
+	// Detect Change
+	if j.lastLocation.CountryCode == "" {
 		// Initial setup, no change detected
+		slog.Debug("BorderJob: Initialized location", "country", curr.CountryCode, "region", curr.Admin1Name)
 		j.lastLocation = curr
 		return
 	}
@@ -60,9 +61,14 @@ func (j *BorderJob) Run(ctx context.Context, t *sim.Telemetry) {
 	}
 
 	// Check for State/Region Change (Admin1)
-	if curr.Admin1Name != j.lastLocation.Admin1Name && curr.Admin1Name != "" && j.lastLocation.Admin1Name != "" {
+	// Trigger if the name actually changed. Note: we allow one to be empty to handle
+	// transitions between labeled states and unlabeled regions/waters.
+	if curr.Admin1Name != j.lastLocation.Admin1Name {
 		from := j.lastLocation.Admin1Name
 		to := curr.Admin1Name
+
+		// Map empty names to something readable for the narrator if needed,
+		// but typically the narrator context handles names.
 		j.trigger(ctx, from, to, t)
 		j.lastLocation = curr
 		return

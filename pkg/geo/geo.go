@@ -220,7 +220,7 @@ func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
 
 	// Fall back to city-based country detection if no CountryService
 	if minDistSq == math.MaxFloat64 {
-		result.CityName = "International Waters"
+		result.CityName = ""
 		result.CountryCode = "XZ"
 		result.Zone = ZoneInternational
 		return result
@@ -228,8 +228,15 @@ func (s *Service) GetLocation(lat, lon float64) model.LocationInfo {
 
 	// Use city data
 	result.CityName = bestCity.Name
+	result.CityAdmin1Name = bestCity.Admin1Name
+	result.CityCountryCode = bestCity.CountryCode
+	if s.countrySvc != nil {
+		result.CityCountryName = s.countrySvc.GetCountryName(bestCity.CountryCode)
+	}
+
 	if result.CountryCode == "" {
 		result.CountryCode = bestCity.CountryCode
+		result.CountryName = result.CityCountryName
 	}
 	result.Admin1Code = bestCity.Admin1Code
 	result.Admin1Name = bestCity.Admin1Name

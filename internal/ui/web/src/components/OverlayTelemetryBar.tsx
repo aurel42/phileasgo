@@ -33,6 +33,10 @@ interface Geography {
     city: string;
     region?: string;
     country: string;
+    city_region?: string;
+    city_country?: string;
+    country_code?: string;
+    city_country_code?: string;
 }
 
 export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => {
@@ -150,7 +154,14 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                                 )}
                             </div>
                             <div style={{ color: '#eee', fontSize: '14px', marginTop: '4px', textAlign: 'center', fontFamily: 'Inter, sans-serif' }}>
-                                {location.region ? `${location.region}, ` : ''}{location.country}
+                                {location.city_country_code && location.country_code && location.city_country_code !== location.country_code ? (
+                                    <>
+                                        <div>{location.city_region ? `${location.city_region}, ` : ''}{location.city_country}</div>
+                                        <div style={{ color: '#4a9eff', fontWeight: 500, marginTop: '2px' }}>in {location.country}</div>
+                                    </>
+                                ) : (
+                                    <>{location.region ? `${location.region}, ` : ''}{location.country}</>
+                                )}
                             </div>
                             <div style={{ fontSize: '13px', fontFamily: 'monospace', color: '#ccc', marginTop: '8px', textAlign: 'center', letterSpacing: '0.5px' }}>
                                 {telemetry.Latitude.toFixed(4)}, {telemetry.Longitude.toFixed(4)}

@@ -3,6 +3,9 @@ package geo
 import (
 	"math"
 	"testing"
+
+	"github.com/paulmach/orb"
+	"github.com/paulmach/orb/geojson"
 )
 
 func TestDistance(t *testing.T) {
@@ -51,10 +54,10 @@ func TestGetLocation(t *testing.T) {
 		grid: make(map[int][]City),
 	}
 
-	// 1. Fallback (International Waters)
+	// 1. Fallback (Empty City)
 	loc := s.GetLocation(0, 0)
-	if loc.CityName != "International Waters" {
-		t.Errorf("Expected 'International Waters', got %s", loc.CityName)
+	if loc.CityName != "" {
+		t.Errorf("Expected empty city name, got %s", loc.CityName)
 	}
 	if loc.CountryCode != "XZ" {
 		t.Errorf("Expected 'XZ', got %s", loc.CountryCode)
@@ -78,6 +81,53 @@ func TestGetLocation(t *testing.T) {
 	}
 	if loc.Admin1Name != "TestRegion" {
 		t.Errorf("Expected 'TestRegion', got %s", loc.Admin1Name)
+	}
+}
+
+func TestGetLocation_CrossBorder(t *testing.T) {
+	s := &Service{
+		grid: make(map[int][]City),
+	}
+
+	// City in France
+	s.grid[s.getGridKey(48, 7)] = []City{{
+		Name:        "FrenchCity",
+		Lat:         48.0,
+		Lon:         7.0,
+		CountryCode: "FR",
+		Admin1Name:  "FrenchRegion",
+	}}
+
+	// Mock CountryService that says we are in Germany
+	s.countrySvc = &CountryService{
+		features: &geojson.FeatureCollection{
+			Features: []*geojson.Feature{
+				{
+					Properties: map[string]interface{}{"ISO_A2": "DE", "NAME": "Germany"},
+					Geometry:   orb.Polygon{{{6.0, 47.0}, {8.0, 47.0}, {8.0, 49.0}, {6.0, 49.0}, {6.0, 47.0}}},
+				},
+				{
+					Properties: map[string]interface{}{"ISO_A2": "FR", "NAME": "France"},
+					Geometry:   orb.Polygon{{{0.0, 40.0}, {5.0, 40.0}, {5.0, 50.0}, {0.0, 50.0}, {0.0, 40.0}}},
+				},
+			},
+		},
+	}
+
+	// We are in Germany (48.1, 7.1) but FrenchCity (48.0, 7.0) is the only one in grid
+	loc := s.GetLocation(48.1, 7.1)
+
+	if loc.CountryCode != "DE" {
+		t.Errorf("Expected legal country 'DE', got %s", loc.CountryCode)
+	}
+	if loc.CityCountryCode != "FR" {
+		t.Errorf("Expected city country 'FR', got %s", loc.CityCountryCode)
+	}
+	if loc.CityName != "FrenchCity" {
+		t.Errorf("Expected city 'FrenchCity', got %s", loc.CityName)
+	}
+	if loc.CityAdmin1Name != "FrenchRegion" {
+		t.Errorf("Expected city region 'FrenchRegion', got %s", loc.CityAdmin1Name)
 	}
 }
 

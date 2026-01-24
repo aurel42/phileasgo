@@ -53,12 +53,17 @@ type POI struct {
 // LocationInfo represents rich geographic context.
 type LocationInfo struct {
 	CityName    string `json:"city_name"`
-	CountryCode string `json:"country_code"`
-	CountryName string `json:"country_name"` // Full country name (e.g., "Russia")
+	CountryCode string `json:"country_code"` // Legal (from boundary maps)
+	CountryName string `json:"country_name"` // Legal (from boundary maps)
 	Admin1Code  string `json:"admin1_code"`
 	Admin1Name  string `json:"admin1_name"`
 	RegionName  string `json:"region_name"` // For future use
 	Zone        string `json:"zone"`        // "land", "territorial", "eez", "international"
+
+	// Nearest City Context (if different from Legal)
+	CityCountryCode string `json:"city_country_code,omitempty"`
+	CityCountryName string `json:"city_country_name,omitempty"`
+	CityAdmin1Name  string `json:"city_admin1_name,omitempty"`
 }
 
 // DisplayName returns the best available name for the POI.

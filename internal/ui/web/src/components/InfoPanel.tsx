@@ -34,6 +34,10 @@ interface Geography {
     city: string;
     region?: string;
     country: string;
+    city_region?: string;
+    city_country?: string;
+    country_code?: string;
+    city_country_code?: string;
 }
 
 const ConfigPills = ({ mode, frequency, length, simState }: { mode: string, frequency: number, length: number, simState: string }) => {
@@ -286,6 +290,7 @@ export const InfoPanel = ({
                         </div>
                     )}
 
+
                     {location?.city && (
                         <>
                             <div className="value" style={{ fontSize: '16px', color: '#fff', fontFamily: 'Inter, sans-serif', fontWeight: 600, marginTop: '4px' }}>
@@ -299,7 +304,14 @@ export const InfoPanel = ({
                                 )}
                             </div>
                             <div style={{ color: '#eee', fontSize: '14px', marginTop: '2px', fontFamily: 'Inter, sans-serif' }}>
-                                {location.region ? `${location.region}, ` : ''}{location.country}
+                                {location.city_country_code && location.country_code && location.city_country_code !== location.country_code ? (
+                                    <>
+                                        <div>{location.city_region ? `${location.city_region}, ` : ''}{location.city_country}</div>
+                                        <div style={{ color: '#4a9eff', fontWeight: 500, marginTop: '2px' }}>in {location.country}</div>
+                                    </>
+                                ) : (
+                                    <>{location.region ? `${location.region}, ` : ''}{location.country}</>
+                                )}
                             </div>
                         </>
                     )}

@@ -18,9 +18,14 @@ func NewGeographyHandler(geoSvc *geo.Service) *GeographyHandler {
 }
 
 type GeographyResponse struct {
-	City    string `json:"city"`
-	Region  string `json:"region"`
-	Country string `json:"country"`
+	City            string `json:"city"`
+	Region          string `json:"region"`
+	Country         string `json:"country"`
+	LegalCountry    string `json:"legal_country"`
+	CityRegion      string `json:"city_region"`
+	CityCountry     string `json:"city_country"`
+	CountryCode     string `json:"country_code"`
+	CityCountryCode string `json:"city_country_code"`
 }
 
 func (h *GeographyHandler) Handle(w http.ResponseWriter, r *http.Request) {
@@ -67,9 +72,14 @@ func (h *GeographyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := GeographyResponse{
-		City:    loc.CityName,
-		Region:  region,
-		Country: country,
+		City:            loc.CityName,
+		Region:          region,
+		Country:         country,
+		LegalCountry:    loc.CountryName,
+		CityRegion:      loc.CityAdmin1Name,
+		CityCountry:     loc.CityCountryName,
+		CountryCode:     loc.CountryCode,
+		CityCountryCode: loc.CityCountryCode,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

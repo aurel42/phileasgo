@@ -113,6 +113,16 @@ func (s *CountryService) GetCountryAtPoint(lat, lon float64) CountryResult {
 	return result
 }
 
+// GetCountryName returns the full name of a country given its ISO code.
+func (s *CountryService) GetCountryName(code string) string {
+	for _, feature := range s.features.Features {
+		if getISOCode(feature.Properties) == code {
+			return getStringProp(feature.Properties, "NAME")
+		}
+	}
+	return ""
+}
+
 // lookupCountry performs the actual point-in-polygon and distance calculations.
 func (s *CountryService) lookupCountry(lat, lon float64) CountryResult {
 	point := orb.Point{lon, lat} // orb uses [lon, lat] order
