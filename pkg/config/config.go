@@ -13,22 +13,23 @@ import (
 
 // Config holds the application configuration.
 type Config struct {
-	Request  RequestConfig  `yaml:"request"`
-	TTS      TTSConfig      `yaml:"tts"`
-	Log      LogConfig      `yaml:"log"`
-	History  HistoryConfig  `yaml:"history"`
-	DB       DBConfig       `yaml:"db"`
-	Server   ServerConfig   `yaml:"server"`
-	Ticker   TickerConfig   `yaml:"ticker"`
-	Triggers TriggersConfig `yaml:"triggers"`
-	Wikidata WikidataConfig `yaml:"wikidata"`
-	Terrain  TerrainConfig  `yaml:"terrain"`
-	Scorer   ScorerConfig   `yaml:"scorer"`
-	LLM      LLMConfig      `yaml:"llm"`
-	Narrator NarratorConfig `yaml:"narrator"`
-	Sim      SimConfig      `yaml:"sim"`
-	Beacon   BeaconConfig   `yaml:"beacon"`
-	Overlay  OverlayConfig  `yaml:"overlay"`
+	Request     RequestConfig     `yaml:"request"`
+	TTS         TTSConfig         `yaml:"tts"`
+	Log         LogConfig         `yaml:"log"`
+	History     HistoryConfig     `yaml:"history"`
+	DB          DBConfig          `yaml:"db"`
+	Server      ServerConfig      `yaml:"server"`
+	Ticker      TickerConfig      `yaml:"ticker"`
+	Triggers    TriggersConfig    `yaml:"triggers"`
+	Wikidata    WikidataConfig    `yaml:"wikidata"`
+	Terrain     TerrainConfig     `yaml:"terrain"`
+	Scorer      ScorerConfig      `yaml:"scorer"`
+	LLM         LLMConfig         `yaml:"llm"`
+	Narrator    NarratorConfig    `yaml:"narrator"`
+	Sim         SimConfig         `yaml:"sim"`
+	Transponder TransponderConfig `yaml:"transponder"`
+	Beacon      BeaconConfig      `yaml:"beacon"`
+	Overlay     OverlayConfig     `yaml:"overlay"`
 }
 
 // OverlayConfig holds settings for the overlay UI.
@@ -176,6 +177,12 @@ type DebriefConfig struct {
 type ScreenshotConfig struct {
 	Enabled bool     `yaml:"enabled"`
 	Paths   []string `yaml:"paths"` // Multi-path support (e.g. MSFS, Steam, ReShade)
+}
+
+// TransponderConfig holds settings for transponder-based control.
+type TransponderConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	IdentAction string `yaml:"ident_action"`
 }
 
 // LogConfig holds logging settings.
@@ -408,6 +415,10 @@ func DefaultConfig() *Config {
 			MinSpawnAltitude:  Distance(304.8), // 1000ft
 			AltitudeFloor:     Distance(609.6), // 2000ft
 		},
+		Transponder: TransponderConfig{
+			Enabled:     true,
+			IdentAction: "pause_toggle",
+		},
 		Overlay: OverlayConfig{
 			MapBox:  true,
 			POIInfo: true,
@@ -499,6 +510,10 @@ func Save(path string, cfg *Config) error {
 	// Temperature Jitter Comment
 	reTemp := regexp.MustCompile(`(?m)^(\s+)temperature_jitter:`)
 	data = reTemp.ReplaceAll(data, []byte("${1}# Bell curve: most likely 1.0, range [0.7, 1.3]\n${1}temperature_jitter:"))
+
+	// IdentAction Options
+	reIdent := regexp.MustCompile(`(?m)^(\s+)ident_action:`)
+	data = reIdent.ReplaceAll(data, []byte("${1}# Options: pause_toggle, stop, skip\n${1}ident_action:"))
 
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)

@@ -79,6 +79,8 @@ func NewClient(cfg Config) *MockClient {
 			IsOnGround:         true,
 			PredictedLatitude:  cfg.StartLat, // Initialize to start position
 			PredictedLongitude: cfg.StartLon, // Initialize to start position
+			Squawk:             1200,
+			Ident:              false,
 		},
 		groundAlt:    cfg.StartAlt,
 		stateStart:   time.Now(),
@@ -133,6 +135,14 @@ func (m *MockClient) SetPredictionWindow(d time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.predictionWindow = d
+}
+
+// SetTransponder updates the transponder state in the mock.
+func (m *MockClient) SetTransponder(squawk int, ident bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.tel.Squawk = squawk
+	m.tel.Ident = ident
 }
 
 // Close stops the physics loop and releases resources.

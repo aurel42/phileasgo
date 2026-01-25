@@ -304,7 +304,9 @@ func (c *Client) setupDataDefinitions() error {
 		{"SIM ON GROUND", "Bool", DATATYPE_INT32},
 		{"GENERAL ENG COMBUSTION:1", "Bool", DATATYPE_INT32},
 		{"CAMERA STATE", "Enum", DATATYPE_INT32},
-		{"SIM DISABLED", "Bool", DATATYPE_INT32}, // 4th int32 for alignment
+		{"SIM DISABLED", "Bool", DATATYPE_INT32},
+		{"TRANSPONDER CODE:1", "Number", DATATYPE_INT32},
+		{"TRANSPONDER IDENT:1", "Bool", DATATYPE_INT32},
 		// Autopilot Master/FD/YD
 		{"AUTOPILOT MASTER", "Bool", DATATYPE_FLOAT64},
 		{"AUTOPILOT FLIGHT DIRECTOR ACTIVE", "Bool", DATATYPE_FLOAT64},
@@ -525,6 +527,8 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 				PredictedLongitude: predLon,
 				IsOnGround:         isOnGround,
 				APStatus:           formatAPStatus(data),
+				Squawk:             int(data.Squawk),
+				Ident:              data.Ident != 0,
 			}
 			c.telemetry.FlightStage = sim.DetermineFlightStage(&c.telemetry)
 		}

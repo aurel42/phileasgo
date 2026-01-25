@@ -50,6 +50,10 @@ type Telemetry struct {
 	IsOnGround  bool   // True if parked or taxiing
 	FlightStage string // Ground, Takeoff, Climb, Cruise, Approach, Landing
 	APStatus    string // G1000-style autopilot status (e.g. "HDG 270  AP  ALT 5000ft")
+
+	// Transponder
+	Squawk int  // TRANSPONDER CODE
+	Ident  bool // TRANSPONDER IDENT
 }
 
 // DetermineFlightStage calculates the flight phase based on telemetry.
