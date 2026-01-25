@@ -72,7 +72,7 @@ func setupScorer() *Scorer {
 			},
 		},
 	})
-	visCalc := visibility.NewCalculator(visMgr)
+	visCalc := visibility.NewCalculator(visMgr, nil)
 
 	return NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{})
 }

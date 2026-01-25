@@ -1,4 +1,10 @@
 ﻿# Release History
+ 
+## v0.3.24 (2026-01-25)
+- **Feature**: **Transponder-Based Control**: Control narration frequency, narrative length, and visibility range directly from the cockpit using squawk codes (7xxx).
+- **Feature**: **Transponder IDENT Action**: Link the aircraft's IDENT button to a configurable action, such as skipping the current narration (now the default).
+- **Control**: **Narrator Playback Controls**: Added high-level pause, resume, and skip functionality to the narrator service, enabling unified control from both the web UI and cockpit hardware.
+- **Logic**: **Squawk-to-Pause**: Setting the transponder frequency digit to 0 now automatically pauses all narration.
 
 ## v0.3.23 (2026-01-25)
 - **Fix**: **Resilient Country Context**: Resolved an issue where the UI and Overlay failed to display the current country in wilderness areas without local city metadata.

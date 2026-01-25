@@ -1,19 +1,40 @@
 package visibility
 
 import (
+	"context"
 	"fmt"
+	"phileasgo/pkg/store"
+	"strconv"
 )
 
 // Calculator handles visibility logic
 type Calculator struct {
 	manager *Manager
+	store   store.Store
 }
 
 // NewCalculator creates a new visibility calculator
-func NewCalculator(m *Manager) *Calculator {
+func NewCalculator(m *Manager, st store.Store) *Calculator {
 	return &Calculator{
 		manager: m,
+		store:   st,
 	}
+}
+
+// ResolveBoost reads the current visibility boost from the state store.
+func (c *Calculator) ResolveBoost() float64 {
+	if c.store == nil {
+		return 1.0
+	}
+	val, ok := c.store.GetState(context.Background(), "visibility_boost")
+	if !ok {
+		return 1.0
+	}
+	boost, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return 1.0
+	}
+	return boost
 }
 
 // GetMaxVisibleDistance returns the maximum visible distance for a given altitude and size.

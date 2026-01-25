@@ -138,12 +138,12 @@ func run(ctx context.Context, configPath string) error {
 		}
 	}
 
-	// Scheduler
-	sched := setupScheduler(appCfg, simClient, st, narratorSvc, promptMgr, wdValidator, svcs, telH, losChecker)
-	go sched.Start(ctx)
-
 	// Visibility
-	visCalc := initVisibility()
+	visCalc := initVisibility(st)
+
+	// Scheduler
+	sched := setupScheduler(appCfg, simClient, st, narratorSvc, promptMgr, wdValidator, svcs, telH, losChecker, visCalc)
+	go sched.Start(ctx)
 
 	// Scorer
 	// Use elProv, or if nil (missing file), use a nil interface (Scorer must handle or we wrap)
@@ -292,13 +292,13 @@ func verifyStartup(ctx context.Context, catCfg *config.CategoriesConfig, v *wiki
 	_ = v.VerifyStartupConfig(verifyCtx, catQIDs)
 }
 
-func initVisibility() *visibility.Calculator {
+func initVisibility(st store.Store) *visibility.Calculator {
 	visManager, err := visibility.NewManager("configs/visibility.yaml")
 	if err != nil {
 		slog.Warn("Failed to load visibility config, using defaults", "error", err)
-		return visibility.NewCalculator(nil)
+		return visibility.NewCalculator(nil, st)
 	}
-	return visibility.NewCalculator(visManager)
+	return visibility.NewCalculator(visManager, st)
 }
 
 func initLOS(cfg *config.Config) (*terrain.ElevationProvider, *terrain.LOSChecker) {
@@ -343,7 +343,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 	return runServerLifecycle(ctx, srv, quit)
 }
 
-func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc *narrator.AIService, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker) *core.Scheduler {
+func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc *narrator.AIService, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker, vis *visibility.Calculator) *core.Scheduler {
 	sched := core.NewScheduler(cfg, simClient, apiHandler, narratorSvc, svcs.WikiSvc.GeoService())
 	sched.AddJob(core.NewDistanceJob("DistanceSync", 5000, func(c context.Context, t sim.Telemetry) {
 		_ = st.MarkEntitiesSeen(c, map[string][]string{})
@@ -411,6 +411,12 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 	sched.AddResettable(dynamicJob)
 
 	sched.AddJob(core.NewEvictionJob(cfg, svcs.PoiMgr, svcs.WikiSvc))
+
+	// Transponder Control
+	if cfg.Transponder.Enabled {
+		sched.AddJob(core.NewTransponderWatcherJob(cfg, narratorSvc, st, vis))
+	}
+
 	return sched
 }
 

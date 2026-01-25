@@ -417,7 +417,7 @@ func DefaultConfig() *Config {
 		},
 		Transponder: TransponderConfig{
 			Enabled:     true,
-			IdentAction: "pause_toggle",
+			IdentAction: "skip",
 		},
 		Overlay: OverlayConfig{
 			MapBox:  true,

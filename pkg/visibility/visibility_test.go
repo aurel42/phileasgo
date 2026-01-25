@@ -18,7 +18,7 @@ func TestCalculator(t *testing.T) {
 		{AltAGL: 1000, Distances: map[SizeType]float64{SizeS: 1.0, SizeM: 5.0, SizeL: 10.0}},
 		{AltAGL: 5000, Distances: map[SizeType]float64{SizeS: 5.0, SizeM: 25.0, SizeL: 50.0}},
 	})
-	calculator := NewCalculator(manager)
+	calculator := NewCalculator(manager, nil)
 
 	tests := []struct {
 		name       string
@@ -206,7 +206,7 @@ func TestCalculateVisibilityForSize(t *testing.T) {
 		{AltAGL: 0, Distances: map[SizeType]float64{SizeS: 0, SizeM: 0, SizeL: 0, SizeXL: 0}},
 		{AltAGL: 1000, Distances: map[SizeType]float64{SizeS: 1.0, SizeM: 5.0, SizeL: 10.0, SizeXL: 20.0}},
 	})
-	calculator := NewCalculator(manager)
+	calculator := NewCalculator(manager, nil)
 
 	tests := []struct {
 		name      string
@@ -334,7 +334,7 @@ func TestVisibilityBoost(t *testing.T) {
 	manager := NewManagerForTest([]AltitudeRow{
 		{AltAGL: 1000, Distances: map[SizeType]float64{SizeS: 1.0, SizeM: 5.0, SizeL: 10.0}},
 	})
-	calculator := NewCalculator(manager)
+	calculator := NewCalculator(manager, nil)
 
 	// Case 1: No Boost (1.0). Object at 6nm should be invisible (Max 5nm)
 	// Score calculation: 5nm max. 6nm dist. Ratio > 1.0 -> 0 score.
