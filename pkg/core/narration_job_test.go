@@ -79,6 +79,10 @@ func (m *mockNarratorService) CurrentImagePath() string {
 func (m *mockNarratorService) IsPOIBusy(poiID string) bool {
 	return false
 }
+func (m *mockNarratorService) Pause()              {}
+func (m *mockNarratorService) Resume()             {}
+func (m *mockNarratorService) Skip()               {}
+func (m *mockNarratorService) TriggerIdentAction() {}
 
 type mockPOIManager struct {
 	best *model.POI

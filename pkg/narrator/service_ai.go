@@ -185,6 +185,46 @@ func (s *AIService) Stop() {
 	slog.Info("AI Narrator service stopped")
 }
 
+// Pause pauses the narration playback.
+func (s *AIService) Pause() {
+	s.audio.Pause()
+}
+
+// Resume resumes the narration playback.
+func (s *AIService) Resume() {
+	s.audio.Resume()
+}
+
+// Skip skips the current narration.
+func (s *AIService) Skip() {
+	slog.Info("Narrator: skipping current narration")
+	s.audio.Stop()
+}
+
+// TriggerIdentAction triggers the action configured for the transponder Ident button.
+func (s *AIService) TriggerIdentAction() {
+	s.mu.RLock()
+	action := s.cfg.Transponder.IdentAction
+	s.mu.RUnlock()
+
+	slog.Info("Transponder: IDENT triggered", "action", action)
+
+	switch action {
+	case "pause_toggle":
+		if s.audio.IsPaused() {
+			s.Resume()
+		} else {
+			s.Pause()
+		}
+	case "stop":
+		s.audio.Stop()
+	case "skip":
+		s.Skip()
+	default:
+		slog.Warn("Transponder: unknown ident action", "action", action)
+	}
+}
+
 // IsActive returns true if narrator is currently active (generating or playing).
 
 // POIManager returns the internal POI manager.

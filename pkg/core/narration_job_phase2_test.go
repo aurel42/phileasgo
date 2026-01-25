@@ -85,8 +85,10 @@ func (m *mockPhase2NarratorService) PrepareNextNarrative(ctx context.Context, po
 	return nil
 }
 func (m *mockPhase2NarratorService) CurrentPOI() *model.POI             { return nil } // Added missing method
-func (m *mockPhase2NarratorService) Pause(duration time.Duration)       {}
+func (m *mockPhase2NarratorService) Pause()                             {}
 func (m *mockPhase2NarratorService) Resume()                            {}
+func (m *mockPhase2NarratorService) Skip()                              {}
+func (m *mockPhase2NarratorService) TriggerIdentAction()                {}
 func (m *mockPhase2NarratorService) CurrentNarrative() *model.Narrative { return nil }
 func (m *mockPhase2NarratorService) CurrentImagePath() string           { return "" }
 func (m *mockPhase2NarratorService) IsPOIBusy(poiID string) bool        { return false }

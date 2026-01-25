@@ -77,6 +77,14 @@ type Service interface {
 	CurrentImagePath() string
 	// IsPOIBusy returns true if the POI is currently generating, queued, or playing.
 	IsPOIBusy(poiID string) bool
+	// Pause pauses the narration playback.
+	Pause()
+	// Resume resumes the narration playback.
+	Resume()
+	// Skip skips the current narration.
+	Skip()
+	// TriggerIdentAction triggers the action configured for the transponder Ident button.
+	TriggerIdentAction()
 }
 
 // StubService is a stub implementation of the narrator service.
@@ -317,4 +325,24 @@ func (s *StubService) CurrentImagePath() string {
 // IsPOIBusy returns true if the POI is currently generating, queued, or playing (stub: false).
 func (s *StubService) IsPOIBusy(poiID string) bool {
 	return false
+}
+
+// Pause pauses the stub service.
+func (s *StubService) Pause() {
+	slog.Info("Narrator stub: Pause requested")
+}
+
+// Resume resumes the stub service.
+func (s *StubService) Resume() {
+	slog.Info("Narrator stub: Resume requested")
+}
+
+// Skip skips the current narration in the stub service.
+func (s *StubService) Skip() {
+	slog.Info("Narrator stub: Skip requested")
+}
+
+// TriggerIdentAction triggers the ident action in the stub service.
+func (s *StubService) TriggerIdentAction() {
+	slog.Info("Narrator stub: Ident action triggered")
 }
