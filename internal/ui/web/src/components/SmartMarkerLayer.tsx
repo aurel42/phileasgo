@@ -79,18 +79,81 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
         zIndex = 20000 + baseLatZ; // Standard Unplayed
     }
 
-    const starBadge = isMSFS ? (
-        <div style={{
-            position: 'absolute',
-            top: '-6px',
-            right: '-6px',
-            color: '#fbbf24',
-            filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
-            zIndex: 10,
-            fontSize: '16px',
-            lineHeight: 1,
-        }}>★</div>
-    ) : null;
+    // Opacity Logic
+    let opacity = 1.0;
+    if (poi.is_visible === false) { // Explicit check as it might be undefined/true
+        opacity = 0.5;
+    } else if (poi.visibility !== undefined) {
+        // Map 0.0-1.0 to 0.5-1.0
+        const vis = Math.max(0, Math.min(1.0, poi.visibility));
+        opacity = 0.5 + (vis * 0.5);
+    }
+
+    const badges: string[] = [];
+    if (poi.badges) badges.push(...poi.badges);
+
+    let badgeElements = [];
+
+    if (badges.includes('msfs')) {
+        badgeElements.push(
+            <div key="msfs" style={{
+                position: 'absolute',
+                top: '-2px',
+                right: '-2px',
+                color: '#fbbf24',
+                filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
+                zIndex: 10,
+                fontSize: '16px',
+                lineHeight: 1,
+            }}>★</div>
+        );
+    }
+
+    if (badges.includes('fresh')) {
+        badgeElements.push(
+            <div key="fresh" style={{
+                position: 'absolute',
+                top: '-2px',
+                left: '-2px',
+                filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
+                zIndex: 10,
+                fontSize: '16px',
+                lineHeight: 1,
+            }}>✨</div>
+        );
+    }
+
+    if (badges.includes('deep_dive')) {
+        badgeElements.push(
+            <div key="deep_dive" style={{
+                position: 'absolute',
+                bottom: '-2px',
+                right: '-2px',
+                filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
+                zIndex: 10,
+                fontSize: '16px',
+                lineHeight: 1,
+            }}>📃</div>
+        );
+    }
+
+    if (badges.includes('deferred')) {
+        badgeElements.push(
+            <div key="deferred" style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                fontSize: '20px',
+                lineHeight: 1,
+                filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
+                zIndex: 11,
+            }}>🕒</div>
+        );
+    }
+
+    // Hide icon if deferred
+    const showIcon = !badges.includes('deferred');
 
     return (
         <div
@@ -110,6 +173,7 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
                 cursor: 'pointer',
                 pointerEvents: 'auto', // Re-enable clicks
                 transition: 'transform 0.1s linear, background-color 0.3s ease', // Smooth out frame jitters
+                opacity: opacity,
             }}
         >
             <div style={{
@@ -122,10 +186,11 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: '4px', // Standard leaflet box look? Or circle? Leaflet default is usually images. We use boxes in POIMarker.
+                borderRadius: '50%', // Circle
+                overflow: 'visible',
             }}>
-                <img src={iconPath} style={{ width: '24px', height: '24px' }} draggable={false} />
-                {starBadge}
+                {showIcon && <img src={iconPath} style={{ width: '24px', height: '24px' }} draggable={false} />}
+                {badgeElements}
             </div>
         </div>
     );
@@ -182,8 +247,9 @@ export const SmartMarkerLayer = ({ pois, selectedPOI, currentNarratedId, prepari
                 poi: p,
                 anchorX: projected.x,
                 anchorY: projected.y,
-                x: projected.x,
-                y: projected.y,
+                // Add tiny deterministic offset to break symmetry for exact overlaps
+                x: projected.x + (Math.sin(p.wikidata_id.length + p.lat) * 1),
+                y: projected.y + (Math.cos(p.wikidata_id.length + p.lon) * 1),
                 r: MARKER_RADIUS * scale, // Actual physics radius
                 scale: scale, // Pass scale to renderer to ensure exact match
                 priority: priority,
@@ -228,35 +294,7 @@ export const SmartMarkerLayer = ({ pois, selectedPOI, currentNarratedId, prepari
             zIndex: 600, // Leaflet marker pane is usually 600
             pointerEvents: 'none', // Allow map interaction
         }}>
-            <svg style={{
-                position: 'absolute',
-                left: 0, top: 0,
-                overflow: 'visible',
-                pointerEvents: 'none',
-                // Explicitly disable pointer events on the SVG container to let clicks pass through to map
-                // Individual elements (lines, circles) can remain non-interactive or receive specific styling
-            }}>
-                {nodes.filter(n => {
-                    const dx = n.x - n.anchorX;
-                    const dy = n.y - n.anchorY;
-                    return Math.sqrt(dx * dx + dy * dy) > 10;
-                }).map(n => (
-                    <line
-                        key={`line-${n.id}`}
-                        x1={n.anchorX} y1={n.anchorY}
-                        x2={n.x} y2={n.y}
-                        stroke="rgba(255, 255, 255, 0.6)"
-                        strokeWidth={1.5}
-                    />
-                ))}
-                {nodes.map(n => (
-                    <circle
-                        key={`dot-${n.id}`}
-                        cx={n.anchorX} cy={n.anchorY} r={2}
-                        fill="rgba(255, 255, 255, 0.4)"
-                    />
-                ))}
-            </svg>
+
 
             {nodes.map(node => (
                 <SmartMarker key={node.id} node={node} onClick={onPOISelect} />

@@ -24,4 +24,4 @@ X feature: notification when crossing state or country borders, entering interna
 - handle "area" POIs (like lakes, cities) better, also "length" POIs like rivers and roads
 X control the config using transponder codes and ident
 X build an frontend app that wraps the browser UI
-
+- marker badges for interesting states (e.g. deferred)

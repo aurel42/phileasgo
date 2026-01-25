@@ -11,10 +11,22 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// GUIConfig holds settings for the graphical user interface.
+type GUIConfig struct {
+	Window WindowConfig `yaml:"window"`
+}
+
+// WindowConfig holds initial window dimensions.
+type WindowConfig struct {
+	Width  int `yaml:"width"`
+	Height int `yaml:"height"`
+}
+
 // Config holds the application configuration.
 type Config struct {
 	Request     RequestConfig     `yaml:"request"`
 	TTS         TTSConfig         `yaml:"tts"`
+	GUI         GUIConfig         `yaml:"gui"`
 	Log         LogConfig         `yaml:"log"`
 	History     HistoryConfig     `yaml:"history"`
 	DB          DBConfig          `yaml:"db"`
@@ -244,9 +256,20 @@ type ScorerConfig struct {
 	NoveltyBoost        float64 `yaml:"novelty_boost"`
 	GroupPenalty        float64 `yaml:"group_penalty"`
 	// Deferral settings: wait for optimal viewing moment
-	DeferralEnabled    bool    `yaml:"deferral_enabled"`    // Enable deferral logic
-	DeferralThreshold  float64 `yaml:"deferral_threshold"`  // Defer if future dist < threshold * current (default 0.75 = 25% closer)
-	DeferralMultiplier float64 `yaml:"deferral_multiplier"` // Score multiplier when deferred (default 0.1)
+	DeferralEnabled    bool         `yaml:"deferral_enabled"`    // Enable deferral logic
+	DeferralThreshold  float64      `yaml:"deferral_threshold"`  // Defer if future dist < threshold * current (default 0.75 = 25% closer)
+	DeferralMultiplier float64      `yaml:"deferral_multiplier"` // Score multiplier when deferred (default 0.1)
+	Badges             BadgesConfig `yaml:"badges"`
+}
+
+// BadgesConfig holds settings for badge triggers.
+type BadgesConfig struct {
+	DeepDive DeepDiveBadgeConfig `yaml:"deep_dive"`
+}
+
+// DeepDiveBadgeConfig holds settings for the deep dive badge.
+type DeepDiveBadgeConfig struct {
+	ArticleLenMin int `yaml:"article_len_min"`
 }
 
 // LogSettings holds settings for a specific logger.
@@ -270,6 +293,12 @@ func DefaultConfig() *Config {
 			Backoff: BackoffConfig{
 				BaseDelay: Duration(1 * time.Second),
 				MaxDelay:  Duration(60 * time.Second),
+			},
+		},
+		GUI: GUIConfig{
+			Window: WindowConfig{
+				Width:  614,
+				Height: 1152,
 			},
 		},
 		TTS: TTSConfig{
@@ -338,6 +367,11 @@ func DefaultConfig() *Config {
 			DeferralEnabled:     true,
 			DeferralThreshold:   0.75, // Defer if future dist < 75% of current
 			DeferralMultiplier:  0.1,  // 10% score when deferred
+			Badges: BadgesConfig{
+				DeepDive: DeepDiveBadgeConfig{
+					ArticleLenMin: 20000,
+				},
+			},
 		},
 		LLM: LLMConfig{
 			Providers: map[string]ProviderConfig{

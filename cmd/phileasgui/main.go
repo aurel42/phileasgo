@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"phileasgo/pkg/config"
 	"runtime"
 	"syscall"
 	"unsafe"
@@ -57,6 +58,13 @@ func main() {
 		panic(err)
 	}
 
+	// Load Config
+	cfg, err := config.Load("configs/phileas.yaml")
+	if err != nil {
+		// Fallback if load fails (though in prod it should exist)
+		cfg = config.DefaultConfig()
+	}
+
 	w := webview.New(true)
 	defer w.Destroy()
 
@@ -68,7 +76,7 @@ func main() {
 	`)
 
 	w.SetTitle("PhileasGUI")
-	w.SetSize(614, 960, webview.HintNone)
+	w.SetSize(cfg.GUI.Window.Width, cfg.GUI.Window.Height, webview.HintNone)
 
 	// Set window icon from embedded resource
 	go func() {

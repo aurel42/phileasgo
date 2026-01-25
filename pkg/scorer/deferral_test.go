@@ -110,10 +110,12 @@ func TestDefaultSession_CheckDeferral(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mult, logs := sess.checkDeferral(tt.poiPos, tt.heading)
-			if math.Abs(mult-tt.expectMult) > 0.001 {
-				t.Errorf("expected multiplier %f, got %f (logs: %s)", tt.expectMult, mult, logs)
-			}
+			t.Run(tt.name, func(t *testing.T) {
+				mult, logs, _ := sess.checkDeferral(tt.poiPos, tt.heading)
+				if math.Abs(mult-tt.expectMult) > 0.001 {
+					t.Errorf("expected multiplier %f, got %f (logs: %s)", tt.expectMult, mult, logs)
+				}
+			})
 		})
 	}
 }

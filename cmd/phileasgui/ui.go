@@ -36,8 +36,8 @@ const htmlContent = `
         .tab:hover:not(.active) { background: #222; }
         .tab.disabled { pointer-events: none; opacity: 0.5; }
 
-        .content { flex: 1; position: relative; display: flex; }
-        .tab-content { display: none; width: 100%; height: 100%; }
+        .content { flex: 1; position: relative; overflow: hidden; min-height: 0; }
+        .tab-content { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
         .tab-content.active { display: block; }
 
         .terminal-container { 
@@ -50,6 +50,7 @@ const htmlContent = `
             white-space: pre-wrap; 
             word-wrap: break-word;
             height: 100%;
+            width: 100%;
             box-sizing: border-box;
         }
         
@@ -89,6 +90,7 @@ const htmlContent = `
         const output = document.getElementById('terminal-output');
         const tabTerm = document.getElementById('tab-term');
         let currentProcessName = "TERMINAL";
+        let isSticky = true; // Default to auto-scrolling
 
         function switchTab(id) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -96,7 +98,26 @@ const htmlContent = `
             
             document.getElementById('tab-' + id).classList.add('active');
             document.getElementById('content-' + id).classList.add('active');
+
+            // Restore scroll position if sticky
+            if (id === 'term' && isSticky) {
+                setTimeout(() => {
+                    output.scrollTop = output.scrollHeight;
+                }, 10);
+            }
         }
+
+        const MAX_LINES = 1000;
+
+        // Update sticky state on user scroll
+        output.addEventListener('scroll', () => {
+            // Ignore scroll events when hidden (clientHeight == 0) to avoid state corruption
+            if (output.clientHeight === 0) return;
+
+            // Check distance from bottom
+            const dist = output.scrollHeight - output.scrollTop - output.clientHeight;
+            isSticky = (dist < 20);
+        });
 
         function appendLog(text) {
             const line = document.createElement('div');
@@ -108,7 +129,16 @@ const htmlContent = `
             else line.innerText = text;
 
             output.appendChild(line);
-            output.scrollTop = output.scrollHeight;
+
+            // Enforce Scrollback Buffer Limit
+            while (output.childNodes.length > MAX_LINES) {
+                output.removeChild(output.firstChild);
+            }
+
+            // Scroll to bottom if we are in sticky mode
+            if (isSticky) {
+                output.scrollTop = output.scrollHeight;
+            }
         }
 
         // Exposed to Go

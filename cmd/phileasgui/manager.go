@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,8 +32,20 @@ func (m *Manager) log(msg string) {
 
 func (m *Manager) Stop() {
 	if m.serverCmd != nil && m.serverCmd.Process != nil {
-		m.log("> Stopping server...")
-		_ = m.serverCmd.Process.Kill()
+		// Try Graceful Shutdown via API
+		// Give the server a moment to save state and exit cleanly
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		req, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost:1920/api/shutdown", http.NoBody)
+		resp, err := http.DefaultClient.Do(req)
+
+		if err == nil {
+			fmt.Println("> Shutdown command sent successfully.")
+			resp.Body.Close()
+		} else {
+			fmt.Printf("> API shutdown failed: %v\n", err)
+		}
 	}
 }
 

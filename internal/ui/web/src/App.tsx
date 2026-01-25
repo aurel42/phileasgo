@@ -146,21 +146,31 @@ function App() {
     });
   }, []);
 
-  // Fetch config on mount
+  // Fetch config on mount and poll for updates (to handle multi-tab/GUI changes)
   useEffect(() => {
-    fetch('/api/config')
-      .then(r => r.json())
-      .then(data => {
-        setUnits(data.units || 'km');
-        setShowCacheLayer(data.show_cache_layer || false);
-        setShowVisibilityLayer(data.show_visibility_layer || false);
-        setMinPoiScore(data.min_poi_score ?? 0.5);
-        setFilterMode(data.filter_mode || 'fixed');
-        setTargetCount(data.target_poi_count ?? 20);
-        setNarrationFrequency(data.narration_frequency ?? 3);
-        setTextLength(data.text_length ?? 3);
-      })
-      .catch(e => console.error("Failed to fetch config", e));
+    const fetchConfig = () => {
+      fetch('/api/config')
+        .then(r => r.json())
+        .then(data => {
+          // Only update if changed to avoid unnecessary re-renders? 
+          // React state updates are cheap if value is same (bailout), but let's just set them.
+          setUnits(data.units || 'km');
+          setShowCacheLayer(data.show_cache_layer || false);
+          setShowVisibilityLayer(data.show_visibility_layer || false);
+          setMinPoiScore(data.min_poi_score ?? 0.5);
+          setFilterMode(data.filter_mode || 'fixed');
+          setTargetCount(data.target_poi_count ?? 20);
+
+          // These two can also be driven by narratorStatus, but config is the source of truth for settings
+          setNarrationFrequency(data.narration_frequency ?? 3);
+          setTextLength(data.text_length ?? 3);
+        })
+        .catch(e => console.error("Failed to fetch config", e));
+    };
+
+    fetchConfig(); // Initial fetch
+    const interval = setInterval(fetchConfig, 2000); // Poll every 2s
+    return () => clearInterval(interval);
   }, []);
 
   // Sync config from narrator status (Transponder updates)

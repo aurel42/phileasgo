@@ -111,6 +111,12 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 		predLon = state.Longitude
 	}
 
+	// Reset Ephemeral Badges
+	poi.Badges = make([]string, 0)
+	if poi.IsMSFSPOI {
+		poi.Badges = append(poi.Badges, "msfs")
+	}
+
 	poiPoint := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
 	predPoint := geo.Point{Lat: predLat, Lon: predLon}
 	distMeters := geo.Distance(predPoint, poiPoint)
@@ -140,17 +146,36 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 	score *= contentScore
 	logs = append(logs, contentLogs...)
 
+	// [BADGE] Deep Dive
+	limit := s.config.Badges.DeepDive.ArticleLenMin
+	if limit == 0 {
+		limit = 20000 // Safe default if config missing
+	}
+	if poi.WPArticleLength > limit {
+		poi.Badges = append(poi.Badges, "deep_dive")
+	}
+
 	// 3. Variety & Novelty
 	varietyScore, varietyLogs := s.calculateVarietyScore(poi, input.CategoryHistory)
 	score *= varietyScore
 	logs = append(logs, varietyLogs...)
 
+	// [BADGE] Fresh (Novelty)
+	// If variety score > 1.0, it means we got a boost (novelty), so mark it fresh.
+	// Note: We check varietyScore (which returns multiplier) directly.
+	if varietyScore > 1.0 {
+		poi.Badges = append(poi.Badges, "fresh")
+	}
+
 	// 4. Deferral Check: Will we be 25%+ closer in the future?
 	if len(sess.futurePositions) > 0 {
-		deferralPenalty, deferralMsg := sess.checkDeferral(poiPoint, state.Heading)
+		deferralPenalty, deferralMsg, isDeferred := sess.checkDeferral(poiPoint, state.Heading)
 		if deferralPenalty < 1.0 {
 			score *= deferralPenalty
 			logs = append(logs, deferralMsg)
+		}
+		if isDeferred {
+			poi.Badges = append(poi.Badges, "deferred")
 		}
 	}
 
@@ -159,11 +184,11 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 }
 
 // checkDeferral checks if we'll be significantly closer to the POI in the future.
-// Returns multiplier (1.0 if no deferral, 0.1 if deferred) and a concise log message.
-func (sess *DefaultSession) checkDeferral(poiPoint geo.Point, heading float64) (multiplier float64, msg string) {
+// Returns multiplier (1.0 if no deferral, 0.1 if deferred), a concise log message, and a boolean indicating state.
+func (sess *DefaultSession) checkDeferral(poiPoint geo.Point, heading float64) (multiplier float64, msg string, isDeferred bool) {
 	// Horizons: 0=1m, 1=3m, 2=5m, 3=10m, 4=15m
 	if len(sess.futurePositions) != 5 {
-		return 1.0, ""
+		return 1.0, "", false
 	}
 
 	// Helper to find min valid distance in a slice of indices
@@ -198,12 +223,12 @@ func (sess *DefaultSession) checkDeferral(poiPoint geo.Point, heading float64) (
 
 	// If all "Close" positions are behind or invalid, we can't compare.
 	if math.IsInf(bestClose, 1) {
-		return 1.0, ""
+		return 1.0, "", false
 	}
 
 	// If all "Far" positions are behind or invalid, we are moving away/past it.
 	if math.IsInf(bestFar, 1) {
-		return 1.0, ""
+		return 1.0, "", false
 	}
 
 	// Defer if bestFar is significantly closer than bestClose
@@ -217,10 +242,10 @@ func (sess *DefaultSession) checkDeferral(poiPoint geo.Point, heading float64) (
 		if multiplier <= 0 {
 			multiplier = 0.1
 		}
-		return multiplier, fmt.Sprintf("Defer: x%.1f (%.1fnm -> %.1fnm)", multiplier, bestClose, bestFar)
+		return multiplier, fmt.Sprintf("Defer: x%.1f (%.1fnm -> %.1fnm)", multiplier, bestClose, bestFar), true
 	}
 
-	return 1.0, ""
+	return 1.0, "", false
 }
 
 // LowestElevation returns the calculated lowest elevation (valley floor) in meters for this session.
@@ -266,6 +291,7 @@ func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, 
 	}
 
 	poi.IsVisible = true
+	poi.Visibility = visScore
 	logs = []string{visDetails}
 	if appliedBoost > 1.0 {
 		logs = append(logs, fmt.Sprintf("Visibility Boost: x%.1f", appliedBoost))

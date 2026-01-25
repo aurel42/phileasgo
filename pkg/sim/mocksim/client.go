@@ -245,18 +245,19 @@ func (m *MockClient) update() {
 		m.tel.AltitudeAGL = 0
 	}
 
-	// Calculate TrackTrue (Ground Track)
+	// Calculate TrackTrue (Ground Track) - Optional debug or smooth
 	currentPos := geo.Point{Lat: m.tel.Latitude, Lon: m.tel.Longitude}
-	trackTrue := m.tel.Heading // Default
 
+	// Update track buffer for internal consistency but DO NOT overwrite Heading
+	// because m.tel.Heading is the driver (Input) for the mock physics.
 	if isOnGround {
 		m.trackBuf.Reset()
 	} else {
-		trackTrue = m.trackBuf.Push(currentPos, m.tel.Heading)
+		m.trackBuf.Push(currentPos, m.tel.Heading)
 	}
 
 	m.tel.IsOnGround = isOnGround
-	m.tel.Heading = trackTrue
+	// m.tel.Heading is already updated by updateAirborne (wander logic)
 	m.tel.FlightStage = sim.DetermineFlightStage(&m.tel)
 }
 

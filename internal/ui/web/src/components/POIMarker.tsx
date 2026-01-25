@@ -47,16 +47,82 @@ export const POIMarker = React.memo(({ poi, highlighted, preparing, onClick }: P
         const borderColor = bgColor;
         const shadow = '0 2px 4px rgba(0, 0, 0, 0.5)';
 
-        const starBadge = poi.is_msfs_poi ? `<div style="
-            position: absolute;
-            top: -6px;
-            right: -6px;
-            color: #fbbf24;
-            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
-            z-index: 10;
-            font-size: 16px;
-            line-height: 1;
-        ">★</div>` : '';
+        // Opacity Logic
+        // Indirect (Invisible): 50%
+        // Visible: 50% -> 100% based on visibility score (0.0 -> 1.0)
+        let opacity = 1.0;
+        if (poi.is_visible === false) {
+            opacity = 0.5;
+        } else if (poi.visibility !== undefined) {
+            // Map 0.0-1.0 to 0.5-1.0
+            const vis = Math.max(0, Math.min(1.0, poi.visibility));
+            opacity = 0.5 + (vis * 0.5);
+        }
+
+        // Badge Rendering Logic
+        // Positions:
+        // - Top-Right: MSFS Star (★)
+        // - Center: Deferred Clock (🕒) - overlays icon
+        const badges: string[] = [];
+
+        // Add badges from API
+        if (poi.badges) {
+            badges.push(...poi.badges);
+        }
+
+        let badgeOverlay = '';
+
+        if (badges.includes('msfs')) {
+            badgeOverlay += `<div style="
+                position: absolute;
+                top: -4px;
+                right: -4px;
+                color: #fbbf24;
+                filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+                z-index: 10;
+                font-size: 16px;
+                line-height: 1;
+            ">★</div>`;
+        }
+
+        if (badges.includes('fresh')) {
+            badgeOverlay += `<div style="
+                position: absolute;
+                top: -4px;
+                left: -4px;
+                filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+                z-index: 10;
+                font-size: 16px;
+                line-height: 1;
+            ">💎</div>`;
+        }
+
+        if (badges.includes('deep_dive')) {
+            badgeOverlay += `<div style="
+                position: absolute;
+                bottom: -4px;
+                right: -4px;
+                filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+                z-index: 10;
+                font-size: 16px;
+                line-height: 1;
+            ">🌐</div>`;
+        }
+
+        if (badges.includes('deferred')) {
+            // Center overlay, hides the icon
+            badgeOverlay += `<div style="
+                position: absolute;
+                bottom: -4px;
+                left: -4px;
+                font-size: 16px;
+                line-height: 1;
+                filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+                z-index: 11;
+            ">🕒</div>`;
+        }
+
+        const iconHtml = `<img src="${iconPath}" style="width: 24px; height: 24px;" />`;
 
         return L.divIcon({
             className: `poi-marker-container ${highlighted ? 'highlighted' : ''} ${preparing ? 'preparing' : ''}`,
@@ -67,15 +133,19 @@ export const POIMarker = React.memo(({ poi, highlighted, preparing, onClick }: P
                 width: 32px; height: 32px; 
                 transform: scale(${scale}); 
                 box-shadow: ${shadow};
+                box-shadow: ${shadow};
                 transition: all 0.3s ease;
+                overflow: visible;
+                border-radius: 50%;
+                opacity: ${opacity};
             ">
-                <img src="${iconPath}" style="width: 24px; height: 24px;" />
-                ${starBadge}
+                ${iconHtml}
+                ${badgeOverlay}
             </div>`,
             iconSize: [32, 32],
             iconAnchor: [16, 16],
         });
-    }, [poi.icon, poi.score, poi.last_played, poi.is_msfs_poi, highlighted, preparing]);
+    }, [poi.icon, poi.score, poi.last_played, poi.is_msfs_poi, poi.badges, highlighted, preparing]);
 
     return (
         <Marker

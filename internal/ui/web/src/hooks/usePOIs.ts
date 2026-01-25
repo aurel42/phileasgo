@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 
 export interface POI {
     wikidata_id: string;
+    badges?: string[]; // "deferred", "msfs", etc.
     source: string;
     category: string;
     specific_category?: string;
@@ -14,6 +15,8 @@ export interface POI {
     wp_url: string;
     score: number;
     score_details: string;
+    is_visible?: boolean;
+    visibility?: number;
     last_played: string; // ISO timestamp
     thumbnail_url?: string;
     is_msfs_poi?: boolean;

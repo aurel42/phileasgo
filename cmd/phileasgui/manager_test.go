@@ -1,9 +1,15 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestCheckPrerequisites(t *testing.T) {
@@ -92,5 +98,77 @@ func TestCheckPrerequisites(t *testing.T) {
 				t.Errorf("checkPrerequisites() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestManager_Stop(t *testing.T) {
+	// 1. Setup Mock Server
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	shutdownReceived := false
+
+	// We can't easily listen on specific port 1920 in CI/Test likely,
+	// but Stop() hardcodes localhost:1920.
+	// So we must try to listen on 1920. If it fails, we might skip or fail.
+	server := &http.Server{Addr: "localhost:1920"}
+	handler := http.NewServeMux()
+	handler.HandleFunc("/api/shutdown", func(w http.ResponseWriter, r *http.Request) {
+		shutdownReceived = true
+		wg.Done()
+	})
+	server.Handler = handler
+
+	go func() {
+		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+			// If we can't bind 1920, we can't fully test this without making port configurable
+			t.Logf("Mock server failed to start: %v", err)
+			// Ensure we don't hang unique waitgroup
+			if !shutdownReceived {
+				// We can't easily recover flow here without changing the test logic
+			}
+		}
+	}()
+	defer server.Shutdown(context.Background())
+
+	// Give server a moment to start
+	time.Sleep(100 * time.Millisecond)
+
+	// 2. Setup Manager with dummy process
+	// We need a real process so Process field is not nil
+	cmd := exec.Command("cmd", "/c", "timeout 5")
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("Failed to start dummy cmd: %v", err)
+	}
+	defer func() {
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+	}()
+
+	mgr := &Manager{
+		serverCmd: cmd,
+		logFunc:   func(s string) { fmt.Println(s) },
+	}
+
+	// 3. Run Stop()
+	mgr.Stop()
+
+	// 4. Verification
+	// Wait for handler or timeout
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success
+		if !shutdownReceived {
+			t.Error("Stop() completed but shutdown handler wasn't supposedly triggered?")
+		}
+	case <-time.After(3 * time.Second):
+		t.Error("Timed out waiting for shutdown request")
 	}
 }

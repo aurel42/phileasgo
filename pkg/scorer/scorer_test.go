@@ -349,6 +349,11 @@ func TestScorer_Calculate(t *testing.T) {
 				t.Errorf("got visible %v, want %v", tt.poi.IsVisible, tt.wantVisible)
 			}
 
+			// Verify Visibility field is populated
+			if tt.wantVisible && tt.poi.Visibility <= 0 {
+				t.Errorf("got visibility score %.2f, expected > 0 for visible POI", tt.poi.Visibility)
+			}
+
 			if tt.wantScoreMin > 0 {
 				// Allow 10% margin because floating point and geo calc
 				margin := tt.wantScoreMin * 0.2
