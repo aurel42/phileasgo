@@ -14,14 +14,15 @@ import (
 )
 
 type Manager struct {
-	logFunc   func(string)
-	termFunc  func(string)
-	appFunc   func(string)
-	serverCmd *exec.Cmd
+	logFunc    func(string)
+	termFunc   func(string)
+	appFunc    func(string)
+	serverCmd  *exec.Cmd
+	serverAddr string
 }
 
-func NewManager(log, term, app func(string)) *Manager {
-	return &Manager{logFunc: log, termFunc: term, appFunc: app}
+func NewManager(log, term, app func(string), serverAddr string) *Manager {
+	return &Manager{logFunc: log, termFunc: term, appFunc: app, serverAddr: serverAddr}
 }
 
 func (m *Manager) log(msg string) {
@@ -32,17 +33,27 @@ func (m *Manager) log(msg string) {
 
 func (m *Manager) Stop() {
 	if m.serverCmd != nil && m.serverCmd.Process != nil {
+		fmt.Println("> PhileasGUI closing: Sending shutdown signal to server...")
+
+		// Use 127.0.0.1 to avoid resolution issues
+		addr := m.resolveAddr()
+		url := fmt.Sprintf("http://%s/api/shutdown", addr)
+
 		// Try Graceful Shutdown via API
-		// Give the server a moment to save state and exit cleanly
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
-		req, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost:1920/api/shutdown", http.NoBody)
-		resp, err := http.DefaultClient.Do(req)
+		client := &http.Client{
+			Timeout: 2 * time.Second,
+		}
+
+		req, _ := http.NewRequestWithContext(ctx, "POST", url, http.NoBody)
+		resp, err := client.Do(req)
 
 		if err == nil {
 			fmt.Println("> Shutdown command sent successfully.")
 			resp.Body.Close()
+			time.Sleep(500 * time.Millisecond)
 		} else {
 			fmt.Printf("> API shutdown failed: %v\n", err)
 		}
@@ -78,7 +89,7 @@ func (m *Manager) Start() {
 		for i := 0; i < 30; i++ {
 			if m.isServerReady() {
 				m.log("> Server ready!")
-				m.appFunc("http://localhost:1920")
+				m.appFunc(fmt.Sprintf("http://%s", m.serverAddr))
 				return
 			}
 			time.Sleep(1 * time.Second)
@@ -170,14 +181,30 @@ func (m *Manager) streamReader(r io.Reader) {
 	}
 }
 
+func (m *Manager) resolveAddr() string {
+	addr := m.serverAddr
+	if strings.HasPrefix(addr, ":") {
+		return "127.0.0.1" + addr
+	}
+	if strings.HasPrefix(addr, "localhost:") {
+		return strings.Replace(addr, "localhost:", "127.0.0.1:", 1)
+	}
+	return addr
+}
+
 func (m *Manager) isServerRunning() bool {
-	// Simple check: can we connect to port 1920?
-	_, err := http.Get("http://localhost:1920/api/version")
-	return err == nil
+	client := http.Client{Timeout: 1 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("http://%s/api/version", m.serverAddr))
+	if err == nil {
+		resp.Body.Close()
+		return true
+	}
+	return false
 }
 
 func (m *Manager) isServerReady() bool {
-	resp, err := http.Get("http://localhost:1920/api/version")
+	client := http.Client{Timeout: 1 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("http://%s/api/version", m.serverAddr))
 	if err != nil {
 		return false
 	}

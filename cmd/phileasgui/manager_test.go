@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -92,7 +93,7 @@ func TestCheckPrerequisites(t *testing.T) {
 				os.WriteFile(file, []byte(""), 0644)
 			}
 
-			m := &Manager{}
+			m := &Manager{serverAddr: "localhost:1920"}
 			got := m.checkPrerequisites()
 			if got != tt.want {
 				t.Errorf("checkPrerequisites() = %v, want %v", got, tt.want)
@@ -108,31 +109,25 @@ func TestManager_Stop(t *testing.T) {
 
 	shutdownReceived := false
 
-	// We can't easily listen on specific port 1920 in CI/Test likely,
-	// but Stop() hardcodes localhost:1920.
-	// So we must try to listen on 1920. If it fails, we might skip or fail.
-	server := &http.Server{Addr: "localhost:1920"}
 	handler := http.NewServeMux()
 	handler.HandleFunc("/api/shutdown", func(w http.ResponseWriter, r *http.Request) {
 		shutdownReceived = true
 		wg.Done()
 	})
-	server.Handler = handler
+	server := &http.Server{Handler: handler}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to listen: %v", err)
+	}
+	serverAddr := ln.Addr().String()
 
 	go func() {
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			// If we can't bind 1920, we can't fully test this without making port configurable
-			t.Logf("Mock server failed to start: %v", err)
-			// Ensure we don't hang unique waitgroup
-			if !shutdownReceived {
-				// We can't easily recover flow here without changing the test logic
-			}
+		if err := server.Serve(ln); err != http.ErrServerClosed {
+			t.Logf("Mock server failed to serve: %v", err)
 		}
 	}()
 	defer server.Shutdown(context.Background())
-
-	// Give server a moment to start
-	time.Sleep(100 * time.Millisecond)
 
 	// 2. Setup Manager with dummy process
 	// We need a real process so Process field is not nil
@@ -147,8 +142,9 @@ func TestManager_Stop(t *testing.T) {
 	}()
 
 	mgr := &Manager{
-		serverCmd: cmd,
-		logFunc:   func(s string) { fmt.Println(s) },
+		serverCmd:  cmd,
+		serverAddr: serverAddr,
+		logFunc:    func(s string) { fmt.Println(s) },
 	}
 
 	// 3. Run Stop()

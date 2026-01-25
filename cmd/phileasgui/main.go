@@ -109,8 +109,7 @@ func main() {
 		})
 	}
 
-	mgr := NewManager(logProxy, termProxy, appProxy)
-	defer mgr.Stop()
+	mgr := NewManager(logProxy, termProxy, appProxy, cfg.Server.Address)
 
 	_ = w.Bind("appReady", func() {
 		// Callback from JS if needed
@@ -138,6 +137,7 @@ func main() {
 	mgr.Start()
 
 	w.Run()
+	mgr.Stop()
 }
 
 func escapeJS(s string) string {

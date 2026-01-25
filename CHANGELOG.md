@@ -1,5 +1,15 @@
 ﻿# Release History
 
+## v0.3.31 (2026-01-25)
+- **Map**: **Autozoom Behavior Refined**: Added a launch grace period to prevent accidental deactivation and restricted manual overrides to zoom events only.
+- **Map**: **Locked Follow Mode**: Strictly disabled map panning and dragging while the aircraft is being followed to ensure a stable viewing experience.
+- **Fix**: **Graceful Shutdown**: Corrected a GUI-to-Server signaling issue that prevented the background process from terminating cleanly on exit.
+
+## v0.3.30 (2026-01-25)
+- **Feature**: **Dynamic Badge System**: Introduced visual markers on the map to identify "Fresh" (novel), "Deep Dive" (long-form content), and "Deferred" (pending) POIs.
+- **Map**: **Autozoom Control**: Copied autozoom feature from overlay to PhileasGUI; includes a compact map-level ON/OFF selector and automatic manual-override detection.
+- **Marker**: **Refined Layout**: Optimized badge positioning and collision avoidance for POI markers to ensure readability in dense areas.
+
 ## v0.3.29 (2026-01-25)
 - **UI**: **Restored Config Pill**: Brought back the simulation status indicator in the dashboard with a direct shortcut to Settings.
 - **Geography**: **Improved Boundary Detection**: Fixed a critical race condition in the geolocation service that caused small landmasses (like islands) to be occasionally missed during reordering.

@@ -59,9 +59,9 @@ const AircraftPaneSetup = () => {
     return null;
 };
 
-const MapEvents = ({ onClick }: { onClick: () => void }) => {
+const MapEvents = ({ onInteraction }: { onInteraction: () => void }) => {
     useMapEvents({
-        click: () => onClick(),
+        zoomstart: () => onInteraction(),
     });
     return null;
 };
@@ -197,10 +197,17 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
     // Default to Berlin if no telemetry yet
     const center: [number, number] = telemetry ? [telemetry.Latitude, telemetry.Longitude] : [52.52, 13.40];
 
-    const [autoZoom, setAutoZoom] = useState(false);
+    const [autoZoom, setAutoZoom] = useState(true);
     const [map, setMap] = useState<L.Map | null>(null);
 
     const lastAutoZoomMoveRef = useRef(0);
+    const isAutomatedMoveRef = useRef(false);
+    const lastInteractionAllowedRef = useRef(0);
+
+    useEffect(() => {
+        // Simple grace period on mount to ignore Leaflet init events
+        lastInteractionAllowedRef.current = Date.now() + 1500;
+    }, []);
 
     // Auto-Zoom Logic (Ported from OverlayMiniMap)
     useEffect(() => {
@@ -252,15 +259,26 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
         const centerPoint = L.point(aircraftPoint.x + dx, aircraftPoint.y + dy);
         const centerLatLng = map.unproject(centerPoint, targetZoom);
 
+        isAutomatedMoveRef.current = true;
         map.setView(centerLatLng, targetZoom, {
             animate: false
         });
+        // We need to keep it true for a bit because events might fire asynchronously or in the next tick
+        setTimeout(() => {
+            isAutomatedMoveRef.current = false;
+        }, 100);
 
     }, [map, isConnected, autoZoom, telemetry, displayPois, currentNarratedId, preparingId]);
 
     // Disable auto-zoom on manual interaction
     const handleMapInteraction = () => {
-        if (autoZoom) setAutoZoom(false);
+        if (isAutomatedMoveRef.current) return;
+        if (Date.now() < lastInteractionAllowedRef.current) return;
+
+        if (autoZoom) {
+            console.log("Map: Manual interaction detected, disabling autozoom");
+            setAutoZoom(false);
+        }
         onMapClick(); // Propagate click
     };
 
@@ -273,15 +291,14 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 maxZoom={isConnected ? MAX_ZOOM : 18}
                 style={{ height: '100%', width: '100%' }}
                 zoomControl={false}
-                dragging={!isConnected || !autoZoom} // Disable dragging if auto-zoom is on? Or just let drag kill auto-zoom? Better to let drag kill it.
-                // Actually, let's keep interactions enabled but hook into them to disable auto-zoom
+                dragging={false}
                 scrollWheelZoom={true}
-                doubleClickZoom={!isConnected}
-                touchZoom={!isConnected}
+                doubleClickZoom={false}
+                touchZoom={false}
                 ref={setMap}
             >
                 <MapStateController isConnected={isConnected} />
-                <MapEvents onClick={handleMapInteraction} />
+                <MapEvents onInteraction={handleMapInteraction} />
                 <AircraftPaneSetup />
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -319,19 +336,25 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 )}
             </MapContainer>
 
-            {/* Auto Zoom Toggle Control - Only when Connected */}
+            {/* Auto Zoom Selector Control - Only when Connected */}
             {isConnected && (
-                <div style={{ position: 'absolute', bottom: '24px', left: '24px', zIndex: 1000 }}>
-                    <div className="toggle-label">
-                        <span className="toggle-text">Autozoom</span>
-                        <label className="toggle-switch">
-                            <input
-                                type="checkbox"
-                                checked={autoZoom}
-                                onChange={() => setAutoZoom(!autoZoom)}
-                            />
-                            <span className="toggle-slider"></span>
-                        </label>
+                <div style={{ position: 'absolute', bottom: '16px', left: '16px', zIndex: 1000 }}>
+                    <div className="map-selector-container">
+                        <span className="map-selector-label">AUTOZOOM</span>
+                        <div className="map-selector">
+                            <button
+                                className={`map-selector-btn ${autoZoom ? 'active' : ''}`}
+                                onClick={() => setAutoZoom(true)}
+                            >
+                                ON
+                            </button>
+                            <button
+                                className={`map-selector-btn ${!autoZoom ? 'active' : ''}`}
+                                onClick={() => setAutoZoom(false)}
+                            >
+                                OFF
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

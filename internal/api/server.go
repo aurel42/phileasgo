@@ -72,6 +72,7 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 
 	// 3. Shutdown Endpoint
 	mux.HandleFunc("POST /api/shutdown", func(w http.ResponseWriter, r *http.Request) {
+		slog.Info("Graceful shutdown initiated via API")
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte("Shutting down...")); err != nil {
 			slog.Error("Failed to write shutdown response", "error", err)
