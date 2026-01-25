@@ -12,7 +12,20 @@ import (
 	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/store"
 )
+
+// MockStore implements store.Store with no-ops
+type MockStore struct {
+	store.Store
+}
+
+func (m *MockStore) GetState(ctx context.Context, key string) (string, bool) {
+	return "", false
+}
+
+// ... other methods as needed? No, NewNarratorHandler needs the interface.
+// Since we only call GetState, we can just embed Store and override GetState.
 
 // MockAudioService matches simple interface needed by NarratorHandler
 type MockAudioService struct {
@@ -66,7 +79,8 @@ func TestNarratorHandler_HandleStatus_Logging(t *testing.T) {
 
 	mockAudio := &MockAudioService{}
 	mockNarrator := &MockNarratorService{}
-	h := NewNarratorHandler(mockAudio, mockNarrator)
+	mockStore := &MockStore{}
+	h := NewNarratorHandler(mockAudio, mockNarrator, mockStore)
 
 	// Helper to make a request
 	makeReq := func() {

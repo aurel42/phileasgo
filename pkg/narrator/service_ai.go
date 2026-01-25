@@ -187,11 +187,13 @@ func (s *AIService) Stop() {
 
 // Pause pauses the narration playback.
 func (s *AIService) Pause() {
+	s.audio.SetUserPaused(true)
 	s.audio.Pause()
 }
 
 // Resume resumes the narration playback.
 func (s *AIService) Resume() {
+	s.audio.ResetUserPause()
 	s.audio.Resume()
 }
 

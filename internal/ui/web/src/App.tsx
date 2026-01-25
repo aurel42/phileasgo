@@ -164,6 +164,21 @@ function App() {
       .catch(e => console.error("Failed to fetch config", e));
   }, []);
 
+  // Sync config from narrator status (Transponder updates)
+  useEffect(() => {
+    if (narratorStatus?.narration_frequency !== undefined && navigator.onLine) {
+      if (narratorStatus.narration_frequency !== narrationFrequency) {
+        setNarrationFrequency(narratorStatus.narration_frequency);
+      }
+    }
+    if (narratorStatus?.text_length !== undefined && navigator.onLine) {
+      if (narratorStatus.text_length !== textLength) {
+        setTextLength(narratorStatus.text_length);
+      }
+    }
+  }, [narratorStatus?.narration_frequency, narratorStatus?.text_length, narrationFrequency, textLength]);
+
+
 
 
   // Handler to update visibility layer config

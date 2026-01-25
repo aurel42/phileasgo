@@ -85,19 +85,18 @@ func (j *TransponderWatcherJob) handleSquawkChange(squawk int) {
 		slog.Info("Transponder: Frequency 0 detected, pausing narration")
 		j.narrator.Pause()
 	} else if d1 >= 1 && d1 <= 5 {
-		j.cfg.Narrator.Frequency = d1
+		if j.st != nil {
+			_ = j.st.SetState(context.Background(), "narration_frequency", strconv.Itoa(d1))
+		}
 		// Auto-resume if frequency is moved from 0 to 1-5
 		j.narrator.Resume()
 	}
 
 	// Digit 2: Length (1-5)
-	// Note: We don't have a direct "Length" setting in Config yet, but we planned to map it.
-	// We'll update the plan/code to use this for word length scaling in Phase 3.
 	if d2 >= 1 && d2 <= 5 {
-		// Scaling logic:
-		// 1: Short, 3: Normal, 5: Long
-		j.cfg.Narrator.NarrationLengthShortWords = 25 + (d2 * 10) // 35 - 75
-		j.cfg.Narrator.NarrationLengthLongWords = 100 + (d2 * 50) // 150 - 350
+		if j.st != nil {
+			_ = j.st.SetState(context.Background(), "text_length", strconv.Itoa(d2))
+		}
 	}
 
 	// Digit 3: Visibility Boost (1-5)

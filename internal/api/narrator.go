@@ -12,6 +12,8 @@ import (
 	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/store"
+	"strconv"
 )
 
 // AudioController defines methods for controlling audio playback.
@@ -20,7 +22,7 @@ type AudioController interface {
 	IsBusy() bool
 	ResetUserPause()
 	Resume()
-	IsUserPaused() bool // Added
+	IsUserPaused() bool
 }
 
 // NarratorController defines methods for controlling and viewing narration state.
@@ -41,16 +43,18 @@ type NarratorController interface {
 type NarratorHandler struct {
 	audio    AudioController
 	narrator NarratorController
+	store    store.Store
 
 	statusMu           sync.Mutex
 	lastStatusResponse *NarratorStatusResponse
 }
 
 // NewNarratorHandler creates a new NarratorHandler.
-func NewNarratorHandler(audioMgr AudioController, narratorSvc NarratorController) *NarratorHandler {
+func NewNarratorHandler(audioMgr AudioController, narratorSvc NarratorController, st store.Store) *NarratorHandler {
 	return &NarratorHandler{
 		audio:    audioMgr,
 		narrator: narratorSvc,
+		store:    st,
 	}
 }
 
@@ -62,15 +66,17 @@ type PlayRequest struct {
 
 // NarratorStatusResponse represents the narrator status.
 type NarratorStatusResponse struct {
-	Active           bool           `json:"active"`
-	PlaybackStatus   string         `json:"playback_status"` // idle, preparing, playing, paused
-	CurrentPOI       *model.POI     `json:"current_poi,omitempty"`
-	PreparingPOI     *model.POI     `json:"preparing_poi,omitempty"`
-	CurrentTitle     string         `json:"current_title"`
-	CurrentType      string         `json:"current_type"`
-	CurrentImagePath string         `json:"current_image_path,omitempty"`
-	NarratedCount    int            `json:"narrated_count"`
-	Stats            map[string]any `json:"stats"`
+	Active             bool           `json:"active"`
+	PlaybackStatus     string         `json:"playback_status"` // idle, preparing, playing, paused
+	CurrentPOI         *model.POI     `json:"current_poi,omitempty"`
+	PreparingPOI       *model.POI     `json:"preparing_poi,omitempty"`
+	CurrentTitle       string         `json:"current_title"`
+	CurrentType        string         `json:"current_type"`
+	CurrentImagePath   string         `json:"current_image_path,omitempty"`
+	NarratedCount      int            `json:"narrated_count"`
+	Stats              map[string]any `json:"stats"`
+	NarrationFrequency int            `json:"narration_frequency"`
+	TextLength         int            `json:"text_length"`
 }
 
 // HandlePlay handles POST /api/narrator/play
@@ -110,8 +116,11 @@ func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
 func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	status := "idle"
 	isActive := h.narrator.IsActive()
+	isUserPaused := h.audio.IsUserPaused()
 
-	if isActive {
+	if isUserPaused {
+		status = "paused"
+	} else if isActive {
 		// If narrator is active, check audio state
 		switch {
 		case h.audio.IsPlaying():
@@ -128,16 +137,33 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Fetch current config from store to allow synchronization
+	ctx := r.Context()
+	freq := 3
+	if fStr, ok := h.store.GetState(ctx, "narration_frequency"); ok && fStr != "" {
+		if val, err := strconv.Atoi(fStr); err == nil {
+			freq = val
+		}
+	}
+	textLen := 3
+	if tStr, ok := h.store.GetState(ctx, "text_length"); ok && tStr != "" {
+		if val, err := strconv.Atoi(tStr); err == nil {
+			textLen = val
+		}
+	}
+
 	resp := NarratorStatusResponse{
-		Active:           isActive,
-		PlaybackStatus:   status,
-		CurrentPOI:       h.narrator.CurrentPOI(),
-		PreparingPOI:     h.narrator.GetPreparedPOI(),
-		CurrentTitle:     h.narrator.CurrentTitle(),
-		CurrentType:      string(h.narrator.CurrentType()),
-		CurrentImagePath: h.narrator.CurrentImagePath(),
-		NarratedCount:    h.narrator.NarratedCount(),
-		Stats:            h.narrator.Stats(),
+		Active:             isActive,
+		PlaybackStatus:     status,
+		CurrentPOI:         h.narrator.CurrentPOI(),
+		PreparingPOI:       h.narrator.GetPreparedPOI(),
+		CurrentTitle:       h.narrator.CurrentTitle(),
+		CurrentType:        string(h.narrator.CurrentType()),
+		CurrentImagePath:   h.narrator.CurrentImagePath(),
+		NarratedCount:      h.narrator.NarratedCount(),
+		Stats:              h.narrator.Stats(),
+		NarrationFrequency: freq,
+		TextLength:         textLen,
 	}
 
 	// Check if state changed

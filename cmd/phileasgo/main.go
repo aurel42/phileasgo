@@ -333,7 +333,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 		api.NewPOIHandler(svcs.PoiMgr, svcs.WikipediaClient, st, ns.LLMProvider(), promptMgr),
 		api.NewVisibilityHandler(vis, simClient, elevGetter, st, svcs.WikiSvc),
 		api.NewAudioHandler(ns.AudioService(), ns, st),
-		api.NewNarratorHandler(ns.AudioService(), ns),
+		api.NewNarratorHandler(ns.AudioService(), ns, st),
 		api.NewImageHandler(cfg),
 		geoH,
 		shutdownFunc,
