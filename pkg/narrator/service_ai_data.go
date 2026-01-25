@@ -249,6 +249,85 @@ type NarrationPromptData struct {
 	TripSummary          string
 	LastSentence         string
 	FlightStatusSentence string
+
+	// Generic fields for flexibility in common macros
+	Title  string
+	Script string
+	From   string
+	To     string
+
+	// Specific fields for summary updates
+	CurrentSummary string
+	LastTitle      string
+	LastScript     string
+
+	// Specific fields for other templates (Thumbnail, Wikidata, Essay, Screenshot)
+	Name             string
+	ArticleURL       string
+	Images           []ImageResult
+	CategoryList     string
+	TopicName        string
+	TopicDescription string
+	City             string
+	Alt              string
+}
+
+// ImageResult represents a candidate image for selection.
+type ImageResult struct {
+	Title string
+	URL   string
+}
+
+// getCommonPromptData returns a baseline NarrationPromptData with language, persona, and trip context.
+func (s *AIService) getCommonPromptData() NarrationPromptData {
+	s.mu.RLock()
+	tripSummary := s.tripSummary
+	lastSentence := s.lastScriptEnd
+	s.mu.RUnlock()
+
+	// Language Logic (User's Target Language)
+	targetLang := s.cfg.Narrator.TargetLanguage
+	langCode := "en"
+	langName := "English"
+	langLocale := targetLang
+
+	parts := strings.Split(targetLang, "-")
+	if len(parts) == 2 {
+		targetCC := parts[1]
+		if s.langRes != nil {
+			info := s.langRes.GetLanguageInfo(targetCC)
+			langCode = info.Code
+			langName = info.Name
+		} else {
+			langCode = parts[0]
+		}
+	} else if len(parts) > 0 {
+		langCode = parts[0]
+	}
+
+	pd := NarrationPromptData{
+		TourGuideName:        "Ava",
+		Persona:              "Intelligent, fascinating",
+		Accent:               "Neutral",
+		Language:             targetLang,
+		Language_code:        langCode,
+		Language_name:        langName,
+		Language_region_code: langLocale,
+		FemalePersona:        "Intelligent, fascinating",
+		FemaleAccent:         "Neutral",
+		PassengerMale:        "Andrew",
+		MalePersona:          "Curious traveler",
+		MaleAccent:           "Neutral",
+		TripSummary:          tripSummary,
+		LastSentence:         lastSentence,
+		TargetLanguage:       targetLang,
+		MaxWords:             s.cfg.Narrator.NarrationLengthLongWords,
+	}
+
+	// Fetch TTS instructions with this context
+	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
+
+	return pd
 }
 
 func (s *AIService) sampleNarrationLength(p *model.POI, strategy string) (words int, strategyUsed string) {

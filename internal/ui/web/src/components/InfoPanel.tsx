@@ -291,16 +291,20 @@ export const InfoPanel = ({
                     )}
 
 
-                    {location?.city && (
+                    {(location?.city || location?.country) && (
                         <>
                             <div className="value" style={{ fontSize: '16px', color: '#fff', fontFamily: 'Inter, sans-serif', fontWeight: 600, marginTop: '4px' }}>
-                                {location.city === 'Unknown' ? (
-                                    <span>Far from civilization</span>
+                                {location.city ? (
+                                    location.city === 'Unknown' ? (
+                                        <span>Far from civilization</span>
+                                    ) : (
+                                        <>
+                                            <span style={{ color: '#ddd', fontWeight: 400, marginRight: '6px', fontSize: '14px' }}>near</span>
+                                            {location.city}
+                                        </>
+                                    )
                                 ) : (
-                                    <>
-                                        <span style={{ color: '#ddd', fontWeight: 400, marginRight: '6px', fontSize: '14px' }}>near</span>
-                                        {location.city}
-                                    </>
+                                    <span>{location.country}</span>
                                 )}
                             </div>
                             <div style={{ color: '#eee', fontSize: '14px', marginTop: '2px', fontFamily: 'Inter, sans-serif' }}>
@@ -310,7 +314,7 @@ export const InfoPanel = ({
                                         <div style={{ color: '#4a9eff', fontWeight: 500, marginTop: '2px' }}>in {location.country}</div>
                                     </>
                                 ) : (
-                                    <>{location.region ? `${location.region}, ` : ''}{location.country}</>
+                                    <>{location.region ? `${location.region}, ` : ''}{location.city ? location.country : (location.region ? '' : '')}</>
                                 )}
                             </div>
                         </>

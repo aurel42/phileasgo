@@ -43,23 +43,9 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 	slog.Info("Narrator: Generating Landing Debrief...")
 
 	// 2. Build Prompt
-	data := struct {
-		TourGuideName string
-		Persona       string
-		Accent        string
-		TripSummary   string
-		MaxWords      int
-		Language_name string
-		Language_code string
-	}{
-		TourGuideName: "Ava", // TODO: Config
-		Persona:       "Intelligent, fascinating",
-		Accent:        "Neutral",
-		TripSummary:   summary,
-		MaxWords:      s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords),
-		Language_name: "English",
-		Language_code: "en-US",
-	}
+	data := s.getCommonPromptData()
+	data.MaxWords = s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords)
+	data.TripSummary = summary // Use the local copy we took with RLock
 
 	prompt, err := s.prompts.Render("narrator/debrief.tmpl", data)
 	if err != nil {

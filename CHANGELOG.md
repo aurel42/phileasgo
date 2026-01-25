@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.3.23 (2026-01-25)
+- **Fix**: **Resilient Country Context**: Resolved an issue where the UI and Overlay failed to display the current country in wilderness areas without local city metadata.
+- **Fix**: **Wilderness Transit Suppression**: Implemented a proximity-based filter for region transit announcements; border crossings between states/provinces are now suppressed in remote areas unless a known city is nearby.
+- **Narrator**: **Unified Prompt Metadata & Robustness**: Consolidated common prompt data (language, persona, TTS instructions) into a reusable pipeline, ensuring consistent narration context.
+- **Testing**: **Production Template Validation**: Added a comprehensive test suite that automatically validates the renderability and macro-safety of all 21 production prompt templates.
+
 ## v0.3.22 (2026-01-24)
 - **Feat**: Platform-aware release filenames (e.g. `windows-x64`) for better distribution.
 - **Refine**: Improved maritime border logic to ignore EEZ and territorial waters, only announcing international water crossings.

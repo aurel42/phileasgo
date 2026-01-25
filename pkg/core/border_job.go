@@ -76,14 +76,18 @@ func (j *BorderJob) Run(ctx context.Context, t *sim.Telemetry) {
 	}
 
 	// Check for State/Region Change (Admin1)
-	// Trigger if the name actually changed. Note: we allow one to be empty to handle
-	// transitions between labeled states and unlabeled regions/waters.
 	if curr.Admin1Name != j.lastLocation.Admin1Name {
 		from := j.lastLocation.Admin1Name
 		to := curr.Admin1Name
 
-		// Map empty names to something readable for the narrator if needed,
-		// but typically the narrator context handles names.
+		// Suppress region transit if either side has no city nearby OR if names are blank.
+		// This avoids noise when moving between "Unknown" regions in wilderness.
+		if curr.CityName == "" || j.lastLocation.CityName == "" || to == "" || from == "" {
+			slog.Debug("BorderJob: Region change suppressed (wilderness/no city)", "from", from, "to", to)
+			j.lastLocation = curr
+			return
+		}
+
 		j.trigger(ctx, from, to, t)
 		j.lastLocation = curr
 		return

@@ -22,3 +22,5 @@ X API counters for all LLMs
 X support multiple screenshot paths (e.g. VR, pancake)
 X feature: notification when crossing state or country borders, entering international waters, etc (new narrative type "remark"?)
 - handle "area" POIs (like lakes, cities) better, also "length" POIs like rivers and roads
+- control the config using transponder codes and ident
+- build an frontend app that wraps the browser UI

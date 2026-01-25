@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -722,5 +723,90 @@ func TestAIService_ScriptValidation(t *testing.T) {
 	// Should have used original script because rescue failed
 	if !strings.Contains(narrative.Script, "word word") {
 		t.Error("Expected original long script to be preserved")
+	}
+}
+func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
+	// Locate project root relative to this test file
+	_, filename, _, _ := runtime.Caller(0)
+	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..")
+	promptsDir := filepath.Join(projectRoot, "configs", "prompts")
+
+	if _, err := os.Stat(promptsDir); os.IsNotExist(err) {
+		t.Skip("configs/prompts not found, skipping production template test")
+	}
+
+	pm, err := prompts.NewManager(promptsDir)
+	if err != nil {
+		t.Fatalf("Failed to load production templates from %s: %v", promptsDir, err)
+	}
+
+	// Create a service with the real prompt manager
+	cfg := config.DefaultConfig()
+	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{}, nil, &MockGeo{}, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil)
+
+	// Create a dummy but complete data set
+	data := svc.getCommonPromptData()
+	data.FlightStage = "Cruise"
+	data.NameNative = "Test POI"
+	data.POINameNative = "Test POI"
+	data.NameUser = "Test POI"
+	data.POINameUser = "Test POI"
+	data.Category = "City"
+	data.WikipediaText = "Test wiki content."
+	data.NavInstruction = "10km ahead"
+	data.Lat = 10.0
+	data.Lon = 20.0
+	data.AltitudeAGL = 5000
+	data.Heading = 180
+	data.GroundSpeed = 120
+	data.RecentPoisContext = "None"
+	data.RecentContext = "None"
+	data.UnitsInstruction = "Use metric units."
+	data.FlightStatusSentence = "Flying over the sea."
+	data.From = "France"
+	data.To = "Italy"
+	data.Title = "Sample Title"
+	data.Script = "Sample Script Content"
+	data.CurrentSummary = "Previous summary content"
+	data.LastTitle = "Last title"
+	data.LastScript = "Last script"
+
+	// New fields for all templates
+	data.Name = "Test POI Name"
+	data.ArticleURL = "https://en.wikipedia.org/wiki/Test"
+	data.Images = []ImageResult{{Title: "Img1", URL: "url1"}}
+	data.CategoryList = "Airport, Cathedral, Castle"
+	data.TopicName = "Local History"
+	data.TopicDescription = "A brief history of the local area."
+	data.City = "Sample City"
+	data.Alt = "5000"
+
+	// Walk prompts directory and test every .tmpl file (except common/)
+	err = filepath.Walk(promptsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+			return nil
+		}
+
+		rel, _ := filepath.Rel(promptsDir, path)
+		name := filepath.ToSlash(rel)
+
+		if strings.HasPrefix(name, "common/") {
+			return nil
+		}
+
+		t.Run(name, func(t *testing.T) {
+			_, err := pm.Render(name, data)
+			if err != nil {
+				t.Errorf("Failed to render %s: %v", name, err)
+			}
+		})
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("Walk failed: %v", err)
 	}
 }

@@ -135,18 +135,28 @@ func TestBorderJob_BootstrapWithoutCity(t *testing.T) {
 		t.Fatal("Initial location should be stored")
 	}
 
-	// 2. Move to different state STILL with no city
+	// 2. Move to different state STILL with no city -> SHOULD BE SUPPRESSED NOW
 	geo.loc = model.LocationInfo{CountryCode: "DE", Admin1Name: "Hesse", CityName: ""}
+	job.Run(context.Background(), &sim.Telemetry{})
+	if narrator.calls != 0 {
+		t.Errorf("Expected 0 calls when state changed without city. Got %d", narrator.calls)
+	}
+
+	// 3. Move to different state WITH a city -> Still suppressed because origin was wilderness
+	geo.loc = model.LocationInfo{CountryCode: "DE", Admin1Name: "Lower Saxony", CityName: "Hannover"}
+	job.Run(context.Background(), &sim.Telemetry{})
+	if narrator.calls != 0 {
+		t.Errorf("Expected 0 calls when entering from wilderness, even with city. Got %d", narrator.calls)
+	}
+
+	// 4. Move from city to city -> SHOULD TRIGGER
+	job.lastAnnouncementTime = time.Time{} // Clear cooldown
+	job.lastLocation = model.LocationInfo{CountryCode: "DE", Admin1Name: "Lower Saxony", CityName: "Hannover"}
+	geo.loc = model.LocationInfo{CountryCode: "DE", Admin1Name: "Hamburg", CityName: "Hamburg"}
 	job.Run(context.Background(), &sim.Telemetry{})
 
 	if narrator.calls != 1 {
-		t.Errorf("Expected 1 call when state changed, even without city. Got %d", narrator.calls)
-	}
-	if narrator.lastFrom != "Bavaria" {
-		t.Errorf("Expected from 'Bavaria', got '%s'", narrator.lastFrom)
-	}
-	if narrator.lastTo != "Hesse" {
-		t.Errorf("Expected to 'Hesse', got '%s'", narrator.lastTo)
+		t.Errorf("Expected 1 call when moving between cities, got %d", narrator.calls)
 	}
 }
 
@@ -170,14 +180,14 @@ func TestBorderJob_EmptyToNamedState(t *testing.T) {
 		t.Errorf("Expected to 'US', got '%s'", narrator.lastTo)
 	}
 
-	// 3. Cross into a named state in same country (if prior was unknown)
+	// 3. Cross into a named state in same country (if prior was unknown/no city) -> SHOULD BE SUPPRESSED
 	job.lastAnnouncementTime = time.Time{}
 	job.lastLocation = model.LocationInfo{CountryCode: "US", Admin1Name: "", CityName: ""}
-	geo.loc = model.LocationInfo{CountryCode: "US", Admin1Name: "New Jersey", CityName: ""}
+	geo.loc = model.LocationInfo{CountryCode: "US", Admin1Name: "New Jersey", CityName: "Trenton"}
 	job.Run(context.Background(), &sim.Telemetry{})
 
-	if narrator.calls != 2 {
-		t.Errorf("Expected 2nd call for state change from empty to 'New Jersey', got %d", narrator.calls)
+	if narrator.calls != 1 {
+		t.Errorf("Expected no 2nd call (suppressed due to wilderness origin), got %d", narrator.calls)
 	}
 }
 
