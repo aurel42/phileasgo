@@ -286,6 +286,9 @@ function App() {
             status={hasConnectionError ? 'error' : status}
             isRetrying={status === 'pending' && hasConnectionError}
             displayedCount={displayedCount}
+            filterMode={filterMode}
+            narrationFrequency={narrationFrequency}
+            textLength={textLength}
           />
         )}
       </div>

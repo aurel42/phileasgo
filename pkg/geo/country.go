@@ -165,24 +165,26 @@ func (s *CountryService) ReorderFeatures(lat, lon float64) {
 func (s *CountryService) GetCountryAtPoint(lat, lon float64) CountryResult {
 	key := fmt.Sprintf("%.2f,%.2f", lat, lon)
 
-	// Check cache
-	s.mu.Lock() // Using Lock because we update lastAccessed
+	// 1. Concurrent-safe cache check (RLock)
+	s.mu.RLock()
+	if s.cache != nil {
+		if entry, ok := s.cache[key]; ok {
+			entry.lastAccessed = time.Now()
+			result := entry.result
+			s.mu.RUnlock()
+			return result
+		}
+	}
+
+	// 2. Perform lookup while holding RLock to protect against concurrent ReorderFeatures
+	result := s.lookupCountry(lat, lon)
+	s.mu.RUnlock()
+
+	// 3. Update cache (Lock)
+	s.mu.Lock()
 	if s.cache == nil {
 		s.cache = make(map[string]*cacheEntry)
 	}
-	if entry, ok := s.cache[key]; ok {
-		entry.lastAccessed = time.Now()
-		result := entry.result
-		s.mu.Unlock()
-		return result
-	}
-	s.mu.Unlock()
-
-	// Cache miss - perform lookup
-	result := s.lookupCountry(lat, lon)
-
-	// Update cache
-	s.mu.Lock()
 	s.cache[key] = &cacheEntry{
 		result:       result,
 		lastAccessed: time.Now(),
@@ -200,6 +202,9 @@ func (s *CountryService) ResetCache() {
 
 // GetCountryName returns the full name of a country given its ISO code.
 func (s *CountryService) GetCountryName(code string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	for _, feature := range s.features.Features {
 		if getISOCode(feature.Properties) == code {
 			return getStringProp(feature.Properties, "NAME")

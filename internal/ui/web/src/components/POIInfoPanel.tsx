@@ -48,28 +48,6 @@ const formatTimeAgo = (dateStr: string) => {
 };
 
 export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: POIInfoPanelProps) => {
-    // If no POI, we are in a generic nomination mode (Debrief, Essay)
-    if (!poi) {
-        const displayTitle = currentTitle || (currentType === 'debrief' ? 'Flight Debrief' : 'Essay');
-        const displayCategory = currentType === 'debrief' ? 'Flight Summary' : 'Regional Essay';
-        return (
-            <div className="poi-info-panel generic-narration">
-                <div className="panel-header">
-                    <button className="close-btn" onClick={onClose}>×</button>
-                    <div className="category-label">{displayCategory}</div>
-                </div>
-                <div className="poi-details">
-                    <h1>{displayTitle}</h1>
-                    <p className="generic-description">
-                        {currentType === 'debrief'
-                            ? "Your flight has concluded. Listen to the automated pilot debrief."
-                            : "Enjoy this regional essay about your current surroundings."}
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const [strategy, setStrategy] = useState<'min_skew' | 'uniform' | 'max_skew'>('min_skew');
     const queryClient = useQueryClient();
@@ -80,7 +58,6 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
 
     useEffect(() => {
         if (!poi) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setThumbnailUrl(null);
             return;
         }
@@ -113,6 +90,28 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
 
         fetchThumbnail();
     }, [poi, thumbnailFromData, freshPoi?.narration_strategy]);
+
+    // If no POI, we are in a generic nomination mode (Debrief, Essay)
+    if (!poi) {
+        const displayTitle = currentTitle || (currentType === 'debrief' ? 'Flight Debrief' : 'Essay');
+        const displayCategory = currentType === 'debrief' ? 'Flight Summary' : 'Regional Essay';
+        return (
+            <div className="poi-info-panel generic-narration">
+                <div className="panel-header">
+                    <button className="close-btn" onClick={onClose}>×</button>
+                    <div className="category-label">{displayCategory}</div>
+                </div>
+                <div className="poi-details">
+                    <h1>{displayTitle}</h1>
+                    <p className="generic-description">
+                        {currentType === 'debrief'
+                            ? "Your flight has concluded. Listen to the automated pilot debrief."
+                            : "Enjoy this regional essay about your current surroundings."}
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     if (!poi) return null;
 

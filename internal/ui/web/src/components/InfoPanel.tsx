@@ -8,6 +8,9 @@ interface InfoPanelProps {
     status: 'pending' | 'error' | 'success';
     isRetrying?: boolean;
     displayedCount: number;
+    filterMode?: string;
+    narrationFrequency?: number;
+    textLength?: number;
 }
 
 interface Geography {
@@ -24,7 +27,8 @@ interface Geography {
 export const InfoPanel = ({
     telemetry, status, isRetrying,
     displayedCount,
-}: InfoPanelProps) => { // Removed isConfigOpen from destructuring
+    filterMode, narrationFrequency, textLength
+}: InfoPanelProps) => {
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -307,6 +311,29 @@ export const InfoPanel = ({
                             ⚠ Frontend: {frontendVersion} / Backend: {backendVersion || '...'}
                         </div>
                     )}
+
+                    {/* CONFIG PILL */}
+                    <a href="#/settings" className="config-pill" style={{ textDecoration: 'none', color: 'inherit' }}>
+                        <div className="config-pill-item">
+                            <span className="config-mode-icon">{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
+                        </div>
+                        <div className="config-pill-item">
+                            <span className="text-grey" style={{ fontSize: '9px', fontWeight: 700 }}>FRQ</span>
+                            <div className="pip-container">
+                                {[1, 2, 3, 4, 5].map(v => (
+                                    <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 3 ? 'high' : ''}`} />
+                                ))}
+                            </div>
+                        </div>
+                        <div className="config-pill-item">
+                            <span className="text-grey" style={{ fontSize: '9px', fontWeight: 700 }}>LEN</span>
+                            <div className="pip-container">
+                                {[1, 2, 3, 4, 5].map(v => (
+                                    <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''} ${(textLength || 0) >= v && v > 4 ? 'high' : ''}`} />
+                                ))}
+                            </div>
+                        </div>
+                    </a>
                 </div>
             </div>
         </div >

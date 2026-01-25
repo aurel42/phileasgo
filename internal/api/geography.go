@@ -51,7 +51,7 @@ func (h *GeographyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			country = loc.CountryCode // Fallback
 		}
 		region = loc.Admin1Name
-		if region == "" {
+		if region == "" && !isNumeric(loc.Admin1Code) {
 			region = loc.Admin1Code
 		}
 	case geo.ZoneTerritorial:
@@ -86,4 +86,15 @@ func (h *GeographyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Error("Failed to encode geography response", "error", err)
 	}
+}
+func isNumeric(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }

@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.3.29 (2026-01-25)
+- **UI**: **Restored Config Pill**: Brought back the simulation status indicator in the dashboard with a direct shortcut to Settings.
+- **Geography**: **Improved Boundary Detection**: Fixed a critical race condition in the geolocation service that caused small landmasses (like islands) to be occasionally missed during reordering.
+- **Geography**: **Cleaned Up Display**: Suppressed numeric placeholder codes in the region field for a cleaner dashboard in island territories.
+- **Improved**: **Code Hygiene**: Resolved React Hook violations and pre-existing linting errors in UI components.
+
 ## v0.3.28 (2026-01-25)
 - **Installation**: Migrated default border data to 1:50m and integrated the setup into the primary `install.ps1` workflow.
 - **Improved**: **Border Crossing Precision**: Detection error for river-based borders (like the Rhine) reduced by over 5km, enabling high-precision territory notifications.
