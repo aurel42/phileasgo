@@ -3,10 +3,12 @@ package scorer
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
+
 	"phileasgo/pkg/visibility"
 )
 
@@ -336,6 +338,23 @@ func TestScorer_Calculate(t *testing.T) {
 			wantVisible:   true,
 			wantScoreMin:  15.0,
 			wantLogSubstr: "MSFS POI: x4.0",
+		},
+		{
+			name: "Recently Played Skip",
+			poi: &model.POI{
+				Lat: 0.0, Lon: 0.0, Category: "Castle",
+				LastPlayed: time.Now().Add(-1 * time.Hour), // Played 1h ago
+			},
+			input: &ScoringInput{
+				Telemetry: sim.Telemetry{
+					Latitude: 0.0, Longitude: 0.04, AltitudeMSL: 1000, AltitudeAGL: 1000, Heading: 315,
+				},
+				NarratorConfig: &config.NarratorConfig{
+					RepeatTTL: config.Duration(24 * time.Hour), // 24h cooldown
+				},
+			},
+			wantVisible:  false, // Should remain false (skipped)
+			wantScoreMin: 0.0,
 		},
 	}
 

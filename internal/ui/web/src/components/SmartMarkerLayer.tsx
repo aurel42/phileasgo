@@ -119,7 +119,7 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
                 zIndex: 10,
                 fontSize: '16px',
                 lineHeight: 1,
-            }}>✨</div>
+            }}>💎</div>
         );
     }
 
@@ -133,7 +133,7 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
                 zIndex: 10,
                 fontSize: '16px',
                 lineHeight: 1,
-            }}>📃</div>
+            }}>🌐</div>
         );
     }
 

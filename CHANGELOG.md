@@ -1,10 +1,15 @@
 ﻿# Release History
+
+## v0.3.33 (2026-01-26)
+- **Scoring**: **Dynamic Filtering**: Added intelligent skip logic for recently played POIs to maintain a clean map interface.
+- **Markers**: **Fixed Badge Consistency**: Restored the Globe (🌐) and Blue Gem (💎) symbols and ensured quality indicators (Deep Dive) remain visible on recently played POIs.
+- **Markers**: **Refined Layout**: Corrected placement of status indicators and implemented smooth badge alternation for overlapping states (Urgent, Patient, Deferred).
+- **Cleanup**: **Technical Debt**: Removed legacy code and stale comments across UI and Scorer components.
  
 ## v0.3.32 (2026-01-25)
 - **Feature**: **Urgency-Based Narration Sequencing**: Implemented a dynamic prioritization system that balances POI raw score against visibility time ("Time-to-Obscurity"), ensuring fleeting landmarks are not missed.
 - **Narrator**: **Competitive Lookahead**: The selection engine now evaluates the top visible candidates and can intelligently swap to a slightly lower-scoring but much more urgent target.
 - **Markers**: **New Status Badges**: Added ⏩ (Urgent) and ⏪ (Patient) indicators to map markers to visualize the new sequencing logic.
-- **Improved**: **Code Hygiene**: Refactored complex scoring and selection functions to improve maintainability and strictly adhere to cyclomatic complexity standards.
 
 ## v0.3.31 (2026-01-25)
 - **Map**: **Autozoom Behavior Refined**: Added a launch grace period to prevent accidental deactivation and restricted manual overrides to zoom events only.

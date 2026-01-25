@@ -936,3 +936,37 @@ body {
     color: #000;
     box-shadow: 0 0 8px rgba(0, 217, 255, 0.3);
 }
+
+/* Badge Alternation Animations (Bottom-Left Slot) */
+@keyframes cycle-2-1 { 
+    0%, 45% { opacity: 1; z-index: 12; } 
+    50%, 95% { opacity: 0; z-index: 11; } 
+    100% { opacity: 1; z-index: 12; }
+}
+@keyframes cycle-2-2 { 
+    0%, 45% { opacity: 0; z-index: 11; } 
+    50%, 95% { opacity: 1; z-index: 12; } 
+    100% { opacity: 0; z-index: 11; }
+}
+
+@keyframes cycle-3-1 { 
+    0%, 28% { opacity: 1; z-index: 12; } 
+    33%, 95% { opacity: 0; z-index: 11; } 
+    100% { opacity: 1; z-index: 12; }
+}
+@keyframes cycle-3-2 { 
+    0%, 28% { opacity: 0; z-index: 11; } 
+    33%, 61% { opacity: 1; z-index: 12; } 
+    66%, 100% { opacity: 0; z-index: 11; }
+}
+@keyframes cycle-3-3 { 
+    0%, 61% { opacity: 0; z-index: 11; } 
+    66%, 95% { opacity: 1; z-index: 12; } 
+    100% { opacity: 0; z-index: 11; }
+}
+
+.badge-alt-2-1 { animation: cycle-2-1 4s infinite; }
+.badge-alt-2-2 { animation: cycle-2-2 4s infinite; }
+.badge-alt-3-1 { animation: cycle-3-1 6s infinite; }
+.badge-alt-3-2 { animation: cycle-3-2 6s infinite; }
+.badge-alt-3-3 { animation: cycle-3-3 6s infinite; }

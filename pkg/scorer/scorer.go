@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/geo"
@@ -117,6 +118,24 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 		poi.Badges = append(poi.Badges, "msfs")
 	}
 
+	// [BADGE] Deep Dive (Stateless, keep on blue markers)
+	limit := s.config.Badges.DeepDive.ArticleLenMin
+	if limit == 0 {
+		limit = 20000 // Safe default
+	}
+	if poi.WPArticleLength > limit {
+		poi.Badges = append(poi.Badges, "deep_dive")
+	}
+
+	// [NEW] Skip logic for recently played POIs (on cooldown)
+	if !poi.LastPlayed.IsZero() && input.NarratorConfig != nil {
+		if time.Since(poi.LastPlayed) < time.Duration(input.NarratorConfig.RepeatTTL) {
+			// Marker is on cooldown (Blue marker).
+			// We skip all "Narrator" badges and scoring logic to avoid confusing UI.
+			return
+		}
+	}
+
 	poiPoint := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
 	predPoint := geo.Point{Lat: predLat, Lon: predLon}
 	distMeters := geo.Distance(predPoint, poiPoint)
@@ -145,15 +164,6 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 	contentScore, contentLogs := s.calculateContentScore(poi)
 	score *= contentScore
 	logs = append(logs, contentLogs...)
-
-	// [BADGE] Deep Dive
-	limit := s.config.Badges.DeepDive.ArticleLenMin
-	if limit == 0 {
-		limit = 20000 // Safe default if config missing
-	}
-	if poi.WPArticleLength > limit {
-		poi.Badges = append(poi.Badges, "deep_dive")
-	}
 
 	// 3. Variety & Novelty
 	varietyScore, varietyLogs := s.calculateVarietyScore(poi, input.CategoryHistory)
@@ -312,9 +322,6 @@ func (sess *DefaultSession) calculateUrgencyMetrics(poi *model.POI, poiPoint geo
 func (sess *DefaultSession) LowestElevation() float64 {
 	return sess.lowestElev
 }
-
-// OLD Calculate - kept for compatibility if needed, but should be removed or deprecated.
-// For now, removing it to force update in Manager.
 
 func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, bearing, distNM, lowestElevMeters, boostFactor float64) (score float64, logs []string, shouldReturn bool) {
 	// 1. Determine Size
