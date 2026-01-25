@@ -1,6 +1,11 @@
 ﻿# Release History
 
-## v0.3.26 (2025-01-25)
+## v0.3.27 (2026-01-25)
+- **Fix**: **Explorer Application Icon**: Resolved a Windows caching issue where the new icon failed to appear in Explorer; the build system now forces resource regeneration.
+- **Improved**: **Makefile Hardening**: Added explicit dependencies for `.syso` resource files to ensure all future changes to application icons are automatically detected and built.
+- **Git**: **Hygiene**: Added `*.syso` to `.gitignore` to prevent compiled resource files from being accidentally committed.
+
+## v0.3.26 (2026-01-25)
 - **NEW: PhileasGUI** - A native Windows application that provides a complete desktop experience:
   - **Terminal Tab**: Displays startup logs and handles first-run prerequisites (auto-runs `install.ps1`).
   - **App Tab**: Hosts the interactive map and dashboard in a native window.

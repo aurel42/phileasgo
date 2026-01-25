@@ -13,8 +13,13 @@ build-app: pkg/geo/countries.geojson
 	powershell -ExecutionPolicy Bypass -File scripts/copy_simconnect.ps1
 	go build -o $(APP_NAME).exe $(CMD_PATH)
 
-build-gui:
+build-gui: cmd/phileasgui/rsrc_windows_amd64.syso
 	go build -ldflags="-H windowsgui" -o $(GUI_NAME).exe ./cmd/phileasgui
+
+cmd/phileasgui/rsrc_windows_amd64.syso: cmd/phileasgui/winres/winres.json $(wildcard data/appicons/*.png)
+	cd cmd/phileasgui && go-winres make --in winres/winres.json --out .
+	cd cmd/phileasgui && mv ._windows_amd64.syso rsrc_windows_amd64.syso
+	cd cmd/phileasgui && mv ._windows_386.syso rsrc_windows_386.syso
 
 pkg/geo/countries.geojson:
 	powershell -ExecutionPolicy Bypass -File cmd/slim_geojson/download.ps1
@@ -44,6 +49,7 @@ clean:
 	powershell -Command "if (Test-Path internal\\ui\\dist) { Remove-Item -Recurse -Force internal\\ui\\dist }"
 	powershell -Command "if (Test-Path $(APP_NAME).exe) { Remove-Item -Force $(APP_NAME).exe }"
 	powershell -Command "if (Test-Path $(GUI_NAME).exe) { Remove-Item -Force $(GUI_NAME).exe }"
+	powershell -Command "Get-ChildItem -Path cmd\\phileasgui -Filter *.syso | Remove-Item -Force"
 
 clean-db:
 	powershell -Command "if (Test-Path data\\phileas.db) { Remove-Item -Force data\\phileas.db }"
