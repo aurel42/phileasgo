@@ -40,10 +40,12 @@ PhileasGo supports multiple LLM providers. You only need **one** of the followin
 | Provider | Cost | Notes |
 |----------|------|-------|
 | **Groq** | Free tier available | Recommended for getting started. Obtaining an API key is painless—just sign up at [console.groq.com](https://console.groq.com) and create a key. The free tier is generous enough for casual use. |
-| **Gemini** | Pay-per-use (very cheap) | Google's Gemini models. Using `gemini-2.5-flash-lite` costs ~$0.20/day with heavy use. |
+| **Gemini** | Pay-per-use | Google's Gemini models. |
 | **OpenAI-compatible** | Varies | Any OpenAI Chat Completions API (Mistral, Ollama, local models, proxies). |
 
-If you have access to a paid tier from one provider, and a free tier from another provider, configure a fallback chain in phileas.yaml (e.g., `llm.fallback: ["groq", "gemini"]`). Should you hit the quotas for the free tier, PhileasGo will use the next provider in the chain. This is particularly useful for Groq, which has a generous free tier but can be rate-limited during peak hours.
+If you have access to a paid tier from one provider, and a free tier from another provider, configure a fallback chain in configs/phileas.yaml (e.g., `llm.fallback: ["groq", "gemini"]`). Should you hit the quotas for the free tier, PhileasGo will use the next provider in the chain. This is particularly useful for Groq, which has a generous free tier but can be rate-limited during peak hours. 
+
+Note that different models produce radically different results when it comes to the script prose, so the fallback mechanism will result in your tour guide demonstrating... erm... rhetorical range.
 
 ## Limitations
 
@@ -147,7 +149,20 @@ The web UI shows:
 - Nearby points of interest
 - Narration status and controls
 
-For streaming: point the browser to http://localhost:1920/overlay for a transparent overlay. The elements can be turned on/off in phileas.yaml.
+### Cockpit Control (Transponder)
+
+PhileasGo can be controlled directly from your aircraft's transponder, allowing you to stay in the cockpit while adjusting settings.
+
+- **Squawk-Based Settings**: Set your transponder to codes starting with `7` to change settings on the fly:
+    - **Format**: `7[Freq][Len][Boost]`
+    - **Digit 1 (Frequency)**: `0` (Pause), `1-5` (Narration frequency from Rarely to Constant).
+    - **Digit 2 (Narrative Length)**: `1-5` (Scale text length from Shortest to Longest).
+    - **Digit 3 (Visibility Boost)**: `1-5` (Scale visibility range from 1.0x to 2.0x).
+    - *Example*: Squawking `7231` sets normal frequency, normal length, and no boost. `7055` pauses narration but sets max length and boost for when you resume.
+- **IDENT Button**: Pressing the transponder's **IDENT** button triggers a configurable action. Use `IdentAction` in `configs/phileas.yaml` to set this to `skip` (default), `pause_toggle`, or `stop`.
+    - *Note*: The IDENT trigger works regardless of your squawk code, as long as the feature is enabled.
+
+For streaming: point the browser to http://localhost:1920/overlay for a transparent overlay. The elements can be turned on/off in `configs/phileas.yaml`.
 
 Note: on your first flight, the Wikidata QID hierarchy cache table is populated. This will result in a high number of Wikidata API calls and is nothing to worry about. As long as your database (data/phileas.db) is present, we will rarely ask for any piece of information more than once. If you want to make it easier on Phileas, don't start your first flight in the middle of a metropolitan area.
 

@@ -11,6 +11,7 @@ require (
 	github.com/paulmach/orb v0.12.0
 	github.com/stretchr/testify v1.11.1
 	github.com/uber/h3-go/v4 v4.4.0
+	github.com/webview/webview_go v0.0.0-20240831120633-6173450d4dd6
 	google.golang.org/api v0.258.0
 	google.golang.org/genai v1.40.0
 	gopkg.in/yaml.v3 v3.0.1

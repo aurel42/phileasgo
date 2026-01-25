@@ -1,6 +1,8 @@
 import { Map } from './components/Map';
+import { useLocation } from 'react-router-dom';
 import { InfoPanel } from './components/InfoPanel';
 import { POIInfoPanel } from './components/POIInfoPanel';
+import { SettingsPanel } from './components/SettingsPanel';
 import { PlaybackControls } from './components/PlaybackControls';
 import { useTelemetry } from './hooks/useTelemetry';
 import { useTrackedPOIs } from './hooks/usePOIs';
@@ -13,6 +15,8 @@ type Units = 'km' | 'nm';
 
 
 function App() {
+  const location = useLocation();
+
   // Streaming mode state (persisted to localStorage)
   const [streamingMode, setStreamingMode] = useState(() => {
     const saved = localStorage.getItem('streamingMode');
@@ -27,7 +31,6 @@ function App() {
   const [targetCount, setTargetCount] = useState(20);
   const [narrationFrequency, setNarrationFrequency] = useState(3);
   const [textLength, setTextLength] = useState(3);
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const pois = useTrackedPOIs();
   const { status: narratorStatus } = useNarrator();
 
@@ -66,10 +69,6 @@ function App() {
         return;
       }
 
-      // DO NOT auto-open if the configuration panel is open
-      if (isConfigOpen) {
-        return;
-      }
 
       // DO NOT auto-open if the user has manually selected a POI
       if (selectedPOI && !autoOpenedRef.current) {
@@ -219,6 +218,38 @@ function App() {
     }).catch(e => console.error("Failed to update target count", e));
   }, []);
 
+  // Simple Router Check
+  const isSettings = location.pathname === '/settings';
+
+  if (isSettings) {
+    return (
+      <SettingsPanel
+        telemetry={telemetry}
+        units={units}
+        onUnitsChange={(val) => updateConfig('units', val)}
+        showCacheLayer={showCacheLayer}
+        onCacheLayerChange={(val) => updateConfig('show_cache_layer', val)}
+        showVisibilityLayer={showVisibilityLayer}
+        onVisibilityLayerChange={handleVisibilityLayerChange}
+        minPoiScore={minPoiScore}
+        onMinPoiScoreChange={handleMinPoiScoreChange}
+        filterMode={filterMode}
+        onFilterModeChange={handleFilterModeChange}
+        targetPoiCount={targetCount}
+        onTargetPoiCountChange={handleTargetCountChange}
+        narrationFrequency={narrationFrequency}
+        onNarrationFrequencyChange={(val) => updateConfig('narration_frequency', val)}
+        textLength={textLength}
+        onTextLengthChange={(val) => updateConfig('text_length', val)}
+        streamingMode={streamingMode}
+        onStreamingModeChange={(val) => {
+          setStreamingMode(val);
+          localStorage.setItem('streamingMode', String(val));
+        }}
+      />
+    );
+  }
+
   return (
     <div className="app-container">
       <div className="map-container">
@@ -254,30 +285,7 @@ function App() {
             telemetry={telemetry}
             status={hasConnectionError ? 'error' : status}
             isRetrying={status === 'pending' && hasConnectionError}
-            units={units}
-            onUnitsChange={(val) => updateConfig('units', val)}
-            showCacheLayer={showCacheLayer}
-            onCacheLayerChange={(val) => updateConfig('show_cache_layer', val)}
-            showVisibilityLayer={showVisibilityLayer}
-            onVisibilityLayerChange={handleVisibilityLayerChange}
             displayedCount={displayedCount}
-            minPoiScore={minPoiScore}
-            onMinPoiScoreChange={handleMinPoiScoreChange}
-            filterMode={filterMode}
-            onFilterModeChange={handleFilterModeChange}
-            targetPoiCount={targetCount}
-            onTargetPoiCountChange={handleTargetCountChange}
-            narrationFrequency={narrationFrequency}
-            onNarrationFrequencyChange={(val) => updateConfig('narration_frequency', val)}
-            textLength={textLength}
-            onTextLengthChange={(val) => updateConfig('text_length', val)}
-            streamingMode={streamingMode}
-            onStreamingModeChange={(val) => {
-              setStreamingMode(val);
-              localStorage.setItem('streamingMode', String(val));
-            }}
-            isConfigOpen={isConfigOpen}
-            onConfigOpenChange={setIsConfigOpen}
           />
         )}
       </div>

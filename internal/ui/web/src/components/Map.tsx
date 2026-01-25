@@ -10,6 +10,8 @@ import { SmartMarkerLayer } from './SmartMarkerLayer';
 import type { POI } from '../hooks/usePOIs';
 import { useNarrator } from '../hooks/useNarrator';
 import { useMapEvents } from 'react-leaflet';
+import { MapBranding } from './MapBranding';
+import { CoverageLayer } from './CoverageLayer';
 
 
 
@@ -129,8 +131,6 @@ const RangeRings = ({ lat, lon, units }: { lat: number; lon: number; units: 'km'
     );
 };
 
-import { CoverageLayer } from './CoverageLayer';
-
 // Helper to control map interaction based on connection state
 const MapStateController = ({ isConnected }: { isConnected: boolean }) => {
     const map = useMap();
@@ -222,7 +222,9 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                noWrap={!isConnected}
             />
+            {showFallbackMap && <MapBranding />}
             {showFallbackMap && <CoverageLayer />}
             {showCacheLayer && isConnected && <CacheLayer />}
             <VisibilityLayer enabled={showVisibilityLayer} />

@@ -1,5 +1,16 @@
 ﻿# Release History
 
+## v0.3.26 (2025-01-25)
+- **NEW: PhileasGUI** - A native Windows application that provides a complete desktop experience:
+  - **Terminal Tab**: Displays startup logs and handles first-run prerequisites (auto-runs `install.ps1`).
+  - **App Tab**: Hosts the interactive map and dashboard in a native window.
+  - **Config Tab**: Dedicated settings page for all configuration options.
+  - **Single Instance Lock**: Prevents multiple copies from running simultaneously.
+  - **Clean Shutdown**: Automatically terminates the backend server when the window is closed.
+- **Settings UI**: Extracted configuration controls into a dedicated `/settings` page (Settings Panel).
+- **Simplified Dashboard**: Removed configuration clutter from the main InfoPanel.
+- **Release Pipeline**: Updated `Makefile` to build and include `phileasgui.exe` in binary releases.
+
 ## v0.3.25 (2026-01-25)
 - **Feature**: **Real-Time UI Synchronization**: The browser app now synchronizes configuration changes (frequency, length) in real-time when updated via cockpit transponder codes, without requiring a page reload.
 - **Fix**: **Cockpit Pause Visibility**: Setting the transponder frequency to 0 now correctly displays the "PAUSED" state in the web UI playback controls and triggers a global pause on auto-narration.

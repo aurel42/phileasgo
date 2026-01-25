@@ -7,27 +7,7 @@ interface InfoPanelProps {
     telemetry?: Telemetry;
     status: 'pending' | 'error' | 'success';
     isRetrying?: boolean;
-    units: 'km' | 'nm';
-    onUnitsChange: (units: 'km' | 'nm') => void;
-    showCacheLayer: boolean;
-    onCacheLayerChange: (show: boolean) => void;
-    showVisibilityLayer: boolean;
-    onVisibilityLayerChange: (show: boolean) => void;
     displayedCount: number;
-    minPoiScore: number;
-    onMinPoiScoreChange: (score: number) => void;
-    filterMode: string;
-    onFilterModeChange: (mode: string) => void;
-    targetPoiCount: number;
-    onTargetPoiCountChange: (count: number) => void;
-    narrationFrequency: number;
-    onNarrationFrequencyChange: (freq: number) => void;
-    textLength: number;
-    onTextLengthChange: (length: number) => void;
-    streamingMode: boolean;
-    onStreamingModeChange: (streaming: boolean) => void;
-    isConfigOpen: boolean;
-    onConfigOpenChange: (isOpen: boolean) => void;
 }
 
 interface Geography {
@@ -40,65 +20,13 @@ interface Geography {
     city_country_code?: string;
 }
 
-const ConfigPills = ({ mode, frequency, length, simState }: { mode: string, frequency: number, length: number, simState: string }) => {
-    const statusInfo = {
-        active: { icon: '🟢', color: '#4caf50' },
-        inactive: { icon: '🟠', color: '#ff9800' },
-        disconnected: { icon: '🔴', color: '#f44336' },
-    }[simState] || { icon: '⚪', color: '#888' };
-
-    return (
-        <div className="config-pill" style={{ background: 'transparent', border: 'none', padding: 0 }}>
-            <div className="config-pill-item" title={`Sim Status: ${simState}`}>
-                <span style={{ color: statusInfo.color, fontSize: '10px' }}>{statusInfo.icon}</span>
-            </div>
-            <div className="config-pill-item">
-                <span className="config-mode-icon">{mode === 'adaptive' ? '⚡' : '🎯'}</span>
-                <span style={{ color: '#888' }}>{mode === 'adaptive' ? 'ADAPTIVE' : 'FIXED'}</span>
-            </div>
-            <div className="config-pill-item">
-                <span style={{ color: '#666' }}>FRQ</span>
-                <div className="pip-container">
-                    {[1, 2, 3, 4, 5].map(v => (
-                        <div key={v} className={`pip ${v <= frequency ? 'active' : ''} ${v > 3 && v <= frequency ? 'high' : ''}`} />
-                    ))}
-                </div>
-            </div>
-            <div className="config-pill-item">
-                <span style={{ color: '#666' }}>LEN</span>
-                <div className="pip-container">
-                    {[1, 2, 3, 4, 5].map(v => (
-                        <div key={v} className={`pip ${v <= length ? 'active' : ''} ${v > 4 && v <= length ? 'high' : ''}`} />
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-};
 
 export const InfoPanel = ({
-    telemetry, status, isRetrying, units, onUnitsChange,
-    showCacheLayer, onCacheLayerChange,
-    showVisibilityLayer, onVisibilityLayerChange,
+    telemetry, status, isRetrying,
     displayedCount,
-    minPoiScore,
-    onMinPoiScoreChange,
-    filterMode,
-    onFilterModeChange,
-    targetPoiCount,
-    onTargetPoiCountChange,
-    narrationFrequency,
-    onNarrationFrequencyChange,
-    textLength,
-    onTextLengthChange,
-    streamingMode,
-    onStreamingModeChange,
-    isConfigOpen,
-    onConfigOpenChange
-}: InfoPanelProps) => {
+}: InfoPanelProps) => { // Removed isConfigOpen from destructuring
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
-    const [simSource, setSimSource] = useState<string>('mock');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [stats, setStats] = useState<any>(null);
     const [location, setLocation] = useState<Geography | null>(null);
@@ -150,23 +78,7 @@ export const InfoPanel = ({
         };
     }, []);
 
-    useEffect(() => {
-        fetch('/api/config')
-            .then(r => r.json())
-            .then(data => {
-                setSimSource(data.sim_source || 'mock');
-            })
-            .catch(e => console.error("Failed to fetch config", e));
-    }, []);
 
-    const handleSimSourceChange = (source: string) => {
-        setSimSource(source);
-        fetch('/api/config', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sim_source: source })
-        }).catch(e => console.error("Failed to update config", e));
-    };
 
 
     const frontendVersion = `v${packageJson.version}`;
@@ -384,257 +296,7 @@ export const InfoPanel = ({
 
 
             {/* CONFIGURATION */}
-            <div className="hud-card col-layout" style={{ gap: isConfigOpen ? '12px' : '0' }}>
-                <div
-                    className="label interactive"
-                    onClick={() => onConfigOpenChange(!isConfigOpen)}
-                    style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', width: '100%', userSelect: 'none' }}
-                >
-                    <span style={{ marginRight: 'auto' }}>CONFIGURATION</span>
-                    <span style={{ transform: isConfigOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
-                </div>
-
-                {isConfigOpen && (
-                    <div className="config-group">
-                        <div className="config-label">SIMULATION SOURCE</div>
-                        <div className="radio-group">
-                            <label className="radio-label">
-                                <input
-                                    type="radio"
-                                    name="sim-source"
-                                    checked={simSource === 'mock'}
-                                    onChange={() => handleSimSourceChange('mock')}
-                                /> Mock Sim
-                            </label>
-                            <label className="radio-label">
-                                <input
-                                    type="radio"
-                                    name="sim-source"
-                                    checked={simSource === 'simconnect'}
-                                    onChange={() => handleSimSourceChange('simconnect')}
-                                /> SimConnect
-                            </label>
-                        </div>
-                        <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
-                            Restart required after changing source
-                        </div>
-
-                        <div className="config-label" style={{ marginTop: '16px' }}>UNITS</div>
-                        <div className="radio-group">
-                            <label className="radio-label">
-                                <input
-                                    type="radio"
-                                    name="units"
-                                    checked={units === 'km'}
-                                    onChange={() => onUnitsChange('km')}
-                                /> Kilometers (km)
-                            </label>
-                            <label className="radio-label">
-                                <input
-                                    type="radio"
-                                    name="units"
-                                    checked={units === 'nm'}
-                                    onChange={() => onUnitsChange('nm')}
-                                /> Nautical Miles (nm)
-                            </label>
-                        </div>
-
-                        <div className="config-label" style={{ marginTop: '16px' }}>DEBUG LAYERS</div>
-                        <div className="radio-group">
-                            <label className="radio-label">
-                                <input
-                                    type="checkbox"
-                                    checked={showCacheLayer}
-                                    onChange={(e) => onCacheLayerChange(e.target.checked)}
-                                /> Show Cache Layer
-                            </label>
-                            <label className="radio-label">
-                                <input
-                                    type="checkbox"
-                                    checked={showVisibilityLayer}
-                                    onChange={(e) => onVisibilityLayerChange(e.target.checked)}
-                                /> Show Visibility Overlay
-                            </label>
-                        </div>
-
-                        <div className="config-label" style={{ marginTop: '16px' }}>POI FILTERING MODE</div>
-                        <div className="radio-group">
-                            <label className="radio-label">
-                                <input
-                                    type="radio"
-                                    name="filter-mode"
-                                    checked={filterMode === 'fixed'}
-                                    onChange={() => onFilterModeChange('fixed')}
-                                /> Fixed Score
-                            </label>
-                            <label className="radio-label">
-                                <input
-                                    type="radio"
-                                    name="filter-mode"
-                                    checked={filterMode === 'adaptive'}
-                                    onChange={() => onFilterModeChange('adaptive')}
-                                /> Adaptive (Target Count)
-                            </label>
-                        </div>
-
-                        {filterMode === 'fixed' ? (
-                            <>
-                                <div className="config-label" style={{ marginTop: '16px' }}>POI SCORE THRESHOLD</div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                                    <input
-                                        type="range"
-                                        min="-10"
-                                        max="10"
-                                        step="0.5"
-                                        value={minPoiScore}
-                                        onChange={(e) => onMinPoiScoreChange(parseFloat(e.target.value))}
-                                        style={{ flex: 1 }}
-                                    />
-                                    <span style={{ fontSize: '12px', minWidth: '24px', textAlign: 'right' }}>{minPoiScore.toFixed(1)}</span>
-                                </div>
-                                <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
-                                    Show POIs with score higher than this value
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <div className="config-label" style={{ marginTop: '16px' }}>TARGET POI COUNT</div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                                    <input
-                                        type="range"
-                                        min="1"
-                                        max="50"
-                                        step="1"
-                                        value={targetPoiCount}
-                                        onChange={(e) => onTargetPoiCountChange(parseInt(e.target.value))}
-                                        style={{ flex: 1 }}
-                                    />
-                                    <span style={{ fontSize: '12px', minWidth: '24px', textAlign: 'right' }}>{targetPoiCount}</span>
-                                </div>
-                                <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
-                                    Dynamic visibility threshold to show approximately {targetPoiCount} POIs
-                                </div>
-                            </>
-                        )}
-
-                        <div className="config-label" style={{ marginTop: '16px' }}>NARRATION FREQUENCY</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <input
-                                    type="range"
-                                    min="1"
-                                    max="5"
-                                    step="1"
-                                    value={narrationFrequency}
-                                    onChange={(e) => onNarrationFrequencyChange(parseInt(e.target.value))}
-                                    style={{ flex: 1 }}
-                                />
-                                <span style={{ fontSize: '12px', minWidth: '12px', textAlign: 'right', fontWeight: 'bold' }}>{narrationFrequency}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.7 }}>
-                                <span>Rarely</span>
-                                <span>Normal</span>
-                                <span>Active</span>
-                                <span>Busy</span>
-                                <span>Constant</span>
-                            </div>
-                        </div>
-
-                        <div className="config-label" style={{ marginTop: '16px' }}>TEXT LENGTH</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <input
-                                    type="range"
-                                    min="1"
-                                    max="5"
-                                    step="1"
-                                    value={textLength}
-                                    onChange={(e) => onTextLengthChange(parseInt(e.target.value))}
-                                    style={{ flex: 1 }}
-                                />
-                                <span style={{ fontSize: '12px', minWidth: '12px', textAlign: 'right', fontWeight: 'bold' }}>{textLength}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.7 }}>
-                                <span>Shortest</span>
-                                <span>Shorter</span>
-                                <span>Normal</span>
-                                <span>Longer</span>
-                                <span>Longest</span>
-                            </div>
-                        </div>
-
-                        <div className="config-label" style={{ marginTop: '16px' }}>STREAMING MODE</div>
-                        <div className="radio-group">
-                            <label className="radio-label">
-                                <input
-                                    type="checkbox"
-                                    checked={streamingMode}
-                                    onChange={(e) => onStreamingModeChange(e.target.checked)}
-                                /> Keep updating in background
-                            </label>
-                        </div>
-                        <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
-                            Enable for OBS/streaming to prevent UI pause when alt-tabbing
-                        </div>
-
-                        <div className="config-label" style={{ marginTop: '16px', color: '#ff4444' }}>DANGER ZONE</div>
-                        <button
-                            onClick={() => {
-                                if (confirm('Are you sure you want to RESET history for POIs within 100km? This cannot be undone.')) {
-                                    fetch('/api/pois/reset-last-played', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            lat: telemetry?.Latitude || 0,
-                                            lon: telemetry?.Longitude || 0
-                                        })
-                                    }).then(res => {
-                                        if (res.ok) alert('History reset successfully. Marker colors will update shortly.');
-                                        else alert('Failed to reset history.');
-                                    }).catch(e => console.error(e));
-                                }
-                            }}
-                            style={{
-                                marginTop: '4px',
-                                padding: '6px 12px',
-                                background: 'rgba(255, 152, 0, 0.1)',
-                                color: '#f57c00',
-                                border: '1px solid #f57c00',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '10px',
-                                fontWeight: 'bold',
-                                width: '100%',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseOver={(e) => { e.currentTarget.style.background = '#f57c00'; e.currentTarget.style.color = 'white'; }}
-                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 152, 0, 0.1)'; e.currentTarget.style.color = '#f57c00'; }}
-                        >
-                            RESET HISTORY (100km)
-                        </button>
-                        <button
-                            onClick={() => { if (confirm('Are you sure you want to SHUTDOWN the server?')) fetch('/api/shutdown', { method: 'POST' }) }}
-                            style={{
-                                marginTop: '8px',
-                                padding: '6px 12px',
-                                background: 'rgba(211, 47, 47, 0.1)',
-                                color: '#ff4444',
-                                border: '1px solid #d32f2f',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '10px',
-                                fontWeight: 'bold',
-                                width: '100%',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseOver={(e) => { e.currentTarget.style.background = '#d32f2f'; e.currentTarget.style.color = 'white'; }}
-                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(211, 47, 47, 0.1)'; e.currentTarget.style.color = '#ff4444'; }}
-                        >
-                            SHUTDOWN SERVER
-                        </button>
-                    </div>
-                )}
-            </div>
+            {/* Removed CONFIGURATION section - moved to SettingsPanel */}
 
             <div className="hud-footer">
                 <div className="hud-card footer" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -645,7 +307,6 @@ export const InfoPanel = ({
                             ⚠ Frontend: {frontendVersion} / Backend: {backendVersion || '...'}
                         </div>
                     )}
-                    <ConfigPills mode={filterMode} frequency={narrationFrequency} length={textLength} simState={simState} />
                 </div>
             </div>
         </div >

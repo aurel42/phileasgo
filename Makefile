@@ -1,16 +1,20 @@
 .PHONY: all build test clean vendor
 
 APP_NAME=phileasgo
+GUI_NAME=phileasgui
 CMD_PATH=./cmd/phileasgo
 WEB_PATH=./internal/ui/web
 
-all: build-web test build
+all: build-web test build build-gui
 
-build: build-web build-app
+build: build-web build-app build-gui
 
 build-app: pkg/geo/countries.geojson
 	powershell -ExecutionPolicy Bypass -File scripts/copy_simconnect.ps1
 	go build -o $(APP_NAME).exe $(CMD_PATH)
+
+build-gui:
+	go build -ldflags="-H windowsgui" -o $(GUI_NAME).exe ./cmd/phileasgui
 
 pkg/geo/countries.geojson:
 	powershell -ExecutionPolicy Bypass -File cmd/slim_geojson/download.ps1
@@ -39,6 +43,7 @@ clean-all: clean clean-db clean-logs
 clean:
 	powershell -Command "if (Test-Path internal\\ui\\dist) { Remove-Item -Recurse -Force internal\\ui\\dist }"
 	powershell -Command "if (Test-Path $(APP_NAME).exe) { Remove-Item -Force $(APP_NAME).exe }"
+	powershell -Command "if (Test-Path $(GUI_NAME).exe) { Remove-Item -Force $(GUI_NAME).exe }"
 
 clean-db:
 	powershell -Command "if (Test-Path data\\phileas.db) { Remove-Item -Force data\\phileas.db }"
@@ -53,5 +58,5 @@ PLATFORM=windows-x64
 release-binary: clean build
 	powershell -Command "if (Test-Path release) { Remove-Item -Recurse -Force release }"
 	powershell -Command "New-Item -ItemType Directory -Path release | Out-Null"
-	powershell -Command "Compress-Archive -Path $(APP_NAME).exe, README.md, HISTORY.md, .env.template, install.ps1, configs -DestinationPath release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip -Force"
+	powershell -Command "Compress-Archive -Path $(APP_NAME).exe, $(GUI_NAME).exe, README.md, HISTORY.md, .env.template, install.ps1, configs -DestinationPath release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip -Force"
 	@echo Release created: release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip
