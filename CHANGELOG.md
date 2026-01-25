@@ -1,8 +1,13 @@
 ﻿# Release History
+ 
+## v0.3.32 (2026-01-25)
+- **Feature**: **Urgency-Based Narration Sequencing**: Implemented a dynamic prioritization system that balances POI raw score against visibility time ("Time-to-Obscurity"), ensuring fleeting landmarks are not missed.
+- **Narrator**: **Competitive Lookahead**: The selection engine now evaluates the top visible candidates and can intelligently swap to a slightly lower-scoring but much more urgent target.
+- **Markers**: **New Status Badges**: Added ⏩ (Urgent) and ⏪ (Patient) indicators to map markers to visualize the new sequencing logic.
+- **Improved**: **Code Hygiene**: Refactored complex scoring and selection functions to improve maintainability and strictly adhere to cyclomatic complexity standards.
 
 ## v0.3.31 (2026-01-25)
 - **Map**: **Autozoom Behavior Refined**: Added a launch grace period to prevent accidental deactivation and restricted manual overrides to zoom events only.
-- **Map**: **Locked Follow Mode**: Strictly disabled map panning and dragging while the aircraft is being followed to ensure a stable viewing experience.
 - **Fix**: **Graceful Shutdown**: Corrected a GUI-to-Server signaling issue that prevented the background process from terminating cleanly on exit.
 
 ## v0.3.30 (2026-01-25)

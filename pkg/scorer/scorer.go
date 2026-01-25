@@ -169,7 +169,7 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 
 	// 4. Deferral Check: Will we be 25%+ closer in the future?
 	if len(sess.futurePositions) > 0 {
-		deferralPenalty, deferralMsg, isDeferred := sess.checkDeferral(poiPoint, state.Heading)
+		deferralPenalty, deferralMsg, isDeferred := sess.checkDeferral(poi, state.Heading)
 		if deferralPenalty < 1.0 {
 			score *= deferralPenalty
 			logs = append(logs, deferralMsg)
@@ -185,41 +185,14 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 
 // checkDeferral checks if we'll be significantly closer to the POI in the future.
 // Returns multiplier (1.0 if no deferral, 0.1 if deferred), a concise log message, and a boolean indicating state.
-func (sess *DefaultSession) checkDeferral(poiPoint geo.Point, heading float64) (multiplier float64, msg string, isDeferred bool) {
+func (sess *DefaultSession) checkDeferral(poi *model.POI, heading float64) (multiplier float64, msg string, isDeferred bool) {
+	poiPoint := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
 	// Horizons: 0=1m, 1=3m, 2=5m, 3=10m, 4=15m
 	if len(sess.futurePositions) != 5 {
 		return 1.0, "", false
 	}
 
-	// Helper to find min valid distance in a slice of indices
-	minDist := func(indices []int) float64 {
-		minD := math.Inf(1)
-		for _, idx := range indices {
-			if idx >= len(sess.futurePositions) {
-				continue
-			}
-			pos := sess.futurePositions[idx]
-			// Check if POI is behind aircraft at this position (outside ±90° cone)
-			bearingToPOI := geo.Bearing(pos, poiPoint)
-			angleDiff := geo.NormalizeAngle(bearingToPOI - heading)
-
-			if math.Abs(angleDiff) > 90 {
-				// Behind means the distance is effectively infinite for our purposes
-				continue
-			}
-			d := geo.Distance(pos, poiPoint) / 1852.0 // meters → NM
-			if d < minD {
-				minD = d
-			}
-		}
-		return minD
-	}
-
-	// Group 1: Close (1m, 3m) -> indices 0, 1
-	bestClose := minDist([]int{0, 1})
-
-	// Group 2: Far (5m, 10m, 15m) -> indices 2, 3, 4
-	bestFar := minDist([]int{2, 3, 4})
+	bestClose, bestFar := sess.getDeferralDistances(poiPoint, heading)
 
 	// If all "Close" positions are behind or invalid, we can't compare.
 	if math.IsInf(bestClose, 1) {
@@ -237,6 +210,13 @@ func (sess *DefaultSession) checkDeferral(poiPoint geo.Point, heading float64) (
 		threshold = 0.75 // Default: defer if 25%+ closer
 	}
 
+	// 1. Calculate Urgency Metrics (TTB, TTCPA)
+	sess.calculateUrgencyMetrics(poi, poiPoint, heading)
+
+	// 2. Apply Penalties/Boosts
+	urgencyMultiplier, urgencyMsg := sess.calculateUrgencyFactor(poi)
+
+	// 3. Absolute Deferral (Current Logic)
 	if bestFar < threshold*bestClose {
 		multiplier := sess.scorer.config.DeferralMultiplier
 		if multiplier <= 0 {
@@ -245,7 +225,87 @@ func (sess *DefaultSession) checkDeferral(poiPoint geo.Point, heading float64) (
 		return multiplier, fmt.Sprintf("Defer: x%.1f (%.1fnm -> %.1fnm)", multiplier, bestClose, bestFar), true
 	}
 
-	return 1.0, "", false
+	return urgencyMultiplier, urgencyMsg, false
+}
+
+// calculateUrgencyFactor applies urgency boosts and patience penalties.
+func (sess *DefaultSession) calculateUrgencyFactor(poi *model.POI) (multiplier float64, msg string) {
+	urgencyMultiplier := 1.0
+
+	// Urgency Boost: If disappearing in < 2 minutes
+	if poi.TimeToBehind > 0 && poi.TimeToBehind < 120 {
+		urgencyMultiplier *= 1.5
+		msg = "Urgency Boost: x1.5 (Disappearing soon)"
+		poi.Badges = append(poi.Badges, "urgent")
+	}
+
+	// Patience Penalty: If CPA is > 10 minutes away and not disappearing soon
+	if poi.TimeToCPA > 600 && (poi.TimeToBehind == -1 || poi.TimeToBehind > 900) {
+		urgencyMultiplier *= 0.5
+		msg = "Patience Penalty: x0.5 (Best view far away)"
+		poi.Badges = append(poi.Badges, "patient")
+	}
+
+	return urgencyMultiplier, msg
+}
+
+// getDeferralDistances calculates min distances for close (1-3m) and far (5-15m) buckets.
+func (sess *DefaultSession) getDeferralDistances(poiPoint geo.Point, heading float64) (bestClose, bestFar float64) {
+	// Group 1: Close (1m, 3m) -> indices 0, 1
+	bestClose = sess.minDistInRange(poiPoint, heading, []int{0, 1})
+	// Group 2: Far (5m, 10m, 15m) -> indices 2, 3, 4
+	bestFar = sess.minDistInRange(poiPoint, heading, []int{2, 3, 4})
+	return
+}
+
+// minDistInRange finds the minimum valid (forward-facing) distance in nautical miles.
+func (sess *DefaultSession) minDistInRange(poiPoint geo.Point, heading float64, indices []int) float64 {
+	minD := math.Inf(1)
+	for _, idx := range indices {
+		if idx >= len(sess.futurePositions) {
+			continue
+		}
+		pos := sess.futurePositions[idx]
+		bearingToPOI := geo.Bearing(pos, poiPoint)
+		if math.Abs(geo.NormalizeAngle(bearingToPOI-heading)) > 90 {
+			continue
+		}
+		d := geo.Distance(pos, poiPoint) / 1852.0
+		if d < minD {
+			minD = d
+		}
+	}
+	return minD
+}
+
+// calculateUrgencyMetrics calculates TimeToBehind (TTB) and TimeToCPA (TTCPA).
+func (sess *DefaultSession) calculateUrgencyMetrics(poi *model.POI, poiPoint geo.Point, heading float64) {
+	poi.TimeToBehind = -1
+	poi.TimeToCPA = -1
+
+	horizons := []float64{1, 3, 5, 10, 15}
+	minD := math.Inf(1)
+	bestIdx := -1
+
+	for i, pos := range sess.futurePositions {
+		bearingToPOI := geo.Bearing(pos, poiPoint)
+		if math.Abs(geo.NormalizeAngle(bearingToPOI-heading)) > 90 {
+			if poi.TimeToBehind == -1 {
+				poi.TimeToBehind = horizons[i] * 60
+			}
+			continue
+		}
+
+		d := geo.Distance(pos, poiPoint)
+		if d < minD {
+			minD = d
+			bestIdx = i
+		}
+	}
+
+	if bestIdx != -1 {
+		poi.TimeToCPA = horizons[bestIdx] * 60
+	}
 }
 
 // LowestElevation returns the calculated lowest elevation (valley floor) in meters for this session.

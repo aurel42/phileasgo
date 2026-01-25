@@ -479,7 +479,7 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 	aircraftPos := geo.Point{Lat: t.Latitude, Lon: t.Longitude}
 	aircraftAltFt := t.AltitudeMSL
 
-	checkedCount := 0
+	var visibleCandidates []*model.POI
 	for i, poi := range candidates {
 		// Also skip if not playable
 		if !j.isPlayable(poi) {
@@ -491,15 +491,44 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 			continue
 		}
 
-		checkedCount++
-
 		if j.checkPOIInLOS(poi, aircraftPos, aircraftAltFt, i) {
-			return poi
+			visibleCandidates = append(visibleCandidates, poi)
+			if len(visibleCandidates) >= 3 {
+				break
+			}
 		}
 	}
 
-	j.logBlockedStatus(candidates, checkedCount)
-	return nil // All blocked
+	if len(visibleCandidates) == 0 {
+		j.logBlockedStatus(candidates, 0) // Approximation
+		return nil
+	}
+
+	return j.selectBestCandidate(visibleCandidates)
+}
+
+// selectBestCandidate picks the most urgent among top candidates.
+func (j *NarrationJob) selectBestCandidate(visibleCandidates []*model.POI) *model.POI {
+	best := visibleCandidates[0]
+	topScore := best.Score
+
+	for i := 1; i < len(visibleCandidates); i++ {
+		cand := visibleCandidates[i]
+		// Tolerance threshold: 30% of top score
+		if cand.Score < topScore*0.7 {
+			continue
+		}
+
+		// If candidate is urgent (disappearing in < 5 mins) and more urgent than best
+		if cand.TimeToBehind > 0 && (best.TimeToBehind == -1 || cand.TimeToBehind < best.TimeToBehind) {
+			if cand.TimeToBehind < 300 { // Only swap if it's actually urgent
+				slog.Info("NarrationJob: Selection swap (Urgency)", "original", best.DisplayName(), "urgent", cand.DisplayName(), "tto", cand.TimeToBehind)
+				best = cand
+			}
+		}
+	}
+
+	return best
 }
 
 func (j *NarrationJob) getBestCandidateFallback(t *sim.Telemetry) *model.POI {

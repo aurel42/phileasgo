@@ -44,7 +44,9 @@ type POI struct {
 	// MSFS
 	IsMSFSPOI bool `json:"is_msfs_poi"`
 	// Narration
-	NarrationStrategy string `json:"narration_strategy"` // uniform, min_skew, max_skew
+	NarrationStrategy string  `json:"narration_strategy"` // uniform, min_skew, max_skew
+	TimeToBehind      float64 `json:"time_to_behind"`     // Seconds until it leaves forward view
+	TimeToCPA         float64 `json:"time_to_cpa"`        // Seconds until closest point of approach
 
 	// Session persistence (in-memory only)
 	Script string `json:"-"`
