@@ -6,11 +6,21 @@ Write-Host ""
 
 # Create directories (only if needed)
 $dirs = @("data", "logs", "configs")
-foreach ($dir in $dirs) {
-    if (-not (Test-Path $dir)) {
-        New-Item -ItemType Directory -Path $dir | Out-Null
-        Write-Host "Created directory: $dir" -ForegroundColor Green
     }
+}
+
+# Download & Slim Country GeoJSON (if missing)
+$slimFile = "pkg/geo/countries.geojson"
+if (-not (Test-Path $slimFile)) {
+    Write-Host "Country borders missing. Downloading and slimming Natural Earth 50m data..." -ForegroundColor Yellow
+    try {
+        & powershell ./cmd/slim_geojson/download.ps1
+        Write-Host "Country borders installed!" -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to install country borders: $_" -ForegroundColor Red
+    }
+} else {
+    Write-Host "Country borders already exist - skipping." -ForegroundColor Gray
 }
 
 # Download GeoNames cities1000 (only if not present)

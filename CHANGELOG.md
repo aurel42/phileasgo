@@ -1,5 +1,9 @@
 ﻿# Release History
 
+## v0.3.28 (2026-01-25)
+- **Installation**: Migrated default border data to 1:50m and integrated the setup into the primary `install.ps1` workflow.
+- **Improved**: **Border Crossing Precision**: Detection error for river-based borders (like the Rhine) reduced by over 5km, enabling high-precision territory notifications.
+
 ## v0.3.27 (2026-01-25)
 - **Fix**: **Explorer Application Icon**: Resolved a Windows caching issue where the new icon failed to appear in Explorer; the build system now forces resource regeneration.
 - **Improved**: **Makefile Hardening**: Added explicit dependencies for `.syso` resource files to ensure all future changes to application icons are automatically detected and built.

@@ -7,11 +7,11 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = $PSScriptRoot
 $RootDir = Join-Path $ScriptDir "..\..\" | Resolve-Path
 $DataDir = Join-Path $RootDir "data"
-$RawFile = Join-Path $DataDir "ne_110m_admin_0_countries.geojson"
+$RawFile = Join-Path $DataDir "ne_50m_admin_0_countries.geojson"
 $SlimFile = Join-Path $RootDir "pkg\geo\countries.geojson"
 
 # Pre-converted GeoJSON from Natural Earth's official GitHub repo
-$DownloadUrl = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson"
+$DownloadUrl = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson"
 
 # Check if slimmed file already exists
 if (Test-Path $SlimFile) {
@@ -28,7 +28,7 @@ if (-not (Test-Path $DataDir)) {
 
 # Step 1: Download raw GeoJSON (if not already present)
 if (-not (Test-Path $RawFile)) {
-    Write-Host "Downloading Natural Earth 110m Countries GeoJSON..."
+    Write-Host "Downloading Natural Earth 50m Countries GeoJSON..."
     Write-Host "URL: $DownloadUrl"
     
     try {

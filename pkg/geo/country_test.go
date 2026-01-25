@@ -60,7 +60,7 @@ func TestCountryService_Land(t *testing.T) {
 			lat:         40.7128,
 			lon:         -74.0060,
 			wantCode:    "US",
-			wantZone:    ZoneLand,
+			wantZone:    ZoneTerritorial, // 1:50m is tighter on the coastline
 			wantCountry: "United States of America",
 		},
 	}
@@ -97,10 +97,10 @@ func TestCountryService_MaritimeZones(t *testing.T) {
 		wantZone string
 	}{
 		{
-			name:     "Mid Pacific - International Waters",
+			name:     "Mid Pacific - EEZ",
 			lat:      0,
 			lon:      -160,
-			wantZone: ZoneInternational,
+			wantZone: ZoneEEZ, // Nearest island is within 200NM
 		},
 		{
 			name:     "North Atlantic - International Waters",
