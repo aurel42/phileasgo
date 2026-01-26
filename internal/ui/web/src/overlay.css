@@ -43,8 +43,10 @@ html.overlay-mode {
     width: 400px;
     height: 400px;
     border-radius: 8px;
+    border-radius: 8px;
     overflow: hidden;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    /* Victorian Frame */
+    border: 4px double rgba(212, 175, 55, 0.4);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     pointer-events: auto;
     background: rgba(10, 10, 15, 0.6) !important;
@@ -69,7 +71,8 @@ html.overlay-mode {
     background: var(--panel-bg);
     border-radius: 8px;
     padding: 16px;
-    border: 1px solid rgba(212, 175, 55, 0.3);
+    /* Victorian Frame */
+    border: 4px double rgba(212, 175, 55, 0.4);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(8px);
     pointer-events: auto;
@@ -150,7 +153,8 @@ html.overlay-mode {
     /* Gaps handled by stats-row */
 
     border-radius: 8px;
-    border: 1px solid rgba(212, 175, 55, 0.3);
+    /* Victorian Frame */
+    border: 4px double rgba(212, 175, 55, 0.4);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.7), inset 0 0 10px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(8px);
     pointer-events: auto;

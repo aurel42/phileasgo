@@ -135,6 +135,18 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
                 lineHeight: 1,
             }}>🌐</div>
         );
+    } else if (badges.includes('stub')) {
+        badgeElements.push(
+            <div key="stub" style={{
+                position: 'absolute',
+                bottom: '-6px',
+                right: '-6px',
+                filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
+                zIndex: 10,
+                fontSize: '16px',
+                lineHeight: 1,
+            }}>🧩</div>
+        );
     }
 
     const blBadges: { icon: string }[] = [];

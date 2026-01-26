@@ -249,7 +249,7 @@ export const InfoPanel = ({
             </div>
 
             {/* Statistics Flex Layout (Now only API stats) */}
-            <div className="flex-container">
+            <div className="stats-grid">
                 {stats?.providers && Object.entries(stats.providers)
                     .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
                     .map(([key, data]: [string, any]) => {

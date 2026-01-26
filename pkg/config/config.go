@@ -265,6 +265,12 @@ type ScorerConfig struct {
 // BadgesConfig holds settings for badge triggers.
 type BadgesConfig struct {
 	DeepDive DeepDiveBadgeConfig `yaml:"deep_dive"`
+	Stub     StubBadgeConfig     `yaml:"stub"`
+}
+
+// StubBadgeConfig holds settings for the stub badge.
+type StubBadgeConfig struct {
+	ArticleLenMax int `yaml:"article_len_max"`
 }
 
 // DeepDiveBadgeConfig holds settings for the deep dive badge.
@@ -370,6 +376,9 @@ func DefaultConfig() *Config {
 			Badges: BadgesConfig{
 				DeepDive: DeepDiveBadgeConfig{
 					ArticleLenMin: 20000,
+				},
+				Stub: StubBadgeConfig{
+					ArticleLenMax: 2000,
 				},
 			},
 		},

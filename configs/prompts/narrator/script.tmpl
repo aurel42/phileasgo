@@ -36,9 +36,7 @@ NO HALLUCINATIONS, no invented facts.
 
 **UNITS AND MEASUREMENTS**:
 {{.UnitsInstruction}}
-**NARRATION LENGTH**:
-- maximum length of ca. {{.MaxWords}} words.
-- Keep it very short if data is sparse or missing.
+{{template "length_instructions" .}}
 **Recent POIs** we have discussed (avoid repetition of topics): {{.RecentContext}}
 {{if .TripSummary}}
 **TRIP SUMMARY SO FAR** (for continuity and cross-referencing):

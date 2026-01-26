@@ -1,5 +1,17 @@
-﻿# Release History
-
+﻿
+## v0.3.38 (2026-01-26)
+- **Feature**: **Stub Article Detection & Handling**
+  - **Logic**: Automatically detects "Stub" Wikipedia articles (short content < 2000 chars) to prevent hallucinations or repetitive filler text.
+  - **Narrator**: Switches to a "Summary-Only" prompt for stubs, instructing the model to generate a concise 1-2 sentence overview without trying to fill a word count.
+  - **UI**: Added a "Puzzle Piece" badge (🧩) to map markers for identified stubs, distinct from "Deep Dive" articles.
+- **UI**: **Victorian Theme Polish**
+  - **Styling**: Implemented a "Victorian Frame" aesthetic across all popup cards, HUD elements, and overlay panels, featuring double-borders and inset gold glows.
+  - **Layout**: Converted the API Stats panel to a responsive CSS Grid layout to prevent text wrapping and align critical metrics.
+  - **Typos**: Fixed `border-radius` duplication in CSS.
+- **Refactor**: **Quality & Reliability**
+  - **Scorer**: Reduced cyclomatic complexity in `Calculate` by extracting badge logic into a dedicated connection-aware helper.
+  - **Tests**: Added specific test coverage for Stub logic in `scorer_test.go`.
+  - **Build**: Resolved TypeScript syntax errors in `SmartMarkerLayer.tsx` impeding the build process.
 ## v0.3.37 (2026-01-26)
 - **UI**: **Modernized Typography & Styling**
   - **Settings Panel**: Updated to use the new "Phileas" typography system, fully removing legacy CSS dependencies.

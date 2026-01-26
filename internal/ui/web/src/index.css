@@ -188,15 +188,43 @@ body {
   gap: 12px;
 }
 
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
 .hud-card {
   background: var(--card-bg);
   padding: 12px;
   border-radius: 4px;
-  border: 1px solid rgba(212, 175, 55, 0.15);
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+  /* Victorian: Double border "frame" effect */
+  border: 3px double rgba(212, 175, 55, 0.3);
+  /* Victorian: Deep inner shadow + subtle outer drop */
+  box-shadow:
+    inset 0 0 20px rgba(0, 0, 0, 0.5),
+    inset 0 0 5px rgba(212, 175, 55, 0.05),
+    0 4px 8px rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
   justify-content: center;
+  position: relative;
+}
+
+.hud-card::after {
+  /* Subtle corner flourish or texture overlay could go here, 
+     but keeping it simple with just the double border for now. */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  /* Top highlight */
+  border-radius: 2px;
 }
 
 .hud-card.full-width {
@@ -447,8 +475,12 @@ body {
 .leaflet-popup-tip {
   background-color: var(--panel-bg);
   color: var(--text-color);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.6),
+    inset 0 0 10px rgba(0, 0, 0, 0.5);
+  /* Inner depth */
+  border: 3px double rgba(212, 175, 55, 0.3);
+  /* Victorian Frame */
 }
 
 .leaflet-popup-content {
@@ -484,7 +516,11 @@ body {
   padding: 12px;
   background: var(--card-bg);
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 3px double rgba(212, 175, 55, 0.3);
+  /* Victorian Frame */
+  box-shadow:
+    inset 0 0 15px rgba(0, 0, 0, 0.5),
+    inset 0 0 5px rgba(212, 175, 55, 0.05);
   margin-bottom: 24px;
 }
 
@@ -581,7 +617,7 @@ body {
 
 /* Specific Stat Card Styling */
 .stat-card {
-  flex: 1 1 100px;
+  /* No special flex needed, controlled by grid now */
   justify-content: flex-start;
 }
 

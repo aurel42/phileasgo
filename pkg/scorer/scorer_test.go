@@ -90,6 +90,7 @@ func TestScorer_Calculate(t *testing.T) {
 		wantScoreMax  float64
 		wantVisible   bool
 		wantLogSubstr string
+		wantBadges    []string
 	}{
 		// --- 1. Airborne Visibility ---
 		{
@@ -356,6 +357,23 @@ func TestScorer_Calculate(t *testing.T) {
 			wantVisible:  false, // Should remain false (skipped)
 			wantScoreMin: 0.0,
 		},
+		// --- 7. Stub Detection ---
+		{
+			name: "Stub Badge",
+			poi: &model.POI{
+				Lat: 0.0, Lon: 0.0, Category: "Church",
+				WPArticleLength: 500, // < 2000 -> Stub
+			},
+			input: &ScoringInput{
+				Telemetry: sim.Telemetry{
+					Latitude: -0.04, Longitude: 0.0,
+					AltitudeMSL: 1000, AltitudeAGL: 1000, Heading: 0,
+				},
+			},
+			wantVisible:  true,
+			wantScoreMin: 0.6, // Normal score
+			wantBadges:   []string{"stub"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -390,6 +408,21 @@ func TestScorer_Calculate(t *testing.T) {
 			if tt.wantLogSubstr != "" {
 				if !strings.Contains(tt.poi.ScoreDetails, tt.wantLogSubstr) {
 					t.Errorf("log missing substring %q. Got:\n%s", tt.wantLogSubstr, tt.poi.ScoreDetails)
+				}
+			}
+
+			if len(tt.wantBadges) > 0 {
+				for _, wb := range tt.wantBadges {
+					found := false
+					for _, b := range tt.poi.Badges {
+						if b == wb {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("missing badge %q. Got: %v", wb, tt.poi.Badges)
+					}
 				}
 			}
 		})

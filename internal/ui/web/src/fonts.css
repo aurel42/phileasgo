@@ -28,6 +28,10 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin: 0;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    gap: 6px;
 }
 
 /* 3. Numerical Data: Monospaced */
@@ -81,8 +85,10 @@
 .role-label-overlay {
     font-family: var(--font-main);
     font-style: italic;
-    font-size: 15px; /* Tunable */
+    font-size: 15px;
+    /* Tunable */
     color: var(--muted);
     text-transform: none;
-    font-weight: 400; /* Override parent bold if necessary */
+    font-weight: 400;
+    /* Override parent bold if necessary */
 }

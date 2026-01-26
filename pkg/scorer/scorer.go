@@ -112,20 +112,7 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 		predLon = state.Longitude
 	}
 
-	// Reset Ephemeral Badges
-	poi.Badges = make([]string, 0)
-	if poi.IsMSFSPOI {
-		poi.Badges = append(poi.Badges, "msfs")
-	}
-
-	// [BADGE] Deep Dive (Stateless, keep on blue markers)
-	limit := s.config.Badges.DeepDive.ArticleLenMin
-	if limit == 0 {
-		limit = 20000 // Safe default
-	}
-	if poi.WPArticleLength > limit {
-		poi.Badges = append(poi.Badges, "deep_dive")
-	}
+	sess.applyBadges(poi)
 
 	// [NEW] Skip logic for recently played POIs (on cooldown)
 	if !poi.LastPlayed.IsZero() && input.NarratorConfig != nil {
@@ -469,4 +456,33 @@ func (s *Scorer) calculateVarietyScore(poi *model.POI, history []string) (multip
 	}
 
 	return multiplier, logs
+}
+
+// applyBadges handles the stateless logic for assigning badges based on POI properties.
+func (sess *DefaultSession) applyBadges(poi *model.POI) {
+	s := sess.scorer
+
+	// Reset Ephemeral Badges
+	poi.Badges = make([]string, 0)
+	if poi.IsMSFSPOI {
+		poi.Badges = append(poi.Badges, "msfs")
+	}
+
+	// [BADGE] Deep Dive (Stateless, keep on blue markers)
+	limit := s.config.Badges.DeepDive.ArticleLenMin
+	if limit == 0 {
+		limit = 20000 // Safe default
+	}
+	if poi.WPArticleLength > limit {
+		poi.Badges = append(poi.Badges, "deep_dive")
+	}
+
+	// [BADGE] Stub (Stateless, mutually exclusive with Deep Dive ideally, but logic handles it)
+	stubLimit := s.config.Badges.Stub.ArticleLenMax
+	if stubLimit == 0 {
+		stubLimit = 2000 // Safe default
+	}
+	if poi.WPArticleLength > 0 && poi.WPArticleLength < stubLimit {
+		poi.Badges = append(poi.Badges, "stub")
+	}
 }

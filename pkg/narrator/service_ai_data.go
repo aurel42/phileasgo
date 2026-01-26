@@ -21,13 +21,27 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		region = "Near " + loc.CityName
 	}
 
-	// Navigation Instruction
 	if tel == nil {
 		t, _ := s.sim.GetTelemetry(ctx)
 		tel = &t
 	}
 	nav := s.calculateNavInstruction(p, tel)
 	maxWords, domStrat := s.sampleNarrationLength(p, strategy)
+
+	// Stub Detection
+	// Check if Scorer marked it as a stub
+	wpText := s.fetchWikipediaText(ctx, p)
+	isStub := false
+	for _, b := range p.Badges {
+		if b == "stub" {
+			isStub = true
+			break
+		}
+	}
+	if isStub {
+		maxWords = 0
+	}
+
 	p.NarrationStrategy = domStrat
 
 	// Language Logic (User's Target Language)
@@ -73,7 +87,8 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		NameUser:             p.DisplayName(),
 		POINameUser:          p.DisplayName(),
 		Category:             p.Category,
-		WikipediaText:        s.fetchWikipediaText(ctx, p),
+		WikipediaText:        wpText,
+		IsStub:               isStub,
 		NavInstruction:       nav,
 		TargetLanguage:       s.cfg.Narrator.TargetLanguage,
 		TargetCountry:        cc,
@@ -249,6 +264,9 @@ type NarrationPromptData struct {
 	TripSummary          string
 	LastSentence         string
 	FlightStatusSentence string
+
+	// Narrator Logic
+	IsStub bool
 
 	// Generic fields for flexibility in common macros
 	Title  string
