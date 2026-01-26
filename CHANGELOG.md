@@ -1,5 +1,10 @@
 ﻿# Release History
 
+## v0.3.34 (2026-01-26)
+- **Markers**: **Optimized Badge Layout**: Increased badge offsets for better visual separation and clarity in high-density areas.
+- **Markers**: **Status Visibility**: Restored deferred, urgent, and patient status indicators and implemented dynamic alternation logic.
+- **Fix**: **Legacy Code cleanup**: Permanently removed defunct marker components to ensure design consistency.
+
 ## v0.3.33 (2026-01-26)
 - **Scoring**: **Dynamic Filtering**: Added intelligent skip logic for recently played POIs to maintain a clean map interface.
 - **Markers**: **Fixed Badge Consistency**: Restored the Globe (🌐) and Blue Gem (💎) symbols and ensured quality indicators (Deep Dive) remain visible on recently played POIs.

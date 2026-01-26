@@ -98,8 +98,8 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
         badgeElements.push(
             <div key="msfs" style={{
                 position: 'absolute',
-                top: '-2px',
-                right: '-2px',
+                top: '-6px',
+                right: '-6px',
                 color: '#fbbf24',
                 filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
                 zIndex: 10,
@@ -113,8 +113,8 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
         badgeElements.push(
             <div key="fresh" style={{
                 position: 'absolute',
-                top: '-2px',
-                left: '-2px',
+                top: '-6px',
+                left: '-6px',
                 filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
                 zIndex: 10,
                 fontSize: '16px',
@@ -127,8 +127,8 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
         badgeElements.push(
             <div key="deep_dive" style={{
                 position: 'absolute',
-                bottom: '-2px',
-                right: '-2px',
+                bottom: '-6px',
+                right: '-6px',
                 filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
                 zIndex: 10,
                 fontSize: '16px',
@@ -137,23 +137,30 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
         );
     }
 
-    if (badges.includes('deferred')) {
+    const blBadges: { icon: string }[] = [];
+    if (badges.includes('deferred')) blBadges.push({ icon: '🕒' });
+    if (badges.includes('urgent')) blBadges.push({ icon: '⏩' });
+    if (badges.includes('patient')) blBadges.push({ icon: '⏪' });
+
+    blBadges.forEach((b, idx) => {
+        const isAlternating = blBadges.length > 1;
+        const animationClass = isAlternating ? `badge-alt-${blBadges.length}-${idx + 1}` : '';
         badgeElements.push(
-            <div key="deferred" style={{
+            <div key={`bl-${idx}`} className={`badge-slot-bl ${animationClass}`} style={{
                 position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                fontSize: '20px',
+                bottom: '-6px',
+                left: '-6px',
+                fontSize: '16px',
                 lineHeight: 1,
                 filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
                 zIndex: 11,
-            }}>🕒</div>
+                opacity: isAlternating ? undefined : 1,
+            }}>{b.icon}</div>
         );
-    }
+    });
 
-    // Hide icon if deferred
-    const showIcon = !badges.includes('deferred');
+    // Hide icon if deferred or alternating
+    const showIcon = !badges.includes('deferred') && !badges.includes('urgent') && !badges.includes('patient');
 
     return (
         <div
