@@ -1,4 +1,9 @@
 ﻿
+## v0.3.40 (2026-01-26)
+- **UI**: **Stats Grid Layout Fix**
+  - **Overflow**: Fixed an issue where the "WIKIDATA" header was overflowing the stats card.
+  - **Sizing**: Increased minimum column width to `130px` and reduced header/number font sizes (14px/18px) to safely accommodate larger values (e.g. 4-digit counts) within the Victorian frame.
+
 ## v0.3.39 (2026-01-26)
 - **Refactor**: **Template Macro Standardization**
   - Unified all Narrator Prompt Template macros to **PascalCase** (`Persona`, `Style`, `FlightData`, `LengthInstructions`).
