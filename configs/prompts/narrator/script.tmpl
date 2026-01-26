@@ -7,8 +7,8 @@ You are creating a script for a tour guide who is pointing out a POI from an air
 Use contractions and other natural language features.
 Do not use "Let me think", but you can use "Let me check" when the tour guide might look up facts in their notes.
 
-{{template "persona" .}}
-{{template "style" .}}
+{{template "Persona" .}}
+{{template "Style" .}}
 
 **NARRATION FLOW**
 - Start by pointing out the POI by its native name {{.POINameNative}} or by the {{.Language}} version of the name {{.POINameUser}}, or both,
@@ -36,7 +36,7 @@ NO HALLUCINATIONS, no invented facts.
 
 **UNITS AND MEASUREMENTS**:
 {{.UnitsInstruction}}
-{{template "length_instructions" .}}
+{{template "LengthInstructions" .}}
 **Recent POIs** we have discussed (avoid repetition of topics): {{.RecentContext}}
 {{if .TripSummary}}
 **TRIP SUMMARY SO FAR** (for continuity and cross-referencing):
@@ -52,7 +52,7 @@ NO HALLUCINATIONS, no invented facts.
 5. **NO SUMMARIES**: If possible, end the script with a fun, interesting, or surprising fact and trail off.
 {{end}}
 **NO REFERENCE TO THE FLIGHT**:
-- {{template "flight_data" .}}
+- {{template "FlightData" .}}
 - Do not mention GPS coordinates.
 - Do not make up details about the flight progress, do not give aviation advice.
 POI Information:

@@ -1,4 +1,10 @@
 ﻿
+## v0.3.39 (2026-01-26)
+- **Refactor**: **Template Macro Standardization**
+  - Unified all Narrator Prompt Template macros to **PascalCase** (`Persona`, `Style`, `FlightData`, `LengthInstructions`).
+  - Ensures consistent naming conventions across the entire prompt library (`common/`, `narrator/`, etc.) and eliminates snake_case inconsistencies.
+  - Verified integrity with a full test suite run; no functional changes to narration output.
+
 ## v0.3.38 (2026-01-26)
 - **Feature**: **Stub Article Detection & Handling**
   - **Logic**: Automatically detects "Stub" Wikipedia articles (short content < 2000 chars) to prevent hallucinations or repetitive filler text.
