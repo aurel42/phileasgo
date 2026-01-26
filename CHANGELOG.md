@@ -1,5 +1,11 @@
 ﻿# Release History
 
+## v0.3.37 (2026-01-26)
+- **UI**: **Modernized Typography & Styling**
+  - **Settings Panel**: Updated to use the new "Phileas" typography system, fully removing legacy CSS dependencies.
+  - **Overlay Polish**: Refined Telemetry Bar with clearer units (`deg`/`kts`), rigid grid alignment, and consistent font usage.
+  - **Technical Debt**: Removed significant legacy CSS code (`index.css`), simplifying the stylesheet architecture.
+
 ## v0.3.36 (2026-01-26)
 - **Refactor**: **Visibility Logic**
   - Reduced cyclomatic complexity in `internal/api/visibility.go` for better maintainability (splitting `calculateEffectiveAGL`).

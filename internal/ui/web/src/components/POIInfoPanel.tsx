@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { POI } from '../hooks/usePOIs';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AudioStatus } from '../types/audio';
+import { useNarrator } from '../hooks/useNarrator';
 
 interface POIInfoPanelProps {
     poi: POI | null;
@@ -51,6 +52,7 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const [strategy, setStrategy] = useState<'min_skew' | 'uniform' | 'max_skew'>('min_skew');
     const queryClient = useQueryClient();
+    const { status: narratorStatus } = useNarrator();
 
     // Get fresh POI data from the polled pois array
     const freshPoi = pois.find(p => p.wikidata_id === poi?.wikidata_id);
@@ -118,6 +120,10 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
     const primaryName = getName(poi);
     const localName = getLocalNameIfDifferent(poi, primaryName);
 
+    // Check for duplication with PlaybackControls
+    const isNarratingThis = narratorStatus?.current_poi?.wikidata_id === poi.wikidata_id &&
+        (narratorStatus?.playback_status === 'playing' || narratorStatus?.playback_status === 'paused' || narratorStatus?.playback_status === 'preparing');
+
     const handlePlay = async () => {
         // Optimistic update
         queryClient.setQueryData(['audioStatus'], (old: AudioStatus | undefined) => {
@@ -176,8 +182,16 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
             <div style={{ display: 'flex', gap: '12px', flex: 1, minHeight: 0 }}>
                 {/* Left column: Text content (40%) */}
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                    {/* Header */}
-                    <div className="role-title" style={{ marginBottom: '4px', textTransform: 'none', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingRight: '24px' }}>
+
+                    {/* Title (Hidden if currently narrating this POI to avoid duplication with PlaybackControls) */}
+                    {!isNarratingThis && (
+                        <div className="role-title" style={{ marginBottom: '8px', lineHeight: '1.2' }}>
+                            {primaryName}
+                        </div>
+                    )}
+
+                    {/* Meta / Controls */}
+                    <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                             <button
                                 onClick={(e) => {

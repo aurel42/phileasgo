@@ -60,9 +60,9 @@ export const SettingsPanel = ({
             {/* Header Removed */}
 
             <div className="config-group" style={{ maxWidth: '600px', width: '100%' }}>
-                <div className="config-label">SIMULATION SOURCE</div>
+                <div className="role-header" style={{ fontSize: '14px', marginBottom: '8px' }}>SIMULATION SOURCE</div>
                 <div className="radio-group">
-                    <label className="radio-label">
+                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
                             type="radio"
                             name="sim-source"
@@ -70,7 +70,7 @@ export const SettingsPanel = ({
                             onChange={() => handleSimSourceChange('mock')}
                         /> Mock Sim
                     </label>
-                    <label className="radio-label">
+                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
                             type="radio"
                             name="sim-source"
@@ -79,13 +79,13 @@ export const SettingsPanel = ({
                         /> SimConnect
                     </label>
                 </div>
-                <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
+                <div className="role-text-sm" style={{ fontSize: '12px', opacity: 0.7, marginTop: '4px' }}>
                     Restart required after changing source
                 </div>
 
-                <div className="config-label" style={{ marginTop: '16px' }}>RANGE RING UNITS</div>
+                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>RANGE RING UNITS</div>
                 <div className="radio-group">
-                    <label className="radio-label">
+                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
                             type="radio"
                             name="units"
@@ -93,7 +93,7 @@ export const SettingsPanel = ({
                             onChange={() => onUnitsChange('km')}
                         /> Kilometers (km)
                     </label>
-                    <label className="radio-label">
+                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
                             type="radio"
                             name="units"
@@ -105,9 +105,9 @@ export const SettingsPanel = ({
 
                 {/* Debug Layers Moved Down */}
 
-                <div className="config-label" style={{ marginTop: '16px' }}>POI FILTERING MODE</div>
+                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>POI FILTERING MODE</div>
                 <div className="radio-group">
-                    <label className="radio-label">
+                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
                             type="radio"
                             name="filter-mode"
@@ -115,7 +115,7 @@ export const SettingsPanel = ({
                             onChange={() => onFilterModeChange('fixed')}
                         /> Fixed Score
                     </label>
-                    <label className="radio-label">
+                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
                             type="radio"
                             name="filter-mode"
@@ -127,7 +127,7 @@ export const SettingsPanel = ({
 
                 {filterMode === 'fixed' ? (
                     <>
-                        <div className="config-label" style={{ marginTop: '16px' }}>POI SCORE THRESHOLD</div>
+                        <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>POI SCORE THRESHOLD</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
                             <input
                                 type="range"
@@ -138,15 +138,15 @@ export const SettingsPanel = ({
                                 onChange={(e) => onMinPoiScoreChange(parseFloat(e.target.value))}
                                 style={{ flex: 1 }}
                             />
-                            <span style={{ fontSize: '12px', minWidth: '24px', textAlign: 'right' }}>{minPoiScore.toFixed(1)}</span>
+                            <span className="role-num-sm" style={{ minWidth: '24px', textAlign: 'right' }}>{minPoiScore.toFixed(1)}</span>
                         </div>
-                        <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
+                        <div className="role-text-sm" style={{ fontSize: '12px', opacity: 0.7, marginTop: '4px' }}>
                             Show POIs with score higher than this value
                         </div>
                     </>
                 ) : (
                     <>
-                        <div className="config-label" style={{ marginTop: '16px' }}>TARGET POI COUNT</div>
+                        <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>TARGET POI COUNT</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
                             <input
                                 type="range"
@@ -157,15 +157,15 @@ export const SettingsPanel = ({
                                 onChange={(e) => onTargetPoiCountChange(parseInt(e.target.value))}
                                 style={{ flex: 1 }}
                             />
-                            <span style={{ fontSize: '12px', minWidth: '24px', textAlign: 'right' }}>{targetPoiCount}</span>
+                            <span className="role-num-sm" style={{ minWidth: '24px', textAlign: 'right' }}>{targetPoiCount}</span>
                         </div>
-                        <div className="config-note" style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
+                        <div className="role-text-sm" style={{ fontSize: '12px', opacity: 0.7, marginTop: '4px' }}>
                             Dynamic visibility threshold to show approximately {targetPoiCount} POIs
                         </div>
                     </>
                 )}
 
-                <div className="config-label" style={{ marginTop: '16px' }}>NARRATION FREQUENCY</div>
+                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>NARRATION FREQUENCY</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <input
@@ -177,9 +177,9 @@ export const SettingsPanel = ({
                             onChange={(e) => onNarrationFrequencyChange(parseInt(e.target.value))}
                             style={{ flex: 1 }}
                         />
-                        <span style={{ fontSize: '12px', minWidth: '12px', textAlign: 'right', fontWeight: 'bold' }}>{narrationFrequency}</span>
+                        <span className="role-num-sm" style={{ minWidth: '12px', textAlign: 'right' }}>{narrationFrequency}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.7 }}>
+                    <div className="role-text-sm" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.7 }}>
                         <span>Rarely</span>
                         <span>Normal</span>
                         <span>Active</span>
@@ -188,7 +188,7 @@ export const SettingsPanel = ({
                     </div>
                 </div>
 
-                <div className="config-label" style={{ marginTop: '16px' }}>TEXT LENGTH</div>
+                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>TEXT LENGTH</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <input
@@ -200,9 +200,9 @@ export const SettingsPanel = ({
                             onChange={(e) => onTextLengthChange(parseInt(e.target.value))}
                             style={{ flex: 1 }}
                         />
-                        <span style={{ fontSize: '12px', minWidth: '12px', textAlign: 'right', fontWeight: 'bold' }}>{textLength}</span>
+                        <span className="role-num-sm" style={{ minWidth: '12px', textAlign: 'right' }}>{textLength}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.7 }}>
+                    <div className="role-text-sm" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.7 }}>
                         <span>Shortest</span>
                         <span>Shorter</span>
                         <span>Normal</span>
@@ -212,16 +212,16 @@ export const SettingsPanel = ({
                 </div>
 
 
-                <div className="config-label" style={{ marginTop: '16px' }}>DEBUG LAYERS</div>
+                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>DEBUG LAYERS</div>
                 <div className="radio-group">
-                    <label className="radio-label">
+                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
                             type="checkbox"
                             checked={showCacheLayer}
                             onChange={(e) => onCacheLayerChange(e.target.checked)}
                         /> Show Cache Layer
                     </label>
-                    <label className="radio-label">
+                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
                             type="checkbox"
                             checked={showVisibilityLayer}
@@ -230,8 +230,9 @@ export const SettingsPanel = ({
                     </label>
                 </div>
 
-                <div className="config-label" style={{ marginTop: '16px', color: '#ff4444' }}>DANGER ZONE</div>
+                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px', color: '#ff4444' }}>DANGER ZONE</div>
                 <button
+                    className="role-btn"
                     onClick={() => {
                         if (confirm('Are you sure you want to RESET history for POIs within 100km? This cannot be undone.')) {
                             fetch('/api/pois/reset-last-played', {
@@ -255,8 +256,7 @@ export const SettingsPanel = ({
                         border: '1px solid #f57c00',
                         borderRadius: '4px',
                         cursor: 'pointer',
-                        fontSize: '10px',
-                        fontWeight: 'bold',
+                        fontSize: '11px',
                         width: '100%',
                         transition: 'all 0.2s'
                     }}
@@ -266,6 +266,7 @@ export const SettingsPanel = ({
                     RESET HISTORY (100km)
                 </button>
                 <button
+                    className="role-btn"
                     onClick={() => { if (confirm('Are you sure you want to SHUTDOWN the server?')) fetch('/api/shutdown', { method: 'POST' }) }}
                     style={{
                         marginTop: '8px',
@@ -275,8 +276,7 @@ export const SettingsPanel = ({
                         border: '1px solid #d32f2f',
                         borderRadius: '4px',
                         cursor: 'pointer',
-                        fontSize: '10px',
-                        fontWeight: 'bold',
+                        fontSize: '11px',
                         width: '100%',
                         transition: 'all 0.2s'
                     }}

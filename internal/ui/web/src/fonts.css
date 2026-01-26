@@ -76,3 +76,13 @@
     letter-spacing: 0.1em;
     color: var(--text-color);
 }
+
+/* 7. Overlay Label: Similar to Label but tunable size */
+.role-label-overlay {
+    font-family: var(--font-main);
+    font-style: italic;
+    font-size: 15px; /* Tunable */
+    color: var(--muted);
+    text-transform: none;
+    font-weight: 400; /* Override parent bold if necessary */
+}

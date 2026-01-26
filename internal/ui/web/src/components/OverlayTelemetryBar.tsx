@@ -129,27 +129,49 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
             {/* Wrapper for boxes to control width independent of log line */}
             <div className="stats-row">
 
-                {/* Tracking (Vertical) */}
-                <div className="stat-box" style={{ alignItems: 'flex-start', minWidth: '120px' }}>
-                    <div className="stat-value" style={{ fontFamily: 'monospace', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <div style={{ whiteSpace: 'nowrap' }}><span style={{ color: '#ccc', width: '32px', display: 'inline-block' }}>HDG</span> {Math.round(telemetry.Heading)}°</div>
-                        <div style={{ whiteSpace: 'nowrap' }}><span style={{ color: '#ccc', width: '32px', display: 'inline-block' }}>GS</span> {Math.round(telemetry.GroundSpeed)} <span className="unit" style={{ fontSize: '14px', color: '#ccc' }}>kts</span></div>
-                        <div style={{ whiteSpace: 'nowrap' }}><span style={{ color: '#ccc', width: '32px', display: 'inline-block' }}>AGL</span> {Math.round(telemetry.AltitudeAGL)} <span className="unit" style={{ fontSize: '14px', color: '#ccc' }}>ft</span></div>
-                        <div style={{ whiteSpace: 'nowrap' }}><span style={{ color: '#ccc', width: '32px', display: 'inline-block' }}>MSL</span> {Math.round(telemetry.AltitudeMSL)} <span className="unit" style={{ fontSize: '14px', color: '#ccc' }}>ft</span></div>
+                {/* 1. HDG @ GS (Telemetry Card) - GRID LAYOUT */}
+                <div className="stat-box" style={{ alignItems: 'flex-start', minWidth: '140px' }}>
+                    <div className="stat-value" style={{
+                        display: 'grid',
+                        gridTemplateColumns: '30px 1fr 34px', // Increased unit width for 'deg.' and 'kts'
+                        columnGap: '8px',
+                        rowGap: '2px',
+                        textAlign: 'right', // Align numbers to right
+                        alignItems: 'baseline'
+                    }}>
+                        {/* HDG */}
+                        <div className="role-label-overlay" style={{ textAlign: 'left' }}>HDG</div>
+                        <div className="role-num-lg" style={{ fontSize: '20px' }}>{Math.round(telemetry.Heading)}</div>
+                        <div className="role-label-overlay" style={{ fontSize: '14px', textAlign: 'left' }}>deg.</div>
+
+                        {/* GS */}
+                        <div className="role-label-overlay" style={{ textAlign: 'left' }}>GS</div>
+                        <div className="role-num-lg" style={{ fontSize: '20px' }}>{Math.round(telemetry.GroundSpeed)}</div>
+                        <div className="role-label-overlay" style={{ fontSize: '14px', textAlign: 'left' }}>kts</div>
+
+                        {/* AGL */}
+                        <div className="role-label-overlay" style={{ textAlign: 'left' }}>AGL</div>
+                        <div className="role-num-lg" style={{ fontSize: '20px' }}>{Math.round(telemetry.AltitudeAGL)}</div>
+                        <div className="role-label-overlay" style={{ fontSize: '14px', textAlign: 'left' }}>ft</div>
+
+                        {/* MSL */}
+                        <div className="role-label-overlay" style={{ textAlign: 'left' }}>MSL</div>
+                        <div className="role-num-lg" style={{ fontSize: '20px' }}>{Math.round(telemetry.AltitudeMSL)}</div>
+                        <div className="role-label-overlay" style={{ fontSize: '14px', textAlign: 'left' }}>ft</div>
                     </div>
                 </div>
 
-                {/* Position */}
+                {/* 2. Position Card */}
                 <div className="stat-box" style={{ minWidth: (location?.city || location?.country) ? '220px' : '180px' }}>
                     {(location?.city || location?.country) ? (
                         <>
-                            <div className="stat-value" style={{ fontSize: '16px', color: '#fff', textAlign: 'center', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+                            <div className="role-text-lg" style={{ textAlign: 'center' }}>
                                 {location.city ? (
                                     location.city === 'Unknown' ? (
-                                        <span style={{ color: '#fff' }}>Far from civilization</span>
+                                        <span>Far from civilization</span>
                                     ) : (
                                         <>
-                                            <span style={{ color: '#ddd', fontWeight: 400, marginRight: '6px', fontSize: '14px' }}>near</span>
+                                            <span className="role-label-overlay" style={{ marginRight: '6px' }}>near</span>
                                             {location.city}
                                         </>
                                     )
@@ -157,54 +179,52 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                                     <span>{location.country}</span>
                                 )}
                             </div>
-                            <div style={{ color: '#eee', fontSize: '14px', marginTop: '4px', textAlign: 'center', fontFamily: 'Inter, sans-serif' }}>
+                            <div className="role-text-sm" style={{ textAlign: 'center', marginTop: '4px' }}>
                                 {location.city_country_code && location.country_code && location.city_country_code !== location.country_code ? (
                                     <>
                                         <div>{location.city_region ? `${location.city_region}, ` : ''}{location.city_country}</div>
-                                        <div style={{ color: '#4a9eff', fontWeight: 500, marginTop: '2px' }}>in {location.country}</div>
+                                        <div style={{ color: 'var(--accent)', marginTop: '2px' }}>in {location.country}</div>
                                     </>
                                 ) : (
-                                    <>{location.region ? `${location.region}, ` : ''}{location.city ? location.country : ''}</>
+                                    <>{location.region ? `${location.region}, ` : ''}{location.city ? location.country : (location.region ? '' : '')}</>
                                 )}
                             </div>
-                            <div style={{ fontSize: '13px', fontFamily: 'monospace', color: '#ccc', marginTop: '8px', textAlign: 'center', letterSpacing: '0.5px' }}>
+                            <div className="role-num-sm" style={{ color: 'var(--muted)', marginTop: '8px', textAlign: 'center' }}>
                                 {telemetry.Latitude.toFixed(4)}, {telemetry.Longitude.toFixed(4)}
                             </div>
                         </>
                     ) : (
-                        <div className="stat-value" style={{ fontSize: '14px', fontFamily: 'monospace', textAlign: 'center' }}>
-                            <span className="unit" style={{ color: '#ccc' }}>LAT </span>{telemetry.Latitude.toFixed(4)} <br />
-                            <span className="unit" style={{ color: '#ccc' }}>LON </span>{telemetry.Longitude.toFixed(4)}
+                        <div className="stat-value" style={{ textAlign: 'center' }}>
+                            <span className="role-label-overlay">LAT </span><span className="role-num-sm">{telemetry.Latitude.toFixed(4)}</span> <br />
+                            <span className="role-label-overlay">LON </span><span className="role-num-sm">{telemetry.Longitude.toFixed(4)}</span>
                         </div>
                     )}
                 </div>
 
-                {/* APIs (Dynamic List) */}
+                {/* 3. API Counter Card */}
                 <div className="stat-box" style={{ minWidth: '160px', alignItems: 'flex-start' }}>
                     <div className="stat-value" style={{
-                        fontFamily: 'monospace',
-                        fontSize: '14px',
                         display: 'grid',
                         gridTemplateColumns: 'max-content 1fr 24px',
                         columnGap: '12px',
                         rowGap: '2px',
-                        textAlign: 'left'
+                        textAlign: 'left',
+                        alignItems: 'baseline'
                     }}>
                         {stats?.providers && Object.entries(stats.providers)
-                            .sort(([keyA], [keyB]) => keyA.localeCompare(keyB)) // Optional: Alphabetical sort
+                            .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
                             .map(([key, data]) => {
                                 if (!data) return null;
-                                // Filter empty stats (0 success AND 0 errors)
                                 if (data.api_success === 0 && data.api_errors === 0) return null;
 
                                 const label = key.toUpperCase().replace('-', ' ');
                                 return (
                                     <div key={key} style={{ display: 'contents' }}>
-                                        <div style={{ color: '#ccc', whiteSpace: 'nowrap' }}>
+                                        <div className="role-header" style={{ fontSize: '16px', whiteSpace: 'nowrap' }}>
                                             {label}
                                             {data.free_tier === false && <span style={{ marginLeft: '4px' }}>💵</span>}
                                         </div>
-                                        <div style={{ textAlign: 'right', paddingRight: '4px' }}>{data.api_success}</div>
+                                        <div className="role-num-sm" style={{ textAlign: 'right', paddingRight: '4px' }}>{data.api_success}</div>
                                         <div style={{ width: '24px' }}></div>
                                     </div>
                                 );
@@ -212,69 +232,70 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                     </div>
                 </div>
 
-                {/* System Stats (Vertical matching Tracking) */}
+                {/* 4. Stats Card - GRID LAYOUT */}
                 <div className="stat-box" style={{ minWidth: '140px', alignItems: 'flex-start' }}>
                     <div className="stat-value" style={{
-                        fontFamily: 'monospace',
-                        fontSize: '14px',
                         display: 'grid',
-                        gridTemplateColumns: 'max-content 1fr',
-                        columnGap: '12px',
+                        gridTemplateColumns: 'max-content 1fr 24px', // Align with Telemetry Card logic
+                        columnGap: '8px',
                         rowGap: '2px',
-                        textAlign: 'left'
+                        alignItems: 'baseline'
                     }}>
-                        <div style={{ color: '#ccc' }}>MEM (RSS)</div>
-                        <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{stats?.system?.memory_alloc_mb || 0} <span className="unit" style={{ fontSize: '12px', color: '#888' }}>MB</span></div>
+                        {/* MEM RSS */}
+                        <div className="role-label-overlay">MEM (RSS)</div>
+                        <div className="role-num-sm" style={{ textAlign: 'right' }}>{stats?.system?.memory_alloc_mb || 0}</div>
+                        <div className="role-label-overlay" style={{ fontSize: '12px' }}>MB</div>
 
-                        <div style={{ color: '#ccc' }}>MEM (max)</div>
-                        <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{stats?.system?.memory_max_mb || 0} <span className="unit" style={{ fontSize: '12px', color: '#888' }}>MB</span></div>
+                        {/* MEM MAX */}
+                        <div className="role-label-overlay">MEM (max)</div>
+                        <div className="role-num-sm" style={{ textAlign: 'right' }}>{stats?.system?.memory_max_mb || 0}</div>
+                        <div className="role-label-overlay" style={{ fontSize: '12px' }}>MB</div>
 
-                        <div style={{ color: '#ccc' }}>Tracked POIs</div>
-                        <div style={{ textAlign: 'right' }}>{stats?.tracking?.active_pois || 0}</div>
+                        {/* POIS */}
+                        <div className="role-label-overlay">Tracked</div>
+                        <div className="role-num-sm" style={{ textAlign: 'right' }}>{stats?.tracking?.active_pois || 0}</div>
+                        <div className="role-label-overlay" style={{ fontSize: '12px' }}>POIs</div>
                     </div>
                 </div>
 
-
-
-                {/* Branding - Restored Original */}
+                {/* 5. Branding Card */}
                 <div className="stat-box branding-box" style={{ minWidth: '120px' }}>
-                    <div className="stat-value" style={{ fontSize: '11px', lineHeight: '1.3', textAlign: 'center', color: '#4a9eff', fontWeight: 700, fontFamily: 'sans-serif' }}>
+                    <div className="role-title" style={{ fontSize: '18px', lineHeight: '1.1', textAlign: 'center' }}>
                         PHILEAS<br />
-                        TOUR GUIDE<br />
-                        FOR MSFS
+                        TOUR GUIDE
                     </div>
-                    <div className="stat-value" style={{ textAlign: 'center', marginTop: '6px', fontSize: '12px', color: '#bbb' }}>
+                    {/* Use role-num-sm purely without overrides, maybe color muted */}
+                    <div className="role-num-sm" style={{ textAlign: 'center', marginTop: '6px', color: '#bbb' }}>
                         {version}
                     </div>
                 </div>
 
                 <div className="stat-box config-box">
-                    <div className="overlay-config-status">
-                        <div className="config-item">
-                            <span className="config-label">SIM</span>
-                            <span style={{ fontSize: '10px' }}>
-                                {telemetry.SimState === 'active' ? '🟢' : telemetry.SimState === 'inactive' ? '🟠' : '🔴'}
-                            </span>
+                    <div className="overlay-config-status" style={{ display: 'grid', gridTemplateColumns: 'min-content min-content', gap: '4px 12px', alignItems: 'center' }}>
+                        {/* Row 1: SIM */}
+                        <span className="role-label-overlay" style={{ textAlign: 'left' }}>SIM</span>
+                        <span style={{ fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            {telemetry.SimState === 'active' ? '🟢' : telemetry.SimState === 'inactive' ? '🟠' : '🔴'}
+                        </span>
+
+                        {/* Row 2: MODE */}
+                        <span className="role-label-overlay" style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>{config.filter_mode === 'adaptive' ? 'ADAPTIVE' : 'FIXED'}</span>
+                        <span className="icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{config.filter_mode === 'adaptive' ? '⚡' : '🎯'}</span>
+
+                        {/* Row 3: FRQ */}
+                        <span className="role-label-overlay" style={{ textAlign: 'left' }}>FRQ</span>
+                        <div className="pips" style={{ display: 'flex', gap: '2px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            {[1, 2, 3, 4, 5].map(v => (
+                                <div key={v} className={`pip ${v <= (config.narration_frequency || 0) ? 'active' : ''} ${v > 3 && v <= (config.narration_frequency || 0) ? 'high' : ''}`} />
+                            ))}
                         </div>
-                        <div className="config-item">
-                            <span className="config-label">{config.filter_mode === 'adaptive' ? 'ADAPTIVE' : 'FIXED'}</span>
-                            <span className="icon">{config.filter_mode === 'adaptive' ? '⚡' : '🎯'}</span>
-                        </div>
-                        <div className="config-item">
-                            <span className="config-label">FRQ</span>
-                            <div className="pips">
-                                {[1, 2, 3, 4, 5].map(v => (
-                                    <div key={v} className={`pip ${v <= (config.narration_frequency || 0) ? 'active' : ''} ${v > 3 && v <= (config.narration_frequency || 0) ? 'high' : ''}`} />
-                                ))}
-                            </div>
-                        </div>
-                        <div className="config-item">
-                            <span className="config-label">LEN</span>
-                            <div className="pips">
-                                {[1, 2, 3, 4, 5].map(v => (
-                                    <div key={v} className={`pip ${v <= (config.text_length || 0) ? 'active' : ''} ${v > 4 && v <= (config.text_length || 0) ? 'high' : ''}`} />
-                                ))}
-                            </div>
+
+                        {/* Row 4: LEN */}
+                        <span className="role-label-overlay" style={{ textAlign: 'left' }}>LEN</span>
+                        <div className="pips" style={{ display: 'flex', gap: '2px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            {[1, 2, 3, 4, 5].map(v => (
+                                <div key={v} className={`pip ${v <= (config.text_length || 0) ? 'active' : ''} ${v > 4 && v <= (config.text_length || 0) ? 'high' : ''}`} />
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -283,7 +304,7 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
 
             {/* Log Line (Outside of flow, absolute positioned in CSS) */}
             {config.show_log_line && (
-                <div className="log-line">
+                <div className="log-line role-label-overlay" style={{ fontStyle: 'italic', fontSize: '16px', lineHeight: '30px' }}>
                     {logLine}
                 </div>
             )}
