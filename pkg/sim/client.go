@@ -9,6 +9,8 @@ import (
 var (
 	// ErrNotConnected is returned when a client action requires a connection.
 	ErrNotConnected = errors.New("simulator not connected")
+	// ErrWaitingForTelemetry is returned when connected but no valid data has been received yet.
+	ErrWaitingForTelemetry = errors.New("waiting for initial telemetry")
 )
 
 // Client defines the interface for simulator interaction.

@@ -14,6 +14,7 @@ type TelemetryResponse struct {
 	sim.Telemetry
 	SimState       string  `json:"SimState"`
 	ValleyAltitude float64 `json:"ValleyAltitude,omitempty"`
+	Valid          bool    `json:"Valid"`
 }
 
 type TelemetryHandler struct {
@@ -21,6 +22,7 @@ type TelemetryHandler struct {
 	telemetry      sim.Telemetry
 	simState       sim.State
 	valleyAltitude float64
+	hasReceived    bool
 }
 
 func NewTelemetryHandler() *TelemetryHandler {
@@ -32,6 +34,7 @@ func (h *TelemetryHandler) Update(t *sim.Telemetry) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.telemetry = *t
+	h.hasReceived = true
 }
 
 // UpdateState updates the simulator state.
@@ -39,6 +42,10 @@ func (h *TelemetryHandler) UpdateState(s sim.State) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.simState = s
+	// If disconnected, we might want to invalidate?
+	// But user says: last known good data.
+	// However, if we disconnect, usually specific UI logic takes over.
+	// Let's leave hasReceived true if we had data, so we can show "Last known" if we wanted.
 }
 
 // SetValleyAltitude updates the cached valley altitude.
@@ -54,6 +61,7 @@ func (h *TelemetryHandler) handleTelemetry(w http.ResponseWriter, r *http.Reques
 		Telemetry:      h.telemetry,
 		SimState:       string(h.simState),
 		ValleyAltitude: h.valleyAltitude,
+		Valid:          h.hasReceived,
 	}
 	h.mu.RUnlock()
 

@@ -107,7 +107,7 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
         };
     }, []);
 
-    if (!telemetry) {
+    if (!telemetry || telemetry.SimState === 'disconnected' || !telemetry.Valid) {
         return (
             <div className="overlay-telemetry-bar">
                 <div className="stats-row">

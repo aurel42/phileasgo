@@ -74,6 +74,9 @@ type Client struct {
 
 	// Ground Track Calculation
 	trackBuf *geo.TrackBuffer
+
+	// Telemetry Validity
+	hasValidData bool
 }
 
 // NewClient creates a new SimConnect client.
@@ -115,6 +118,10 @@ func NewClient(appName, dllPath string) (*Client, error) {
 func (c *Client) GetTelemetry(ctx context.Context) (sim.Telemetry, error) {
 	c.telemetryMu.RLock()
 	defer c.telemetryMu.RUnlock()
+
+	if !c.hasValidData {
+		return sim.Telemetry{}, sim.ErrWaitingForTelemetry
+	}
 	return c.telemetry, nil
 }
 
@@ -249,6 +256,7 @@ func (c *Client) connect() {
 
 	c.telemetryMu.Lock()
 	c.simState = sim.StateInactive
+	c.hasValidData = false
 	c.telemetryMu.Unlock()
 
 	c.lastMessageTime = time.Now() // Initialize watchdog
@@ -277,6 +285,7 @@ func (c *Client) disconnect() {
 
 	c.telemetryMu.Lock()
 	c.simState = sim.StateDisconnected
+	c.hasValidData = false
 	c.telemetryMu.Unlock()
 
 	if c.handle != 0 {
@@ -531,6 +540,7 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 				Ident:              data.Ident != 0,
 			}
 			c.telemetry.FlightStage = sim.DetermineFlightStage(&c.telemetry)
+			c.hasValidData = true
 		}
 	}
 }

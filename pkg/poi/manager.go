@@ -487,7 +487,9 @@ func (m *Manager) performScoringPass(ctx context.Context, simClient sim.Client, 
 	// 1. Get Telemetry
 	telemetry, err := simClient.GetTelemetry(ctx)
 	if err != nil {
-		m.logger.Warn("Failed to get telemetry for scoring", "error", err)
+		if err != sim.ErrWaitingForTelemetry {
+			m.logger.Warn("Failed to get telemetry for scoring", "error", err)
+		}
 		return
 	}
 

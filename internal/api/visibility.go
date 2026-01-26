@@ -64,58 +64,103 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	// 1. Get Aircraft State
 	telemetry, err := h.simClient.GetTelemetry(r.Context())
 	if err != nil {
-		// If not connected, return empty or error?
-		// Return empty grid to avoid frontend errors
+		if err == sim.ErrWaitingForTelemetry {
+			http.Error(w, "Waiting for telemetry", http.StatusServiceUnavailable)
+			return
+		}
 		http.Error(w, "Sim not connected", http.StatusServiceUnavailable)
 		return
 	}
 
 	// 2. Parse Query Params
-	// bounds=N,E,S,W
+	params, err := h.parseQueryParams(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// 3. Calculate Effective AGL (Valley)
+	effectiveAGL := h.calculateEffectiveAGL(r.Context(), &telemetry)
+
+	// 3a. Get Visibility Boost
+	boostFactor := h.getBoostFactor(r.Context())
+
+	// 4. Generate Grid
+	gridM, gridL, gridXL := h.computeGrids(&telemetry, effectiveAGL, params.North, params.East, params.South, params.West, params.Resolution, boostFactor)
+
+	// 5. Response
+	resp := map[string]interface{}{
+		"gridM":  gridM,
+		"gridL":  gridL,
+		"gridXL": gridXL,
+		"rows":   params.Resolution,
+		"cols":   params.Resolution,
+		"bounds": map[string]float64{
+			"north": params.North, "east": params.East, "south": params.South, "west": params.West,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+type VisibilityParams struct {
+	North, East, South, West float64
+	Resolution               int
+}
+
+func (h *VisibilityHandler) parseQueryParams(r *http.Request) (VisibilityParams, error) {
 	boundsStr := r.URL.Query().Get("bounds")
 	resolutionStr := r.URL.Query().Get("resolution")
 
 	if boundsStr == "" {
-		http.Error(w, "missing bounds", http.StatusBadRequest)
-		return
+		return VisibilityParams{}, strconv.ErrSyntax // Or simplified error
 	}
 
 	parts := strings.Split(boundsStr, ",")
 	if len(parts) != 4 {
-		http.Error(w, "invalid bounds format (N,E,S,W)", http.StatusBadRequest)
-		return
+		return VisibilityParams{}, strconv.ErrSyntax
 	}
 
-	north, _ := strconv.ParseFloat(parts[0], 64)
-	east, _ := strconv.ParseFloat(parts[1], 64)
-	south, _ := strconv.ParseFloat(parts[2], 64)
-	west, _ := strconv.ParseFloat(parts[3], 64)
+	n, _ := strconv.ParseFloat(parts[0], 64)
+	e, _ := strconv.ParseFloat(parts[1], 64)
+	s, _ := strconv.ParseFloat(parts[2], 64)
+	w, _ := strconv.ParseFloat(parts[3], 64)
 
-	res := 20 // Default resolution 20x20
+	res := 20 // Default
 	if resolutionStr != "" {
 		if v, err := strconv.Atoi(resolutionStr); err == nil && v > 0 && v <= 100 {
 			res = v
 		}
 	}
+	return VisibilityParams{
+		North:      n,
+		East:       e,
+		South:      s,
+		West:       w,
+		Resolution: res,
+	}, nil
+}
 
-	// 3. Calculate Effective AGL (Valley)
-	var effectiveAGL float64
-	// Default to Real AGL if elevation scanning fails or is N/A
-	effectiveAGL = telemetry.AltitudeAGL
-
-	// 3a. Get Visibility Boost
+func (h *VisibilityHandler) getBoostFactor(ctx context.Context) float64 {
 	boostFactor := 1.0
 	if h.store != nil {
-		val, ok := h.store.GetState(r.Context(), "visibility_boost")
+		val, ok := h.store.GetState(ctx, "visibility_boost")
 		if ok && val != "" {
 			if f, err := strconv.ParseFloat(val, 64); err == nil {
 				boostFactor = f
 			}
 		}
 	}
+	return boostFactor
+}
+
+func (h *VisibilityHandler) calculateEffectiveAGL(ctx context.Context, telemetry *sim.Telemetry) float64 {
+	effectiveAGL := telemetry.AltitudeAGL
 
 	if h.elevation != nil {
 		// Quick scan similar to Scorer Session (dynamic radius)
+		boostFactor := h.getBoostFactor(ctx)
 		radiusNM := h.calculator.GetMaxVisibleDistance(telemetry.AltitudeMSL, visibility.SizeXL, boostFactor)
 		if radiusNM < 10.0 {
 			radiusNM = 10.0
@@ -126,24 +171,7 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 			effectiveAGL = telemetry.AltitudeMSL - lowestFeet
 		}
 	}
-
-	// 4. Generate Grid
-	gridM, gridL, gridXL := h.computeGrids(&telemetry, effectiveAGL, north, east, south, west, res, boostFactor)
-
-	// 4. Response
-	resp := map[string]interface{}{
-		"gridM":  gridM,
-		"gridL":  gridL,
-		"gridXL": gridXL,
-		"rows":   res,
-		"cols":   res,
-		"bounds": map[string]float64{
-			"north": north, "east": east, "south": south, "west": west,
-		},
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	return effectiveAGL
 }
 
 func (h *VisibilityHandler) computeGrids(telemetry *sim.Telemetry, effectiveAGL, north, east, south, west float64, res int, boostFactor float64) (gridM, gridL, gridXL []float64) {

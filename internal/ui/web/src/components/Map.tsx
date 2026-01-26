@@ -25,13 +25,9 @@ const DEFAULT_ZOOM = 10;
 // Offsets the map center forward of the aircraft by 25% of the smaller map dimension
 const Recenter = ({ mapCenter, heading }: { mapCenter: [number, number]; heading: number }) => {
     const map = useMap();
-    const lastUpdateRef = useRef(0);
 
     useEffect(() => {
-        const now = Date.now();
-        if (now - lastUpdateRef.current < 2000) return;
-        lastUpdateRef.current = now;
-
+        // Recenter now reacts immediately to the passed props, which are already throttled upstream
         const [lat, lon] = mapCenter;
         const mapSize = map.getSize();
         const offsetPx = Math.min(mapSize.x, mapSize.y) * 0.25;
@@ -194,13 +190,25 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
         return dp;
     }, [pois, currentNarratedPoi, preparingPoi]); // preparingId is derived from preparingPoi
 
-    // Default to Berlin if no telemetry yet
-    const center: [number, number] = telemetry ? [telemetry.Latitude, telemetry.Longitude] : [52.52, 13.40];
+    const [throttledPos, setThrottledPos] = useState<{ lat: number, lon: number, heading: number } | null>(null);
+    const lastThrottleRef = useRef(0);
+
+    // Centralized Throttling (2s)
+    useEffect(() => {
+        if (!telemetry) return;
+        const now = Date.now();
+        if (now - lastThrottleRef.current > 2000) {
+            setThrottledPos({ lat: telemetry.Latitude, lon: telemetry.Longitude, heading: telemetry.Heading });
+            lastThrottleRef.current = now;
+        }
+    }, [telemetry]);
+
+    // Use default center if no telemetry
+    const center: [number, number] = throttledPos ? [throttledPos.lat, throttledPos.lon] : [52.52, 13.40];
 
     const [autoZoom, setAutoZoom] = useState(true);
     const [map, setMap] = useState<L.Map | null>(null);
 
-    const lastAutoZoomMoveRef = useRef(0);
     const isAutomatedMoveRef = useRef(false);
     const lastInteractionAllowedRef = useRef(0);
 
@@ -212,11 +220,9 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
     // Auto-Zoom Logic (Ported from OverlayMiniMap)
     useEffect(() => {
         // Only run if map exists, we are connected, and auto-zoom is enabled
-        if (!map || !isConnected || !autoZoom || !telemetry) return;
+        if (!map || !isConnected || !autoZoom || !throttledPos) return;
 
-        const now = Date.now();
-        if (now - lastAutoZoomMoveRef.current < 2000) return;
-        lastAutoZoomMoveRef.current = now;
+        // Uses throttledPos directly, so no need for internal throttling
 
         // 1. Identify "non-blue" POIs (active interest)
         const nonBluePois = displayPois.filter(p => {
@@ -228,8 +234,8 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
 
         // 2. Determine optimal zoom level
         let targetZoom = DEFAULT_ZOOM;
-        const lat = telemetry.Latitude;
-        const lon = telemetry.Longitude;
+        const lat = throttledPos.lat;
+        const lon = throttledPos.lon;
 
         if (nonBluePois.length > 0) {
             const maxLatDiff = Math.max(...nonBluePois.map(p => Math.abs(p.lat - lat)));
@@ -251,7 +257,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
         // 3. Apply heading-based offset
         const mapSize = map.getSize();
         const offsetPx = Math.min(mapSize.x, mapSize.y) * 0.25;
-        const hdgRad = telemetry.Heading * (Math.PI / 180);
+        const hdgRad = throttledPos.heading * (Math.PI / 180);
         const dx = offsetPx * Math.sin(hdgRad);
         const dy = -offsetPx * Math.cos(hdgRad);
 
@@ -268,7 +274,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
             isAutomatedMoveRef.current = false;
         }, 100);
 
-    }, [map, isConnected, autoZoom, telemetry, displayPois, currentNarratedId, preparingId]);
+    }, [map, isConnected, autoZoom, throttledPos, displayPois, currentNarratedId, preparingId]);
 
     // Disable auto-zoom on manual interaction
     const handleMapInteraction = () => {
@@ -309,16 +315,19 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 {showFallbackMap && <CoverageLayer />}
                 {showCacheLayer && isConnected && <CacheLayer />}
                 <VisibilityLayer enabled={showVisibilityLayer} />
-                {isConnected && telemetry && (
+                {isConnected && telemetry && throttledPos && (
                     <>
-                        <RangeRings lat={telemetry.Latitude} lon={telemetry.Longitude} units={units} />
+                        {/* We use TELEMETRY (real-time) for Ring positions? No, rings should probably move with the plane. 
+                            Actually, stick to throttled for everything visual related to the plane position to avoid jitter. */}
+                        <RangeRings lat={throttledPos.lat} lon={throttledPos.lon} units={units} />
+
                         {/* Only use Recenter if AutoZoom is OFF */}
-                        {!autoZoom && <Recenter mapCenter={[telemetry.Latitude, telemetry.Longitude]} heading={telemetry.Heading} />}
+                        {!autoZoom && <Recenter mapCenter={[throttledPos.lat, throttledPos.lon]} heading={throttledPos.heading} />}
                         <div style={{ display: 'none' }}>Reference for Pane Creation</div>
                         <AircraftMarker
-                            lat={telemetry.Latitude}
-                            lon={telemetry.Longitude}
-                            heading={telemetry.Heading}
+                            lat={throttledPos.lat}
+                            lon={throttledPos.lon}
+                            heading={throttledPos.heading}
                         />
                     </>
                 )}
@@ -339,17 +348,17 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
             {/* Auto Zoom Selector Control - Only when Connected */}
             {isConnected && (
                 <div style={{ position: 'absolute', bottom: '16px', left: '16px', zIndex: 1000 }}>
-                    <div className="map-selector-container">
-                        <span className="map-selector-label">AUTOZOOM</span>
-                        <div className="map-selector">
+                    <div className="length-selector" style={{ background: 'var(--panel-bg)', boxShadow: '0 4px 10px rgba(0,0,0,0.5)', padding: '4px' }}>
+                        <span className="role-btn" style={{ fontWeight: 700, color: 'var(--muted)', marginRight: '8px', marginLeft: '4px' }}>AUTOZOOM</span>
+                        <div style={{ display: 'flex', background: 'rgba(0, 0, 0, 0.3)', borderRadius: '4px', padding: '2px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
                             <button
-                                className={`map-selector-btn ${autoZoom ? 'active' : ''}`}
+                                className={`length-btn role-btn ${autoZoom ? 'active' : ''}`}
                                 onClick={() => setAutoZoom(true)}
                             >
                                 ON
                             </button>
                             <button
-                                className={`map-selector-btn ${!autoZoom ? 'active' : ''}`}
+                                className={`length-btn role-btn ${!autoZoom ? 'active' : ''}`}
                                 onClick={() => setAutoZoom(false)}
                             >
                                 OFF

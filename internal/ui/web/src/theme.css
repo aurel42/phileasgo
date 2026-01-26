@@ -1,0 +1,19 @@
+@import './fonts.css';
+
+:root {
+    /* Colors */
+    --bg-color: #141414;
+    --text-color: #f4ecd8;
+    --panel-bg: #1c1c1c;
+    --card-bg: rgba(30, 30, 30, 0.9);
+    --accent: #d4af37;
+    /* Brass */
+    --muted: #888;
+    --success: #6e8b3d;
+    /* Victorian Olive */
+    --error: #a52a2a;
+    /* Victorian Red/Brown */
+
+    /* Layout */
+    --sidebar-width: 30vw;
+}

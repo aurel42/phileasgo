@@ -1,3 +1,5 @@
+@import './theme.css';
+
 /* OBS Overlay Styles */
 
 /* Override body background when in overlay mode */
@@ -64,11 +66,11 @@ html.overlay-mode {
     top: 20px;
     right: 20px;
     width: 350px;
-    background: rgba(20, 20, 25, 0.85);
-    border-radius: 12px;
+    background: var(--panel-bg);
+    border-radius: 8px;
     padding: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(8px);
     pointer-events: auto;
 
@@ -84,18 +86,23 @@ html.overlay-mode {
 }
 
 .overlay-poi-panel .poi-name {
-    font-size: 22px;
-    font-weight: 600;
-    color: #fff;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+    /* Mapped to .role-title via class in JSX or here */
+    font-family: var(--font-display);
+    font-size: 30px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: bold;
     margin-bottom: 4px;
 }
 
 .overlay-poi-panel .poi-category {
-    font-size: 12px;
-    color: #888;
+    font-family: var(--font-main);
+    font-size: 15px;
+    font-style: italic;
+    color: var(--accent);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
     margin-bottom: 12px;
 }
 
@@ -117,7 +124,7 @@ html.overlay-mode {
 
 .overlay-poi-panel .progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, #4a9eff, #7b68ee);
+    background: linear-gradient(90deg, #d4af37, #cd7f32);
     border-radius: 2px;
     transition: width 0.3s ease;
 }
@@ -135,16 +142,16 @@ html.overlay-mode {
     align-items: center;
 
     /* Layout */
-    background: rgba(15, 15, 25, 0.85);
+    background: var(--panel-bg);
     /* Darker main bg */
     padding: 12px 16px 34px 16px;
     /* Extra bottom padding for log line */
     gap: 0;
     /* Gaps handled by stats-row */
 
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.7);
+    border-radius: 8px;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.7), inset 0 0 10px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(8px);
     pointer-events: auto;
 
@@ -184,9 +191,10 @@ html.overlay-mode {
     line-height: 30px;
 
     /* Typography */
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    color: #ccc;
+    font-family: var(--font-main);
+    font-size: 16px;
+    color: var(--text-color);
+    opacity: 0.8;
     /* Higher contrast */
     text-align: left;
 
@@ -210,20 +218,27 @@ html.overlay-mode {
 }
 
 .overlay-telemetry-bar .stat-value {
-    font-size: 14px;
-    font-weight: 600;
-    color: #fff;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    /* Mapped to .role-num-lg but slightly smaller override needed for bar density */
+    /* Wait - user said "ONE SIZE PER ROLE EXACTLY". */
+    /* So I should use .role-num-sm (16px) or .role-num-lg (30px). */
+    /* 30px is too big for the bar, 16px is fine. */
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: var(--accent);
+    text-shadow: 0 0 5px rgba(212, 175, 55, 0.3);
 }
 
 .overlay-telemetry-bar .stat-sub {
-    font-size: 10px;
+    font-family: var(--font-display);
+    font-size: 11px;
+    /* role-btn */
     color: #888;
 }
 
 .overlay-telemetry-bar .unit {
-    font-size: 10px;
+    font-family: var(--font-display);
+    font-size: 11px;
+    /* role-btn */
     color: #666;
     margin-left: 2px;
 }
@@ -248,8 +263,10 @@ html.overlay-mode {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    /* role-num-sm */
+    color: var(--accent);
 }
 
 .config-label {
@@ -277,8 +294,8 @@ html.overlay-mode {
 }
 
 .config-item .pip.active {
-    background: #4a9eff;
-    box-shadow: 0 0 3px #4a9eff;
+    background: var(--accent);
+    box-shadow: 0 0 5px var(--accent);
 }
 
 .config-item .pip.active.high {

@@ -98,12 +98,12 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
         return (
             <div className="poi-info-panel generic-narration">
                 <div className="panel-header">
-                    <button className="close-btn" onClick={onClose}>×</button>
-                    <div className="category-label">{displayCategory}</div>
+                    <button className="close-btn role-btn" onClick={onClose}>×</button>
+                    <div className="role-label">{displayCategory}</div>
                 </div>
                 <div className="poi-details">
-                    <h1>{displayTitle}</h1>
-                    <p className="generic-description">
+                    <h1 className="role-title" style={{ margin: '8px 0' }}>{displayTitle}</h1>
+                    <p className="role-text-lg">
                         {currentType === 'debrief'
                             ? "Your flight has concluded. Listen to the automated pilot debrief."
                             : "Enjoy this regional essay about your current surroundings."}
@@ -177,8 +177,7 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
                 {/* Left column: Text content (40%) */}
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                     {/* Header */}
-                    <div className="value" style={{ fontSize: '16px', marginBottom: '4px', textTransform: 'none', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', paddingRight: '24px' }}>
-                        {primaryName}
+                    <div className="role-title" style={{ marginBottom: '4px', textTransform: 'none', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingRight: '24px' }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                             <button
                                 onClick={(e) => {
@@ -198,7 +197,6 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
                                     justifyContent: 'center',
                                     color: 'var(--accent)',
                                     cursor: 'pointer',
-                                    fontSize: '12px',
                                     flexShrink: 0,
                                     zIndex: 20, /* Ensure it's clickable */
                                     position: 'relative' /* Context for z-index */
@@ -208,12 +206,12 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
                             </button>
                             <div className="length-selector">
                                 <button
-                                    className={`length-btn ${strategy === 'min_skew' ? 'active' : ''}`}
+                                    className={`length-btn role-btn ${strategy === 'min_skew' ? 'active' : ''}`}
                                     onClick={(e) => { e.stopPropagation(); setStrategy('min_skew'); }}
                                     title="Short Narration"
                                 >SHORT</button>
                                 <button
-                                    className={`length-btn ${strategy === 'max_skew' ? 'active' : ''}`}
+                                    className={`length-btn role-btn ${strategy === 'max_skew' ? 'active' : ''}`}
                                     onClick={(e) => { e.stopPropagation(); setStrategy('max_skew'); }}
                                     title="Long Narration"
                                 >LONG</button>
@@ -221,32 +219,32 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
                         </div>
                     </div>
                     {localName && (
-                        <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>
+                        <div className="role-text-sm" style={{ fontStyle: 'italic', marginBottom: '4px' }}>
                             ({localName})
                         </div>
                     )}
-                    <div className="label" style={{ marginBottom: '8px' }}>
+                    <div className="role-label" style={{ marginBottom: '8px' }}>
                         {poi.category}
                         {poi.specific_category && poi.specific_category !== poi.category && (
-                            <span style={{ color: '#888', fontWeight: 'normal' }}> ({poi.specific_category})</span>
+                            <span className="role-text-sm" style={{ opacity: 0.7 }}> ({poi.specific_category})</span>
                         )}
                     </div>
 
                     {/* Info */}
-                    <div className="status-pill" style={{ display: 'inline-flex', alignItems: 'center', marginBottom: '8px', flexShrink: 0 }}>
+                    <div className="status-pill role-btn" style={{ display: 'inline-flex', alignItems: 'center', marginBottom: '8px', flexShrink: 0 }}>
                         <div className="status-dot connected" style={{ backgroundColor: getColor(poi.score) }}></div>
-                        <span style={{ color: '#ccc' }}>Score: {poi.score?.toFixed(1)}</span>
+                        <span style={{ color: 'var(--text-color)' }}>Score: <span className="role-num-sm">{poi.score?.toFixed(1)}</span></span>
                     </div>
 
                     {poi.last_played && poi.last_played !== "0001-01-01T00:00:00Z" && (
-                        <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
+                        <div className="role-text-sm" style={{ opacity: 0.7, marginBottom: '8px' }}>
                             Last Played: {formatTimeAgo(poi.last_played)}
                         </div>
                     )}
 
                     {poi.wp_url && (
                         <div style={{ marginBottom: '8px' }}>
-                            <a href={poi.wp_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: '12px' }}>
+                            <a href={poi.wp_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
                                 Wikipedia Article &rarr;
                             </a>
                         </div>
@@ -255,11 +253,9 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
                     {/* Score Details */}
                     {poi.score_details && (
                         <div style={{ marginTop: '4px', flex: '1 1 auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                            <div className="label" style={{ marginBottom: '4px', flexShrink: 0 }}>Score Breakdown</div>
-                            <div style={{
-                                fontSize: '10px',
-                                color: '#888',
-                                fontFamily: 'monospace',
+                            <div className="role-header" style={{ marginBottom: '4px', flexShrink: 0 }}>Score Breakdown</div>
+                            <div className="role-label" style={{
+                                opacity: 0.8,
                                 whiteSpace: 'pre-wrap',
                                 overflowY: 'auto',
                                 background: 'rgba(0,0,0,0.2)',
@@ -289,6 +285,6 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };

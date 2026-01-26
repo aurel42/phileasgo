@@ -1,5 +1,32 @@
 ﻿# Release History
 
+## v0.3.36 (2026-01-26)
+- **Refactor**: **Visibility Logic**
+  - Reduced cyclomatic complexity in `internal/api/visibility.go` for better maintainability (splitting `calculateEffectiveAGL`).
+- **UI**: **API Stats Polish**
+  - Refined the API statistics display in the Info Panel with a diamond separator (`◆`) and aligned typography.
+- **Testing**: **Simulator Optimization**
+  - Optimized `mocksim` tests by injecting high-speed climb scenarios, reducing test suite execution time by **~55%** (21s -> 9.5s).
+- **Testing**: **Telemetry Validity**
+  - Added rigorous tests for SimConnect telemetry validity flags to ensure robust data handling.
+
+## v0.3.35 (2026-01-26)
+- **Feature**: **Victorian Steampunk Aesthetic (Phileas Fogg Edition)**
+  - **Typography**: Adopted a strict 3-font system (IM Fell English SC, Crimson Pro, Cutive Mono) for a consistent 19th-century explorer feel.
+  - **Styling**: Introduced `role-label` (Cursive) for interface labels and refined button styles to match the "Brass and Parchment" theme.
+  - **Colors**: Transitioned to Deep Coal backgrounds with Aged Parchment text and Brass accents.
+- **UI**: **Config Pill Polish**
+  - **Sim Status**: Integrated simulation connection state (ACT/PAUSED/DISC) directly into the floating config pill.
+  - **Mode Clarity**: Corrected display logic to show "Target Count" in Adaptive Mode and "Min Score" in Fixed Mode.
+  - **Clean Dashboard**: Removed redundant status lines from the main dashboard to reduce visual clutter.
+- **Fix**: **Map & Marker Synchronization**
+  - **Throttling**: Centralized the update loop for the Map, Aircraft Marker, and Auto-Zoom to a synchronized 2-second interval.
+  - **Impact**: Eliminates jitter and "formation drift" where the map and plane icon moved at different rates.
+- **Fix**: **Visual Regressions**
+  - Restored grid alignment for altitude readouts.
+  - Fixed active states for Long/Short narration length buttons.
+  - Corrected Autozoom toggle styling in the map overlay.
+
 ## v0.3.34 (2026-01-26)
 - **Markers**: **Optimized Badge Layout**: Increased badge offsets for better visual separation and clarity in high-density areas.
 - **Markers**: **Status Visibility**: Restored deferred, urgent, and patient status indicators and implemented dynamic alternation logic.

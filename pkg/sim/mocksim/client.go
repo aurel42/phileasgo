@@ -34,7 +34,7 @@ type Config struct {
 	StartHeading   *float64
 }
 
-type scenarioStep struct {
+type ScenarioStep struct {
 	Type     string
 	Target   float64 // for CLIMB
 	Rate     float64 // rate in units/min (fpm)
@@ -51,7 +51,7 @@ type MockClient struct {
 	stopCh           chan struct{}
 	predictionWindow time.Duration
 	wg               sync.WaitGroup
-	scenario         []scenarioStep
+	scenario         []ScenarioStep
 	scenarioIdx      int
 	stepStart        time.Time
 	lastTurnTime     time.Time
@@ -61,6 +61,8 @@ type MockClient struct {
 
 	// Ground Track Calculation
 	trackBuf *geo.TrackBuffer
+
+	useCustomScenario bool
 }
 
 // NewClient creates a new mock simulator client.
@@ -262,10 +264,13 @@ func (m *MockClient) update() {
 }
 
 func (m *MockClient) initScenario() {
+	if m.useCustomScenario {
+		return
+	}
 	// Calculate bottom based on airfield elevation (round down to nearest 1000)
 	bottom := math.Floor(m.groundAlt/1000.0) * 1000.0
 
-	m.scenario = []scenarioStep{
+	m.scenario = []ScenarioStep{
 		{Type: "CLIMB", Target: 1500.0 + bottom, Rate: 500.0},
 		{Type: "WAIT", Duration: 120.0},
 	}
@@ -274,18 +279,29 @@ func (m *MockClient) initScenario() {
 	for alt < 5500.0 {
 		alt += 1000.0
 		m.scenario = append(m.scenario,
-			scenarioStep{Type: "CLIMB", Target: alt + bottom, Rate: 500.0},
-			scenarioStep{Type: "WAIT", Duration: 120.0},
+			ScenarioStep{Type: "CLIMB", Target: alt + bottom, Rate: 500.0},
+			ScenarioStep{Type: "WAIT", Duration: 120.0},
 		)
 	}
 	m.scenario = append(m.scenario,
-		scenarioStep{Type: "CLIMB", Target: 12000.0 + bottom, Rate: 2000.0},
-		scenarioStep{Type: "WAIT", Duration: 120.0},
-		scenarioStep{Type: "CLIMB", Target: 8000.0 + bottom, Rate: -1000.0}, // Descent
-		scenarioStep{Type: "CLIMB", Target: 1500.0 + bottom, Rate: -500.0},  // Descent
+		ScenarioStep{Type: "CLIMB", Target: 12000.0 + bottom, Rate: 2000.0},
+		ScenarioStep{Type: "WAIT", Duration: 120.0},
+		ScenarioStep{Type: "CLIMB", Target: 8000.0 + bottom, Rate: -1000.0}, // Descent
+		ScenarioStep{Type: "CLIMB", Target: 1500.0 + bottom, Rate: -500.0},  // Descent
 	)
 	m.scenarioIdx = 0
 	m.stepStart = time.Time{}
+}
+
+// SetScenario allows replacing the default flight scenario.
+// Useful for testing specific flight tracking or speeding up tests.
+func (m *MockClient) SetScenario(steps []ScenarioStep) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.scenario = steps
+	m.scenarioIdx = 0
+	m.stepStart = time.Time{}
+	m.useCustomScenario = true
 }
 
 func (m *MockClient) updateScenario(dt float64, now time.Time) {

@@ -58,6 +58,11 @@ func TestStateSequence(t *testing.T) {
 		return tel.IsOnGround && tel.GroundSpeed == 0
 	}, 1*time.Second, "ParKed State")
 
+	// Inject fast scenario for when we reach hold/airborne
+	client.SetScenario([]ScenarioStep{
+		{Type: "CLIMB", Target: 5000.0, Rate: 10000.0}, // Climb fast
+	})
+
 	// 2. TAXI: Expect Speed 15 eventually
 	waitForReq(t, func() bool {
 		tel, _ := client.GetTelemetry(ctx)
@@ -130,9 +135,12 @@ func TestGroundTrack(t *testing.T) {
 	client := NewClient(cfg)
 	defer client.Close()
 
-	ctx := context.Background()
+	// Inject fast scenario to reach airborne state quickly
+	client.SetScenario([]ScenarioStep{
+		{Type: "CLIMB", Target: 2000.0, Rate: 10000.0},
+	})
 
-	// 1. Wait for airborne
+	ctx := context.Background()
 	waitForReq(t, func() bool {
 		tel, _ := client.GetTelemetry(ctx)
 		return !tel.IsOnGround

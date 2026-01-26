@@ -122,16 +122,13 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
                 </div>
 
                 {/* Status Badge */}
-                <div style={{
+                <div className="role-btn" style={{
                     marginLeft: '8px',
                     padding: '2px 6px',
                     borderRadius: '4px',
                     backgroundColor: 'rgba(255,255,255,0.1)',
                     border: `1px solid ${badgeColor}`,
                     color: badgeColor,
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    letterSpacing: '0.5px',
                     minWidth: 'fit-content'
                 }}>
                     {badgeText}
@@ -141,7 +138,7 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
             {/* Title Row with Progress */}
             {showTitle && (
                 <div className="playback-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                    <span style={{
+                    <span className="role-text-lg" style={{
                         flex: '0 1 auto',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -155,7 +152,6 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
                                 color: '#fbbf24',
                                 filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
                                 marginRight: '4px',
-                                fontSize: '14px',
                                 display: 'inline-block',
                                 verticalAlign: 'middle'
                             }} title="MSFS Scenery">★</span>
@@ -193,7 +189,7 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
 
                     {/* Total Duration */}
                     {(!isPreparing && (status?.duration || 0) > 0) ? (
-                        <span style={{ fontSize: '12px', color: '#888', fontFamily: 'monospace', flexShrink: 0 }}>
+                        <span className="role-num-sm" style={{ opacity: 0.7, flexShrink: 0 }}>
                             {formatTime(status?.duration || 0)}
                         </span>
                     ) : null}

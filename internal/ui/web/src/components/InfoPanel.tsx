@@ -8,9 +8,6 @@ interface InfoPanelProps {
     status: 'pending' | 'error' | 'success';
     isRetrying?: boolean;
     displayedCount: number;
-    filterMode?: string;
-    narrationFrequency?: number;
-    textLength?: number;
 }
 
 interface Geography {
@@ -26,8 +23,7 @@ interface Geography {
 
 export const InfoPanel = ({
     telemetry, status, isRetrying,
-    displayedCount,
-    filterMode, narrationFrequency, textLength
+    displayedCount
 }: InfoPanelProps) => {
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
@@ -133,7 +129,8 @@ export const InfoPanel = ({
     }
 
     // Determine status display based on SimState from telemetry
-    const simState = telemetry.SimState || 'disconnected';
+    const simPaused = telemetry.IsOnGround === false && telemetry.GroundSpeed < 1; // Heuristic (Airspeed missing from types, assume GroundSpeed proxies for now if airborn)
+    const simStateDisplay = !telemetry ? 'disconnected' : (simPaused ? 'paused' : 'active');
 
     const agl = Math.round(telemetry.AltitudeAGL);
     const msl = Math.round(telemetry.AltitudeMSL);
@@ -144,6 +141,8 @@ export const InfoPanel = ({
 
     return (
         <div className="hud-container">
+
+
             {/* Screenshot Display */}
             {narratorStatus?.current_image_path && (
                 <div className="hud-card" style={{ marginBottom: '10px', padding: '0', overflow: 'hidden', position: 'relative' }}>
@@ -173,49 +172,57 @@ export const InfoPanel = ({
             <div className="flex-container">
                 {/* 1. HDG @ GS */}
                 <div className="flex-card">
-                    <div className="label">HDG @ GS</div>
-                    <div className="value">
-                        {Math.round(telemetry.Heading)}° <span className="unit">@</span> {Math.round(telemetry.GroundSpeed)} <span className="unit">kts</span>
+                    <div className="role-header">HDG @ GS</div>
+                    <div className="role-num-lg">
+                        {telemetry.Valid ? Math.round(telemetry.Heading) + '°' : '—'} <span className="unit">@</span> {telemetry.Valid ? Math.round(telemetry.GroundSpeed) : '—'} <span className="unit">kts</span>
                     </div>
-                </div>
-
-                {/* 2. ALTS */}
-                <div className="flex-card">
-                    <div className="label">ALTITUDE</div>
-                    <div className="value">
-                        {agl} <span className="unit">AGL</span>
-                    </div>
-                    <div className="sub-value" style={{ fontSize: '11px', color: '#666' }}>
-                        {msl} <span className="unit">MSL</span>
-                    </div>
-                    {telemetry.ValleyAltitude !== undefined && (
-                        <div className="sub-value" style={{ fontSize: '11px', color: '#888', marginTop: '1px' }}>
-                            {Math.round(telemetry.AltitudeMSL - (telemetry.ValleyAltitude * 3.28084))} <span className="unit">VAL</span>
+                    {telemetry.APStatus && (
+                        <div className="role-num-sm" style={{ color: 'var(--success)', marginTop: '4px', fontSize: '14px' }}>
+                            {telemetry.Valid ? telemetry.APStatus : 'nil'}
                         </div>
                     )}
                 </div>
 
-                {/* 3. COORDS */}
-                <div className="flex-card" style={{ flex: '2 1 200px', position: 'relative' }}> {/* Give coords more width pref */}
-                    <div className="label">POSITION</div>
+                {/* 2. ALTS - Using a Grid for Alignment */}
+                <div className="flex-card">
+                    <div className="role-header">ALTITUDE</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'min-content 1fr', columnGap: '8px', alignItems: 'baseline' }}>
+                        <div className="role-num-lg" style={{ textAlign: 'right' }}>{telemetry.Valid ? agl : '—'}</div>
+                        <div className="role-label">AGL</div>
 
-                    {/* Flight Stage Pill (Absolute positioned in corner) */}
-                    {simState !== 'disconnected' && (
-                        <div className={`flight-stage ${telemetry.IsOnGround ? '' : 'active'}`} style={{ position: 'absolute', top: '8px', right: '8px', fontSize: '9px', padding: '2px 6px' }}>
+                        <div className="role-num-sm" style={{ textAlign: 'right' }}>{telemetry.Valid ? msl : '—'}</div>
+                        <div className="role-label">MSL</div>
+
+                        {telemetry.ValleyAltitude !== undefined && (
+                            <>
+                                <div className="role-num-sm" style={{ textAlign: 'right', opacity: 0.7 }}>
+                                    {telemetry.Valid ? Math.round(telemetry.AltitudeMSL - (telemetry.ValleyAltitude * 3.28084)) : '—'}
+                                </div>
+                                <div className="role-label" style={{ opacity: 0.7 }}>VAL</div>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* 3. COORDS */}
+                <div className="flex-card" style={{ flex: '2 1 200px', position: 'relative' }}>
+                    <div className="role-header">POSITION</div>
+
+                    {simStateDisplay !== 'disconnected' && (
+                        <div className={`flight-stage ${telemetry.IsOnGround ? '' : 'active'} role-btn`} style={{ position: 'absolute', top: '8px', right: '8px', padding: '2px 6px' }}>
                             {telemetry.FlightStage || (telemetry.IsOnGround ? 'GROUND' : 'AIR')}
                         </div>
                     )}
 
-
                     {(location?.city || location?.country) && (
                         <>
-                            <div className="value" style={{ fontSize: '16px', color: '#fff', fontFamily: 'Inter, sans-serif', fontWeight: 600, marginTop: '4px' }}>
+                            <div className="role-text-lg" style={{ marginTop: '4px' }}>
                                 {location.city ? (
                                     location.city === 'Unknown' ? (
                                         <span>Far from civilization</span>
                                     ) : (
                                         <>
-                                            <span style={{ color: '#ddd', fontWeight: 400, marginRight: '6px', fontSize: '14px' }}>near</span>
+                                            <span className="role-label" style={{ marginRight: '6px' }}>near</span>
                                             {location.city}
                                         </>
                                     )
@@ -223,11 +230,11 @@ export const InfoPanel = ({
                                     <span>{location.country}</span>
                                 )}
                             </div>
-                            <div style={{ color: '#eee', fontSize: '14px', marginTop: '2px', fontFamily: 'Inter, sans-serif' }}>
+                            <div className="role-text-sm" style={{ marginTop: '2px' }}>
                                 {location.city_country_code && location.country_code && location.city_country_code !== location.country_code ? (
                                     <>
                                         <div>{location.city_region ? `${location.city_region}, ` : ''}{location.city_country}</div>
-                                        <div style={{ color: '#4a9eff', fontWeight: 500, marginTop: '2px' }}>in {location.country}</div>
+                                        <div style={{ color: 'var(--accent)', marginTop: '2px' }}>in {location.country}</div>
                                     </>
                                 ) : (
                                     <>{location.region ? `${location.region}, ` : ''}{location.city ? location.country : (location.region ? '' : '')}</>
@@ -235,39 +242,17 @@ export const InfoPanel = ({
                             </div>
                         </>
                     )}
-                    <div className="value" style={{ fontSize: '13px', fontFamily: 'monospace', color: '#ccc', marginTop: location?.city ? '8px' : '0' }}>
-                        {telemetry.Latitude.toFixed(4)}, {telemetry.Longitude.toFixed(4)}
+                    <div className="role-num-sm" style={{ color: 'var(--muted)', marginTop: location?.city ? '8px' : '0' }}>
+                        {telemetry.Valid ? `${telemetry.Latitude.toFixed(4)}, ${telemetry.Longitude.toFixed(4)}` : '—, —'}
                     </div>
-                    {telemetry.APStatus && (
-                        <div className="sub-value" style={{ fontSize: '11px', fontFamily: 'monospace', color: '#4caf50', marginTop: '4px' }}>
-                            {telemetry.APStatus}
-                        </div>
-                    )}
                 </div>
-
-
-
             </div>
 
-
-            {/* Statistics Flex Layout */}
+            {/* Statistics Flex Layout (Now only API stats) */}
             <div className="flex-container">
-                {/* System Stats */}
-                <div className="flex-card stat-card">
-                    <div className="value" style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left', lineHeight: '1.2' }}>
-                        <div><span className="unit">POI (vis) </span> {displayedCount}</div>
-                        <div><span className="unit">tracked </span> {trackedCount}</div>
-                        <div><span className="unit">mem </span> {sysMem} / {sysMemMax} MB</div>
-                    </div>
-                </div>
-
-                {/* Dynamic API Stats */}
                 {stats?.providers && Object.entries(stats.providers)
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     .map(([key, data]: [string, any]) => {
-                        // Filter empty stats (0 success AND 0 errors)
                         if (data.api_success === 0 && data.api_errors === 0) return null;
 
                         const label = key.toUpperCase().replace('-', ' ');
@@ -276,64 +261,50 @@ export const InfoPanel = ({
 
                         return (
                             <div className="flex-card stat-card" key={key}>
-                                <div className="label">
+                                <div className="role-header">
                                     {label}
-                                    {data.free_tier === false && <span style={{ marginLeft: '4px', fontSize: '10px' }}>💵</span>}
+                                    {data.free_tier === false && <span>💵</span>}
                                 </div>
-                                <div className="value">
-                                    <span className="stat-success">{data.api_success}</span>
-                                    <span className="stat-neutral"> / </span>
-                                    {/* Only show 'zero' results if relevant (e.g. not present for all APIs) */}
+                                <div className="role-num-lg">  {/* Restored to Large Role per request */}
+                                    <span style={{ color: 'var(--success)' }}>{data.api_success}</span>
+                                    <span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px' }}>◆</span>
                                     {data.api_zero !== undefined && (
                                         <>
-                                            <span className="stat-neutral">{data.api_zero}</span>
-                                            <span className="stat-neutral"> / </span>
+                                            <span>{data.api_zero}</span>
+                                            <span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px' }}>◆</span>
                                         </>
                                     )}
-                                    <span className="stat-error">{data.api_errors}</span>
+                                    <span style={{ color: 'var(--error)' }}>{data.api_errors}</span>
                                 </div>
-                                {hitRate && <span className="stat-neutral" style={{ fontSize: '10px' }}>{hitRate}</span>}
+                                {hitRate && <span className="role-label">{hitRate}</span>}
                             </div>
                         );
                     })}
-            </div>
+            </div >
 
 
             {/* CONFIGURATION */}
             {/* Removed CONFIGURATION section - moved to SettingsPanel */}
 
             <div className="hud-footer">
-                <div className="hud-card footer" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="hud-card footer" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '8px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div className="role-label" style={{ display: 'flex', gap: '12px' }}>
+                            <span>POI(vis) <span className="role-num-sm">{displayedCount}</span></span>
+                            <span>POI(tracked) <span className="role-num-sm">{trackedCount}</span></span>
+                            <span>MEM(rss) <span className="role-num-sm">{sysMem}</span></span>
+                            <span>MEM(max) <span className="role-num-sm">{sysMemMax} MB</span></span>
+                        </div>
+                    </div>
+
+                    {/* Version on the Right Border */}
                     {versionMatch ? (
-                        <div className="version-info clean">{frontendVersion}</div>
+                        <div className="role-num-sm" style={{ opacity: 0.5 }}>{frontendVersion}</div>
                     ) : (
-                        <div className="version-info warning">
-                            ⚠ Frontend: {frontendVersion} / Backend: {backendVersion || '...'}
+                        <div className="role-num-sm" style={{ color: 'var(--error)' }}>
+                            ⚠ {frontendVersion}
                         </div>
                     )}
-
-                    {/* CONFIG PILL */}
-                    <a href="#/settings" className="config-pill" style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div className="config-pill-item">
-                            <span className="config-mode-icon">{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
-                        </div>
-                        <div className="config-pill-item">
-                            <span className="text-grey" style={{ fontSize: '9px', fontWeight: 700 }}>FRQ</span>
-                            <div className="pip-container">
-                                {[1, 2, 3, 4, 5].map(v => (
-                                    <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 3 ? 'high' : ''}`} />
-                                ))}
-                            </div>
-                        </div>
-                        <div className="config-pill-item">
-                            <span className="text-grey" style={{ fontSize: '9px', fontWeight: 700 }}>LEN</span>
-                            <div className="pip-container">
-                                {[1, 2, 3, 4, 5].map(v => (
-                                    <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''} ${(textLength || 0) >= v && v > 4 ? 'high' : ''}`} />
-                                ))}
-                            </div>
-                        </div>
-                    </a>
                 </div>
             </div>
         </div >

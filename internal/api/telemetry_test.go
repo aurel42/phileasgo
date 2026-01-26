@@ -67,11 +67,19 @@ func TestTelemetryHandler_HandleTelemetry(t *testing.T) {
 			}
 
 			if tt.expectedStatus == http.StatusOK && tt.validate != nil {
-				var gotTel sim.Telemetry
-				if err := json.NewDecoder(resp.Body).Decode(&gotTel); err != nil {
+				var gotResp TelemetryResponse
+				if err := json.NewDecoder(resp.Body).Decode(&gotResp); err != nil {
 					t.Fatalf("failed to decode JSON: %v", err)
 				}
-				tt.validate(t, gotTel)
+				tt.validate(t, gotResp.Telemetry)
+
+				// Extra validation for Valid flag
+				if tt.name == "Success_WithData" && !gotResp.Valid {
+					t.Error("Success_WithData: want Valid=true, got false")
+				}
+				if tt.name == "Success_EmptyInitial" && gotResp.Valid {
+					t.Error("Success_EmptyInitial: want Valid=false, got true") // Assuming default true logic if not explicitly handled? Wait. New logic says NewTelemetryHandler starts with hasReceived=false
+				}
 			}
 		})
 	}

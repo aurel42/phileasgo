@@ -2,8 +2,12 @@ package simconnect
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
+
+	"phileasgo/pkg/sim"
 )
 
 // TestClient_GetTelemetry tests telemetry retrieval from SimConnect.
@@ -133,5 +137,36 @@ func TestValidateTelemetry(t *testing.T) {
 				t.Errorf("validateTelemetry() = %v, want %v", got, tt.wantValid)
 			}
 		})
+	}
+}
+
+func TestGetTelemetry_Validity(t *testing.T) {
+	c := &Client{
+		// Need initialized logger to avoid panic in disconnect logging
+		logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		connected: true,
+	}
+
+	// 1. Initial State (hasValidData = false)
+	_, err := c.GetTelemetry(context.Background())
+	if err != sim.ErrWaitingForTelemetry {
+		t.Errorf("GetTelemetry initial: want ErrWaitingForTelemetry, got %v", err)
+	}
+
+	// 2. Simulate Valid Data
+	c.telemetryMu.Lock()
+	c.hasValidData = true
+	c.telemetryMu.Unlock()
+
+	_, err = c.GetTelemetry(context.Background())
+	if err != nil {
+		t.Errorf("GetTelemetry valid: want nil error, got %v", err)
+	}
+
+	// 3. Simulate Disconnect (Reset)
+	c.disconnect()
+	_, err = c.GetTelemetry(context.Background())
+	if err != sim.ErrWaitingForTelemetry {
+		t.Errorf("GetTelemetry disconnected: want ErrWaitingForTelemetry, got %v", err)
 	}
 }

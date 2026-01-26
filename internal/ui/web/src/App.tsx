@@ -272,6 +272,55 @@ function App() {
           onPOISelect={handlePOISelect}
           onMapClick={handlePanelClose}
         />
+
+        {/* Config Pill Overlay */}
+        <a href="#/settings" className="config-pill" style={{
+          position: 'absolute',
+          top: '20px',
+          right: '20px',
+          zIndex: 1000,
+          textDecoration: 'none',
+          color: 'inherit',
+          background: 'var(--panel-bg)',
+          boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
+        }}>
+          {/* Sim Status Item */}
+          <div className="config-pill-item" style={{ marginRight: '8px', paddingRight: '12px', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="status-dot" style={{
+              width: '8px',
+              height: '8px',
+              marginRight: '6px',
+              backgroundColor: !telemetry ? '#ef4444' : ((telemetry.IsOnGround === false && telemetry.GroundSpeed < 1) ? '#fbbf24' : '#22c55e')
+            }}></div>
+            <span className="role-label" style={{ color: 'var(--text-color)' }}>
+              {!telemetry ? 'DISC' : ((telemetry.IsOnGround === false && telemetry.GroundSpeed < 1) ? 'PAUSED' : 'ACT')}
+            </span>
+          </div>
+
+          <div className="config-pill-item">
+            <span className="config-mode-icon" style={{ color: 'var(--accent)' }}>{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
+            <span className="role-label" style={{ color: 'var(--muted)' }}>
+              {filterMode === 'adaptive' ? targetCount : minPoiScore}
+            </span>
+          </div>
+          <div className="config-pill-item">
+            <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>FRQ</span>
+            <div className="pip-container">
+              {[1, 2, 3, 4, 5].map(v => (
+                <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 3 ? 'high' : ''}`} />
+              ))}
+            </div>
+          </div>
+          <div className="config-pill-item">
+            <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>LEN</span>
+            <div className="pip-container">
+              {[1, 2, 3, 4, 5].map(v => (
+                <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''} ${(textLength || 0) >= v && v > 4 ? 'high' : ''}`} />
+              ))}
+            </div>
+          </div>
+        </a>
+
         {hasConnectionError && (
           <div className="connection-warning">
             ⚠️ Connection lost, trying to reconnect...
@@ -296,9 +345,6 @@ function App() {
             status={hasConnectionError ? 'error' : status}
             isRetrying={status === 'pending' && hasConnectionError}
             displayedCount={displayedCount}
-            filterMode={filterMode}
-            narrationFrequency={narrationFrequency}
-            textLength={textLength}
           />
         )}
       </div>

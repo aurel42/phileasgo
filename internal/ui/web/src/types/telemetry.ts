@@ -11,4 +11,5 @@ export interface Telemetry {
     APStatus?: string;
     ValleyAltitude?: number; // In Meters
     SimState: 'active' | 'inactive' | 'disconnected';
+    Valid: boolean;
 }

@@ -99,6 +99,10 @@ func (s *Scheduler) tick(ctx context.Context) {
 	// 1. Fetch Telemetry
 	tel, err := s.sim.GetTelemetry(ctx)
 	if err != nil {
+		if err == sim.ErrWaitingForTelemetry {
+			// Expected state when connected but waiting for data
+			return
+		}
 		slog.Debug("failed to read telemetry", "error", err)
 		return
 	}
