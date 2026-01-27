@@ -26,3 +26,5 @@ X control the config using transponder codes and ident
 X build an frontend app that wraps the browser UI
 X marker badges for interesting states (e.g. deferred)
 - preplan a whole trip?
+- new IDENT/Playback control function: "expand on this"
+- change wp prose in prompt from truncated to wrapped

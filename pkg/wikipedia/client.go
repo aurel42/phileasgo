@@ -137,6 +137,56 @@ func (c *Client) GetArticleContent(ctx context.Context, title, lang string) (str
 	return "", fmt.Errorf("article not found: %s", title)
 }
 
+// GetArticleHTML fetches the parsed HTML content for a single article.
+func (c *Client) GetArticleHTML(ctx context.Context, title, lang string) (string, error) {
+	if lang == "" {
+		lang = "en"
+	}
+
+	var endpoint string
+	if c.APIEndpoint != "" {
+		endpoint = c.APIEndpoint
+	} else {
+		endpoint = fmt.Sprintf("https://%s.wikipedia.org/w/api.php", lang)
+	}
+
+	u, _ := url.Parse(endpoint)
+	q := u.Query()
+	q.Add("action", "parse")
+	q.Add("prop", "text")
+	q.Add("page", title)
+	q.Add("format", "json")
+	q.Add("redirects", "1")
+	q.Add("disableeditsection", "1")
+	u.RawQuery = q.Encode()
+
+	body, err := c.request.Get(ctx, u.String(), "")
+	if err != nil {
+		return "", err
+	}
+
+	var apiResp struct {
+		Parse struct {
+			Text struct {
+				Html string `json:"*"`
+			} `json:"text"`
+		} `json:"parse"`
+		Error struct {
+			Code string `json:"code"`
+			Info string `json:"info"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return "", fmt.Errorf("failed to decode json: %w", err)
+	}
+
+	if apiResp.Error.Code != "" {
+		return "", fmt.Errorf("wikipedia api error: %s - %s", apiResp.Error.Code, apiResp.Error.Info)
+	}
+
+	return apiResp.Parse.Text.Html, nil
+}
+
 type response struct {
 	Query struct {
 		Pages map[string]struct {

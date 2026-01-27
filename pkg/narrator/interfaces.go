@@ -25,6 +25,7 @@ type GeoProvider interface {
 // WikipediaProvider defines the interface for Wikipedia access.
 type WikipediaProvider interface {
 	GetArticleContent(ctx context.Context, title, lang string) (string, error)
+	GetArticleHTML(ctx context.Context, title, lang string) (string, error)
 }
 
 // LanguageResolver defines the interface for resolving language details.

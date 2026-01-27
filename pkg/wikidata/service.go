@@ -71,6 +71,7 @@ type Classifier interface {
 type WikipediaProvider interface {
 	GetArticleLengths(ctx context.Context, titles []string, lang string) (map[string]int, error)
 	GetArticleContent(ctx context.Context, title, lang string) (string, error)
+	GetArticleHTML(ctx context.Context, title, lang string) (string, error)
 }
 
 // DimClassifier extends Classifier with dimension capabilities

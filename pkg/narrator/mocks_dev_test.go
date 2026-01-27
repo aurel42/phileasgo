@@ -174,6 +174,10 @@ func (m *MockWikipedia) GetArticleContent(ctx context.Context, title, lang strin
 	return m.Content, m.Err
 }
 
+func (m *MockWikipedia) GetArticleHTML(ctx context.Context, title, lang string) (string, error) {
+	return m.Content, m.Err // Return same content as HTML for simplicity in tests
+}
+
 type MockBeacon struct {
 	Cleared    bool
 	TargetSet  bool

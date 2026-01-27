@@ -189,6 +189,7 @@ func (m *MockWikidataClient) GetEntityClaims(ctx context.Context, id, property s
 type MockWikipediaProvider struct {
 	GetArticleLengthsFunc func(ctx context.Context, titles []string, lang string) (map[string]int, error)
 	GetArticleContentFunc func(ctx context.Context, title, lang string) (string, error)
+	GetArticleHTMLFunc    func(ctx context.Context, title, lang string) (string, error)
 }
 
 func (m *MockWikipediaProvider) GetArticleLengths(ctx context.Context, titles []string, lang string) (map[string]int, error) {
@@ -201,6 +202,13 @@ func (m *MockWikipediaProvider) GetArticleLengths(ctx context.Context, titles []
 func (m *MockWikipediaProvider) GetArticleContent(ctx context.Context, title, lang string) (string, error) {
 	if m.GetArticleContentFunc != nil {
 		return m.GetArticleContentFunc(ctx, title, lang)
+	}
+	return "", nil
+}
+
+func (m *MockWikipediaProvider) GetArticleHTML(ctx context.Context, title, lang string) (string, error) {
+	if m.GetArticleHTMLFunc != nil {
+		return m.GetArticleHTMLFunc(ctx, title, lang)
 	}
 	return "", nil
 }
