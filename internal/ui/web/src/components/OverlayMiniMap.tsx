@@ -47,14 +47,14 @@ const WhenMapReady = ({ children }: { children: React.ReactNode }) => {
     return <>{children}</>
 };
 
-// Range rings for the mini-map (only 5, 10, 20) - no Markers to avoid pane issues
+// Range rings for the mini-map
 const MiniMapRangeRings = ({ lat, lon, units }: { lat: number; lon: number; units: 'km' | 'nm' }) => {
     const nmToM = 1852;
     const kmToM = 1000;
     const unitToM = units === 'nm' ? nmToM : kmToM;
 
-    // Only show 5, 10, 20 rings for the mini-map
-    const RING_DISTANCES = [5, 10, 20];
+    // Show 5, 10, 20, 50, 100 rings
+    const RING_DISTANCES = [5, 10, 20, 50, 100];
 
     return (
         <>
@@ -82,26 +82,64 @@ const MiniMapRangeRings = ({ lat, lon, units }: { lat: number; lon: number; unit
 };
 
 // Simplified ring labels using a custom component instead of Marker
-const RingLabels = ({ lat, units }: { lat: number; units: 'km' | 'nm' }) => {
+const RingLabels = ({ lat, lon, heading, units }: { lat: number; lon: number; heading: number; units: 'km' | 'nm' }) => {
     const map = useMap();
-    const [positions, setPositions] = useState<{ dist: number; top: number; left: number }[]>([]);
+    const [visibleLabel, setVisibleLabel] = useState<{ dist: number; top: number; left: number } | null>(null);
 
     useEffect(() => {
         const updatePositions = () => {
             const nmToM = 1852;
             const kmToM = 1000;
             const unitToM = units === 'nm' ? nmToM : kmToM;
-            const degPerKm = 1 / 111;
+            const degPerKm = 1 / 111.11;
 
-            const newPositions = [10, 20].map(dist => {
+            const hdgRad = (heading * Math.PI) / 180;
+            const latRad = (lat * Math.PI) / 180;
+
+            const centerPoint = map.latLngToContainerPoint([lat, lon]);
+            const mapSize = map.getSize();
+            const buffer = 30; // pixels to considering "visible" (avoid edge clipping)
+
+            // Candidates including 5nm
+            const candidates = [5, 10, 20, 50, 100].map(dist => {
                 const radiusM = dist * unitToM;
                 const radiusKm = radiusM / kmToM;
-                const labelOffsetKm = 1;
-                const topLat = lat + ((radiusKm + labelOffsetKm) * degPerKm);
-                const point = map.latLngToContainerPoint([topLat, map.getCenter().lng]);
-                return { dist, top: point.y, left: point.x };
+
+                // Calculate point on ring at current heading
+                const dLat = radiusKm * Math.cos(hdgRad) * degPerKm;
+                const dLon = (radiusKm * Math.sin(hdgRad) * degPerKm) / Math.cos(latRad);
+
+                const ringLatLng = L.latLng(lat + dLat, lon + dLon);
+                const ringPoint = map.latLngToContainerPoint(ringLatLng);
+
+                // Calculate inward offset vector (towards center)
+                const dx = centerPoint.x - ringPoint.x;
+                const dy = centerPoint.y - ringPoint.y;
+                const distPx = Math.sqrt(dx * dx + dy * dy);
+
+                // Offset by ~20px inwards for spacing
+                const offsetPx = 20;
+                const ratio = distPx > 0 ? offsetPx / distPx : 0;
+
+                const labelX = ringPoint.x + dx * ratio;
+                const labelY = ringPoint.y + dy * ratio;
+
+                // Check visibility
+                const isVisible =
+                    labelX >= buffer &&
+                    labelX <= (mapSize.x - buffer) &&
+                    labelY >= buffer &&
+                    labelY <= (mapSize.y - buffer);
+
+                return { dist, top: labelY, left: labelX, isVisible };
             });
-            setPositions(newPositions);
+
+            // Select the largest distance that is visible
+            const selected = candidates
+                .filter(c => c.isVisible)
+                .sort((a, b) => b.dist - a.dist)[0];
+
+            setVisibleLabel(selected || null);
         };
 
         updatePositions();
@@ -112,36 +150,38 @@ const RingLabels = ({ lat, units }: { lat: number; units: 'km' | 'nm' }) => {
             map.off('move', updatePositions);
             map.off('zoom', updatePositions);
         };
-    }, [map, lat, units]);
+    }, [map, lat, lon, heading, units]);
+
+    if (!visibleLabel) return null;
+
+    const { dist, top, left } = visibleLabel;
 
     return (
-        <>
-            {positions.map(({ dist, top, left }) => (
-                <div
-                    key={dist}
-                    className="range-label"
-                    style={{
-                        position: 'absolute',
-                        top: top - 9,
-                        left: left - 25,
-                        width: 50,
-                        height: 18,
-                        textAlign: 'center',
-                        pointerEvents: 'none',
-                        zIndex: 1000,
-                    }}
-                >
-                    <span style={{
-                        fontSize: '14px',
-                        fontFamily: 'Inter, monospace',
-                        color: 'rgba(74, 158, 255, 0.7)',
-                        textShadow: '0 1px 2px rgba(0, 0, 0, 0.8)',
-                    }}>
-                        {dist} {units}
-                    </span>
-                </div>
-            ))}
-        </>
+        <div
+            key={dist}
+            className="range-label"
+            style={{
+                position: 'absolute',
+                top: top - 10,
+                left: left - 25,
+                width: 50,
+                height: 20,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+                zIndex: 1000,
+            }}
+        >
+            <span className="role-label-overlay" style={{
+                color: 'rgba(74, 158, 255, 0.9)',
+                textShadow: '0 1px 2px rgba(0, 0, 0, 0.9)',
+                fontSize: '13px',
+                fontStyle: 'italic'
+            }}>
+                {dist}{units}
+            </span>
+        </div>
     );
 };
 
@@ -247,14 +287,13 @@ export const OverlayMiniMap = ({ lat, lon, heading, pois, currentNarratedId, pre
                 ref={setMap}
             >
                 {/* Faint basemap for geographic context */}
-                {/* Faint basemap for geographic context */}
                 <TileLayer
                     url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                     opacity={0.8}
                 />
 
                 {/* Ring labels as HTML overlay */}
-                <RingLabels lat={lat} units={units} />
+                <RingLabels lat={lat} lon={lon} heading={heading} units={units} />
 
                 {/* Map content that needs map to be ready */}
                 <MapContent

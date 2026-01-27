@@ -255,6 +255,8 @@ func TestIsUnrecoverable(t *testing.T) {
 		{fmt.Errorf("429 too many requests"), false},
 		{fmt.Errorf("random error"), false},
 		{fmt.Errorf("invalid_api_key"), true},
+		{context.Canceled, false},
+		{context.DeadlineExceeded, false},
 	}
 
 	for _, tt := range tests {

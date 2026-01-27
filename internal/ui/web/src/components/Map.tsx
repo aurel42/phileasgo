@@ -63,7 +63,8 @@ const MapEvents = ({ onInteraction }: { onInteraction: () => void }) => {
 };
 
 // Range rings component
-const RangeRings = ({ lat, lon, units }: { lat: number; lon: number; units: 'km' | 'nm' }) => {
+const RangeRings = ({ lat, lon, heading, units }: { lat: number; lon: number; heading: number; units: 'km' | 'nm' }) => {
+    const map = useMap();
     // Conversion to meters
     const kmToM = 1000;
     const nmToM = 1852;
@@ -73,19 +74,73 @@ const RangeRings = ({ lat, lon, units }: { lat: number; lon: number; units: 'km'
     const RING_DISTANCES = [5, 10, 20, 50, 100];
 
     // Degrees latitude per km (approx)
-    const degPerKm = 1 / 111;
+    const degPerKm = 1 / 111.11;
+    const toRad = Math.PI / 180;
+
+    // Calculate visible label
+    // We do this in render because lat/lon/heading change often, and so does map bounds
+    // Optimization: memoize if needed, but for now simple calc is fine.
+
+    // Bounds check
+    const bounds = map.getBounds();
+    const zoom = map.getZoom();
+
+    // We want the label to be inside the ring by some pixels
+    const inwardOffsetPx = 20;
+
+    let bestLabel: { lat: number, lon: number, dist: number } | null = null;
+
+    // Iterate backwards (largest first) to find the first visible one
+    for (let i = RING_DISTANCES.length - 1; i >= 0; i--) {
+        const dist = RING_DISTANCES[i];
+        const radiusM = dist * unitToM;
+        const radiusKm = radiusM / kmToM;
+
+        // 1. Calculate point on ring at heading
+        const dLat = radiusKm * Math.cos(heading * toRad) * degPerKm;
+        const dLon = (radiusKm * Math.sin(heading * toRad) * degPerKm) / Math.cos(lat * toRad);
+        const ringLat = lat + dLat;
+        const ringLon = lon + dLon;
+
+        // 2. Project to pixels to apply offset
+        const ringPoint = map.project([ringLat, ringLon], zoom);
+
+        // 3. Move inwards towards center
+        // Vector from ring point to center point (aircraft)
+        // Actually simpler: we know the heading is the direction FROM center TO ring point.
+        // So to move inwards, we move backwards along that heading.
+        // dx = -sin(heading), dy = +cos(heading) in screen space? 
+        // Leaflet pixel coords: x increases right, y increases down.
+        // Heading 0 (North): x=0, y=-radius. Inward: y increases (down).
+        // Heading 90 (East): x=radius, y=0. Inward: x decreases (left).
+
+        // Let's use the vector approach to be safe against projection distortions
+        const centerPoint = map.project([lat, lon], zoom);
+        const vecX = centerPoint.x - ringPoint.x;
+        const vecY = centerPoint.y - ringPoint.y;
+        const len = Math.sqrt(vecX * vecX + vecY * vecY);
+
+        if (len === 0) continue;
+
+        const ratio = inwardOffsetPx / len;
+        const labelPoint = L.point(
+            ringPoint.x + vecX * ratio,
+            ringPoint.y + vecY * ratio
+        );
+
+        const labelLatLng = map.unproject(labelPoint, zoom);
+
+        // 4. Check visibility (with small buffer)
+        if (bounds.contains(labelLatLng)) {
+            bestLabel = { lat: labelLatLng.lat, lon: labelLatLng.lng, dist };
+            break; // Found the largest visible one
+        }
+    }
 
     return (
         <>
             {RING_DISTANCES.map(dist => {
-                // Convert to meters based on unit
                 const radiusM = dist * unitToM;
-                // For label positioning, convert to km for lat offset
-                // Add small offset north so label sits ON the ring line
-                const radiusKm = radiusM / kmToM;
-                const labelOffsetKm = 1; // 1km extra north
-                const topLat = lat + ((radiusKm + labelOffsetKm) * degPerKm);
-
                 return (
                     <Fragment key={dist}>
                         <Circle
@@ -99,21 +154,21 @@ const RangeRings = ({ lat, lon, units }: { lat: number; lon: number; units: 'km'
                                 dashArray: '5, 5',
                             }}
                         />
-                        {/* Only label rings 10+ */}
-                        {dist >= 10 && (
-                            <Marker
-                                position={[topLat, lon]}
-                                icon={L.divIcon({
-                                    className: 'range-label',
-                                    html: `<span>${dist} ${units}</span>`,
-                                    iconSize: [50, 18],
-                                    iconAnchor: [25, 9],
-                                })}
-                            />
-                        )}
                     </Fragment>
                 );
             })}
+
+            {bestLabel && (
+                <Marker
+                    position={[bestLabel.lat, bestLabel.lon]}
+                    icon={L.divIcon({
+                        className: 'range-label',
+                        html: `<span class="role-label-overlay" style="color: rgba(74, 158, 255, 0.9); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); font-size: 13px; font-style: italic;">${bestLabel.dist}${units}</span>`,
+                        iconSize: [50, 20],
+                        iconAnchor: [25, 10], // Center the icon
+                    })}
+                />
+            )}
         </>
     );
 };
@@ -319,7 +374,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                     <>
                         {/* We use TELEMETRY (real-time) for Ring positions? No, rings should probably move with the plane. 
                             Actually, stick to throttled for everything visual related to the plane position to avoid jitter. */}
-                        <RangeRings lat={throttledPos.lat} lon={throttledPos.lon} units={units} />
+                        <RangeRings lat={throttledPos.lat} lon={throttledPos.lon} heading={throttledPos.heading} units={units} />
 
                         {/* Only use Recenter if AutoZoom is OFF */}
                         {!autoZoom && <Recenter mapCenter={[throttledPos.lat, throttledPos.lon]} heading={throttledPos.heading} />}

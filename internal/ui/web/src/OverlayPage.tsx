@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useTelemetry } from './hooks/useTelemetry';
 import { useNarrator } from './hooks/useNarrator';
 import { useAudio } from './hooks/useAudio';
@@ -14,6 +14,19 @@ const OverlayPage = () => {
     const { status: audioStatus } = useAudio();
     const pois = useTrackedPOIs();
 
+    // Throttle telemetry updates for the map to 2s to reduce jitter/load
+    const [throttledTelemetry, setThrottledTelemetry] = useState(telemetry);
+    const lastThrottleRef = useRef(0);
+
+    useEffect(() => {
+        if (!telemetry) return;
+        const now = Date.now();
+        if (now - lastThrottleRef.current > 2000) {
+            setThrottledTelemetry(telemetry);
+            lastThrottleRef.current = now;
+        }
+    }, [telemetry]);
+
     // Set body class for transparent background
     useEffect(() => {
         document.body.classList.add('overlay-mode');
@@ -25,6 +38,7 @@ const OverlayPage = () => {
     }, []);
 
     // Config state
+    const [units, setUnits] = useState<'km' | 'nm'>('km');
     const [minPoiScore, setMinPoiScore] = useState<number | undefined>(undefined);
     const [showMapBox, setShowMapBox] = useState(true);
     const [showPOIInfo, setShowPOIInfo] = useState(true);
@@ -35,6 +49,7 @@ const OverlayPage = () => {
                 .then(r => r.json())
                 .then(data => {
                     if (data) {
+                        if (data.units) setUnits(data.units);
                         if (typeof data.min_poi_score === 'number') setMinPoiScore(data.min_poi_score);
                         if (typeof data.show_map_box === 'boolean') setShowMapBox(data.show_map_box);
                         if (typeof data.show_poi_info === 'boolean') setShowPOIInfo(data.show_poi_info);
@@ -72,16 +87,16 @@ const OverlayPage = () => {
         <div className="overlay-root">
             <div className="overlay-container">
                 {/* Mini-map in top-left */}
-                {showMapBox && isConnected && telemetry && (
+                {showMapBox && isConnected && throttledTelemetry && (
                     <OverlayMiniMap
-                        lat={telemetry.Latitude}
-                        lon={telemetry.Longitude}
-                        heading={telemetry.Heading}
+                        lat={throttledTelemetry.Latitude}
+                        lon={throttledTelemetry.Longitude}
+                        heading={throttledTelemetry.Heading}
                         pois={displayPois}
                         minPoiScore={minPoiScore}
                         currentNarratedId={currentPoi?.wikidata_id}
                         preparingId={narratorStatus?.preparing_poi?.wikidata_id}
-                        units="nm"
+                        units={units}
                     />
                 )}
 

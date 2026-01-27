@@ -325,6 +325,5 @@ func isUnrecoverable(err error) bool {
 	// Note: 429 (Too Many Requests) and 400 (Bad Request) are NOT fatal.
 	// 400 might be a model-specific issue or a transient prompt error that doesn't warrant disabling the provider.
 	return strings.Contains(msg, "401") || strings.Contains(msg, "403") ||
-		strings.Contains(msg, "unauthorized") || strings.Contains(msg, "forbidden") || strings.Contains(msg, "invalid_api_key") ||
-		strings.Contains(msg, "context canceled") || strings.Contains(msg, "context deadline exceeded")
+		strings.Contains(msg, "unauthorized") || strings.Contains(msg, "forbidden") || strings.Contains(msg, "invalid_api_key")
 }

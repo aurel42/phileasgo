@@ -1,15 +1,22 @@
-﻿
+﻿Release History
+
+## v0.3.41 (2026-01-27)
+- **Feature**: **Smart Map Label Positioning**
+  - **Dynamic Alignment**: Range ring labels now align with the aircraft heading to stay "ahead" of the plane.
+  - **Visibility Logic**: Implemented decluttering logic to show only the largest visible label.
+  - **Refinement**: Labels are now offset inside the ring to prevent line intersection, and the "space" has been removed ("10nm").
+- **Fix**: **Overlay Map Units**
+  - **Consistency**: The streaming overlay map now respects the global unit setting (KM/NM) instead of being hardcoded to Nautical Miles.
+
 ## v0.3.40 (2026-01-26)
 - **UI**: **Stats Grid Layout Fix**
-  - **Overflow**: Fixed an issue where the "WIKIDATA" header was overflowing the stats card.
   - **Sizing**: Increased minimum column width to `130px` and reduced header/number font sizes (14px/18px) to safely accommodate larger values (e.g. 4-digit counts) within the Victorian frame.
 
 ## v0.3.39 (2026-01-26)
 - **Refactor**: **Template Macro Standardization**
   - Unified all Narrator Prompt Template macros to **PascalCase** (`Persona`, `Style`, `FlightData`, `LengthInstructions`).
   - Ensures consistent naming conventions across the entire prompt library (`common/`, `narrator/`, etc.) and eliminates snake_case inconsistencies.
-  - Verified integrity with a full test suite run; no functional changes to narration output.
-
+  
 ## v0.3.38 (2026-01-26)
 - **Feature**: **Stub Article Detection & Handling**
   - **Logic**: Automatically detects "Stub" Wikipedia articles (short content < 2000 chars) to prevent hallucinations or repetitive filler text.
@@ -18,11 +25,7 @@
 - **UI**: **Victorian Theme Polish**
   - **Styling**: Implemented a "Victorian Frame" aesthetic across all popup cards, HUD elements, and overlay panels, featuring double-borders and inset gold glows.
   - **Layout**: Converted the API Stats panel to a responsive CSS Grid layout to prevent text wrapping and align critical metrics.
-  - **Typos**: Fixed `border-radius` duplication in CSS.
-- **Refactor**: **Quality & Reliability**
-  - **Scorer**: Reduced cyclomatic complexity in `Calculate` by extracting badge logic into a dedicated connection-aware helper.
-  - **Tests**: Added specific test coverage for Stub logic in `scorer_test.go`.
-  - **Build**: Resolved TypeScript syntax errors in `SmartMarkerLayer.tsx` impeding the build process.
+
 ## v0.3.37 (2026-01-26)
 - **UI**: **Modernized Typography & Styling**
   - **Settings Panel**: Updated to use the new "Phileas" typography system, fully removing legacy CSS dependencies.
@@ -34,8 +37,6 @@
   - Reduced cyclomatic complexity in `internal/api/visibility.go` for better maintainability (splitting `calculateEffectiveAGL`).
 - **UI**: **API Stats Polish**
   - Refined the API statistics display in the Info Panel with a diamond separator (`◆`) and aligned typography.
-- **Testing**: **Simulator Optimization**
-  - Optimized `mocksim` tests by injecting high-speed climb scenarios, reducing test suite execution time by **~55%** (21s -> 9.5s).
 - **Testing**: **Telemetry Validity**
   - Added rigorous tests for SimConnect telemetry validity flags to ensure robust data handling.
 
