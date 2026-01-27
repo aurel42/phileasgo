@@ -157,7 +157,10 @@ func run(ctx context.Context, configPath string) error {
 	// Let's rely on Scorer handling nil optionally or just let it be nil for now.
 	// The previous code verified startup files.
 	poiScorer := scorer.NewScorer(&appCfg.Scorer, catCfg, visCalc, elevGetter)
-	go svcs.PoiMgr.StartScoring(ctx, simClient, poiScorer)
+
+	// [NEW] Scoring Job
+	scoringJob := poi.NewScoringJob("POIScoring", svcs.PoiMgr, simClient, poiScorer, &appCfg.Narrator, slog.Default())
+	sched.AddJob(scoringJob)
 
 	// Startup Probes
 	probes := []probe.Probe{

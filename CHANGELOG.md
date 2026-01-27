@@ -1,5 +1,11 @@
 ﻿Release History
 
+## v0.3.43 (2026-01-27)
+- **Refactor**: **Scoring Loop Architecture**
+  - **SRP Compliance**: Extracted the core POI scoring logic from the monolithic `poi.Manager` into a dedicated, testable `ScoringJob`.
+  - **Logic**: The scoring loop now runs as a standard `core.Job` within the unified Scheduler, strictly enforcing the 5-second interval.
+  - **Safety**: Replaced ad-hoc tickers with atomic locking and centralized error handling.
+
 ## v0.3.42 (2026-01-27)
 - **Refactor**: **Narrator Queue Modularization**
   - **Architecture**: Decoupled `Playback` and `Generation` queues from the main `AIService`, moving them into dedicated, testable managers (`pkg/narrator/playback`, `pkg/narrator/generation`).
