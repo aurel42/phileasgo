@@ -33,6 +33,10 @@ type GenerationRequest struct {
 	ImagePath  string
 	EssayTopic *EssayTopic
 
+	// Location Context (Snapshot)
+	Lat float64
+	Lon float64
+
 	// Constraints
 	MaxWords int
 	Manual   bool
@@ -77,6 +81,8 @@ type AIService struct {
 	currentEssayTitle string
 	currentType       model.NarrativeType // The type of the currently playing narrative
 	currentImagePath  string              // Added field
+	currentLat        float64             // Location snapshot
+	currentLon        float64             // Location snapshot
 
 	// Generation State
 
@@ -89,6 +95,8 @@ type AIService struct {
 	lastEssayTopic *EssayTopic
 	lastEssayTitle string
 	lastImagePath  string // Added field
+	lastLat        float64
+	lastLon        float64
 
 	// Staging State (Pipeline)
 	genQ          *generation.Manager // Generation queue manager

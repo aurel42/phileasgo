@@ -83,6 +83,8 @@ func (s *AIService) CurrentPOI() *model.POI {
 			ThumbnailURL: "/api/images/serve?path=" + s.currentImagePath, // Use the serve endpoint as thumbnail
 			Icon:         "camera",                                       // Hypothetical icon
 			Score:        50.0,                                           // Max score for visibility
+			Lat:          s.currentLat,
+			Lon:          s.currentLon,
 			IsVisible:    true,
 		}
 	}
@@ -191,6 +193,13 @@ func (s *AIService) ReplayLast(ctx context.Context) bool {
 		slog.Info("Narrator: Replaying last POI", "title", s.lastPOI.NameEn)
 		s.currentPOI = s.lastPOI
 		s.active = true // Mark active so UI shows "PLAYING"
+	case s.lastImagePath != "":
+		slog.Info("Narrator: Replaying last Screenshot", "image", s.lastImagePath)
+		s.currentImagePath = s.lastImagePath
+		s.currentType = model.NarrativeTypeScreenshot
+		s.currentLat = s.lastLat
+		s.currentLon = s.lastLon
+		s.active = true
 	case s.lastEssayTopic != nil:
 		slog.Info("Narrator: Replaying last Essay", "title", s.lastEssayTitle)
 		s.currentTopic = s.lastEssayTopic

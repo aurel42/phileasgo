@@ -130,6 +130,8 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 				Title:     "Screenshot Analysis",
 				SafeID:    "screenshot_" + time.Now().Format("150405"),
 				ImagePath: job.ImagePath,
+				Lat:       job.Telemetry.Latitude,
+				Lon:       job.Telemetry.Longitude,
 				MaxWords:  s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
 				Manual:    true,
 			}

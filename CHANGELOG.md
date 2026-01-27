@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.48 (2026-01-27)
+- **Feature**: **Correct Screenshot Coordinates**. "Visual Analysis" map markers now persist at the exact location where the photo was taken, rather than following the moving aircraft.
+- **Fix**: **Border Announcement Persistence**. Resolved an issue where border crossing announcements would hide the active POI marker.
+- **Testing**: **Improved Stability**. Fix test suite reliability for narrator logic.
+
 ## v0.3.47 (2026-01-27)
 - **Dynamic Narration Length Scaling**: Implemented a sophisticated 3-phase scaling system.
     - **Intelligent Prose Processing**: New `articleproc` engine filters Wikipedia prose to count only meaningful words, ignoring metadata/lists.

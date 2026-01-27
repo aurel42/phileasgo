@@ -189,8 +189,9 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error
 		if err := s.st.SavePOI(ctx, n.POI); err != nil {
 			slog.Error("Narrator: Failed to save narrated POI state", "qid", n.POI.WikidataID, "error", err)
 		}
-	} else if s.beaconSvc != nil {
+	} else if s.beaconSvc != nil && n.Type != model.NarrativeTypeBorder {
 		// Clear beacon for non-POI narratives (e.g. screenshot) to avoid confusing 3D markers
+		// We EXEMPT Border narratives so they don't despawn the active POI marker.
 		s.beaconSvc.Clear()
 	}
 
@@ -256,6 +257,8 @@ func (s *AIService) setPlaybackState(n *model.Narrative) string {
 	s.currentPOI = n.POI // May be nil for non-POI narratives
 	s.currentImagePath = n.ImagePath
 	s.currentType = n.Type
+	s.currentLat = n.Lat
+	s.currentLon = n.Lon
 	s.currentEssayTitle = ""
 
 	if n.Type == "essay" || n.Type == "debrief" {
@@ -267,6 +270,8 @@ func (s *AIService) setPlaybackState(n *model.Narrative) string {
 	}
 	if n.ImagePath != "" {
 		s.lastImagePath = n.ImagePath
+		s.lastLat = n.Lat
+		s.lastLon = n.Lon
 	}
 	s.lastEssayTopic = nil
 	s.lastEssayTitle = ""

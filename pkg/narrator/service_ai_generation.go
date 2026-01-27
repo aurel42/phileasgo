@@ -150,6 +150,8 @@ func (s *AIService) constructNarrative(req *GenerationRequest, script, extracted
 		// Context passthrough
 		POI:       req.POI,
 		ImagePath: req.ImagePath,
+		Lat:       req.Lat,
+		Lon:       req.Lon,
 	}
 	if req.EssayTopic != nil {
 		n.EssayTopic = req.EssayTopic.Name

@@ -24,9 +24,9 @@ interface LayerData {
 }
 
 // Color definitions: RGB
-const COLOR_M = { r: 255, g: 80, b: 80 };    // Red
-const COLOR_L = { r: 255, g: 180, b: 0 };    // Orange
-const COLOR_XL = { r: 255, g: 230, b: 0 };   // Yellow
+const COLOR_M = { r: 255, g: 200, b: 0 };    // Deep Gold
+const COLOR_L = { r: 255, g: 225, b: 60 };   // Bright Yellow
+const COLOR_XL = { r: 255, g: 250, b: 120 }; // Pale Yellow
 
 // Reduced opacity (50%): min 15%, max 40%
 const MIN_ALPHA = 38;  // 0.15 * 255
@@ -49,7 +49,9 @@ function createCanvasUrl(
         const score = grid[i];
         let alpha = 0;
         if (score > 0) {
-            alpha = Math.floor(MIN_ALPHA + (score * (MAX_ALPHA - MIN_ALPHA)));
+            // Use sqrt(score) to boost low visibility areas (non-linear falloff)
+            // This makes the "tail" of the visibility (outer rings) more visible
+            alpha = Math.floor(MIN_ALPHA + (Math.sqrt(score) * (MAX_ALPHA - MIN_ALPHA)));
         }
         const idx = i * 4;
         imgData.data[idx] = color.r;

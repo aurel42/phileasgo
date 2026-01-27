@@ -33,6 +33,10 @@ type Narrative struct {
 	ImagePath  string `json:"image_path,omitempty"` // For screenshots
 	EssayTopic string `json:"essay_topic,omitempty"`
 
+	// Location Context (Snapshot)
+	Lat float64 `json:"lat,omitempty"`
+	Lon float64 `json:"lon,omitempty"`
+
 	// Metadata
 	Manual    bool      `json:"manual"` // True if manually requested by user
 	CreatedAt time.Time `json:"created_at"`
