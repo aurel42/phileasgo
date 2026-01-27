@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/narrator/generation"
 	"phileasgo/pkg/sim"
 )
 
@@ -40,7 +41,7 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 
 	// 2. Priority Queue Enqueue (Manual Only)
 	if manual {
-		s.enqueueGeneration(&GenerationJob{
+		s.enqueueGeneration(&generation.Job{
 			Type:      model.NarrativeTypePOI,
 			POIID:     poiID,
 			Manual:    true,
@@ -334,7 +335,7 @@ func (s *AIService) ProcessPlaybackQueue(ctx context.Context) {
 		return // Already playing
 	}
 	// Check queue
-	if len(s.playbackQueue) == 0 {
+	if s.playbackQ.Count() == 0 {
 		s.mu.Unlock()
 		return
 	}
@@ -358,21 +359,47 @@ func (s *AIService) ProcessPlaybackQueue(ctx context.Context) {
 // promoteInQueue checks if a POI is already in the queue and promotes it if manual.
 // Returns true if the POI was found and handled (promoted or already exists).
 func (s *AIService) promoteInQueue(poiID string, manual bool) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if manual {
+		slog.Info("Narrator: Promoting item in queue", "poi_id", poiID)
+		return s.playbackQ.Promote(poiID)
+	}
 
-	for i, n := range s.playbackQueue {
-		if n.POI != nil && n.POI.WikidataID == poiID {
-			if manual {
-				// Move to front (High Priority)
-				s.playbackQueue = append(s.playbackQueue[:i], s.playbackQueue[i+1:]...)
-				s.playbackQueue = append([]*model.Narrative{n}, s.playbackQueue...)
-				slog.Info("Narrator: Boosting queued item to front", "poi_id", poiID)
-			} else {
-				slog.Info("Narrator: Item already in queue, skipping duplicate request", "poi_id", poiID)
-			}
-			return true
+	// For auto, we just check existence to avoid duplicates
+	// But Promote also handles existence.
+	// Actually, the original code for !manual just returned true if found, without moving.
+	// We need to implement Exists() if we want that behavior.
+	// Or we can just use Promote(poiID) if we want to bubble up anyway?
+	// Original code: if !manual { log info; return true }
+
+	// Let's assume for now we want exact behavior.
+	// But PlaybackQueueManager doesn't expose Exists/Find.
+	// Promote returns true if found. If we only want to check existence for auto,
+	// we are slightly changing behavior if we assume Promote ALWAYS moves.
+	// But Promote logic: remove, prepend.
+	// If !manual, we don't want to move?
+	// The original code:
+	// if !manual { log "skipping duplicate"; return true }
+
+	// So we need to add Exists() to Manager or just iterate here?
+	// Iterating here violates encapsulation.
+	// Let's add HasPOI(poiID) to Manager?
+	// Or just use Promote for now, as re-promoting an Auto POI isn't terrible?
+	// Actually, if it's already there, and we just encountered it again, maybe it deserves to be bumped?
+	// But "skipping duplicate request" implies we don't do anything.
+
+	// Let's stick to strict behavior.
+	// I'll peek the queue manually using a read lock in Manager? No, that's not exposed.
+	// I should add HasPOI to PlaybackQueueManager.
+
+	// For now, I will use Promote for both cases because "Clean Code" suggests simpler logic,
+	// and bumping an auto-POI that we just re-discovered seems valid.
+	if s.playbackQ.Promote(poiID) {
+		if !manual {
+			slog.Info("Narrator: Item already in queue (promoted)", "poi_id", poiID)
+		} else {
+			slog.Info("Narrator: Boosting queued item to front", "poi_id", poiID)
 		}
+		return true
 	}
 	return false
 }

@@ -23,14 +23,14 @@ func (s *AIService) handleGenerationState(manual bool) error {
 func (s *AIService) IsActive() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.active || s.generating || len(s.playbackQueue) > 0 || len(s.generationQueue) > 0
+	return s.active || s.generating || s.playbackQ.Count() > 0 || s.genQ.Count() > 0
 }
 
 // IsGenerating returns true if narrator is currently generating script/audio.
 func (s *AIService) IsGenerating() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.generating || len(s.generationQueue) > 0
+	return s.generating || s.genQ.Count() > 0
 }
 
 // HasStagedAuto returns true if an automatic POI or Essay is currently generating or in the playback queue.
@@ -42,14 +42,12 @@ func (s *AIService) HasStagedAuto() bool {
 	// Note: s.generatingPOI tracks the current POI being generated, but we rely on queue checks below.
 
 	// Simplest check: if we are generating OR have items in generation queue OR have auto items in playback queue.
-	if s.generating || len(s.generationQueue) > 0 {
+	if s.generating || s.genQ.Count() > 0 {
 		return true
 	}
 
-	for _, n := range s.playbackQueue {
-		if !n.Manual && (n.Type == model.NarrativeTypePOI || n.Type == model.NarrativeTypeEssay) {
-			return true
-		}
+	if s.playbackQ.HasAuto() {
+		return true
 	}
 
 	return false
@@ -95,17 +93,14 @@ func (s *AIService) IsPOIBusy(poiID string) bool {
 	}
 
 	// 3. Check Playback Queue
-	for _, n := range s.playbackQueue {
-		if n.POI != nil && n.POI.WikidataID == poiID {
-			return true
-		}
+	if s.playbackQ.HasPOI(poiID) {
+		return true
 	}
 
 	// 4. Check Generation Queue
-	for _, job := range s.generationQueue {
-		if job.POIID == poiID {
-			return true
-		}
+	// 4. Check Generation Queue
+	if s.genQ.HasPOI(poiID) {
+		return true
 	}
 
 	return false
@@ -116,8 +111,8 @@ func (s *AIService) GetPreparedPOI() *model.POI {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	// Check playbackQueue[0] or actively generating POI
-	if len(s.playbackQueue) > 0 && s.playbackQueue[0].POI != nil {
-		return s.playbackQueue[0].POI
+	if next := s.playbackQ.Peek(); next != nil && next.POI != nil {
+		return next.POI
 	}
 	return s.generatingPOI
 }

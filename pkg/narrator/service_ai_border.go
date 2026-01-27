@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/narrator/generation"
 	"phileasgo/pkg/sim"
 )
 
@@ -35,7 +36,7 @@ func (s *AIService) PlayBorder(ctx context.Context, from, to string, tel *sim.Te
 	slog.Info("Narrator: Border announcement requested", "from", from, "to", to)
 
 	// Enqueue for Generation (High Priority)
-	s.enqueueGeneration(&GenerationJob{
+	s.enqueueGeneration(&generation.Job{
 		Type:      model.NarrativeTypeBorder,
 		From:      from,
 		To:        to,

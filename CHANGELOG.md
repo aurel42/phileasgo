@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.42 (2026-01-27)
+- **Refactor**: **Narrator Queue Modularization**
+  - **Architecture**: Decoupled `Playback` and `Generation` queues from the main `AIService`, moving them into dedicated, testable managers (`pkg/narrator/playback`, `pkg/narrator/generation`).
+  - **Stability**: Enforced stricter thread-safety and simplified queue logic, reducing the risk of race conditions during high-load scenarios.
+
 ## v0.3.41 (2026-01-27)
 - **Feature**: **Smart Map Label Positioning**
   - **Dynamic Alignment**: Range ring labels now align with the aircraft heading to stay "ahead" of the plane.

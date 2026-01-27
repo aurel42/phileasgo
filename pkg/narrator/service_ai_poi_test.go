@@ -8,6 +8,9 @@ import (
 	"phileasgo/pkg/sim"
 	"strings"
 	"testing"
+
+	"phileasgo/pkg/narrator/generation"
+	"phileasgo/pkg/narrator/playback"
 )
 
 func TestAIService_RescueScript(t *testing.T) {
@@ -50,15 +53,17 @@ func TestAIService_PlayPOI_Constraints(t *testing.T) {
 	mockSim := &MockSim{}
 
 	svc := &AIService{
-		poiMgr: mockPOIProv,
-		sim:    mockSim,
-		st:     &MockStore{},
+		poiMgr:    mockPOIProv,
+		sim:       mockSim,
+		st:        &MockStore{},
+		playbackQ: playback.NewManager(),
+		genQ:      generation.NewManager(),
 	}
 
 	// 1. Manual PlayPOI - should enqueue generation
 	svc.PlayPOI(context.Background(), "Q123", true, false, &sim.Telemetry{}, "")
-	if len(svc.generationQueue) != 1 {
-		t.Errorf("Expected 1 manual generation job, got %d", len(svc.generationQueue))
+	if svc.genQ.Count() != 1 {
+		t.Errorf("Expected 1 manual generation job, got %d", svc.genQ.Count())
 	}
 
 	// 2. Automated PlayPOI - skip because busy (pending generation)

@@ -3,21 +3,26 @@ package narrator
 import (
 	"context"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/narrator/generation"
+	"phileasgo/pkg/narrator/playback"
 	"testing"
 )
 
 func TestAIService_QueueManagement(t *testing.T) {
-	svc := &AIService{}
+	svc := &AIService{
+		playbackQ: playback.NewManager(),
+		genQ:      generation.NewManager(),
+	}
 
 	// 1. Enqueue Auto POI
-	svc.enqueuePlayback(&model.Narrative{Title: "Auto", Manual: false, Type: "poi"}, false)
-	if len(svc.playbackQueue) != 1 {
+	svc.enqueuePlayback(&model.Narrative{Title: "Auto", Manual: false, Type: model.NarrativeTypePOI}, false)
+	if svc.playbackQ.Count() != 1 {
 		t.Error("expected 1 item in queue")
 	}
 
 	// 2. Enqueue Priority Manual POI
-	svc.enqueuePlayback(&model.Narrative{Title: "Manual", Manual: true, Type: "poi"}, true)
-	if len(svc.playbackQueue) != 2 || svc.playbackQueue[0].Title != "Manual" {
+	svc.enqueuePlayback(&model.Narrative{Title: "Manual", Manual: true, Type: model.NarrativeTypePOI}, true)
+	if svc.playbackQ.Count() != 2 || svc.playbackQ.Peek().Title != "Manual" {
 		t.Error("priority item should be at the front")
 	}
 
@@ -29,7 +34,7 @@ func TestAIService_QueueManagement(t *testing.T) {
 
 	// 4. Pop Queue
 	n2 := svc.popPlaybackQueue()
-	if n2 == nil || n2.Title != "Manual" || len(svc.playbackQueue) != 1 {
+	if n2 == nil || n2.Title != "Manual" || svc.playbackQ.Count() != 1 {
 		t.Error("pop failed")
 	}
 
@@ -48,21 +53,21 @@ func TestAIService_QueueManagement(t *testing.T) {
 	}
 
 	// 6. Reset Session
-	svc.playbackQueue = []*model.Narrative{{Type: "poi"}}
+	svc.playbackQ.Clear()
+	svc.enqueuePlayback(&model.Narrative{Type: model.NarrativeTypePOI}, false)
 	svc.ResetSession(context.Background())
-	if len(svc.playbackQueue) != 0 {
+	if svc.playbackQ.Count() != 0 {
 		t.Error("expected empty queue after reset")
 	}
 
 	// 7. promoteInQueue - Boost case
-	svc.playbackQueue = []*model.Narrative{
-		{POI: &model.POI{WikidataID: "Q1"}, Type: "poi"},
-		{POI: &model.POI{WikidataID: "Q2"}, Type: "poi"},
-	}
+	svc.playbackQ.Enqueue(&model.Narrative{POI: &model.POI{WikidataID: "Q1"}, Type: model.NarrativeTypePOI}, false)
+	svc.playbackQ.Enqueue(&model.Narrative{POI: &model.POI{WikidataID: "Q2"}, Type: model.NarrativeTypePOI}, false)
+
 	if !svc.promoteInQueue("Q2", true) {
 		t.Error("expected true (found Q2)")
 	}
-	if svc.playbackQueue[0].POI.WikidataID != "Q2" {
+	if svc.playbackQ.Peek().POI.WikidataID != "Q2" {
 		t.Error("Q2 should be boosted to front")
 	}
 
@@ -71,59 +76,16 @@ func TestAIService_QueueManagement(t *testing.T) {
 	if !svc.handleManualQueueAndOverride("Q3", "long", true, true) {
 		t.Error("expected true (enqueued priority job)")
 	}
-}
-
-func TestAIService_QueueLimits(t *testing.T) {
-	svc := &AIService{}
-
-	// 1. Allow Manual POI when empty
-	if !checkQueueLimits(svc.playbackQueue, "poi", true) {
-		t.Error("should allow manual POI when empty")
-	}
-
-	// 2. Deny Auto POI when auto already queued
-	svc.playbackQueue = []*model.Narrative{{Type: "poi", Manual: false}}
-	if checkQueueLimits(svc.playbackQueue, "poi", false) {
-		t.Error("should deny second auto POI")
-	}
-
-	// 3. Allow Manual POI even if auto queued
-	if !checkQueueLimits(svc.playbackQueue, "poi", true) {
-		t.Error("should allow manual POI if only auto is queued")
-	}
-
-	// 4. Deny second Manual POI
-	svc.playbackQueue = append(svc.playbackQueue, &model.Narrative{Type: "poi", Manual: true})
-	if checkQueueLimits(svc.playbackQueue, "poi", true) {
-		t.Error("should deny second manual POI")
-	}
-
-	// 5. Deny Screenshot if already queued
-	svc.playbackQueue = []*model.Narrative{{Type: model.NarrativeTypeScreenshot}}
-	if checkQueueLimits(svc.playbackQueue, "screenshot", true) {
-		t.Error("should deny second screenshot")
-	}
-
-	// 6. Allow Screenshot if none queued
-	svc.playbackQueue = nil
-	if !checkQueueLimits(svc.playbackQueue, "screenshot", true) {
-		t.Error("should allow screenshot when none queued")
-	}
-
-	// 7. Debrief and Essay limits
-	svc.playbackQueue = []*model.Narrative{{Type: "debrief"}}
-	if checkQueueLimits(svc.playbackQueue, "debrief", true) {
-		t.Error("should deny second debrief")
-	}
-	svc.playbackQueue = []*model.Narrative{{Type: "essay"}}
-	if checkQueueLimits(svc.playbackQueue, "essay", true) {
-		t.Error("should deny second essay")
+	if svc.genQ.Count() != 1 {
+		t.Errorf("expected 1 generation job, got %d", svc.genQ.Count())
 	}
 }
 
 func TestAIService_CanEnqueue(t *testing.T) {
-	svc := &AIService{}
-	if !svc.canEnqueuePlayback("poi", true) {
+	svc := &AIService{
+		playbackQ: playback.NewManager(),
+	}
+	if !svc.canEnqueuePlayback(model.NarrativeTypePOI, true) {
 		t.Error("canEnqueue failed")
 	}
 }

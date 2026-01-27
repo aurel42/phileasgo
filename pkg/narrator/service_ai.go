@@ -10,6 +10,8 @@ import (
 	"phileasgo/pkg/llm"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/narrator/generation"
+	"phileasgo/pkg/narrator/playback"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/tracker"
@@ -34,21 +36,6 @@ type GenerationRequest struct {
 	// Constraints
 	MaxWords int
 	Manual   bool
-}
-
-// GenerationJob represents a queued request (priority queue).
-type GenerationJob struct {
-	Type      model.NarrativeType
-	POIID     string
-	ImagePath string
-	Manual    bool
-	Strategy  string // e.g., "funny", "historic"
-	CreatedAt time.Time
-	Telemetry *sim.Telemetry
-
-	// For Border Crossings
-	From string
-	To   string
 }
 
 // ScriptEntry represents a previously generated narration script.
@@ -104,9 +91,9 @@ type AIService struct {
 	lastImagePath  string // Added field
 
 	// Staging State (Pipeline)
-	generationQueue []*GenerationJob   // Priority queue for generation requests (Manual/Screenshot)
-	playbackQueue   []*model.Narrative // Playback queue (ready items)
-	generatingPOI   *model.POI         // The POI currently being generated (for UI feedback)
+	genQ          *generation.Manager // Generation queue manager
+	playbackQ     *playback.Manager   // Playback queue manager
+	generatingPOI *model.POI          // The POI currently being generated (for UI feedback)
 
 	essayH    *EssayHandler
 	interests []string
@@ -159,9 +146,9 @@ func NewAIService(
 		interests:       interests,
 		avoid:           avoid,
 		fallbackTracker: tr,
-		tripSummary:     "",                          // Initialize tripSummary
-		playbackQueue:   make([]*model.Narrative, 0), // Initialize playback queue
-		generationQueue: make([]*GenerationJob, 0),   // Initialize priority queue
+		tripSummary:     "",                    // Initialize tripSummary
+		playbackQ:       playback.NewManager(), // Initialize playback queue
+		genQ:            generation.NewManager(),
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)

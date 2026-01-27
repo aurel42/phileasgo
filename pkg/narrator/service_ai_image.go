@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/narrator/generation"
 	"phileasgo/pkg/sim"
 	"time"
 )
@@ -26,7 +27,7 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 	}
 
 	// 4. Enqueue for Priority Generation
-	s.enqueueGeneration(&GenerationJob{
+	s.enqueueGeneration(&generation.Job{
 		Type:      model.NarrativeTypeScreenshot,
 		ImagePath: imagePath,
 		Manual:    true,

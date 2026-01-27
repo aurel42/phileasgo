@@ -9,6 +9,8 @@ import (
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
+	"phileasgo/pkg/narrator/generation"
+	"phileasgo/pkg/narrator/playback"
 )
 
 func TestAIService_PlayImage(t *testing.T) {
@@ -34,13 +36,15 @@ func TestAIService_PlayImage(t *testing.T) {
 				NarrationLengthLongWords:  200,
 			},
 		},
-		llm:     mockLLM,
-		tts:     mockTTS,
-		audio:   mockAudio,
-		sim:     mockSim,
-		geoSvc:  mockGeo,
-		st:      mockStore,
-		prompts: pm,
+		llm:       mockLLM,
+		tts:       mockTTS,
+		audio:     mockAudio,
+		sim:       mockSim,
+		geoSvc:    mockGeo,
+		st:        mockStore,
+		prompts:   pm,
+		playbackQ: playback.NewManager(),
+		genQ:      generation.NewManager(),
 	}
 
 	// 1. Play Image
@@ -75,14 +79,16 @@ func TestAIService_PlayImage_RenderError(t *testing.T) {
 	pm, _ := prompts.NewManager(tempDir)
 
 	svc := &AIService{
-		cfg:     &config.Config{},
-		llm:     mockLLM,
-		tts:     mockTTS,
-		audio:   mockAudio,
-		sim:     mockSim,
-		geoSvc:  mockGeo,
-		st:      mockStore,
-		prompts: pm,
+		cfg:       &config.Config{},
+		llm:       mockLLM,
+		tts:       mockTTS,
+		audio:     mockAudio,
+		sim:       mockSim,
+		geoSvc:    mockGeo,
+		st:        mockStore,
+		prompts:   pm,
+		playbackQ: playback.NewManager(),
+		genQ:      generation.NewManager(),
 	}
 
 	imagePath := filepath.Join(tempDir, "test.jpg")

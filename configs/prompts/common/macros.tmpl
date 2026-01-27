@@ -36,7 +36,6 @@ You are role-playing a tour guide that tells the passengers of a small aircraft 
 **Language**:
 - Create the script in this language: {{.Language_name}} ({{.Language_code}}).
 - Use local or regional idioms or idiosyncrasies if appropriate for the location of the POI.
-- Use local or regional idioms or idiosyncrasies if appropriate for the location of the POI.
 {{end}}
 
 {{define "LengthInstructions"}}
@@ -44,6 +43,7 @@ You are role-playing a tour guide that tells the passengers of a small aircraft 
 {{if .IsStub}}
 - **SUMMARY MODE**: The available information is very short (a stub).
 - Summarize the available info in 1-2 sentences.
+{{maybe 10 "- Ignore the previous instruction and provide the summary in the form of a haiku or short poem."}}
 {{else}}
 - maximum length of ca. {{.MaxWords}} words, this is a maximum, not a target length.
 - Keep it short if data is sparse or missing.

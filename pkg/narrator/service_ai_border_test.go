@@ -11,6 +11,7 @@ import (
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/narrator/generation"
 	"phileasgo/pkg/sim"
 )
 
@@ -75,9 +76,12 @@ func TestAIService_PlayBorder(t *testing.T) {
 	// 2. Queue Constraint (Busy)
 	// Simulate busy by filling playback queue
 	svc.mu.Lock()
-	svc.playbackQueue = []*model.Narrative{
-		{Type: model.NarrativeTypeBorder, Manual: true},
-	}
+	svc.playbackQ.Clear()
+	svc.playbackQ.Enqueue(&model.Narrative{Type: model.NarrativeTypeBorder, Manual: true}, false)
+	svc.playbackQ.Enqueue(&model.Narrative{Type: model.NarrativeTypeBorder, Manual: true}, false)
+	svc.playbackQ.Enqueue(&model.Narrative{Type: model.NarrativeTypeBorder, Manual: true}, false)
+	svc.playbackQ.Enqueue(&model.Narrative{Type: model.NarrativeTypeBorder, Manual: true}, false)
+	svc.playbackQ.Enqueue(&model.Narrative{Type: model.NarrativeTypeBorder, Manual: true}, false)
 	svc.mu.Unlock()
 
 	ok = svc.PlayBorder(context.Background(), "A", "B", tel)
@@ -87,8 +91,9 @@ func TestAIService_PlayBorder(t *testing.T) {
 
 	// 3. Pending Generation
 	svc.mu.Lock()
-	svc.playbackQueue = nil
-	svc.generationQueue = []*GenerationJob{{Type: model.NarrativeTypePOI}}
+	svc.playbackQ.Clear()
+	svc.genQ.Clear()
+	svc.genQ.Enqueue(&generation.Job{Type: model.NarrativeTypePOI})
 	svc.mu.Unlock()
 
 	ok = svc.PlayBorder(context.Background(), "A", "B", tel)

@@ -7,6 +7,7 @@ import (
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/narrator/generation"
 	"phileasgo/pkg/sim"
 )
 
@@ -162,7 +163,7 @@ func TestPlayDebrief_PendingGeneration(t *testing.T) {
 	svc.tripSummary = "This is a long enough summary for the debrief to be considered."
 
 	// Mock pending generation
-	svc.enqueueGeneration(&GenerationJob{Type: model.NarrativeTypePOI})
+	svc.enqueueGeneration(&generation.Job{Type: model.NarrativeTypePOI})
 
 	if svc.PlayDebrief(context.Background(), &sim.Telemetry{}) {
 		t.Error("PlayDebrief returned true when generation is pending")

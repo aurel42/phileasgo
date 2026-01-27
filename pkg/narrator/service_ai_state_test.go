@@ -5,12 +5,16 @@ import (
 	"testing"
 
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/narrator/generation"
+	"phileasgo/pkg/narrator/playback"
 )
 
 func TestAIService_StateChecks(t *testing.T) {
 	svc := &AIService{
 		active:     true,
 		generating: true,
+		playbackQ:  playback.NewManager(),
+		genQ:       generation.NewManager(),
 	}
 
 	if !svc.IsActive() {
@@ -30,9 +34,11 @@ func TestAIService_StateChecks(t *testing.T) {
 func TestAIService_Replay(t *testing.T) {
 	mockAudio := &MockAudio{IsPlayingVal: true, CanReplay: true}
 	svc := &AIService{
-		audio:   mockAudio,
-		lastPOI: &model.POI{NameEn: "Test POI"},
-		active:  false,
+		audio:     mockAudio,
+		lastPOI:   &model.POI{NameEn: "Test POI"},
+		active:    false,
+		playbackQ: playback.NewManager(),
+		genQ:      generation.NewManager(),
 	}
 
 	// 1. POI Replay
@@ -57,7 +63,10 @@ func TestAIService_Replay(t *testing.T) {
 }
 
 func TestAIService_Cooldown(t *testing.T) {
-	svc := &AIService{}
+	svc := &AIService{
+		playbackQ: playback.NewManager(),
+		genQ:      generation.NewManager(),
+	}
 
 	// Skip cooldown
 	svc.SkipCooldown()
@@ -74,12 +83,12 @@ func TestAIService_Cooldown(t *testing.T) {
 func TestAIService_PlaybackDetails(t *testing.T) {
 	mockAudio := &MockAudio{IsPlayingVal: true}
 	svc := &AIService{
-		audio: mockAudio,
-		playbackQueue: []*model.Narrative{
-			{POI: &model.POI{NameEn: "Queued POI"}},
-		},
+		audio:      mockAudio,
+		playbackQ:  playback.NewManager(),
+		genQ:       generation.NewManager(),
 		currentPOI: &model.POI{NameEn: "Current POI"},
 	}
+	svc.playbackQ.Enqueue(&model.Narrative{POI: &model.POI{NameEn: "Queued POI"}}, false)
 
 	// 1. CurrentTitle
 	if svc.CurrentTitle() != "Current POI" {
@@ -101,7 +110,7 @@ func TestAIService_PlaybackDetails(t *testing.T) {
 	}
 
 	// 4. Generating fallback
-	svc.playbackQueue = nil
+	svc.playbackQ.Clear()
 	svc.generatingPOI = &model.POI{NameEn: "Gen POI"}
 	p = svc.GetPreparedPOI()
 	if p == nil || p.NameEn != "Gen POI" {

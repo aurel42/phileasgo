@@ -649,11 +649,11 @@ func TestAIService_PipelineFlow(t *testing.T) {
 				svc.mu.Lock()
 				defer svc.mu.Unlock()
 				// expectedStaged false means we expect queue to be EMPTY
-				if !tt.expectedStaged && len(svc.playbackQueue) > 0 {
-					t.Errorf("queue should be empty, got len %d", len(svc.playbackQueue))
+				if !tt.expectedStaged && svc.playbackQ.Count() > 0 {
+					t.Errorf("queue should be empty, got len %d", svc.playbackQ.Count())
 				}
 				// expectedStaged true means we expect queue to have items
-				if tt.expectedStaged && len(svc.playbackQueue) == 0 {
+				if tt.expectedStaged && svc.playbackQ.Count() == 0 {
 					t.Error("queue should not be empty")
 				}
 			}()
