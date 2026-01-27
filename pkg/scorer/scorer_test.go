@@ -428,3 +428,75 @@ func TestScorer_Calculate(t *testing.T) {
 		})
 	}
 }
+
+func TestScorer_Calculate_BusyPOISkip(t *testing.T) {
+	s := setupScorer()
+
+	poi := &model.POI{
+		WikidataID:   "Q123",
+		Score:        10.5,
+		ScoreDetails: "Original High Score",
+		IsVisible:    true,
+	}
+
+	input := &ScoringInput{
+		Telemetry: sim.Telemetry{
+			Latitude: 90, Longitude: 0, // Very far away
+		},
+		IsPOIBusy: func(qid string) bool {
+			return qid == "Q123"
+		},
+	}
+
+	session := s.NewSession(input)
+	session.Calculate(poi)
+
+	if poi.Score != 10.5 {
+		t.Errorf("Expected score 10.5 to be preserved, got %.2f", poi.Score)
+	}
+	if poi.ScoreDetails != "Original High Score" {
+		t.Errorf("Expected score details to be preserved, got %q", poi.ScoreDetails)
+	}
+	if !poi.IsVisible {
+		t.Error("Expected IsVisible to remain true")
+	}
+}
+
+func TestScorer_VerifyBadgeWiping(t *testing.T) {
+	s := setupScorer()
+
+	// A POI that is currently "Urgent" but enters the Busy state
+	poi := &model.POI{
+		WikidataID:      "Q123",
+		Score:           10.5,
+		Badges:          []string{"urgent", "deep_dive"}, // it was urgent, and is a deep dive
+		WPArticleLength: 50000,
+	}
+
+	input := &ScoringInput{
+		IsPOIBusy: func(qid string) bool {
+			return true // It's frozen/busy
+		},
+	}
+
+	session := s.NewSession(input)
+	session.Calculate(poi)
+
+	// 1. Verify "urgent" is GONE (because applyBadges clears the array at the start)
+	for _, b := range poi.Badges {
+		if b == "urgent" {
+			t.Errorf("Verification Failure: 'urgent' badge should have been wiped by applyBadges")
+		}
+	}
+
+	// 2. Verify "deep_dive" is STILL THERE (because applyBadges recalculates stateless badges)
+	foundDeepDive := false
+	for _, b := range poi.Badges {
+		if b == "deep_dive" {
+			foundDeepDive = true
+		}
+	}
+	if !foundDeepDive {
+		t.Errorf("Verification Failure: 'deep_dive' badge should have been repopulated by applyBadges")
+	}
+}

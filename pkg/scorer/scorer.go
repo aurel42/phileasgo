@@ -20,6 +20,10 @@ type ScoringInput struct {
 	CategoryHistory []string               `json:"category_history"`
 	NarratorConfig  *config.NarratorConfig `json:"narrator_config"`
 	BoostFactor     float64                `json:"boost_factor"` // Multiplier for visibility range (1.0 - 1.5)
+
+	// [GAP FIX] IsPOIBusy allows the Scorer to skip POIs that are currently
+	// generating or playing, preventing their scores from being zeroed out.
+	IsPOIBusy func(qid string) bool
 }
 
 // Session represents a single scoring cycle context.
@@ -113,6 +117,15 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 	}
 
 	sess.applyBadges(poi)
+
+	// [GAP FIX] If the POI is currently generating or playing, we skip re-scoring.
+	// This prevents the "Selection Window" race condition where a POI is picked
+	// for narration, but then flys into the rear or out of range *before*
+	// playback starts (and LastPlayed is set). If we score it as 0.0 then,
+	// the breakdown in the UI looks broken during narration.
+	if input.IsPOIBusy != nil && input.IsPOIBusy(poi.WikidataID) {
+		return
+	}
 
 	// [NEW] Skip logic for recently played POIs (on cooldown)
 	if !poi.LastPlayed.IsZero() && input.NarratorConfig != nil {

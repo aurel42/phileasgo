@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.45 (2026-01-27)
+- **Fix**: **Score Breakdown Stability**. Ensures POI score details remain persistent in the UI while the narrator is generating or playing a script, even if the aircraft moves out of range.
+- **Improved**: **Narration Style**. Discouraged the AI from using cliché filler phrases like "rich history" through updated system prompts.
+
 ## v0.3.44 (2026-01-27)
 - **Fix**: **Urgent & Patient Badges**. Resolved an issue where time-sensitive badges (Urgent/Patient) were suppressed and would hide the main marker icon when active.
 - **Improved**: **POI Discovery**. Lowered Wikipedia sitelink thresholds for several categories (Religious, Transit, Settlements) to improve landmark density in less populated areas.

@@ -82,7 +82,7 @@ func TestScoringJob_ShouldFire_Interval(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			job := NewScoringJob("TestScoring", nil, nil, nil, nil, nil)
+			job := NewScoringJob("TestScoring", nil, nil, nil, nil, nil, nil)
 
 			// Manipulate lastRun to simulate elapsed time
 			job.lastRun = time.Now().Add(-tt.elapsed)
@@ -147,7 +147,7 @@ func TestScoringJob_Run(t *testing.T) {
 	sc := scorer.NewScorer(scCfg, catCfg, visCalc, elev)
 	narratorCfg := &config.NarratorConfig{}
 
-	job := NewScoringJob("TestScoring", mockMgr, mockSim, sc, narratorCfg, nil)
+	job := NewScoringJob("TestScoring", mockMgr, mockSim, sc, narratorCfg, nil, nil)
 
 	// Execute Run
 	ctx := context.Background()

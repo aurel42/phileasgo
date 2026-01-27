@@ -39,6 +39,7 @@ type ScoringJob struct {
 	sim     sim.Client
 	scorer  *scorer.Scorer
 	cfg     *config.NarratorConfig
+	busyFn  func(qid string) bool
 	lastRun time.Time
 }
 
@@ -49,6 +50,7 @@ func NewScoringJob(
 	simClient sim.Client,
 	sc *scorer.Scorer,
 	cfg *config.NarratorConfig,
+	busyFn func(qid string) bool,
 	logger *slog.Logger, // Optional
 ) *ScoringJob {
 	return &ScoringJob{
@@ -57,6 +59,7 @@ func NewScoringJob(
 		sim:     simClient,
 		scorer:  sc,
 		cfg:     cfg,
+		busyFn:  busyFn,
 		lastRun: time.Now(),
 	}
 }
@@ -152,6 +155,7 @@ func (j *ScoringJob) performScoringPass(ctx context.Context) {
 		CategoryHistory: history,
 		NarratorConfig:  j.cfg,
 		BoostFactor:     boostFactor,
+		IsPOIBusy:       j.busyFn,
 	}
 
 	// Create Scoring Session (Pre-calculates terrain/context once)

@@ -159,7 +159,7 @@ func run(ctx context.Context, configPath string) error {
 	poiScorer := scorer.NewScorer(&appCfg.Scorer, catCfg, visCalc, elevGetter)
 
 	// [NEW] Scoring Job
-	scoringJob := poi.NewScoringJob("POIScoring", svcs.PoiMgr, simClient, poiScorer, &appCfg.Narrator, slog.Default())
+	scoringJob := poi.NewScoringJob("POIScoring", svcs.PoiMgr, simClient, poiScorer, &appCfg.Narrator, narratorSvc.IsPOIBusy, slog.Default())
 	sched.AddJob(scoringJob)
 
 	// Startup Probes
