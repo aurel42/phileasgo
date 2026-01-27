@@ -35,6 +35,7 @@ type NarratorController interface {
 	CurrentTitle() string
 	CurrentType() model.NarrativeType
 	CurrentImagePath() string
+	ClearCurrentImage() // Added
 	NarratedCount() int
 	Stats() map[string]any
 }
@@ -179,5 +180,20 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Error("Failed to encode response", "error", err)
+	}
+}
+
+// HandleClearImage handles POST /api/narrator/clear-image
+func (h *NarratorHandler) HandleClearImage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	h.narrator.ClearCurrentImage()
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+		slog.Error("Failed to write response", "error", err)
 	}
 }

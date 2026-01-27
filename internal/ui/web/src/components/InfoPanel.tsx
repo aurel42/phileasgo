@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
 import type { Telemetry } from '../types/telemetry';
-import { useNarrator } from '../hooks/useNarrator';
 import packageJson from '../../package.json';
 
 interface InfoPanelProps {
@@ -31,7 +30,6 @@ export const InfoPanel = ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [stats, setStats] = useState<any>(null);
     const [location, setLocation] = useState<Geography | null>(null);
-    const { status: narratorStatus } = useNarrator();
 
     // Use ref to access latest telemetry in interval without resetting it
     const telemetryRef = useRef(telemetry);
@@ -142,32 +140,6 @@ export const InfoPanel = ({
 
     return (
         <div className="hud-container">
-
-
-            {/* Screenshot Display */}
-            {narratorStatus?.current_image_path && (
-                <div className="hud-card" style={{ marginBottom: '10px', padding: '0', overflow: 'hidden', position: 'relative' }}>
-                    <div style={{
-                        position: 'absolute',
-                        top: '5px',
-                        left: '5px',
-                        background: 'rgba(0,0,0,0.7)',
-                        color: 'white',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        fontSize: '10px',
-                        fontWeight: 'bold',
-                        zIndex: 10
-                    }}>
-                        SCREENSHOT NARRATION
-                    </div>
-                    <img
-                        src={`/api/images/serve?path=${encodeURIComponent(narratorStatus.current_image_path)}`}
-                        alt="Screenshot"
-                        style={{ width: '100%', height: 'auto', display: 'block' }}
-                    />
-                </div>
-            )}
 
             {/* Flight Data Flex Layout */}
             <div className="flex-container">

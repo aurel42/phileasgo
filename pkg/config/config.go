@@ -166,6 +166,7 @@ type NarratorConfig struct {
 	SummaryMaxWords           int                `yaml:"summary_max_words"`            // Max words for the trip summary (default 500)
 	TemperatureBase           float32            `yaml:"temperature_base"`             // Base temperature (default 1.0)
 	TemperatureJitter         float32            `yaml:"temperature_jitter"`           // Jitter range (bell curve distribution)
+	LengthScalingFactor       float64            `yaml:"length_scaling_factor"`        // Scaling factor for word count (default 0.5)
 	Essay                     EssayConfig        `yaml:"essay"`
 	Debrief                   DebriefConfig      `yaml:"debrief"`
 	Screenshot                ScreenshotConfig   `yaml:"screenshot"`
@@ -413,6 +414,7 @@ func DefaultConfig() *Config {
 			SummaryMaxWords:           500,
 			TemperatureBase:           1.0,
 			TemperatureJitter:         0.3,
+			LengthScalingFactor:       0.5,
 			Essay: EssayConfig{
 				Enabled:            true,
 				DelayBetweenEssays: Duration(10 * time.Minute),

@@ -1,0 +1,20 @@
+**NARRATION LENGTH (STUB)**:
+- **SUMMARY MODE**: The available information is extremely short or a stub.
+- Summarize the available info in exactly 1-2 concise sentences.
+{{maybe 10 "- Ignore the previous instruction and provide the summary in the form of a haiku or short poem."}}
+
+**FLOW**:
+- Identify the POI briefly (Name: {{.POINameUser}}).
+- Mention the direction/distance if provided: "{{.NavInstruction}}".
+- Provide exactly ONE interesting fact from the available text or your own knowledge.
+- BE DONE. Do not use standard introductions or conclusions.
+
+**CRITICAL RELIABILITY**:
+- NO HALLUCINATIONS. If the Wikipedia text is too short to provide meaning, just identify the POI and move on.
+- Do NOT repeat the previous narration's last sentence: "...{{.LastSentence}}."
+
+Generate exactly 1-2 sentences of clean tour guide narration.
+
+<start of Wikipedia article>
+{{.WikipediaText}}
+<end of Wikipedia article>

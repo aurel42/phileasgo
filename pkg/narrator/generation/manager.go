@@ -25,7 +25,7 @@ func (m *Manager) Enqueue(job *Job) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.queue = append(m.queue, job)
-	slog.Info("GenerationQueue: Enqueued job", "type", job.Type, "poi_id", job.POIID, "queue_len", len(m.queue))
+	slog.Debug("GenerationQueue: Enqueued job", "type", job.Type, "poi_id", job.POIID, "queue_len", len(m.queue))
 }
 
 // Pop retrieves and removes the next job from the queue.

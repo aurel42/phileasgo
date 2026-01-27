@@ -645,6 +645,7 @@ body {
 /* Narration Length Selector */
 .length-selector {
   display: flex;
+  align-items: center;
   background: rgba(0, 0, 0, 0.3);
   border-radius: 6px;
   padding: 2px;

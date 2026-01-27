@@ -41,58 +41,6 @@ func WordWrap(text string, width int) string {
 	return result.String()
 }
 
-// TruncateParagraphs truncates lines within Wikipedia article blocks (or similar) to maxLen
-// and removes empty lines within that block. This is primarily used for logging prompts.
-func TruncateParagraphs(text string, maxLen int) string {
-	if text == "" {
-		return ""
-	}
-
-	lines := strings.Split(text, "\n")
-	var result []string
-	inWikiBlock := false
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Heuristic to detect Wikipedia article content block in prompt
-		if strings.Contains(trimmed, "WIKIPEDIA ARTICLE:") ||
-			strings.Contains(trimmed, "WP ARTICLE:") ||
-			strings.Contains(trimmed, "<start of Wikipedia article>") {
-			inWikiBlock = true
-			result = append(result, line)
-			continue
-		}
-
-		// Detect end of block
-		if inWikiBlock && (strings.Contains(trimmed, "INSTRUCTIONS:") ||
-			strings.Contains(trimmed, "PROMPT:") ||
-			strings.Contains(trimmed, "<end of Wikipedia article>")) {
-			inWikiBlock = false
-			if strings.Contains(trimmed, "<end of Wikipedia article>") {
-				result = append(result, line)
-				continue
-			}
-		}
-
-		if inWikiBlock {
-			if trimmed == "" {
-				continue // Skip empty lines in wiki block
-			}
-			runes := []rune(trimmed)
-			if len(runes) > maxLen {
-				result = append(result, string(runes[:maxLen])+"...")
-			} else {
-				result = append(result, trimmed)
-			}
-		} else {
-			result = append(result, line)
-		}
-	}
-
-	return strings.Join(result, "\n")
-}
-
 // CleanJSONBlock removes markdown code blocks from a JSON string if present.
 func CleanJSONBlock(text string) string {
 	text = strings.TrimSpace(text)

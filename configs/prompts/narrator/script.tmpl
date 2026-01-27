@@ -10,65 +10,24 @@ Do not use "Let me think", but you can use "Let me check" when the tour guide mi
 {{template "Persona" .}}
 {{template "Style" .}}
 
-{{if not .IsStub}}
-**NARRATION FLOW**
-- Start by pointing out the POI by its native name {{.POINameNative}} or by the {{.Language}} version of the name {{.POINameUser}}, or both,
-- and the direction and distance (if provided).
-{{if ne .FlightStage "Ground"}}
-{{maybe 80 "- Next, describe how to identify the POI from the air, for example by describing its shape, size, or color, or relation to visible landmarks like rivers, lakes, or cities."}}
-{{end}}
-- Next, provide all kinds of information about the POI.
-**TOPICS**:
-Any topic from the Wikipedia article is allowed, but passengers are especially interested in:
-- {{interests .Interests}}
-{{if .Avoid}}
-**TOPICS TO AVOID (CRITICAL)**:
-Do not mention or discuss the following topics:
-{{range .Avoid}}- {{.}}
-{{end}}
-{{end}}
-{{maybe 80 "- Point out surprising facts if available in the Wikipedia article or in your general knowledge."}}
-{{maybe 20 "- Consider using a rhetorical question to engage the listener."}}
-{{end}}
-NO HALLUCINATIONS, no invented facts.
-{{maybe 30 "Do not add concluding sentences that summarize the 'meaning' or 'significance' of the site."}}
-{{maybe 30 "End each paragraph immediately after the last fact is presented. Do not editorialize."}}
-{{maybe 30 "Do not use phrases like 'a testament to,' 'a reminder of,' 'serves as,' or 'stands as.'"}}
-{{maybe 30 "Do not offer opinions on the beauty, grandeur, or environmental significance of the locations. Output raw facts only."}}
-
 **UNITS AND MEASUREMENTS**:
 {{.UnitsInstruction}}
-{{template "LengthInstructions" .}}
-**Recent POIs** we have discussed (avoid repetition of topics): {{.RecentContext}}
-{{if .TripSummary}}
-**TRIP SUMMARY SO FAR** (for continuity and cross-referencing):
-{{.TripSummary}}
-{{if .LastSentence}}
-**PREVIOUS NARRATION ENDED WITH**: "...{{.LastSentence}}."
-{{end}}
-**CONTINUITY RULES (CRITICAL)**:
-1. **NO ECHOING**: The user has just heard the "Previous Narration End" sentence. **DO NOT REPEAT IT** at the start of your script.
-{{if not .IsStub}}
-2. **THEMATIC CONNECTIONS**: **Actively look** for a thematic link in the "Trip Summary" and expand on it, if it feels natural.
-3. **SMOOTH FLOW**: Use the "Trip Summary" and the end of the previous narration to transition naturally. Do not force connections.
-4. **BUILD, DON'T REPEAT**: You may reference previous topics to build a theme, but avoid repeating the same facts or stories that were already told.
-5. **NO SUMMARIES**: If possible, end the script with a fun, interesting, or surprising fact and trail off.
-{{end}}
-{{end}}
+
 **NO REFERENCE TO THE FLIGHT**:
 - {{template "FlightData" .}}
 - Do not mention GPS coordinates.
 - Do not make up details about the flight progress, do not give aviation advice.
-POI Information:
+
+**POI Information**:
 - Native Name: {{.POINameNative}}
-- Name in {{.Language}}: {{.POINameUser}} in {{.Country}}, {{.Region}}
+- Name in {{.Language_name}}: {{.POINameUser}} in {{.Country}}, {{.Region}}
 - Category: {{.Category}}
 {{category .Category .}}
-Generate a script for the tour guide about the POI using the following information and your general knowledge of the subject and the area:
-Direction and distance (for the opening):
-"{{.NavInstruction}}"
-(If empty, do not give specific direction, just mention the name).
-<start of Wikipedia article>
- {{.WikipediaText}}
-<end of Wikipedia article>
+
+{{if .IsStub}}
+{{template "narrator/script_stub.tmpl" .}}
+{{else}}
+{{template "narrator/script_full.tmpl" .}}
+{{end}}
+
 {{.TTSInstructions}}

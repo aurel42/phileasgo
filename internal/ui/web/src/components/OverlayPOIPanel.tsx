@@ -3,7 +3,6 @@ import type { POI } from '../hooks/usePOIs';
 
 interface OverlayPOIPanelProps {
     poi: POI | null;
-    imagePath?: string;
     title?: string;
     currentType?: string;
     playbackProgress: number; // 0-1
@@ -16,17 +15,15 @@ const getName = (poi: POI) => {
     return poi.name_local || 'Unknown';
 };
 
-export const OverlayPOIPanel = ({ poi, imagePath, title, currentType, playbackProgress, isPlaying }: OverlayPOIPanelProps) => {
+export const OverlayPOIPanel = ({ poi, title, currentType, playbackProgress, isPlaying }: OverlayPOIPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
-        if ((poi || imagePath || title) && isPlaying) {
+        if ((poi || title) && isPlaying) {
             setVisible(true);
 
-            if (imagePath) {
-                setThumbnailUrl(`/api/images/serve?path=${encodeURIComponent(imagePath)}`);
-            } else if (poi) {
+            if (poi) {
                 // Fetch thumbnail if not available
                 if (poi.thumbnail_url) {
                     setThumbnailUrl(poi.thumbnail_url);
@@ -46,9 +43,9 @@ export const OverlayPOIPanel = ({ poi, imagePath, title, currentType, playbackPr
             setVisible(false);
             setThumbnailUrl(null);
         }
-    }, [poi, imagePath, title, isPlaying]);
+    }, [poi, title, isPlaying]);
 
-    if (!poi && !imagePath && !title) return null;
+    if (!poi && !title) return null;
 
     let primaryName = title || "Narration";
     let category = "";
@@ -56,10 +53,6 @@ export const OverlayPOIPanel = ({ poi, imagePath, title, currentType, playbackPr
     if (poi) {
         primaryName = getName(poi);
         category = poi.specific_category || poi.category || '';
-    } else if (imagePath) {
-        // If title is provided (e.g. "Screenshot: foo.jpg"), use it, otherwise "Screenshot"
-        if (!title) primaryName = "Screenshot";
-        category = "Screenshot"; // Or leave empty
     } else if (currentType === 'debrief') {
         category = "Flight Summary";
     } else if (currentType === 'essay') {

@@ -110,3 +110,15 @@ func TestAIService_PlayEssay_NoHandler(t *testing.T) {
 		t.Error("Expected PlayEssay to return false when handler is nil")
 	}
 }
+func TestAIService_PlayEssay_UserPause(t *testing.T) {
+	mockAudio := &MockAudio{}
+	mockAudio.SetUserPaused(true)
+	svc := &AIService{
+		audio:  mockAudio,
+		essayH: &EssayHandler{},
+	}
+
+	if svc.PlayEssay(context.Background(), &sim.Telemetry{}) {
+		t.Error("Expected PlayEssay to return false when UserPause is active")
+	}
+}

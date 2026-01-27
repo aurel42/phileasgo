@@ -1,9 +1,20 @@
 ﻿Release History
 
+## v0.3.47 (2026-01-27)
+- **Dynamic Narration Length Scaling**: Implemented a sophisticated 3-phase scaling system.
+    - **Intelligent Prose Processing**: New `articleproc` engine filters Wikipedia prose to count only meaningful words, ignoring metadata/lists.
+    - **Adaptive Prompts**: Narration length instructions are now dynamically injected based on user settings (Short/Medium/Long) and source article density.
+- **Narrative Polish**:
+    - **Unified "Photograph" UX**: Refactored screenshot handling. Screenshots are now treated as "Photograph Analysis" POIs, sharing the same unified UI as Landmarks.
+    - **Prompt Refactoring**: Major cleanup of prompt templates (`script_full.tmpl`, `script_stub.tmpl`) for better maintainability and context injection.
+    - **Respect for Pause**: Narrator now checks for user pause state before queuing new items.
+- **Bug Fixes**:
+    - Reduced log noise by downgrading verbose narrative queue logs to DEBUG.
+    - Fixed marker visibility regression.
+
 ## v0.3.46 (2026-01-27)
 - **Feature**: **Split POI Visibility Stats**. The UI now separates "Competitive" POIs from "Recently Played" POIs in the dashboard footer for better visibility into available content.
 - **Improved**: **Stub Narration Instructions**. Wikipedia stubs now receive a simplified, fact-focused instruction set that skips complex aerial identification and interest-matching logic.
-
 
 ## v0.3.45 (2026-01-27)
 - **Fix**: **Score Breakdown Stability**. Ensures POI score details remain persistent in the UI while the narrator is generating or playing a script, even if the aircraft moves out of range.

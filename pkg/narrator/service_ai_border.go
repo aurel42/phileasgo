@@ -21,6 +21,11 @@ func (s *AIService) PlayBorder(ctx context.Context, from, to string, tel *sim.Te
 		return false
 	}
 
+	// Pause Respect
+	if s.audio != nil && s.audio.IsUserPaused() {
+		return false
+	}
+
 	// Queue Constraints
 	if !s.canEnqueuePlayback("border", true) {
 		slog.Info("Narrator: Border announcement skipped (queue constraints)")

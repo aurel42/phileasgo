@@ -58,6 +58,7 @@ func (m *MockNarratorService) CurrentPOI() *model.POI           { return m.curre
 func (m *MockNarratorService) GetPreparedPOI() *model.POI       { return nil }
 func (m *MockNarratorService) CurrentTitle() string             { return m.currentTitle }
 func (m *MockNarratorService) CurrentImagePath() string         { return "" }
+func (m *MockNarratorService) ClearCurrentImage()               {} // Added
 func (m *MockNarratorService) NarratedCount() int               { return m.narrated }
 func (m *MockNarratorService) Stats() map[string]any            { return m.stats }
 func (m *MockNarratorService) CurrentType() model.NarrativeType { return "" }

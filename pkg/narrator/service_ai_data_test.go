@@ -151,8 +151,8 @@ func TestFetchWikipediaText(t *testing.T) {
 			mockWiki.Err = tt.wikiErr
 
 			got := svc.fetchWikipediaText(context.Background(), tt.poi)
-			if got != tt.want {
-				t.Errorf("fetchWikipediaText() = %q, want %q", got, tt.want)
+			if got.Prose != tt.want {
+				t.Errorf("fetchWikipediaText() = %q, want %q", got.Prose, tt.want)
 			}
 		})
 	}
@@ -232,7 +232,7 @@ func TestSampleNarrationLength_Logic(t *testing.T) {
 			mockPOI.CountScoredAboveFunc = func(threshold float64, limit int) int {
 				return tt.rivalsCount
 			}
-			_, strat := svc.sampleNarrationLength(&model.POI{Score: 10}, "")
+			_, strat := svc.sampleNarrationLength(&model.POI{Score: 10}, "", 100)
 			if strat != tt.expectStrat {
 				t.Errorf("Expected strategy %s, got %s", tt.expectStrat, strat)
 			}

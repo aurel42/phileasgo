@@ -14,6 +14,11 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 		return false
 	}
 
+	// 0. Pause Respect
+	if s.audio != nil && s.audio.IsUserPaused() {
+		return false
+	}
+
 	// 1. Constraints
 	if s.HasPendingGeneration() {
 

@@ -76,7 +76,7 @@ func TestSampleNarrationLength_Multipliers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockStore.SetState(context.Background(), "text_length", tt.textLength)
 
-			val, _ := svc.sampleNarrationLength(&model.POI{}, tt.strategy)
+			val, _ := svc.sampleNarrationLength(&model.POI{}, tt.strategy, 1000)
 
 			if val != tt.want {
 				t.Errorf("sampleNarrationLength(%s, %s) = %d, want %d", tt.textLength, tt.strategy, val, tt.want)

@@ -305,10 +305,9 @@ func (f *Provider) logRequest(providerName, callName, prompt, response string, e
 		// 2) for successful requests, we log in llm.log the full prompt, but we truncate wikipedia article lines as before
 		// 3) for successful requests, we log in llm.log the full response, but we wrap it to 80 chars.
 		wrappedResponse := llm.WordWrap(response, 80)
-		truncatedPrompt := llm.TruncateParagraphs(prompt, 80)
 
 		entry = fmt.Sprintf("[%s][%s] PROMPT: %s\nPROMPT_TEXT:\n%s\n\nRESPONSE:\n%s\n%s\n",
-			timestamp, strings.ToUpper(providerName), callName, truncatedPrompt, wrappedResponse, strings.Repeat("-", 80))
+			timestamp, strings.ToUpper(providerName), callName, prompt, wrappedResponse, strings.Repeat("-", 80))
 	}
 
 	_, _ = file.WriteString(entry)

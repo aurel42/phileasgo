@@ -67,7 +67,27 @@ func (s *AIService) IsPaused() bool {
 func (s *AIService) CurrentPOI() *model.POI {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.currentPOI
+
+	// 1. Regular POI
+	if s.currentPOI != nil {
+		return s.currentPOI
+	}
+
+	// 2. Pseudo POI for Screenshots
+	if s.currentType == model.NarrativeTypeScreenshot && s.currentImagePath != "" {
+		return &model.POI{
+			WikidataID:   "screenshot-" + s.currentImagePath, // Unique-ish ID
+			NameEn:       "Visual Analysis",
+			NameUser:     "Visual Analysis",
+			Category:     "Photograph",
+			ThumbnailURL: "/api/images/serve?path=" + s.currentImagePath, // Use the serve endpoint as thumbnail
+			Icon:         "camera",                                       // Hypothetical icon
+			Score:        50.0,                                           // Max score for visibility
+			IsVisible:    true,
+		}
+	}
+
+	return nil
 }
 
 // CurrentImagePath returns the file path of the message for the current narration.
@@ -75,6 +95,13 @@ func (s *AIService) CurrentImagePath() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.currentImagePath
+}
+
+// ClearCurrentImage clears the current image path from state.
+func (s *AIService) ClearCurrentImage() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.currentImagePath = ""
 }
 
 // IsPOIBusy returns true if the POI is currently generating, queued, or playing.
@@ -123,6 +150,10 @@ func (s *AIService) CurrentTitle() string {
 	defer s.mu.RUnlock()
 	if s.currentPOI != nil {
 		return s.currentPOI.DisplayName()
+	}
+	// Check for pseudo-POI logic (though CurrentPOI handles it, sometimes we just want the string)
+	if s.currentType == model.NarrativeTypeScreenshot {
+		return "Visual Analysis"
 	}
 	if s.currentEssayTitle != "" {
 		return s.currentEssayTitle

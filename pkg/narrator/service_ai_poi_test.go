@@ -3,6 +3,7 @@ package narrator
 import (
 	"context"
 	"os"
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
@@ -26,6 +27,11 @@ func TestAIService_RescueScript(t *testing.T) {
 	svc := &AIService{
 		llm:     mockLLM,
 		prompts: pm,
+		cfg: &config.Config{
+			Narrator: config.NarratorConfig{
+				TargetLanguage: "en-US",
+			},
+		},
 	}
 
 	// Pre-create the template in the manager's root
@@ -69,4 +75,18 @@ func TestAIService_PlayPOI_Constraints(t *testing.T) {
 	// 2. Automated PlayPOI - skip because busy (pending generation)
 	svc.PlayPOI(context.Background(), "Q456", false, false, &sim.Telemetry{}, "")
 	// Should log "Skipping auto-play (priority queue not empty)" and return
+
+	// 3. UserPause - should skip automated but proceed with manual
+	mockAudio := &MockAudio{}
+	mockAudio.SetUserPaused(true)
+	svc.audio = mockAudio
+	svc.PlayPOI(context.Background(), "Q789", false, false, &sim.Telemetry{}, "")
+	if svc.genQ.Count() != 1 {
+		t.Errorf("Expected automated PlayPOI to be skipped when paused, but queue count changed: %d", svc.genQ.Count())
+	}
+
+	svc.PlayPOI(context.Background(), "Q789", true, false, &sim.Telemetry{}, "")
+	if svc.genQ.Count() != 2 {
+		t.Errorf("Expected manual PlayPOI to ignore pause, but queue count is: %d", svc.genQ.Count())
+	}
 }

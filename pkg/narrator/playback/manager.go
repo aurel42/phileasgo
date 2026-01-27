@@ -37,7 +37,7 @@ func (m *Manager) Enqueue(n *model.Narrative, priority bool) {
 		// Append
 		m.queue = append(m.queue, n)
 	}
-	slog.Info("PlaybackQueue: Enqueued narrative", "title", n.Title, "priority", priority, "queue_len", len(m.queue))
+	slog.Debug("PlaybackQueue: Enqueued narrative", "title", n.Title, "priority", priority, "queue_len", len(m.queue))
 }
 
 // Pop retrieves and removes the next narrative from the queue.

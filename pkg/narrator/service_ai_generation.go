@@ -198,9 +198,14 @@ func (s *AIService) extractTitleFromScript(script string) (title, cleanScript st
 
 // rescueScript attempts to extract a clean script from contaminated LLM output.
 func (s *AIService) rescueScript(ctx context.Context, script string, maxWords int) (string, error) {
+	// Fetch TTS instructions for consistent formatting during rescue
+	pd := s.getCommonPromptData()
+	ttsInstr := s.fetchTTSInstructions(&pd)
+
 	prompt, err := s.prompts.Render("context/rescue_script.tmpl", map[string]any{
-		"Script":   script,
-		"MaxWords": int(float64(maxWords) * 1.5), // Give rescue 50% more headroom
+		"Script":          script,
+		"MaxWords":        int(float64(maxWords) * 1.5), // Give rescue 50% more headroom
+		"TTSInstructions": ttsInstr,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to render rescue prompt: %w", err)

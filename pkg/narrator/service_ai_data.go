@@ -27,11 +27,13 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		tel = &t
 	}
 	nav := s.calculateNavInstruction(p, tel)
-	maxWords, domStrat := s.sampleNarrationLength(p, strategy)
 
-	// Stub Detection
-	// Check if Scorer marked it as a stub
-	wpText := s.fetchWikipediaText(ctx, p)
+	// Stub Detection & Text Fetch
+	wikiInfo := s.fetchWikipediaText(ctx, p)
+	wpText := wikiInfo.Prose
+
+	maxWords, domStrat := s.sampleNarrationLength(p, strategy, wikiInfo.WordCount)
+
 	isStub := false
 	for _, b := range p.Badges {
 		if b == "stub" {
@@ -150,26 +152,31 @@ func (s *AIService) fetchTTSInstructions(data any) string {
 	return content
 }
 
-func (s *AIService) fetchWikipediaText(ctx context.Context, p *model.POI) string {
+func (s *AIService) fetchWikipediaText(ctx context.Context, p *model.POI) *articleproc.Info {
 	// 1. Try Store using QID as UUID
 	art, _ := s.st.GetArticle(ctx, p.WikidataID)
 	if art != nil && art.Text != "" {
-		return art.Text
+		// Calculate word count for cached articles since old ones might not have it in DB
+		// (though we usually count them at extraction time)
+		return &articleproc.Info{
+			Prose:     art.Text,
+			WordCount: len(strings.Fields(art.Text)),
+		}
 	}
 
 	// 2. Fetch if missing
 	if p.WPURL == "" {
-		return ""
+		return &articleproc.Info{}
 	}
 	// Safeguard: If URL is still pointing to Wikidata (failed rescue), do not attempt fetch
 	if strings.Contains(p.WPURL, "wikidata.org") {
-		return ""
+		return &articleproc.Info{}
 	}
 
 	// Parse Title/Lang from URL: https://en.wikipedia.org/wiki/Title
 	parts := strings.Split(p.WPURL, "/")
 	if len(parts) < 5 {
-		return ""
+		return &articleproc.Info{}
 	}
 	title := parts[len(parts)-1]
 	lang := "en"
@@ -181,27 +188,24 @@ func (s *AIService) fetchWikipediaText(ctx context.Context, p *model.POI) string
 	htmlContent, err := s.wikipedia.GetArticleHTML(ctx, title, lang)
 	if err != nil {
 		slog.Warn("Narrator: Failed to fetch Wikipedia HTML", "title", title, "error", err)
-		// Fallback to extract text if HTML parse fails? No, the user wants Phase 1/2 strictly.
-		return ""
+		return &articleproc.Info{}
 	}
 
 	info, err := articleproc.ExtractProse(strings.NewReader(htmlContent))
 	if err != nil {
 		slog.Warn("Narrator: Failed to extract prose from Wikipedia HTML", "title", title, "error", err)
-		return ""
+		return &articleproc.Info{}
 	}
-
-	text := info.Prose
 
 	// 3. Cache it (We store the CLEAN prose now)
 	_ = s.st.SaveArticle(ctx, &model.Article{
 		UUID:  p.WikidataID,
 		Title: title,
 		URL:   p.WPURL,
-		Text:  text,
+		Text:  info.Prose,
 	})
 
-	return text
+	return info
 }
 
 func (s *AIService) fetchRecentContext(ctx context.Context, lat, lon float64) string {
@@ -360,7 +364,7 @@ func (s *AIService) getCommonPromptData() NarrationPromptData {
 	return pd
 }
 
-func (s *AIService) sampleNarrationLength(p *model.POI, strategy string) (words int, strategyUsed string) {
+func (s *AIService) sampleNarrationLength(p *model.POI, strategy string, sourceWords int) (words int, strategyUsed string) {
 	// Base targets from config (default 50/200)
 	shortTarget := s.cfg.Narrator.NarrationLengthShortWords
 	longTarget := s.cfg.Narrator.NarrationLengthLongWords
@@ -381,16 +385,33 @@ func (s *AIService) sampleNarrationLength(p *model.POI, strategy string) (words 
 		baseTarget = shortTarget
 	}
 
-	// 4. Apply Multiplier
+	// 4. Apply Multiplier (User preference 1..5)
 	targetWords := s.applyWordLengthMultiplier(baseTarget)
+
+	// PHASE 3: Dynamic Scaling based on source depth
+	finalWords := targetWords
+	scalingLog := "none"
+	if sourceWords > 0 {
+		factor := s.cfg.Narrator.LengthScalingFactor
+		if factor <= 0 {
+			factor = 0.5 // Safety default
+		}
+		limit := int(float64(sourceWords) * factor)
+		if limit < finalWords {
+			finalWords = limit
+			scalingLog = fmt.Sprintf("capped by source (%d * %.2f = %d)", sourceWords, factor, limit)
+		}
+	}
 
 	slog.Debug("Narrator: Sampling Length",
 		"strategy", strategy,
 		"base_target", baseTarget,
-		"final_target", targetWords,
+		"user_target", targetWords,
+		"final_words", finalWords,
+		"scaling", scalingLog,
 	)
 
-	return targetWords, strategy
+	return finalWords, strategy
 }
 
 // applyWordLengthMultiplier applies the user's text length setting (1..5) to the base word count.

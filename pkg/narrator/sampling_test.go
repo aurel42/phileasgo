@@ -20,7 +20,7 @@ func TestSampleNarrationLength(t *testing.T) {
 	}
 
 	for i := 0; i < 1000; i++ {
-		val, _ := s.sampleNarrationLength(nil, "")
+		val, _ := s.sampleNarrationLength(nil, "", 1000)
 
 		if val < 100 {
 			t.Errorf("Sampled value %d below min 100", val)
@@ -42,7 +42,7 @@ func TestSampleNarrationLength_EdgeCases(t *testing.T) {
 	// Case 2: Zero values -> defaults (Short 50, Long 200)
 	cfg.Narrator.NarrationLengthShortWords = 0
 	cfg.Narrator.NarrationLengthLongWords = 0
-	val2, _ := s.sampleNarrationLength(nil, "")
+	val2, _ := s.sampleNarrationLength(nil, "", 1000)
 	// Default logic: defaults Short=50, Long=200
 	// Multiplier 1.0 (default)
 	// Strategy will determine which one.

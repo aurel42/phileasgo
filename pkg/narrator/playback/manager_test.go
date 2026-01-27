@@ -112,3 +112,37 @@ func TestManager_MaxSize(t *testing.T) {
 		t.Errorf("expected 5 items, got %d", m.Count())
 	}
 }
+func TestManager_HasPOI(t *testing.T) {
+	m := NewManager()
+	n := &model.Narrative{POI: &model.POI{WikidataID: "Q1"}}
+	m.Enqueue(n, false)
+
+	if !m.HasPOI("Q1") {
+		t.Error("expected HasPOI(Q1) to be true")
+	}
+	if m.HasPOI("Q2") {
+		t.Error("expected HasPOI(Q2) to be false")
+	}
+}
+
+func TestManager_Promote(t *testing.T) {
+	m := NewManager()
+	m.Enqueue(&model.Narrative{ID: "1", POI: &model.POI{WikidataID: "Q1"}}, false)
+	m.Enqueue(&model.Narrative{ID: "2", POI: &model.POI{WikidataID: "Q2"}}, false)
+
+	if !m.Promote("Q2") {
+		t.Fatal("expected Q2 to be promoted")
+	}
+	if m.Peek().ID != "2" {
+		t.Errorf("expected 2 to be at head, got %s", m.Peek().ID)
+	}
+}
+
+func TestManager_HasAuto(t *testing.T) {
+	m := NewManager()
+	m.Enqueue(&model.Narrative{Type: model.NarrativeTypePOI, Manual: false}, false)
+
+	if !m.HasAuto() {
+		t.Error("expected HasAuto to be true")
+	}
+}

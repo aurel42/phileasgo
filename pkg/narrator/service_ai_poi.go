@@ -13,8 +13,6 @@ import (
 )
 
 // PlayPOI triggers narration for a specific POI.
-// PlayPOI triggers narration for a specific POI.
-// PlayPOI triggers narration for a specific POI.
 func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
 	if manual {
 		slog.Info("Narrator: Manual play requested", "poi_id", poiID, "enqueue_if_busy", enqueueIfBusy)
@@ -24,6 +22,12 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 
 	// 0. Queue Check & Override Logic
 	if s.handleManualQueueAndOverride(poiID, strategy, manual, enqueueIfBusy) {
+		return
+	}
+
+	// 0b. Pause Respect
+	if !manual && s.audio != nil && s.audio.IsUserPaused() {
+		slog.Info("Narrator: Skipping auto-play (UserPause active)", "poi_id", poiID)
 		return
 	}
 
@@ -39,19 +43,25 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 		return
 	}
 
-	// 2. Priority Queue Enqueue (Manual Only)
 	if manual {
-		s.enqueueGeneration(&generation.Job{
-			Type:      model.NarrativeTypePOI,
-			POIID:     poiID,
-			Manual:    true,
-			Strategy:  strategy,
-			CreatedAt: time.Now(),
-			Telemetry: tel,
-		})
-		return
+		s.playPOIManual(poiID, strategy, tel)
+	} else {
+		s.playPOIAutomated(ctx, p, tel, strategy)
 	}
+}
 
+func (s *AIService) playPOIManual(poiID, strategy string, tel *sim.Telemetry) {
+	s.enqueueGeneration(&generation.Job{
+		Type:      model.NarrativeTypePOI,
+		POIID:     poiID,
+		Manual:    true,
+		Strategy:  strategy,
+		CreatedAt: time.Now(),
+		Telemetry: tel,
+	})
+}
+
+func (s *AIService) playPOIAutomated(ctx context.Context, p *model.POI, tel *sim.Telemetry, strategy string) {
 	// 3. Auto-Play Constraints (Drains Priority First)
 	if s.HasPendingGeneration() {
 		slog.Info("Narrator: Skipping auto-play (priority queue not empty)")
@@ -62,8 +72,8 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 		return
 	}
 
-	if !s.canEnqueuePlayback("poi", manual) {
-		slog.Info("Narrator: Play request rejected by queue constraints", "poi_id", poiID, "manual", manual)
+	if !s.canEnqueuePlayback("poi", false) {
+		slog.Info("Narrator: Play request rejected by queue constraints", "poi_id", p.WikidataID, "manual", false)
 		return
 	}
 
@@ -88,17 +98,17 @@ func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIf
 			SafeID:   strings.ReplaceAll(p.WikidataID, "/", "_"),
 			POI:      p,
 			MaxWords: promptData.MaxWords,
-			Manual:   manual,
+			Manual:   false,
 		}
 
 		narrative, err := s.GenerateNarrative(genCtx, &req)
 		if err != nil {
-			slog.Error("Narrator: Generation failed", "poi_id", poiID, "error", err)
+			slog.Error("Narrator: Generation failed", "poi_id", p.WikidataID, "error", err)
 			return
 		}
 
 		// Enqueue & Trigger
-		s.enqueuePlayback(narrative, manual)
+		s.enqueuePlayback(narrative, false)
 		s.ProcessPlaybackQueue(genCtx)
 	}()
 }
