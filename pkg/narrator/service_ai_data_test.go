@@ -18,7 +18,7 @@ func TestBuildPromptData(t *testing.T) {
 	mockSim := &MockSim{Telemetry: sim.Telemetry{
 		Latitude: 10, Longitude: 20, IsOnGround: true,
 	}}
-	mockWiki := &MockWikipedia{Content: "WikiText"}
+	mockWiki := &MockWikipedia{Content: "<div class=\"mw-parser-output\"><p>WikiText</p></div>"}
 	mockStore := &MockStore{}
 	pm, _ := prompts.NewManager(t.TempDir()) // empty
 
@@ -74,7 +74,7 @@ func TestBuildPromptData(t *testing.T) {
 		if pd.TargetRegion != "Near TestCity" {
 			t.Errorf("Expected Near TestCity, got %s", pd.TargetRegion)
 		}
-		// Wiki text should be fetched
+		// Wiki text should be fetched (and cleaned)
 		if pd.WikipediaText != "WikiText" {
 			t.Errorf("Expected WikiText, got %s", pd.WikipediaText)
 		}
@@ -122,7 +122,7 @@ func TestFetchWikipediaText(t *testing.T) {
 			name:       "Fetch Success",
 			poi:        &model.POI{WikidataID: "Q2", WPURL: "https://en.wikipedia.org/wiki/Bar"},
 			storeArt:   nil,
-			wikiResult: "Fresh",
+			wikiResult: "<div class=\"mw-parser-output\"><p>Fresh</p></div>",
 			want:       "Fresh",
 		},
 		{

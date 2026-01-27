@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"phileasgo/pkg/articleproc"
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
@@ -88,6 +89,7 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		POINameUser:          p.DisplayName(),
 		Category:             p.Category,
 		WikipediaText:        wpText,
+		ArticleURL:           p.WPURL,
 		IsStub:               isStub,
 		NavInstruction:       nav,
 		TargetLanguage:       s.cfg.Narrator.TargetLanguage,
@@ -175,13 +177,23 @@ func (s *AIService) fetchWikipediaText(ctx context.Context, p *model.POI) string
 		lang = strings.Split(parts[2], ".")[0]
 	}
 
-	text, err := s.wikipedia.GetArticleContent(ctx, title, lang)
+	// PHASE 2: Use HTML parsing for clean prose
+	htmlContent, err := s.wikipedia.GetArticleHTML(ctx, title, lang)
 	if err != nil {
-		slog.Warn("Narrator: Failed to fetch Wikipedia extract", "title", title, "error", err)
+		slog.Warn("Narrator: Failed to fetch Wikipedia HTML", "title", title, "error", err)
+		// Fallback to extract text if HTML parse fails? No, the user wants Phase 1/2 strictly.
 		return ""
 	}
 
-	// 3. Cache it
+	info, err := articleproc.ExtractProse(strings.NewReader(htmlContent))
+	if err != nil {
+		slog.Warn("Narrator: Failed to extract prose from Wikipedia HTML", "title", title, "error", err)
+		return ""
+	}
+
+	text := info.Prose
+
+	// 3. Cache it (We store the CLEAN prose now)
 	_ = s.st.SaveArticle(ctx, &model.Article{
 		UUID:  p.WikidataID,
 		Title: title,

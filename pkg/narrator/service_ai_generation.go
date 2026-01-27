@@ -36,59 +36,20 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		s.mu.Unlock()
 	}
 
-	// Determine LLM Profile based on type
-	profile := string(req.Type)
-	if req.Type == model.NarrativeTypePOI {
-		profile = "narration"
-	}
+	// PHASE 2: Improved logging for Wikipedia comparison
+	s.logWikipediaContext(req)
 
 	// 3. Generate Script (LLM)
-	var script string
-	var err error
-	if req.ImagePath != "" {
-		// Multimodal: send prompt + image
-		script, err = s.llm.GenerateImageText(ctx, profile, req.Prompt, req.ImagePath)
-		if err != nil {
-			return nil, fmt.Errorf("LLM image generation failed: %w", err)
-		}
-		// Filter markdown artifacts
-		script = strings.ReplaceAll(script, "*", "")
-	} else {
-		// Text-only generation
-		script, err = s.generateScript(ctx, profile, req.Prompt)
-		if err != nil {
-			return nil, fmt.Errorf("LLM generation failed: %w", err)
-		}
+	script, err := s.generateInitialScript(ctx, req)
+	if err != nil {
+		return nil, err
 	}
 
 	// 3a. Extract Metadata (Title) - BEFORE Rescue/TTS
-	// We do this early so the TITLE line is not counted in word limits or read by TTS.
-	var extractedTitle string
-	extractedTitle, script = s.extractTitleFromScript(script)
+	extractedTitle, script := s.extractTitleFromScript(script)
 
 	// 4. Rescue Script (if too long)
-	if req.MaxWords > 0 {
-		wordCount := len(strings.Fields(script))
-		limit := int(float64(req.MaxWords) * 1.30) // 30% Buffer
-		if wordCount > limit {
-			slog.Warn("Narrator: Script exceeded limit, attempting rescue", "requested", req.MaxWords, "actual", wordCount)
-			rescued, err := s.rescueScript(ctx, script, req.MaxWords)
-			if err == nil {
-				// Re-extract TITLE from rescued script if needed
-				resTitle, resScript := s.extractTitleFromScript(rescued)
-				if resTitle != "" {
-					req.Title = resTitle
-					script = resScript
-				} else {
-					script = rescued
-				}
-				rescuedWordCount := len(strings.Fields(script))
-				slog.Info("Narrator: Script rescue successful", "original", wordCount, "rescued", rescuedWordCount)
-			} else {
-				slog.Error("Narrator: Script rescue failed, using original", "error", err)
-			}
-		}
-	}
+	script = s.performRescueIfNeeded(ctx, req, script)
 
 	// 5. TTS Synthesis
 	safeID := req.SafeID
@@ -102,7 +63,72 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		return nil, fmt.Errorf("TTS synthesis failed: %w", err)
 	}
 
-	// 6. Construct Narrative
+	return s.constructNarrative(req, script, extractedTitle, audioPath, format, startTime, predicted), nil
+}
+
+func (s *AIService) logWikipediaContext(req *GenerationRequest) {
+	if req.POI != nil && req.POI.WPURL != "" {
+		slog.Debug("Narrator: Generation context (WP)",
+			"url", req.POI.WPURL,
+			"approx_words", len(strings.Fields(req.Prompt)),
+		)
+		// Detailed prose logging for comparison (wrapped in logs)
+		fmt.Printf("\n--- [WP PROSE START] ---\n%s\n--- [WP PROSE END] ---\n\n", req.Prompt)
+	}
+}
+
+func (s *AIService) generateInitialScript(ctx context.Context, req *GenerationRequest) (string, error) {
+	profile := string(req.Type)
+	if req.Type == model.NarrativeTypePOI {
+		profile = "narration"
+	}
+
+	if req.ImagePath != "" {
+		script, err := s.llm.GenerateImageText(ctx, profile, req.Prompt, req.ImagePath)
+		if err != nil {
+			return "", fmt.Errorf("LLM image generation failed: %w", err)
+		}
+		return strings.ReplaceAll(script, "*", ""), nil
+	}
+
+	script, err := s.generateScript(ctx, profile, req.Prompt)
+	if err != nil {
+		return "", fmt.Errorf("LLM generation failed: %w", err)
+	}
+	return script, nil
+}
+
+func (s *AIService) performRescueIfNeeded(ctx context.Context, req *GenerationRequest, script string) string {
+	if req.MaxWords <= 0 {
+		return script
+	}
+
+	wordCount := len(strings.Fields(script))
+	limit := int(float64(req.MaxWords) * 1.30) // 30% Buffer
+	if wordCount <= limit {
+		return script
+	}
+
+	slog.Warn("Narrator: Script exceeded limit, attempting rescue", "requested", req.MaxWords, "actual", wordCount)
+	rescued, err := s.rescueScript(ctx, script, req.MaxWords)
+	if err != nil {
+		slog.Error("Narrator: Script rescue failed, using original", "error", err)
+		return script
+	}
+
+	// Re-extract TITLE from rescued script if needed
+	resTitle, resScript := s.extractTitleFromScript(rescued)
+	if resTitle != "" {
+		req.Title = resTitle
+		script = resScript
+	} else {
+		script = rescued
+	}
+	slog.Info("Narrator: Script rescue successful", "original", wordCount, "rescued", len(strings.Fields(script)))
+	return script
+}
+
+func (s *AIService) constructNarrative(req *GenerationRequest, script, extractedTitle, audioPath, format string, startTime time.Time, predicted time.Duration) *model.Narrative {
 	finalTitle := req.Title
 	if finalTitle == "" {
 		finalTitle = extractedTitle
@@ -128,8 +154,7 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 	if req.EssayTopic != nil {
 		n.EssayTopic = req.EssayTopic.Name
 	}
-
-	return n, nil
+	return n
 }
 
 // extractTitleFromScript parses the "TITLE:" line from the script if present.
