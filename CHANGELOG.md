@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.46 (2026-01-27)
+- **Feature**: **Split POI Visibility Stats**. The UI now separates "Competitive" POIs from "Recently Played" POIs in the dashboard footer for better visibility into available content.
+- **Improved**: **Stub Narration Instructions**. Wikipedia stubs now receive a simplified, fact-focused instruction set that skips complex aerial identification and interest-matching logic.
+
+
 ## v0.3.45 (2026-01-27)
 - **Fix**: **Score Breakdown Stability**. Ensures POI score details remain persistent in the UI while the narrator is generating or playing a script, even if the aircraft moves out of range.
 - **Improved**: **Narration Style**. Discouraged the AI from using cliché filler phrases like "rich history" through updated system prompts.

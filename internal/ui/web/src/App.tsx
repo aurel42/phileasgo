@@ -52,8 +52,9 @@ function App() {
   const lastAutoOpenedIdRef = useRef<string | null>(null); // Track ID of last auto-opened POI to prevent loops
 
   // POIs are already filtered by the backend
-  const displayedPOIs = pois;
-  const displayedCount = displayedPOIs.length;
+  const bluePOIs = pois.filter(p => p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
+  const nonBlueCount = pois.length - bluePOIs.length;
+  const blueCount = bluePOIs.length;
 
   // Auto-open panel when narrator starts playing (unless user dismissed it)
   useEffect(() => {
@@ -344,7 +345,8 @@ function App() {
             telemetry={telemetry}
             status={hasConnectionError ? 'error' : status}
             isRetrying={status === 'pending' && hasConnectionError}
-            displayedCount={displayedCount}
+            nonBlueCount={nonBlueCount}
+            blueCount={blueCount}
           />
         )}
       </div>

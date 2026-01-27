@@ -7,7 +7,8 @@ interface InfoPanelProps {
     telemetry?: Telemetry;
     status: 'pending' | 'error' | 'success';
     isRetrying?: boolean;
-    displayedCount: number;
+    nonBlueCount: number;
+    blueCount: number;
 }
 
 interface Geography {
@@ -23,7 +24,7 @@ interface Geography {
 
 export const InfoPanel = ({
     telemetry, status, isRetrying,
-    displayedCount
+    nonBlueCount, blueCount
 }: InfoPanelProps) => {
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
@@ -290,7 +291,7 @@ export const InfoPanel = ({
                 <div className="hud-card footer" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '8px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                         <div className="role-label" style={{ display: 'flex', gap: '12px' }}>
-                            <span>POI(vis) <span className="role-num-sm">{displayedCount}</span></span>
+                            <span>POI(vis) <span className="role-num-sm">{nonBlueCount}</span><span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px', marginLeft: '4px', marginRight: '4px' }}>◆</span><span className="role-num-sm" style={{ color: '#3b82f6' }}>{blueCount}</span></span>
                             <span>POI(tracked) <span className="role-num-sm">{trackedCount}</span></span>
                             <span>MEM(rss) <span className="role-num-sm">{sysMem}MB</span></span>
                             <span>MEM(max) <span className="role-num-sm">{sysMemMax}MB</span></span>
