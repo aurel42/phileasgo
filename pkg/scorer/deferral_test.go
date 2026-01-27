@@ -101,7 +101,7 @@ func TestDefaultSession_CheckDeferral(t *testing.T) {
 			name:       "POI Passed at t=1 (Invalid Close)",
 			poiPos:     geo.Point{Lat: 0.5 / 60.0, Lon: 0}, // 0.5nm North
 			heading:    0,
-			expectMult: 1.0,
+			expectMult: 1.5, // 1.5 Urgency Boost (Disappearing soon)
 			// t=1 (1N): POI (0.5N) is behind. Invalid.
 			// t=3 (3N): POI (0.5N) is behind. Invalid.
 			// BestClose = Inf.

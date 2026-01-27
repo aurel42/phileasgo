@@ -131,7 +131,7 @@ categories:
       "Q55488": "railway station"
     weight: 0.4
     icon: "rail"
-    sitelinks_min: 5
+    sitelinks_min: 3
     size: "M"
   Religious:
     qids:
@@ -141,7 +141,7 @@ categories:
       "Q44539": "temple"
     weight: 1.1
     icon: "religious-buddhist"
-    sitelinks_min: 10
+    sitelinks_min: 3
     size: "S"
   Spaceflight:
     qids:
@@ -155,7 +155,7 @@ categories:
       "Q483110": "stadium"
     weight: 1.2
     icon: "stadium"
-    sitelinks_min: 5
+    sitelinks_min: 3
     size: "M"
   Theme Park:
     qids:
@@ -176,14 +176,14 @@ categories:
       "Q3957": "town"
     weight: 0.4
     icon: "town"
-    sitelinks_min: 3
+    sitelinks_min: 2
     size: "L"
   Village:
     qids:
       "Q532": "village"
     weight: 0.3
     icon: "village"
-    sitelinks_min: 3
+    sitelinks_min: 2
     size: "M"
   Volcano:
     qids:
@@ -199,7 +199,7 @@ categories:
       "Q34038": "waterfall"
     weight: 0.6
     icon: "water"
-    sitelinks_min: 3
+    sitelinks_min: 2
     size: "L"
   Wetland:
     qids:

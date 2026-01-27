@@ -171,9 +171,6 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
         );
     });
 
-    // Hide icon if deferred or alternating
-    const showIcon = !badges.includes('deferred') && !badges.includes('urgent') && !badges.includes('patient');
-
     return (
         <div
             className={`smart-marker ${isHighlighted ? 'highlighted' : ''} ${isPreparing ? 'preparing' : ''}`}
@@ -208,7 +205,7 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
                 borderRadius: '50%', // Circle
                 overflow: 'visible',
             }}>
-                {showIcon && <img src={iconPath} style={{ width: '24px', height: '24px' }} draggable={false} />}
+                <img src={iconPath} style={{ width: '24px', height: '24px' }} draggable={false} />
                 {badgeElements}
             </div>
         </div>

@@ -184,36 +184,38 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 // Returns multiplier (1.0 if no deferral, 0.1 if deferred), a concise log message, and a boolean indicating state.
 func (sess *DefaultSession) checkDeferral(poi *model.POI, heading float64) (multiplier float64, msg string, isDeferred bool) {
 	poiPoint := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
+
+	// 1. Calculate Urgency Metrics (TTB, TTCPA) - Always run this first
+	sess.calculateUrgencyMetrics(poi, poiPoint, heading)
+
+	// 2. Apply Penalties/Boosts (Badges: Urgent/Patient)
+	urgencyMultiplier, urgencyMsg := sess.calculateUrgencyFactor(poi)
+
+	// 3. Deferral Distances Check
 	// Horizons: 0=1m, 1=3m, 2=5m, 3=10m, 4=15m
 	if len(sess.futurePositions) != 5 {
-		return 1.0, "", false
+		return urgencyMultiplier, urgencyMsg, false
 	}
 
 	bestClose, bestFar := sess.getDeferralDistances(poiPoint, heading)
 
-	// If all "Close" positions are behind or invalid, we can't compare.
+	// If all "Close" positions are behind or invalid, we can't compare for deferral.
 	if math.IsInf(bestClose, 1) {
-		return 1.0, "", false
+		return urgencyMultiplier, urgencyMsg, false
 	}
 
 	// If all "Far" positions are behind or invalid, we are moving away/past it.
 	if math.IsInf(bestFar, 1) {
-		return 1.0, "", false
+		return urgencyMultiplier, urgencyMsg, false
 	}
 
+	// 4. Absolute Deferral Check
 	// Defer if bestFar is significantly closer than bestClose
 	threshold := sess.scorer.config.DeferralThreshold
 	if threshold <= 0 {
 		threshold = 0.75 // Default: defer if 25%+ closer
 	}
 
-	// 1. Calculate Urgency Metrics (TTB, TTCPA)
-	sess.calculateUrgencyMetrics(poi, poiPoint, heading)
-
-	// 2. Apply Penalties/Boosts
-	urgencyMultiplier, urgencyMsg := sess.calculateUrgencyFactor(poi)
-
-	// 3. Absolute Deferral (Current Logic)
 	if bestFar < threshold*bestClose {
 		multiplier := sess.scorer.config.DeferralMultiplier
 		if multiplier <= 0 {

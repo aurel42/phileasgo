@@ -5,8 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/scorer"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/visibility"
 )
 
 // MockScoringManager for testing ScoringJob
@@ -94,5 +97,72 @@ func TestScoringJob_ShouldFire_Interval(t *testing.T) {
 				t.Errorf("ShouldFire() = %v, want %v (elapsed: %v, lock: %d)", got, tt.wantShouldFire, tt.elapsed, tt.runningLock)
 			}
 		})
+	}
+}
+
+// MockSimClient stub
+type MockSimClient struct {
+	State sim.State
+	Telem *sim.Telemetry
+}
+
+func (m *MockSimClient) GetState() sim.State { return m.State }
+func (m *MockSimClient) GetTelemetry(ctx context.Context) (sim.Telemetry, error) {
+	if m.Telem != nil {
+		return *m.Telem, nil
+	}
+	return sim.Telemetry{}, nil
+}
+func (m *MockSimClient) Close() error                        { return nil }
+func (m *MockSimClient) SetPredictionWindow(d time.Duration) {}
+
+// MockElevation stub
+type MockElevation struct{}
+
+func (m *MockElevation) GetLowestElevation(lat, lon, radiusNM float64) (int16, error) {
+	return 0, nil
+}
+func (m *MockElevation) GetElevation(lat, lon float64) (int16, error) { return 0, nil }
+func (m *MockElevation) Start(ctx context.Context) error              { return nil }
+
+func TestScoringJob_Run(t *testing.T) {
+	mockMgr := &MockScoringManager{}
+	// Setup Sim: Active, airborne
+	mockSim := &MockSimClient{
+		State: sim.StateActive,
+		Telem: &sim.Telemetry{
+			Latitude:    48.8566,
+			Longitude:   2.3522,
+			AltitudeMSL: 1000,
+			IsOnGround:  false,
+		},
+	}
+
+	// Setup valid Scorer
+	visCalc := visibility.NewCalculator(nil, nil)
+	elev := &MockElevation{}
+	scCfg := &config.ScorerConfig{DeferralEnabled: false}
+	catCfg := &config.CategoriesConfig{}
+
+	sc := scorer.NewScorer(scCfg, catCfg, visCalc, elev)
+	narratorCfg := &config.NarratorConfig{}
+
+	job := NewScoringJob("TestScoring", mockMgr, mockSim, sc, narratorCfg, nil)
+
+	// Execute Run
+	ctx := context.Background()
+	job.Run(ctx, mockSim.Telem)
+
+	// Verify interactions
+	if !mockMgr.CallbackCalled {
+		t.Error("Expected NotifyScoringComplete to be called")
+	}
+	if mockMgr.CapturedStateLat != 48.8566 || mockMgr.CapturedStateLon != 2.3522 {
+		t.Errorf("Expected lat/lon updated, got %.4f, %.4f", mockMgr.CapturedStateLat, mockMgr.CapturedStateLon)
+	}
+
+	// Verify Lock Released
+	if !job.TryLock() {
+		t.Error("Job should be unlocked after Run. TryLock failed.")
 	}
 }

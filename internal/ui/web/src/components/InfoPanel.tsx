@@ -292,8 +292,8 @@ export const InfoPanel = ({
                         <div className="role-label" style={{ display: 'flex', gap: '12px' }}>
                             <span>POI(vis) <span className="role-num-sm">{displayedCount}</span></span>
                             <span>POI(tracked) <span className="role-num-sm">{trackedCount}</span></span>
-                            <span>MEM(rss) <span className="role-num-sm">{sysMem}</span></span>
-                            <span>MEM(max) <span className="role-num-sm">{sysMemMax} MB</span></span>
+                            <span>MEM(rss) <span className="role-num-sm">{sysMem}MB</span></span>
+                            <span>MEM(max) <span className="role-num-sm">{sysMemMax}MB</span></span>
                         </div>
                     </div>
 

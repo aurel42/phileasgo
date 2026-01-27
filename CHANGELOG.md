@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.44 (2026-01-27)
+- **Fix**: **Urgent & Patient Badges**. Resolved an issue where time-sensitive badges (Urgent/Patient) were suppressed and would hide the main marker icon when active.
+- **Improved**: **POI Discovery**. Lowered Wikipedia sitelink thresholds for several categories (Religious, Transit, Settlements) to improve landmark density in less populated areas.
+
 ## v0.3.43 (2026-01-27)
 - **Refactor**: **Scoring Loop Architecture**
   - **SRP Compliance**: Extracted the core POI scoring logic from the monolithic `poi.Manager` into a dedicated, testable `ScoringJob`.
