@@ -72,8 +72,6 @@ func (s *AIService) logWikipediaContext(req *GenerationRequest) {
 			"url", req.POI.WPURL,
 			"approx_words", len(strings.Fields(req.Prompt)),
 		)
-		// Detailed prose logging for comparison (wrapped in logs)
-		fmt.Printf("\n--- [WP PROSE START] ---\n%s\n--- [WP PROSE END] ---\n\n", req.Prompt)
 	}
 }
 

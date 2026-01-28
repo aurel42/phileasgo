@@ -131,7 +131,7 @@ categories:
       "Q55488": "railway station"
     weight: 0.4
     icon: "rail"
-    sitelinks_min: 3
+    sitelinks_min: 5
     size: "M"
   Religious:
     qids:

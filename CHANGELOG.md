@@ -1,11 +1,15 @@
 ﻿Release History
 
+## v0.3.54 (2026-01-28)
+- **Feature**: **LLM Timeouts**. Added per-provider timeout configuration (90s default, 30s for Groq) to prevent API stalls during high latency or service outages.
+- **Improved**: **Failover Resilience**. The failover mechanism now proactively cancels hanging requests and switches to faster providers immediately upon timeout.
+- **Fix**: **Request Body Exhaustion**. Fixed a bug in the HTTP client that prevented successful retries of POST requests when the first attempt failed.
+
 ## v0.3.53 (2026-01-28)
 - **Feature**: **Spatial Median Rescue**. Implemented a dynamic rescue strategy that uses local neighborhood dimensions (median height/length/area) to identify significant POIs in remote regions.
 - **Refactor**: **Stateless Wikidata Pipeline**. Rebuilt the processing engine as a pure function, decoupling spatial statistics from the core processing logic for better testability and reliability.
 - **Fix**: **Classifier Cache Poisoning**. Resolved a critical "deadend" bug in the hierarchy traversal that caused redundant API calls and incorrect caching for unclassified entities.
 - **Improved**: **Spatial Awareness**. The application now maintains a 20km "spatial memory" of surrounding tiles to provide context for landmark significance thresholds.
-
 
 ## v0.3.52 (2026-01-28)
 - **Performance**: **Streaming JSON Decoder**. Replaced the entire Wikidata SPARQL parsing engine with a streaming decoder. drastically reducing memory spikes (approx -40% peak RAM usage) during tile loading.

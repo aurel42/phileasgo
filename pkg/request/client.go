@@ -347,6 +347,16 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 		}
 
 		logging.TraceDefault("Network Request", "host", req.URL.Host, "path", req.URL.Path, "attempt", attempt+1, "max", c.retries)
+
+		// RESET BODY for retries
+		if attempt > 0 && req.GetBody != nil {
+			var err error
+			req.Body, err = req.GetBody()
+			if err != nil {
+				return nil, fmt.Errorf("failed to reset request body: %w", err)
+			}
+		}
+
 		resp, err := c.httpClient.Do(req)
 
 		if err != nil {

@@ -2,6 +2,7 @@ package request
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -96,6 +97,52 @@ func TestGet_Retry(t *testing.T) {
 	}
 	if attempts != 3 {
 		t.Errorf("Expected 3 attempts, got %d", attempts)
+	}
+}
+
+func TestPost_Retry(t *testing.T) {
+	attempts := 0
+	expectedBody := "request-payload"
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+
+		// Read body and verify it's there
+		body, _ := io.ReadAll(r.Body)
+		if string(body) != expectedBody {
+			t.Errorf("Attempt %d: Expected body '%s', got '%s'", attempts, expectedBody, string(body))
+		}
+
+		if attempts < 2 {
+			w.WriteHeader(503) // Service Unavailable (Retryable)
+			return
+		}
+		w.WriteHeader(200)
+		w.Write([]byte("success"))
+	}))
+	defer svr.Close()
+
+	tempDir := t.TempDir()
+	d, err := db.Init(filepath.Join(tempDir, "post_retry_test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{
+		BaseDelay: 10 * time.Millisecond,
+		MaxDelay:  50 * time.Millisecond,
+		Retries:   5,
+	})
+
+	body, err := client.Post(context.Background(), svr.URL, []byte(expectedBody), "text/plain")
+	if err != nil {
+		t.Fatalf("Expected success after retry, got error: %v", err)
+	}
+	if string(body) != "success" {
+		t.Errorf("Expected 'success', got '%s'", string(body))
+	}
+	if attempts != 2 {
+		t.Errorf("Expected 2 attempts, got %d", attempts)
 	}
 }
 

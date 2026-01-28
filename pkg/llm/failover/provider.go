@@ -18,6 +18,7 @@ import (
 type Provider struct {
 	providers []llm.Provider
 	names     []string
+	timeouts  []time.Duration
 	disabled  map[int]bool
 	backoffs  map[string]*backoffState // key: providerName:profileName
 	logPath   string
@@ -34,17 +35,21 @@ type backoffState struct {
 // New creates a new Provider with failover and unified logging.
 // providers: ordered list of all initialized providers (global fallback chain).
 // names: names corresponding to the provider list.
-func New(providers []llm.Provider, names []string, logPath string, enabled bool, t *tracker.Tracker) (*Provider, error) {
+func New(providers []llm.Provider, names []string, timeouts []time.Duration, logPath string, enabled bool, t *tracker.Tracker) (*Provider, error) {
 	if len(providers) == 0 {
 		return nil, fmt.Errorf("at least one provider required for failover")
 	}
 	if len(providers) != len(names) {
 		return nil, fmt.Errorf("provider count (%d) does not match name count (%d)", len(providers), len(names))
 	}
+	if len(providers) != len(timeouts) {
+		return nil, fmt.Errorf("provider count (%d) does not match timeout count (%d)", len(providers), len(timeouts))
+	}
 
 	return &Provider{
 		providers: providers,
 		names:     names,
+		timeouts:  timeouts,
 		disabled:  make(map[int]bool),
 		backoffs:  make(map[string]*backoffState),
 		logPath:   logPath,
@@ -55,8 +60,8 @@ func New(providers []llm.Provider, names []string, logPath string, enabled bool,
 
 // GenerateText implements llm.Provider.
 func (f *Provider) GenerateText(ctx context.Context, name, prompt string) (string, error) {
-	res, err := f.execute(ctx, name, prompt, func(p llm.Provider) (any, error) {
-		return p.GenerateText(ctx, name, prompt)
+	res, err := f.execute(ctx, name, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
+		return p.GenerateText(pCtx, name, prompt)
 	})
 	if err != nil {
 		return "", err
@@ -66,8 +71,8 @@ func (f *Provider) GenerateText(ctx context.Context, name, prompt string) (strin
 
 // GenerateJSON implements llm.Provider.
 func (f *Provider) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
-	_, err := f.execute(ctx, name, prompt, func(p llm.Provider) (any, error) {
-		err := p.GenerateJSON(ctx, name, prompt, target)
+	_, err := f.execute(ctx, name, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
+		err := p.GenerateJSON(pCtx, name, prompt, target)
 		if err != nil {
 			return nil, err
 		}
@@ -78,8 +83,8 @@ func (f *Provider) GenerateJSON(ctx context.Context, name, prompt string, target
 
 // GenerateImageText implements llm.Provider.
 func (f *Provider) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
-	res, err := f.execute(ctx, name, prompt, func(p llm.Provider) (any, error) {
-		return p.GenerateImageText(ctx, name, prompt, imagePath)
+	res, err := f.execute(ctx, name, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
+		return p.GenerateImageText(pCtx, name, prompt, imagePath)
 	})
 	if err != nil {
 		return "", err
@@ -129,7 +134,7 @@ func (f *Provider) HealthCheck(ctx context.Context) error {
 }
 
 // execute runs the given function against the provider chain.
-func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func(llm.Provider) (any, error)) (any, error) {
+func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func(context.Context, llm.Provider) (any, error)) (any, error) {
 	f.mu.RLock()
 	providers := f.providers
 	names := f.names
@@ -178,7 +183,13 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		}
 		f.mu.Unlock()
 
-		res, err := fn(c.p)
+		// 4. Execute with Timeout
+		timeout := f.timeouts[c.index]
+		callCtx, cancel := context.WithTimeout(ctx, timeout)
+
+		res, err := fn(callCtx, c.p)
+		cancel()
+
 		if err == nil {
 			// SUCCESS - Reset Backoff
 			f.mu.Lock()
@@ -226,7 +237,7 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		}
 
 		// Last candidate, retry with backoff
-		res, err = f.retryLast(ctx, c.p, c.name, fn)
+		res, err = f.retryLast(ctx, c.p, c.name, timeout, fn)
 		if err != nil {
 			f.logRequest(c.name, callName, prompt, "", err)
 		} else {
@@ -242,11 +253,13 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 	return nil, fmt.Errorf("all LLM providers exhausted for profile %q", callName)
 }
 
-func (f *Provider) retryLast(ctx context.Context, p llm.Provider, name string, fn func(llm.Provider) (any, error)) (any, error) {
+func (f *Provider) retryLast(ctx context.Context, p llm.Provider, name string, timeout time.Duration, fn func(context.Context, llm.Provider) (any, error)) (any, error) {
 	var lastErr error
 	delay := 1 * time.Second
 	for attempt := 1; attempt <= 3; attempt++ {
-		res, err := fn(p)
+		callCtx, cancel := context.WithTimeout(ctx, timeout)
+		res, err := fn(callCtx, p)
+		cancel()
 		if err == nil {
 			f.trackStats(name, true)
 			return res, nil

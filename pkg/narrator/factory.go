@@ -15,6 +15,7 @@ import (
 	"phileasgo/pkg/tts/edgetts"
 	"phileasgo/pkg/tts/fishaudio"
 	"phileasgo/pkg/tts/sapi"
+	"time"
 )
 
 // NewLLMProvider returns an LLM provider based on configuration, wrapped in a failover chain.
@@ -25,6 +26,7 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 
 	var providers []llm.Provider
 	var names []string
+	var timeouts []time.Duration
 
 	for _, name := range cfg.Fallback {
 		pCfg, ok := cfg.Providers[name]
@@ -56,13 +58,19 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 		providers = append(providers, sub)
 		names = append(names, name)
 
+		timeout := time.Duration(pCfg.Timeout)
+		if timeout == 0 {
+			timeout = 90 * time.Second
+		}
+		timeouts = append(timeouts, timeout)
+
 		if t != nil {
 			t.SetFreeTier(name, pCfg.FreeTier)
 		}
 	}
 
 	// Wrap in Failover Provider with unified logging and names
-	return failover.New(providers, names, hCfg.Path, hCfg.Enabled, t)
+	return failover.New(providers, names, timeouts, hCfg.Path, hCfg.Enabled, t)
 }
 
 // NewTTSProvider returns a TTS provider based on configuration.

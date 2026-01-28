@@ -105,6 +105,7 @@ type ProviderConfig struct {
 	Key      string            `yaml:"-"`         // API Key (Loaded from Env)
 	Profiles map[string]string `yaml:"profiles"`  // Map of intent -> model
 	FreeTier bool              `yaml:"free_tier"` // Whether this is a free tier (usually shared)
+	Timeout  Duration          `yaml:"timeout"`   // Request timeout
 }
 
 // EdgeTTSConfig holds settings for Edge TTS.
