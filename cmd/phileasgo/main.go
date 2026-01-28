@@ -117,7 +117,7 @@ func run(ctx context.Context, configPath string) error {
 	verifyStartup(ctx, catCfg, wdValidator)
 
 	// Narrator & TTS
-	narratorSvc, promptMgr, err := initNarrator(ctx, appCfg, svcs, tr, simClient, st)
+	narratorSvc, promptMgr, err := initNarrator(ctx, appCfg, svcs, tr, simClient, st, catCfg)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func run(ctx context.Context, configPath string) error {
 	// If elevGetter is nil, NewSession might crash.
 	// Let's rely on Scorer handling nil optionally or just let it be nil for now.
 	// The previous code verified startup files.
-	poiScorer := scorer.NewScorer(&appCfg.Scorer, catCfg, visCalc, elevGetter)
+	poiScorer := scorer.NewScorer(&appCfg.Scorer, catCfg, visCalc, elevGetter, narratorSvc.LLMProvider().HasProfile("pregrounding"))
 
 	// [NEW] Scoring Job
 	scoringJob := poi.NewScoringJob("POIScoring", svcs.PoiMgr, simClient, poiScorer, &appCfg.Narrator, narratorSvc.IsPOIBusy, slog.Default())
@@ -242,7 +242,7 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 	}, nil
 }
 
-func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store) (*narrator.AIService, *prompts.Manager, error) {
+func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store, catCfg *config.CategoriesConfig) (*narrator.AIService, *prompts.Manager, error) {
 	llmProv, err := narrator.NewLLMProvider(cfg.LLM, cfg.History.LLM, svcs.ReqClient, tr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize LLM provider: %w", err)
@@ -273,7 +273,7 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 		}
 	}
 
-	narratorSvc := createAIService(cfg, llmProv, ttsProv, promptMgr, audio.New(&cfg.Narrator), svcs.PoiMgr, beaconSvc, svcs.WikiSvc, simClient, st, tr)
+	narratorSvc := createAIService(cfg, llmProv, ttsProv, promptMgr, audio.New(&cfg.Narrator), svcs.PoiMgr, beaconSvc, svcs.WikiSvc, simClient, st, tr, catCfg)
 
 	// Restore Volume
 	volStr, _ := st.GetState(ctx, "volume")
@@ -482,6 +482,7 @@ func createAIService(
 	simClient sim.Client,
 	st store.Store,
 	tr *tracker.Tracker,
+	catCfg *config.CategoriesConfig,
 ) *narrator.AIService {
 	var beaconProvider narrator.BeaconProvider
 	if beaconSvc != nil {
@@ -514,6 +515,7 @@ func createAIService(
 		st,
 		wikiSvc.WikipediaClient(),
 		wikiSvc,
+		catCfg,
 		essayH,
 		interests,
 		avoid,

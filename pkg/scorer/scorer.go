@@ -34,19 +34,21 @@ type Session interface {
 
 // Scorer calculates dynamic scores for POIs.
 type Scorer struct {
-	config    *config.ScorerConfig
-	catConfig *config.CategoriesConfig
-	visCalc   *visibility.Calculator
-	elevation terrain.ElevationGetter
+	config              *config.ScorerConfig
+	catConfig           *config.CategoriesConfig
+	visCalc             *visibility.Calculator
+	elevation           terrain.ElevationGetter
+	pregroundingEnabled bool
 }
 
 // NewScorer creates a new Scorer.
-func NewScorer(cfg *config.ScorerConfig, catCfg *config.CategoriesConfig, visCalc *visibility.Calculator, elev terrain.ElevationGetter) *Scorer {
+func NewScorer(cfg *config.ScorerConfig, catCfg *config.CategoriesConfig, visCalc *visibility.Calculator, elev terrain.ElevationGetter, pregroundingEnabled bool) *Scorer {
 	return &Scorer{
-		config:    cfg,
-		catConfig: catCfg,
-		visCalc:   visCalc,
-		elevation: elev,
+		config:              cfg,
+		catConfig:           catCfg,
+		visCalc:             visCalc,
+		elevation:           elev,
+		pregroundingEnabled: pregroundingEnabled,
 	}
 }
 
@@ -389,12 +391,28 @@ func (s *Scorer) calculateContentScore(poi *model.POI) (score float64, logs []st
 	// Article Length
 	lengthMult := 1.0
 	l := float64(poi.WPArticleLength)
+
+	// Pregrounding bonus: categories with preground=true get virtual article boost
+	pregroundApplied := false
+	if s.pregroundingEnabled && s.catConfig.ShouldPreground(poi.Category) {
+		boost := s.config.PregroundBoost
+		if boost <= 0 {
+			boost = 4000 // Default
+		}
+		l += float64(boost)
+		pregroundApplied = true
+	}
+
 	if l > 500 {
 		lengthMult = math.Sqrt(l / 500.0)
 	}
 	if lengthMult > 1.0 {
 		score *= lengthMult
-		logs = append(logs, fmt.Sprintf("Length (%.0f chars): x%.2f", l, lengthMult))
+		if pregroundApplied {
+			logs = append(logs, fmt.Sprintf("Length (%d+%d chars): x%.2f", poi.WPArticleLength, s.config.PregroundBoost, lengthMult))
+		} else {
+			logs = append(logs, fmt.Sprintf("Length (%d chars): x%.2f", poi.WPArticleLength, lengthMult))
+		}
 	}
 
 	// Sitelinks

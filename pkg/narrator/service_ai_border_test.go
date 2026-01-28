@@ -45,7 +45,7 @@ func TestAIService_PlayBorder(t *testing.T) {
 		return "Border Script", nil
 	}
 
-	svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil)
+	svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil)
 	svc.mu.Lock()
 	svc.tripSummary = "Recent history"
 	svc.mu.Unlock()

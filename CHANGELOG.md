@@ -1,9 +1,13 @@
 ﻿Release History
 
+## v0.3.56 (2026-01-28)
+- **Feature**: **Pregrounding with Perplexity Sonar**. Categories marked with `preground: true` (e.g., Stadium, Theme Park) now fetch real-time context from Perplexity Sonar before narration, enriching POI scripts with current events and local details.
+- **Scoring**: POIs with pregrounding-enabled categories receive a configurable article length boost (`preground_boost`, default 4000 chars), improving their competitive ranking.
+- **Config**: Added Perplexity to the LLM fallback chain.
+
 ## v0.3.55 (2026-01-28)
 - **Feature**: **River Sentinel Infrastructure**. Added foundational geometry engine for detecting nearby rivers using Natural Earth data. Includes point-to-segment distance calculations and heading-aware "is ahead" checks.
 - **Model**: Added `RiverContext` struct for future dynamic river narration awareness (upstream/downstream/crossing context).
-- **Fix**: Resolved `exitAfterDefer` lint warning in `shp2geojson` tool.
 
 ## v0.3.54 (2026-01-28)
 - **Feature**: **LLM Timeouts**. Added per-provider timeout configuration (90s default, 30s for Groq) to prevent API stalls during high latency or service outages.

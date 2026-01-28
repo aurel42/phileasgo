@@ -3,6 +3,7 @@ package narrator
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 
 	"phileasgo/pkg/config"
@@ -33,7 +34,7 @@ func TestBuildPromptData(t *testing.T) {
 	}
 
 	// Create service
-	svc := NewAIService(cfg, nil, nil, pm, nil, nil, nil, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil)
+	svc := NewAIService(cfg, nil, nil, pm, nil, nil, nil, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil)
 
 	mockPOI := &MockPOIProvider{
 		CountScoredAboveFunc: func(threshold float64, limit int) int {
@@ -253,5 +254,110 @@ func TestTripSummary(t *testing.T) {
 	}
 	if pd.TripSummary != "Initial trip summary." {
 		t.Errorf("Expected summary 'Initial trip summary.', got %s", pd.TripSummary)
+	}
+}
+
+func TestFetchPregroundContext(t *testing.T) {
+	tests := []struct {
+		name          string
+		categoriesCfg *config.CategoriesConfig
+		llmHasProfile bool
+		llmResponse   string
+		llmErr        error
+		poiCategory   string
+		want          string
+	}{
+		{
+			name:          "No categories config",
+			categoriesCfg: nil,
+			poiCategory:   "airfield",
+			want:          "",
+		},
+		{
+			name: "Category pregrounding disabled",
+			categoriesCfg: &config.CategoriesConfig{
+				Categories: map[string]config.Category{
+					"city": {Preground: false},
+				},
+			},
+			poiCategory: "city",
+			want:        "",
+		},
+		{
+			name: "LLM missing pregrounding profile",
+			categoriesCfg: &config.CategoriesConfig{
+				Categories: map[string]config.Category{
+					"airfield": {Preground: true},
+				},
+			},
+			llmHasProfile: false,
+			poiCategory:   "airfield",
+			want:          "",
+		},
+		{
+			name: "Success",
+			categoriesCfg: &config.CategoriesConfig{
+				Categories: map[string]config.Category{
+					"airfield": {Preground: true},
+				},
+			},
+			llmHasProfile: true,
+			llmResponse:   "Local context from Sonar",
+			poiCategory:   "airfield",
+			want:          "Local context from Sonar",
+		},
+		{
+			name: "LLM error - graceful degradation",
+			categoriesCfg: &config.CategoriesConfig{
+				Categories: map[string]config.Category{
+					"airfield": {Preground: true},
+				},
+			},
+			llmHasProfile: true,
+			llmErr:        errors.New("sonar failed"),
+			poiCategory:   "airfield",
+			want:          "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockLLM := &MockLLM{
+				Response:      tt.llmResponse,
+				Err:           tt.llmErr,
+				HasProfileVal: tt.llmHasProfile,
+			}
+			mockGeo := &MockGeo{Country: "DE"}
+
+			// Create temp prompts dir with pregrounding template
+			tmpDir := t.TempDir()
+			// Create the context subdirectory and template for tests that reach the LLM
+			if tt.llmHasProfile && tt.categoriesCfg != nil {
+				ctxDir := tmpDir + "/context"
+				_ = os.MkdirAll(ctxDir, 0o755)
+				_ = os.WriteFile(ctxDir+"/pregrounding.tmpl", []byte("Research {{.Name}} in {{.Country}}"), 0o644)
+			}
+			pm, _ := prompts.NewManager(tmpDir)
+
+			svc := &AIService{
+				llm:           mockLLM,
+				geoSvc:        mockGeo,
+				prompts:       pm,
+				categoriesCfg: tt.categoriesCfg,
+			}
+
+			poi := &model.POI{
+				WikidataID: "Q123",
+				NameEn:     "Test POI",
+				Category:   tt.poiCategory,
+				Lat:        49.0,
+				Lon:        8.0,
+			}
+
+			got := svc.fetchPregroundContext(context.Background(), poi)
+			if got != tt.want {
+				t.Errorf("fetchPregroundContext() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

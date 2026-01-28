@@ -273,6 +273,7 @@ type ScorerConfig struct {
 	DeferralEnabled    bool         `yaml:"deferral_enabled"`    // Enable deferral logic
 	DeferralThreshold  float64      `yaml:"deferral_threshold"`  // Defer if future dist < threshold * current (default 0.75 = 25% closer)
 	DeferralMultiplier float64      `yaml:"deferral_multiplier"` // Score multiplier when deferred (default 0.1)
+	PregroundBoost     int          `yaml:"preground_boost"`     // Virtual article length boost for pregrounding categories (default 4000)
 	Badges             BadgesConfig `yaml:"badges"`
 }
 
@@ -614,6 +615,14 @@ func loadSecretsFromEnv(cfg *Config) {
 			}
 		case "groq":
 			if key := os.Getenv("GROQ_API_KEY"); key != "" {
+				p.Key = key
+			}
+		case "openai":
+			if key := os.Getenv("OPENAI_API_KEY"); key != "" {
+				p.Key = key
+			}
+		case "perplexity", "sonar":
+			if key := os.Getenv("PERPLEXITY_API_KEY"); key != "" {
 				p.Key = key
 			}
 		}

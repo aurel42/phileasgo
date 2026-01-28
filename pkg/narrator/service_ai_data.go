@@ -117,6 +117,7 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		TripSummary:          s.getTripSummary(),
 		LastSentence:         s.lastScriptEnd,
 		FlightStatusSentence: generateFlightStatusSentence(tel),
+		PregroundContext:     s.fetchPregroundContext(ctx, p),
 	}
 	// Fetch TTS instructions with full context
 	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
@@ -234,6 +235,52 @@ func (s *AIService) fetchRecentContext(ctx context.Context, lat, lon float64) st
 	return strings.Join(contextParts, ", ")
 }
 
+// fetchPregroundContext fetches enriched local context from Sonar (Perplexity) for POIs
+// in categories marked with preground: true. Returns empty string if disabled, unavailable,
+// or on error (graceful degradation).
+func (s *AIService) fetchPregroundContext(ctx context.Context, p *model.POI) string {
+	// 1. Check if category has pregrounding enabled
+	if s.categoriesCfg == nil || !s.categoriesCfg.ShouldPreground(p.Category) {
+		return ""
+	}
+
+	// 2. Check if LLM provider has pregrounding profile
+	if !s.llm.HasProfile("pregrounding") {
+		return ""
+	}
+
+	// 3. Render the pregrounding prompt with POI context
+	data := struct {
+		Name     string
+		Category string
+		Country  string
+		Lat      float64
+		Lon      float64
+	}{
+		Name:     p.DisplayName(),
+		Category: p.Category,
+		Country:  s.geoSvc.GetLocation(p.Lat, p.Lon).CountryCode,
+		Lat:      p.Lat,
+		Lon:      p.Lon,
+	}
+
+	prompt, err := s.prompts.Render("context/pregrounding.tmpl", data)
+	if err != nil {
+		slog.Debug("Narrator: Failed to render pregrounding prompt", "error", err)
+		return ""
+	}
+
+	// 4. Call Sonar via the pregrounding profile
+	result, err := s.llm.GenerateText(ctx, "pregrounding", prompt)
+	if err != nil {
+		slog.Debug("Narrator: Pregrounding call failed", "poi", p.WikidataID, "error", err)
+		return ""
+	}
+
+	slog.Info("Narrator: Pregrounded POI context", "poi", p.WikidataID, "chars", len(result))
+	return result
+}
+
 // NarrationPromptData struct for templates
 type NarrationPromptData struct {
 	TourGuideName        string
@@ -282,7 +329,8 @@ type NarrationPromptData struct {
 	FlightStatusSentence string
 
 	// Narrator Logic
-	IsStub bool
+	PregroundContext string // Sonar-enriched local context (empty if disabled or N/A)
+	IsStub           bool
 
 	// Generic fields for flexibility in common macros
 	Title  string

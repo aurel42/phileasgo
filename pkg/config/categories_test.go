@@ -75,3 +75,54 @@ ignored_categories:
 		t.Errorf("Expected Q56061 to be in IgnoredCategories")
 	}
 }
+
+func TestShouldPreground(t *testing.T) {
+	cfg := &CategoriesConfig{
+		Categories: map[string]Category{
+			"airfield":  {Preground: true},
+			"city":      {Preground: false},
+			"cathedral": {}, // Preground defaults to false
+		},
+	}
+
+	tests := []struct {
+		name     string
+		category string
+		want     bool
+	}{
+		{
+			name:     "Enabled category",
+			category: "airfield",
+			want:     true,
+		},
+		{
+			name:     "Explicitly disabled category",
+			category: "city",
+			want:     false,
+		},
+		{
+			name:     "Default disabled category",
+			category: "cathedral",
+			want:     false,
+		},
+		{
+			name:     "Unknown category",
+			category: "nonexistent",
+			want:     false,
+		},
+		{
+			name:     "Case insensitive lookup",
+			category: "Airfield",
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cfg.ShouldPreground(tt.category)
+			if got != tt.want {
+				t.Errorf("ShouldPreground(%q) = %v, want %v", tt.category, got, tt.want)
+			}
+		})
+	}
+}

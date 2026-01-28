@@ -23,7 +23,7 @@ func TestScreenshotCoordinatesPersistence(t *testing.T) {
 		&MockAudio{},
 		&MockPOIProvider{},
 		&MockBeacon{},
-		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil)
+		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil)
 
 	// User Aircraft Location
 	userLat := 45.0
@@ -83,7 +83,7 @@ func TestBorderBeaconExemption(t *testing.T) {
 		&MockAudio{},
 		&MockPOIProvider{},
 		mockBeacon, // The key mock
-		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil)
+		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil)
 
 	// 1. Simulate active beacon
 	// We can't easily "simulate" it in internal state without calling SetTarget,
@@ -119,7 +119,7 @@ func TestBorderBeaconExemption(t *testing.T) {
 		&MockAudio{},
 		&MockPOIProvider{},
 		mockBeacon,
-		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil)
+		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil)
 
 	nScreen := &model.Narrative{
 		Type:      model.NarrativeTypeScreenshot,

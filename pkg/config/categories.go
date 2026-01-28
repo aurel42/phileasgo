@@ -29,6 +29,7 @@ type Category struct {
 	Icon         string            `json:"icon" yaml:"icon"`
 	SitelinksMin int               `json:"sitelinks_min" yaml:"sitelinks_min"`
 	QIDs         map[string]string `json:"qids" yaml:"qids"`
+	Preground    bool              `json:"preground" yaml:"preground"` // Enable Sonar pregrounding for this category
 }
 
 // BuildLookup creates a map of QID -> Category Name for fast lookups.
@@ -111,4 +112,12 @@ func (c *CategoriesConfig) GetGroup(category string) string {
 		return group
 	}
 	return ""
+}
+
+// ShouldPreground returns true if the category has pregrounding enabled.
+func (c *CategoriesConfig) ShouldPreground(category string) bool {
+	if cat, ok := c.Categories[strings.ToLower(category)]; ok {
+		return cat.Preground
+	}
+	return false
 }

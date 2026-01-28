@@ -76,7 +76,7 @@ func setupScorer() *Scorer {
 	})
 	visCalc := visibility.NewCalculator(visMgr, nil)
 
-	return NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{})
+	return NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, false)
 }
 
 func TestScorer_Calculate(t *testing.T) {
@@ -498,5 +498,91 @@ func TestScorer_VerifyBadgeWiping(t *testing.T) {
 	}
 	if !foundDeepDive {
 		t.Errorf("Verification Failure: 'deep_dive' badge should have been repopulated by applyBadges")
+	}
+}
+
+func TestScorer_PregroundingBonus(t *testing.T) {
+	// Setup base config
+	baseScorerCfg := &config.ScorerConfig{
+		NoveltyBoost:   1.0, // Neutral to isolate content scoring
+		PregroundBoost: 4000,
+	}
+
+	catCfg := &config.CategoriesConfig{
+		Categories: map[string]config.Category{
+			"stadium": {Weight: 1.0, Size: "L", Preground: true},
+			"church":  {Weight: 1.0, Size: "M", Preground: false},
+		},
+	}
+	catCfg.BuildLookup()
+
+	visMgr := visibility.NewManagerForTest([]visibility.AltitudeRow{
+		{AltAGL: 1000, Distances: map[visibility.SizeType]float64{
+			visibility.SizeM: 10.0, visibility.SizeL: 15.0,
+		}},
+	})
+	visCalc := visibility.NewCalculator(visMgr, nil)
+
+	tests := []struct {
+		name               string
+		pregroundEnabled   bool
+		category           string
+		articleLen         int
+		wantLogContains    string
+		wantLogNotContains string
+	}{
+		{
+			name:             "Pregrounding enabled, stadium category (preground=true)",
+			pregroundEnabled: true,
+			category:         "stadium",
+			articleLen:       1000,
+			wantLogContains:  "1000+4000 chars", // Shows boost applied
+		},
+		{
+			name:               "Pregrounding enabled, church category (preground=false)",
+			pregroundEnabled:   true,
+			category:           "church",
+			articleLen:         1000,
+			wantLogContains:    "1000 chars",
+			wantLogNotContains: "+4000", // No boost
+		},
+		{
+			name:               "Pregrounding disabled, stadium category",
+			pregroundEnabled:   false,
+			category:           "stadium",
+			articleLen:         1000,
+			wantLogContains:    "1000 chars",
+			wantLogNotContains: "+4000", // No boost when disabled
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sc := NewScorer(baseScorerCfg, catCfg, visCalc, &mockElevationGetter{}, tt.pregroundEnabled)
+
+			poi := &model.POI{
+				Lat:             0.0,
+				Lon:             0.0,
+				Category:        tt.category,
+				WPArticleLength: tt.articleLen,
+			}
+
+			input := &ScoringInput{
+				Telemetry: sim.Telemetry{
+					Latitude: -0.02, Longitude: 0.0, // South of POI
+					AltitudeMSL: 1000, AltitudeAGL: 1000, Heading: 0, // Heading north towards POI
+				},
+			}
+
+			session := sc.NewSession(input)
+			session.Calculate(poi)
+
+			if tt.wantLogContains != "" && !strings.Contains(poi.ScoreDetails, tt.wantLogContains) {
+				t.Errorf("Expected log to contain %q, got:\n%s", tt.wantLogContains, poi.ScoreDetails)
+			}
+			if tt.wantLogNotContains != "" && strings.Contains(poi.ScoreDetails, tt.wantLogNotContains) {
+				t.Errorf("Expected log NOT to contain %q, got:\n%s", tt.wantLogNotContains, poi.ScoreDetails)
+			}
+		})
 	}
 }

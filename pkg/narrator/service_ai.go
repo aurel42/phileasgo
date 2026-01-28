@@ -63,8 +63,9 @@ type AIService struct {
 	st            store.Store
 	wikipedia     WikipediaProvider
 	langRes       LanguageResolver
-	tripSummary   string // Added tripSummary field
-	lastScriptEnd string // The last sentence of the previous narration for flow continuity
+	categoriesCfg *config.CategoriesConfig // For pregrounding checks
+	tripSummary   string                   // Added tripSummary field
+	lastScriptEnd string                   // The last sentence of the previous narration for flow continuity
 
 	mu            sync.RWMutex
 	running       bool
@@ -129,6 +130,7 @@ func NewAIService(
 	st store.Store,
 	wikipediaClient WikipediaProvider,
 	langRes LanguageResolver,
+	categoriesCfg *config.CategoriesConfig,
 	essayH *EssayHandler,
 	interests []string,
 	avoid []string,
@@ -147,6 +149,7 @@ func NewAIService(
 		st:              st,
 		wikipedia:       wikipediaClient,
 		langRes:         langRes,
+		categoriesCfg:   categoriesCfg,
 		stats:           make(map[string]any),
 		latencies:       make([]time.Duration, 0, 10),
 		essayH:          essayH,

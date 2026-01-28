@@ -30,4 +30,15 @@ Do not use "Let me think", but you can use "Let me check" when the tour guide mi
 {{template "narrator/script_full.tmpl" .}}
 {{end}}
 
+<start of Wikipedia article>
+{{.WikipediaText}}
+<end of Wikipedia article>
+{{if .PregroundContext}}
+
+<additional research notes>
+The following additional context was gathered from current sources. Use these facts to enrich your narration with timely, local flavor not found in the Wikipedia article:
+{{.PregroundContext}}
+</additional research notes>
+{{end}}
+
 {{.TTSInstructions}}

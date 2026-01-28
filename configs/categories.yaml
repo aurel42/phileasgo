@@ -12,6 +12,7 @@ categories:
     weight: 1.7
     icon: "airfield"
     size: "L"
+    preground: true
   Aquarium:
     qids:
       "Q45782": "aquarium"
@@ -24,6 +25,7 @@ categories:
     weight: 1.2
     icon: "attraction"
     size: "S"
+    preground: true
   Beach:
     qids:
       "Q40080": "beach"
@@ -50,6 +52,7 @@ categories:
     icon: "city"
     sitelinks_min: 3
     size: "XL"
+    preground: true
   Dam:
     qids:
       "Q12323": "dam"
@@ -70,6 +73,7 @@ categories:
     weight: 1.3
     icon: "industry"
     size: "L"
+    preground: true
   Lighthouse:
     qids:
       "Q39715": "lighthouse"
@@ -84,6 +88,7 @@ categories:
     weight: 1.2
     icon: "cemetery"
     size: "L"
+    preground: true
   Monument:
     qids:
       "Q4989906": "monument"
@@ -107,6 +112,7 @@ categories:
     weight: 0.9
     icon: "natural"
     size: "XL"
+    preground: true
   Park:
     qids:
       "Q22698": "park"
@@ -126,6 +132,7 @@ categories:
     weight: 1.4
     icon: "racetrack"
     size: "L"
+    preground: true
   Railway:
     qids:
       "Q55488": "railway station"
@@ -150,6 +157,7 @@ categories:
     weight: 1.0
     icon: "rocket"
     size: "L"
+    preground: true
   Stadium:
     qids:
       "Q483110": "stadium"
@@ -157,6 +165,7 @@ categories:
     icon: "stadium"
     sitelinks_min: 3
     size: "M"
+    preground: true
   Theme Park:
     qids:
       "Q194195": "amusement park"
@@ -164,6 +173,7 @@ categories:
     weight: 1.2
     icon: "amusement-park"
     size: "L"
+    preground: true
   Tower:
     qids:
       "Q11166728": "television tower"
@@ -178,6 +188,7 @@ categories:
     icon: "town"
     sitelinks_min: 2
     size: "L"
+    preground: true
   Village:
     qids:
       "Q532": "village"
@@ -185,12 +196,14 @@ categories:
     icon: "village"
     sitelinks_min: 2
     size: "M"
+    preground: true
   Volcano:
     qids:
       "Q8072": "volcano"
     weight: 1.4
     icon: "volcano"
     size: "XL"
+    preground: true
   Water:
     qids:
       "Q23397": "lake"
@@ -213,7 +226,6 @@ categories:
     weight: 1.1
     icon: "zoo"
     size: "M"
-
 
 merge_distance:
   S: 100

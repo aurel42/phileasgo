@@ -90,6 +90,7 @@ func TestPlayDebrief(t *testing.T) {
 		&MockStore{}, // store
 		nil,          // wikipedia
 		nil,          // langRes
+		nil,          // categoriesCfg
 		nil,          // essayH
 		nil,          // interests
 		nil,          // avoid
@@ -115,7 +116,7 @@ func TestPlayDebrief_Disabled(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.Debrief.Enabled = false
 	// We can pass nil for everything if we expect it to return false early
-	svc := NewAIService(cfg, nil, nil, nil, nil, nil, nil, nil, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil)
+	svc := NewAIService(cfg, nil, nil, nil, nil, nil, nil, nil, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil)
 
 	if svc.PlayDebrief(context.Background(), &sim.Telemetry{}) {
 		t.Error("PlayDebrief returned true when disabled")
@@ -125,7 +126,7 @@ func TestPlayDebrief_Disabled(t *testing.T) {
 func TestPlayDebrief_Busy(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.Debrief.Enabled = true
-	svc := NewAIService(cfg, nil, nil, nil, nil, nil, nil, nil, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil)
+	svc := NewAIService(cfg, nil, nil, nil, nil, nil, nil, nil, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil)
 
 	// Set active
 	svc.active = true
@@ -138,7 +139,7 @@ func TestPlayDebrief_Busy(t *testing.T) {
 func TestPlayDebrief_ShortSummary(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.Debrief.Enabled = true
-	svc := NewAIService(cfg, nil, nil, nil, nil, nil, nil, nil, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil)
+	svc := NewAIService(cfg, nil, nil, nil, nil, nil, nil, nil, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil)
 
 	// Short summary
 	// updateTripSummary writes helper prompt, let's just cheat and set string directly if possible?
@@ -159,7 +160,7 @@ func TestPlayDebrief_ShortSummary(t *testing.T) {
 func TestPlayDebrief_PendingGeneration(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.Debrief.Enabled = true
-	svc := NewAIService(cfg, nil, nil, nil, nil, nil, nil, nil, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil)
+	svc := NewAIService(cfg, nil, nil, nil, nil, nil, nil, nil, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil)
 	svc.tripSummary = "This is a long enough summary for the debrief to be considered."
 
 	// Mock pending generation

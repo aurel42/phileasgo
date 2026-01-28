@@ -8,6 +8,7 @@ import (
 	"phileasgo/pkg/llm/gemini"
 	"phileasgo/pkg/llm/groq"
 	"phileasgo/pkg/llm/openai"
+	"phileasgo/pkg/llm/perplexity"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/tts"
@@ -47,6 +48,8 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 			// Generic OpenAI support is primarily for self-hosted or other standard proxies.
 			url := "https://api.openai.com/v1/chat/completions"
 			sub, err = openai.NewClient(pCfg, url, rc)
+		case "perplexity", "sonar":
+			sub, err = perplexity.NewClient(pCfg, rc)
 		default:
 			return nil, fmt.Errorf("unknown llm provider type: %s", pCfg.Type)
 		}
