@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.51 (2026-01-28)
+- **Optimization**: Reduced memory churn (~1MB/s) via Gzip pooling and string optimizations.
+- **Cleanup**: Removed temporary profiling instrumentation.
+
 ## v0.3.50 (2026-01-28)
 - **Fix**: **Replay Deadlock**. Resolved a critical bug where triggering "Replay" during narrative generation could permanently stall the playback queue.
 - **Fix**: **International Waters**. Fixed spurious "International Waters" location display when the simulator provided invalid coordinates during initialization (0,0).
