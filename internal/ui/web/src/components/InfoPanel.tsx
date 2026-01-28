@@ -10,15 +10,7 @@ interface InfoPanelProps {
     blueCount: number;
 }
 
-interface Geography {
-    city: string;
-    region?: string;
-    country: string;
-    city_region?: string;
-    city_country?: string;
-    country_code?: string;
-    city_country_code?: string;
-}
+import { useGeography } from '../hooks/useGeography';
 
 
 export const InfoPanel = ({
@@ -29,7 +21,7 @@ export const InfoPanel = ({
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [stats, setStats] = useState<any>(null);
-    const [location, setLocation] = useState<Geography | null>(null);
+    const { location } = useGeography(telemetry);
 
     // Use ref to access latest telemetry in interval without resetting it
     const telemetryRef = useRef(telemetry);
@@ -49,19 +41,9 @@ export const InfoPanel = ({
                 .catch(e => console.error("Failed to fetch stats", e));
         }
 
-        const fetchLocation = () => {
-            const t = telemetryRef.current;
-            if (!t) return;
-            fetch(`/api/geography?lat=${t.Latitude}&lon=${t.Longitude}`)
-                .then(r => r.json())
-                .then(data => setLocation(data))
-                .catch(() => { });
-        };
-
         // Initial fetch
         fetchVersion();
         fetchStats();
-        fetchLocation();
 
         // Then poll
         const interval = setInterval(() => {
@@ -69,11 +51,8 @@ export const InfoPanel = ({
             fetchStats();
         }, 5000);
 
-        const locInterval = setInterval(fetchLocation, 10000);
-
         return () => {
             clearInterval(interval);
-            clearInterval(locInterval);
         };
     }, []);
 

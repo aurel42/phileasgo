@@ -27,7 +27,7 @@ func TestAIService_QueueManagement(t *testing.T) {
 	}
 
 	// 3. Peek Queue
-	n := svc.peekPlaybackQueue()
+	n := svc.playbackQ.Peek()
 	if n == nil || n.Title != "Manual" {
 		t.Error("peek failed")
 	}

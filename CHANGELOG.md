@@ -1,5 +1,14 @@
 ﻿Release History
 
+## v0.3.50 (2026-01-28)
+- **Fix**: **Replay Deadlock**. Resolved a critical bug where triggering "Replay" during narrative generation could permanently stall the playback queue.
+- **Fix**: **International Waters**. Fixed spurious "International Waters" location display when the simulator provided invalid coordinates during initialization (0,0).
+- **Refactor**: **Narrator Architecture**.
+    - Transited the audio engine to a purely event-driven architecture, removing polling loops for better performance and reliability.
+    - Centralized playback lifecycle management to prevent race conditions between "Stop", "Next", and "Replay" actions.
+    - Improved test stability for the narrator pipeline.
+- **Note**: Version `v0.3.49` was skipped during the release process.
+
 ## v0.3.48 (2026-01-27)
 - **Feature**: **Correct Screenshot Coordinates**. "Visual Analysis" map markers now persist at the exact location where the photo was taken, rather than following the moving aircraft.
 - **Fix**: **Border Announcement Persistence**. Resolved an issue where border crossing announcements would hide the active POI marker.

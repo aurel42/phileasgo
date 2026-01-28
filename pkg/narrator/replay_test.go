@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/narrator/playback"
 )
 
 func TestAIService_ReplayLast(t *testing.T) {
@@ -71,7 +72,8 @@ func TestAIService_ReplayLast(t *testing.T) {
 			// Setup Mocks
 			mockAudio := &MockAudioService{}
 			s := &AIService{
-				audio: mockAudio,
+				audio:     mockAudio,
+				playbackQ: playback.NewManager(),
 			}
 
 			// Run Setup
@@ -118,23 +120,33 @@ type MockAudioService struct {
 	IsBusyVal    bool
 }
 
-func (m *MockAudioService) Play(path string, skipChecks bool) error { return nil }
-func (m *MockAudioService) Stop()                                   {}
-func (m *MockAudioService) Shutdown()                               {}
-func (m *MockAudioService) Pause()                                  {}
-func (m *MockAudioService) Resume()                                 {}
-func (m *MockAudioService) Skip()                                   {}
-func (m *MockAudioService) IsPlaying() bool                         { return m.IsBusyVal }
-func (m *MockAudioService) IsBusy() bool                            { return m.IsBusyVal }
-func (m *MockAudioService) IsPaused() bool                          { return false }
-func (m *MockAudioService) SetVolume(vol float64)                   {}
-func (m *MockAudioService) Volume() float64                         { return 1.0 }
-func (m *MockAudioService) SetUserPaused(paused bool)               {}
-func (m *MockAudioService) IsUserPaused() bool                      { return false }
-func (m *MockAudioService) ResetUserPause()                         {}
-func (m *MockAudioService) LastNarrationFile() string               { return "" }
-func (m *MockAudioService) ReplayLastNarration() bool               { return m.ShouldReplay }
-func (m *MockAudioService) Position() time.Duration                 { return 0 }
+func (m *MockAudioService) Play(path string, skipChecks bool, onComplete func()) error {
+	if onComplete != nil {
+		go onComplete()
+	}
+	return nil
+}
+func (m *MockAudioService) Stop()                     {}
+func (m *MockAudioService) Shutdown()                 {}
+func (m *MockAudioService) Pause()                    {}
+func (m *MockAudioService) Resume()                   {}
+func (m *MockAudioService) Skip()                     {}
+func (m *MockAudioService) IsPlaying() bool           { return m.IsBusyVal }
+func (m *MockAudioService) IsBusy() bool              { return m.IsBusyVal }
+func (m *MockAudioService) IsPaused() bool            { return false }
+func (m *MockAudioService) SetVolume(vol float64)     {}
+func (m *MockAudioService) Volume() float64           { return 1.0 }
+func (m *MockAudioService) SetUserPaused(paused bool) {}
+func (m *MockAudioService) IsUserPaused() bool        { return false }
+func (m *MockAudioService) ResetUserPause()           {}
+func (m *MockAudioService) LastNarrationFile() string { return "" }
+func (m *MockAudioService) ReplayLastNarration(onComplete func()) bool {
+	if m.ShouldReplay && onComplete != nil {
+		go onComplete()
+	}
+	return m.ShouldReplay
+}
+func (m *MockAudioService) Position() time.Duration { return 0 }
 func (m *MockAudioService) Duration() time.Duration {
 	return time.Second * 10
 }

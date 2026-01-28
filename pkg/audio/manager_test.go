@@ -112,7 +112,7 @@ func TestManager_StateAccessors(t *testing.T) {
 				if m.LastNarrationFile() != "" {
 					return errFmt("expected empty last file")
 				}
-				if m.ReplayLastNarration() {
+				if m.ReplayLastNarration(nil) {
 					return errFmt("expected ReplayLastNarration false")
 				}
 				return nil

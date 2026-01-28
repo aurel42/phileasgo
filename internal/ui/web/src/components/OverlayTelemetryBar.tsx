@@ -29,21 +29,13 @@ interface Config {
     show_log_line?: boolean;
 }
 
-interface Geography {
-    city: string;
-    region?: string;
-    country: string;
-    city_region?: string;
-    city_country?: string;
-    country_code?: string;
-    city_country_code?: string;
-}
+import { useGeography } from '../hooks/useGeography';
 
 export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => {
     const [stats, setStats] = useState<Stats | null>(null);
     const [version, setVersion] = useState<string>('...');
     const [config, setConfig] = useState<Config>({});
-    const [location, setLocation] = useState<Geography | null>(null);
+    const { location } = useGeography(telemetry);
     const [logLine, setLogLine] = useState<string>('');
 
     // Use ref to access latest telemetry in interval without resetting it
@@ -72,15 +64,6 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                 .catch(() => { });
         };
 
-        const fetchLocation = () => {
-            const t = telemetryRef.current;
-            if (!t) return;
-            fetch(`/api/geography?lat=${t.Latitude}&lon=${t.Longitude}`)
-                .then(r => r.json())
-                .then(data => setLocation(data))
-                .catch(() => { });
-        };
-
         const fetchLog = () => {
             fetch('/api/log/latest')
                 .then(r => r.json())
@@ -91,18 +74,15 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
         fetchStats();
         fetchVersion();
         fetchConfig();
-        fetchLocation();
         fetchLog();
 
         const statsInterval = setInterval(fetchStats, 5000);
         const configInterval = setInterval(fetchConfig, 5000);
-        const locInterval = setInterval(fetchLocation, 10000);
         const logInterval = setInterval(fetchLog, 1000);
 
         return () => {
             clearInterval(statsInterval);
             clearInterval(configInterval);
-            clearInterval(locInterval);
             clearInterval(logInterval);
         };
     }, []);

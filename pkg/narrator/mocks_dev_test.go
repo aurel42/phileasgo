@@ -67,10 +67,17 @@ type MockAudio struct {
 	Replayed        bool
 }
 
-func (m *MockAudio) Play(filepath string, startPaused bool) error {
+func (m *MockAudio) Play(filepath string, startPaused bool, onComplete func()) error {
 	m.PlayCalls++
 	m.LastFile = filepath
 	m.IsPlayingVal = true
+	// Simulate async completion if callback provided
+	if onComplete != nil {
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			onComplete()
+		}()
+	}
 	return m.PlayErr
 }
 func (m *MockAudio) Pause()                    {}
@@ -86,9 +93,15 @@ func (m *MockAudio) SetUserPaused(paused bool) { m.IsUserPausedVal = paused }
 func (m *MockAudio) IsUserPaused() bool        { return m.IsUserPausedVal }
 func (m *MockAudio) ResetUserPause()           { m.IsUserPausedVal = false }
 func (m *MockAudio) LastNarrationFile() string { return m.LastFile }
-func (m *MockAudio) ReplayLastNarration() bool {
+func (m *MockAudio) ReplayLastNarration(onComplete func()) bool {
 	if m.CanReplay {
 		m.Replayed = true
+		if onComplete != nil {
+			go func() {
+				time.Sleep(10 * time.Millisecond)
+				onComplete()
+			}()
+		}
 		return true
 	}
 	return false

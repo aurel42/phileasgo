@@ -42,11 +42,6 @@ func (s *AIService) popPlaybackQueue() *model.Narrative {
 	return s.playbackQ.Pop()
 }
 
-// peekPlaybackQueue returns the head of the queue without removing it.
-func (s *AIService) peekPlaybackQueue() *model.Narrative {
-	return s.playbackQ.Peek()
-}
-
 func (s *AIService) canEnqueuePlayback(nType model.NarrativeType, manual bool) bool {
 	return s.playbackQ.CanEnqueue(nType, manual)
 }

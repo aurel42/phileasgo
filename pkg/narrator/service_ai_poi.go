@@ -169,8 +169,8 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error
 
 	audioFile := s.setPlaybackState(n)
 
-	// Start playback (synchronous to catch immediate errors)
-	if err := s.audio.Play(audioFile, false); err != nil {
+	// Start playback (synchronous connection to speaker, then async callback)
+	if err := s.audio.Play(audioFile, false, s.finalizePlayback); err != nil {
 		if s.beaconSvc != nil {
 			s.beaconSvc.Clear()
 		}
@@ -229,8 +229,7 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error
 	s.narratedCount++
 	s.mu.Unlock()
 
-	// Non-blocking: Monitor playback completion in background
-	go s.monitorPlayback(n)
+	// Non-blocking: Playback completion is handled by s.finalizePlayback callback passed to audio.Play
 
 	return nil
 }
@@ -277,64 +276,6 @@ func (s *AIService) setPlaybackState(n *model.Narrative) string {
 	s.lastEssayTitle = ""
 
 	return n.AudioPath + "." + n.Format
-}
-
-// monitorPlayback waits for audio to finish and cleans up state.
-func (s *AIService) monitorPlayback(n *model.Narrative) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if s.audio.IsBusy() {
-			continue
-		}
-
-		// Use Title for non-POI narratives, DisplayName() for POI narratives
-		displayName := n.Title
-		displayID := string(n.Type)
-		if n.POI != nil {
-			displayName = n.POI.DisplayName()
-			displayID = n.POI.WikidataID
-		}
-		slog.Info("Narrator: Playback ended", "name", displayName, "id", displayID)
-		break
-	}
-
-	// Update Beacon Target immediately after playback
-	// Only relevant for POI narratives (non-POI narratives don't have map markers)
-	if s.beaconSvc != nil {
-		// Don't lock just to peek, peekQueue handles RLock
-		next := s.peekPlaybackQueue()
-		s.mu.RLock()
-		generating := s.generatingPOI
-		s.mu.RUnlock()
-
-		if next != nil && next.POI != nil {
-			slog.Info("Narrator: Switching marker to next queued POI", "qid", next.POI.WikidataID)
-			// Use background context as the original ctx might be cancelled
-			_ = s.beaconSvc.SetTarget(context.Background(), next.POI.Lat, next.POI.Lon)
-		} else if generating != nil {
-			// BEACON LAG FIX:
-			// If we are actively generating the next one, show its marker usage NOW.
-			slog.Info("Narrator: Switching marker to currently generating POI", "qid", generating.WikidataID)
-			_ = s.beaconSvc.SetTarget(context.Background(), generating.Lat, generating.Lon)
-		}
-		// Else: Do nothing. Keep marker on the last played POI.
-	}
-
-	// Wait before clearing active (prevent rapid re-trigger)
-	time.Sleep(3 * time.Second)
-	s.mu.Lock()
-	s.active = false
-	s.currentPOI = nil
-	s.currentTopic = nil
-	s.currentEssayTitle = ""
-	s.currentImagePath = ""
-	s.currentType = ""
-	s.mu.Unlock()
-
-	// Trigger next item in queue
-	go s.ProcessPlaybackQueue(context.Background())
 }
 
 // ProcessPlaybackQueue implements the Service interface.

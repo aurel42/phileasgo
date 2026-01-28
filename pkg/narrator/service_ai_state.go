@@ -180,7 +180,8 @@ func (s *AIService) Remaining() time.Duration {
 
 func (s *AIService) ReplayLast(ctx context.Context) bool {
 	// 1. Check Audio Replay Capability
-	if !s.audio.ReplayLastNarration() {
+	// Pass finalizePlayback as callback
+	if !s.audio.ReplayLastNarration(s.finalizePlayback) {
 		return false
 	}
 
@@ -211,32 +212,44 @@ func (s *AIService) ReplayLast(ctx context.Context) bool {
 		return true
 	}
 
-	// 3. Launch Monitor to clear state when done
-	go func() {
-		// Use Background context for the monitor to ensure it continues
-		// even if the triggering request context is cancelled.
-		ctx := context.Background()
-		ticker := time.NewTicker(200 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if !s.audio.IsBusy() {
-					s.mu.Lock()
-					s.active = false
-					s.currentPOI = nil
-					s.currentTopic = nil
-					s.currentEssayTitle = ""
-					s.mu.Unlock()
-					return
-				}
-			}
-		}
-	}()
-
+	// 3. No manual monitoring needed, callback handles cleanup
 	return true
+}
+
+// finalizePlayback handles state cleanup and queue processing when audio finishes.
+func (s *AIService) finalizePlayback() {
+	// Pacing: Wait before clearing active state to prevent back-to-back narration bombardment
+	time.Sleep(3 * time.Second)
+
+	// 1. Cleanup State
+	s.mu.Lock()
+	s.active = false
+	s.currentPOI = nil
+	s.currentTopic = nil
+	s.currentEssayTitle = ""
+	s.currentImagePath = ""
+	s.currentType = ""
+	s.mu.Unlock()
+
+	// 2. Beacon Check (Switch to next target)
+	if s.beaconSvc != nil {
+		next := s.playbackQ.Peek()
+		s.mu.RLock()
+		generating := s.generatingPOI
+		s.mu.RUnlock()
+
+		if next != nil && next.POI != nil {
+			slog.Info("Narrator: Switching marker to next queued POI", "qid", next.POI.WikidataID)
+			_ = s.beaconSvc.SetTarget(context.Background(), next.POI.Lat, next.POI.Lon)
+		} else if generating != nil {
+			slog.Info("Narrator: Switching marker to currently generating POI", "qid", generating.WikidataID)
+			_ = s.beaconSvc.SetTarget(context.Background(), generating.Lat, generating.Lon)
+		}
+	}
+
+	// 3. Trigger Next
+	slog.Info("Narrator: Playback finalized, checking queue")
+	go s.ProcessPlaybackQueue(context.Background())
 }
 
 // SkipCooldown forces the cooldown to expire (not strictly needed by AIService itself, but by the job).

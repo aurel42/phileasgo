@@ -19,7 +19,8 @@ import (
 // Service defines the interface for audio playback control.
 type Service interface {
 	// Play starts playback of an audio file. If startPaused is true, loads but pauses immediately.
-	Play(filepath string, startPaused bool) error
+	// onComplete is called when playback finishes (not when stopped/paused manually).
+	Play(filepath string, startPaused bool, onComplete func()) error
 	// Pause pauses current playback.
 	Pause()
 	// Resume resumes paused playback.
@@ -48,7 +49,7 @@ type Service interface {
 	// LastNarrationFile returns the path of the last played narration.
 	LastNarrationFile() string
 	// ReplayLastNarration replays the last narration. Returns true if successful.
-	ReplayLastNarration() bool
+	ReplayLastNarration(onComplete func()) bool
 	// Position returns the current playback position.
 	Position() time.Duration
 	// Duration returns the total duration of the current audio.
@@ -82,19 +83,12 @@ func New(cfg *config.NarratorConfig) *Manager {
 }
 
 // Play starts playback of an audio file.
-func (m *Manager) Play(filepath string, startPaused bool) error {
+func (m *Manager) Play(filepath string, startPaused bool, onComplete func()) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	// Stop any current playback and close the file handle
-	if m.trackStreamer != nil {
-		m.trackStreamer.Close()
-		m.trackStreamer = nil
-	}
-	if m.ctrl != nil {
-		speaker.Clear()
-		m.ctrl = nil
-	}
+	m.stopLocked()
 
 	// Open and decode audio file
 	streamer, format, err := m.decodeStreamer(filepath)
@@ -103,16 +97,8 @@ func (m *Manager) Play(filepath string, startPaused bool) error {
 	}
 
 	// Initialize speaker once at 48kHz if not done
-	const targetSampleRate = 48000
-	if !m.speakerInitialized {
-		err = speaker.Init(beep.SampleRate(targetSampleRate), beep.SampleRate(targetSampleRate).N(time.Second/10))
-		if err != nil {
-			streamer.Close()
-			slog.Error("Failed to initialize speaker", "error", err)
-			return err
-		}
-		m.speakerInitialized = true
-		m.currentSampleRate = beep.SampleRate(targetSampleRate)
+	if err := m.ensureSpeakerInitialized(streamer); err != nil {
+		return err
 	}
 
 	// Resample streamer to target rate
@@ -159,6 +145,10 @@ func (m *Manager) Play(filepath string, startPaused bool) error {
 			m.isPaused = false
 			m.mu.Unlock()
 			streamer.Close()
+
+			if onComplete != nil {
+				onComplete()
+			}
 		}()
 	})))
 
@@ -216,6 +206,10 @@ func (m *Manager) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	m.stopLocked()
+}
+
+func (m *Manager) stopLocked() {
 	if m.trackStreamer != nil {
 		m.trackStreamer.Close()
 		m.trackStreamer = nil
@@ -225,6 +219,21 @@ func (m *Manager) Stop() {
 		m.ctrl = nil
 		m.isPaused = false
 	}
+}
+
+func (m *Manager) ensureSpeakerInitialized(streamer beep.StreamSeekCloser) error {
+	const targetSampleRate = 48000
+	if !m.speakerInitialized {
+		err := speaker.Init(beep.SampleRate(targetSampleRate), beep.SampleRate(targetSampleRate).N(time.Second/10))
+		if err != nil {
+			streamer.Close()
+			slog.Error("Failed to initialize speaker", "error", err)
+			return err
+		}
+		m.speakerInitialized = true
+		m.currentSampleRate = beep.SampleRate(targetSampleRate)
+	}
+	return nil
 }
 
 // Shutdown stops playback and deletes any residual audio artifacts.
@@ -326,7 +335,7 @@ func (m *Manager) LastNarrationFile() string {
 }
 
 // ReplayLastNarration replays the last narration.
-func (m *Manager) ReplayLastNarration() bool {
+func (m *Manager) ReplayLastNarration(onComplete func()) bool {
 	m.mu.RLock()
 	lastFile := m.lastNarrationFile
 	m.mu.RUnlock()
@@ -340,7 +349,7 @@ func (m *Manager) ReplayLastNarration() bool {
 		return false
 	}
 
-	return m.Play(lastFile, false) == nil
+	return m.Play(lastFile, false, onComplete) == nil
 }
 
 // Position returns the current playback position.
