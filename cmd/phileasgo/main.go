@@ -25,6 +25,7 @@ import (
 	"phileasgo/pkg/logging"
 	"phileasgo/pkg/narrator"
 	"phileasgo/pkg/poi"
+	"phileasgo/pkg/poi/rivers"
 	"phileasgo/pkg/probe"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/scorer"
@@ -226,6 +227,11 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 
 	wikiSvc := wikidata.NewService(st, simClient, tr, smartClassifier, reqClient, geoSvc, poiMgr, cfg.Wikidata, cfg.Narrator.TargetLanguage)
 
+	// River Sentinel Wiring (Phase 3)
+	riverSentinel := rivers.NewSentinel(slog.With("component", "river_sentinel"), "data/ne_50m_rivers_lake_centerlines.geojson")
+	poiMgr.SetRiverSentinel(riverSentinel)
+	poiMgr.SetTileFetcher(wikiSvc)
+
 	return &CoreServices{
 		WikiSvc:         wikiSvc,
 		PoiMgr:          poiMgr,
@@ -360,6 +366,9 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 	sched.AddJob(core.NewTimeJob("CacheCleanup", 10*time.Second, func(c context.Context, t sim.Telemetry) {
 		// Clean up old cache entries if needed
 	}))
+
+	// Register River Job (runs every 15s, detects nearby rivers)
+	sched.AddJob(core.NewRiverJob(svcs.PoiMgr))
 
 	// Register Debrief Job (implicitly added by NewScheduler via debriefer arg)
 

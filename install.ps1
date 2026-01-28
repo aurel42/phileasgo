@@ -6,6 +6,10 @@ Write-Host ""
 
 # Create directories (only if needed)
 $dirs = @("data", "logs", "configs")
+foreach ($d in $dirs) {
+    if (-not (Test-Path $d)) {
+        New-Item -ItemType Directory -Path $d | Out-Null
+        Write-Host "Created directory: $d" -ForegroundColor Gray
     }
 }
 

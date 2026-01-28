@@ -51,7 +51,20 @@ type POI struct {
 	// Session persistence (in-memory only)
 	Script string `json:"-"`
 
+	// River Context (transient, not persisted)
+	RiverContext *RiverContext `json:"-"`
+
 	// Deprecated/Removed fields: ID (int), ArticleIDs
+}
+
+// RiverContext holds ephemeral state for rivers detected by the Sentinel.
+type RiverContext struct {
+	IsActive      bool    // True if this POI is currently the "active" river near the aircraft
+	IsFlyingAlong bool    // True if aircraft is roughly following the river course
+	Direction     string  // "upstream", "downstream", "crossing"
+	DistanceM     float64 // Lateral distance in meters
+	ClosestLat    float64 // Dynamic closest point (for UI)
+	ClosestLon    float64
 }
 
 // LocationInfo represents rich geographic context.

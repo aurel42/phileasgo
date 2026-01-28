@@ -469,3 +469,31 @@ func (s *Service) updateTileStats(key string, lat, lon float64, articles []Artic
 		Stats:  stats,
 	}
 }
+
+// EnsureTilesLoaded implements poi.TileFetcher - ensures the tile at (lat, lon) is loaded.
+func (s *Service) EnsureTilesLoaded(ctx context.Context, lat, lon float64) error {
+	// Convert lat/lon to tile key
+	tile := s.scheduler.grid.TileAt(lat, lon)
+	key := tile.Key()
+
+	// Check if already in recent cache
+	s.recentMu.RLock()
+	_, ok := s.recentTiles[key]
+	s.recentMu.RUnlock()
+	if ok {
+		return nil // Already have it
+	}
+
+	// Trigger fetch via existing logic
+	c := Candidate{Tile: tile}
+	medians := s.getNeighborhoodStats(tile)
+	s.fetchTile(ctx, c, medians)
+
+	return nil
+}
+
+// GetPOIsNear implements poi.TileFetcher - returns POIs near (lat, lon) from the Manager's cache.
+func (s *Service) GetPOIsNear(ctx context.Context, lat, lon, radiusMeters float64) ([]*model.POI, error) {
+	// Delegate to POI Manager which holds the tracked POIs
+	return s.poi.GetPOIsNear(lat, lon, radiusMeters), nil
+}

@@ -20,6 +20,7 @@ data/phileas.db*
 data/cities1000.txt
 data/Master.csv
 data/etopo1/
+data/rivers/
 vendor/
 pkg/sim/simconnect/lib/
 cmd/experiments/

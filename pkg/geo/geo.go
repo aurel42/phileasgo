@@ -75,6 +75,68 @@ func NormalizeAngle(angleDeg float64) float64 {
 	return angleDeg
 }
 
+// DistancePointSegment calculates the distance from point P to line segment AB.
+// It also returns the closest point on the segment.
+func DistancePointSegment(p, a, b Point) (float64, Point) {
+	// Convert to Cartesian (approximation for local scale) or use spherical?
+	// For "nearby" rivers (10km), Equirectangular projection is locally sufficient and fast.
+	// dx = (lon2-lon1) * cos(meanLat)
+	// dy = lat2-lat1
+
+	latScale := math.Cos(p.Lat * math.Pi / 180.0)
+
+	pRef := Point{Lat: 0, Lon: 0} // Relative origin
+	px := (p.Lon - pRef.Lon) * latScale
+	py := p.Lat - pRef.Lat
+
+	ax := (a.Lon - pRef.Lon) * latScale
+	ay := a.Lat - pRef.Lat
+
+	bx := (b.Lon - pRef.Lon) * latScale
+	by := b.Lat - pRef.Lat
+
+	// Vector AB
+	abx := bx - ax
+	aby := by - ay
+
+	// Vector AP
+	apx := px - ax
+	apy := py - ay
+
+	// Project AP onto AB (t = AP.AB / AB.AB)
+	denom := abx*abx + aby*aby
+	t := 0.0
+	if denom > 0 {
+		t = (apx*abx + apy*aby) / denom
+	}
+
+	// Clamp t to segment [0, 1]
+	if t < 0 {
+		t = 0
+	}
+	if t > 1 {
+		t = 1
+	}
+
+	// Closest point
+	closestX := ax + t*abx
+	closestY := ay + t*aby
+
+	closest := Point{
+		Lat: closestY + pRef.Lat,
+		Lon: closestX/latScale + pRef.Lon,
+	}
+
+	return Distance(p, closest), closest
+}
+
+// IsAhead returns true if the target is within +/- 90 degrees of the heading.
+func IsAhead(p1, p2 Point, heading float64) bool {
+	bearing := Bearing(p1, p2)
+	diff := math.Abs(NormalizeAngle(bearing - heading))
+	return diff < 90
+}
+
 // City represents a city from cities1000.txt
 type City struct {
 	Name        string

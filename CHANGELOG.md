@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.55 (2026-01-28)
+- **Feature**: **River Sentinel Infrastructure**. Added foundational geometry engine for detecting nearby rivers using Natural Earth data. Includes point-to-segment distance calculations and heading-aware "is ahead" checks.
+- **Model**: Added `RiverContext` struct for future dynamic river narration awareness (upstream/downstream/crossing context).
+- **Fix**: Resolved `exitAfterDefer` lint warning in `shp2geojson` tool.
+
 ## v0.3.54 (2026-01-28)
 - **Feature**: **LLM Timeouts**. Added per-provider timeout configuration (90s default, 30s for Groq) to prevent API stalls during high latency or service outages.
 - **Improved**: **Failover Resilience**. The failover mechanism now proactively cancels hanging requests and switches to faster providers immediately upon timeout.

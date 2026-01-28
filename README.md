@@ -213,7 +213,7 @@ It turned out so well that I'm releasing it as a public project (let's call it a
 
 I expect to be the only user for the foreseeable future, so at this point I don't care to put together a binary release. Let me know if you feel I should (or which missing LLM/TTS services you feel the project should support). Or if you want support for MSFS2020.
 
-## Attributions
+## Credits
 
 This project uses the **[Uber H3](https://github.com/uber/h3)** geospatial indexing system.
 H3 is licensed under the [Apache License 2.0](https://github.com/uber/h3/blob/master/LICENSE).
@@ -222,6 +222,7 @@ Elevation data provided by **[ETOPO1 Global Relief Model](https://www.ncei.noaa.
 Citation: Amante, C. and B.W. Eakins, 2009. ETOPO1 1 Arc-Minute Global Relief Model: Procedures, Data Sources and Analysis. NOAA Technical Memorandum NESDIS NGDC-24. National Geophysical Data Center, NOAA. doi:10.7289/V5C8276M
 
 Category icons provided by **[Mapbox Maki](https://github.com/mapbox/maki)** (CC0 1.0 Universal).
+
 
 ## License
 

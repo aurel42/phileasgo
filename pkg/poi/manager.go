@@ -27,6 +27,19 @@ type ManagerStore interface {
 	store.StateStore
 }
 
+// TileFetcher abstracts tile fetching for river hydration (breaks circular dependency).
+type TileFetcher interface {
+	// EnsureTilesLoaded loads tiles near the given coordinate if not already cached.
+	EnsureTilesLoaded(ctx context.Context, lat, lon float64) error
+	// GetPOIsNear returns all cached POIs near the given coordinate.
+	GetPOIsNear(ctx context.Context, lat, lon, radiusMeters float64) ([]*model.POI, error)
+}
+
+// RiverSentinel abstracts the river detection engine.
+type RiverSentinel interface {
+	Update(lat, lon, heading float64) interface{} // Returns *rivers.Candidate or nil
+}
+
 type Manager struct {
 	config *config.Config
 	store  ManagerStore
@@ -46,6 +59,10 @@ type Manager struct {
 	// Callbacks
 	onScoringComplete func(ctx context.Context, t *sim.Telemetry)
 	onValleyAltitude  func(altMeters float64)
+
+	// River Integration (set via setter to break circular dependency)
+	tileFetcher   TileFetcher
+	riverSentinel RiverSentinel
 }
 
 // NewManager creates a new POI Manager.
@@ -57,6 +74,16 @@ func NewManager(cfg *config.Config, s ManagerStore, catCfg *config.CategoriesCon
 		trackedPOIs: make(map[string]*model.POI),
 		catConfig:   catCfg,
 	}
+}
+
+// SetTileFetcher injects the TileFetcher (typically the WikidataService).
+func (m *Manager) SetTileFetcher(tf TileFetcher) {
+	m.tileFetcher = tf
+}
+
+// SetRiverSentinel injects the RiverSentinel.
+func (m *Manager) SetRiverSentinel(rs RiverSentinel) {
+	m.riverSentinel = rs
 }
 
 // SetScoringCallback sets the function to be called after each scoring pass.
@@ -555,4 +582,105 @@ func (m *Manager) LastScoredPosition() (lat, lon float64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.lastScoredLat, m.lastScoredLon
+}
+
+// UpdateRivers is called periodically to detect nearby rivers and hydrate matching POIs.
+// It should only be called from a dedicated 15s ticker, NOT the main scoring loop.
+func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (*model.POI, error) {
+	// 1. Check dependencies
+	if m.riverSentinel == nil || m.tileFetcher == nil {
+		return nil, nil // Not configured, skip silently
+	}
+
+	// 2. Call Sentinel
+	result := m.riverSentinel.Update(lat, lon, heading)
+	if result == nil {
+		return nil, nil // No river ahead
+	}
+
+	// Type assertion to access candidate data
+	// (interface{} is used to break import cycle; real type is *rivers.Candidate)
+
+	// Use reflection-free approach: we know the shape
+	// This is a bit ugly but avoids cyclic imports
+	// TODO: Refactor to define Candidate in pkg/model if this pattern grows
+	candidateVal, ok := result.(*struct {
+		Name         string
+		ClosestPoint geo.Point
+		Distance     float64
+		IsAhead      bool
+		Mouth        geo.Point
+		Source       geo.Point
+	})
+	if !ok {
+		m.logger.Warn("UpdateRivers: unexpected candidate type")
+		return nil, nil
+	}
+
+	m.logger.Debug("River candidate detected", "name", candidateVal.Name, "dist", candidateVal.Distance)
+
+	// 3. Hydrate: Try Mouth, then Source, then Surrounding
+	const hydrationRadius = 5000.0 // 5km search radius in tiles
+
+	// 3a. Ensure Mouth Tile is loaded
+	if err := m.tileFetcher.EnsureTilesLoaded(ctx, candidateVal.Mouth.Lat, candidateVal.Mouth.Lon); err != nil {
+		m.logger.Warn("Failed to load mouth tile", "err", err)
+	}
+
+	// 3b. Search for Water POI near Mouth
+	pois, err := m.tileFetcher.GetPOIsNear(ctx, candidateVal.Mouth.Lat, candidateVal.Mouth.Lon, hydrationRadius)
+	if err == nil {
+		for _, p := range pois {
+			if p.Category == "Water" {
+				// Found! Attach context and return
+				p.RiverContext = &model.RiverContext{
+					IsActive:   true,
+					DistanceM:  candidateVal.Distance,
+					ClosestLat: candidateVal.ClosestPoint.Lat,
+					ClosestLon: candidateVal.ClosestPoint.Lon,
+				}
+				m.logger.Info("Hydrated river POI from mouth tile", "qid", p.WikidataID, "name", p.DisplayName())
+				return p, nil
+			}
+		}
+	}
+
+	// 3c. Try Source
+	if err := m.tileFetcher.EnsureTilesLoaded(ctx, candidateVal.Source.Lat, candidateVal.Source.Lon); err != nil {
+		m.logger.Warn("Failed to load source tile", "err", err)
+	}
+	pois, err = m.tileFetcher.GetPOIsNear(ctx, candidateVal.Source.Lat, candidateVal.Source.Lon, hydrationRadius)
+	if err == nil {
+		for _, p := range pois {
+			if p.Category == "Water" {
+				p.RiverContext = &model.RiverContext{
+					IsActive:   true,
+					DistanceM:  candidateVal.Distance,
+					ClosestLat: candidateVal.ClosestPoint.Lat,
+					ClosestLon: candidateVal.ClosestPoint.Lon,
+				}
+				m.logger.Info("Hydrated river POI from source tile", "qid", p.WikidataID, "name", p.DisplayName())
+				return p, nil
+			}
+		}
+	}
+
+	// 3d. Fallback: Check surrounding tiles of Mouth (TODO: implement if needed)
+	m.logger.Debug("River detected but no matching POI found in tiles", "name", candidateVal.Name)
+	return nil, nil
+}
+
+// GetPOIsNear returns POIs from the tracked cache within radiusMeters of the given point.
+func (m *Manager) GetPOIsNear(lat, lon, radiusMeters float64) []*model.POI {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var result []*model.POI
+	for _, p := range m.trackedPOIs {
+		dist := geo.Distance(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: p.Lat, Lon: p.Lon})
+		if dist <= radiusMeters {
+			result = append(result, p)
+		}
+	}
+	return result
 }
