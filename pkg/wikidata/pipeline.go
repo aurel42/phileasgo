@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"phileasgo/pkg/geo"
+	"phileasgo/pkg/logging"
 	"phileasgo/pkg/poi"
 	"phileasgo/pkg/rescue"
 	"phileasgo/pkg/store"
@@ -46,7 +47,7 @@ func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo
 func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat, centerLon float64, force bool, medians rescue.MedianStats) (articles []Article, rescuedCount int, err error) {
 	// Use the exposed streaming parser from client.go
 	// Note: We need a Reader, so we wrap the byte slice
-	rawArticles, _, err := parseSPARQLStreaming(strings.NewReader(string(rawJSON)))
+	rawArticles, _, err := ParseSPARQLStreaming(strings.NewReader(string(rawJSON)))
 	if err != nil {
 		return nil, 0, fmt.Errorf("%w: failed to parse sparql stream: %v", ErrParse, err)
 	}
@@ -133,10 +134,22 @@ func (p *Pipeline) processAndHydrate(ctx context.Context, rawArticles []Article,
 		}
 	}
 
+	logging.Trace(p.logger, "Pipeline: Hydrating candidates", "count", len(candidates), "qids", getQIDs(candidates))
+
 	hydrated, err := p.hydrateCandidates(ctx, candidates, allowedLangs)
 	if err != nil {
 		return nil, 0, err
 	}
 
+	logging.Trace(p.logger, "Pipeline: Hydration complete", "input", len(candidates), "hydrated", len(hydrated))
+
 	return hydrated, rescuedCount, nil
+}
+
+func getQIDs(articles []Article) []string {
+	qids := make([]string, len(articles))
+	for i := range articles {
+		qids[i] = articles[i].QID
+	}
+	return qids
 }

@@ -78,11 +78,13 @@ func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string, radius
 	}
 
 	// Parse Response (Zero-Alloc Streaming)
-	return parseSPARQLStreaming(strings.NewReader(string(body)))
+	articles, _, err := ParseSPARQLStreaming(strings.NewReader(string(body)))
+	return articles, string(body), err
 }
 
-// parseSPARQLStreaming iterates over the JSON stream to extract bindings without loading the full structure
-func parseSPARQLStreaming(r io.Reader) ([]Article, string, error) {
+// ParseSPARQLStreaming iterates over the JSON stream to extract bindings without loading the full structure.
+// It is exported for use by debugging tools.
+func ParseSPARQLStreaming(r io.Reader) ([]Article, string, error) {
 	dec := json.NewDecoder(r)
 
 	// We only care about matching "bindings" -> [ ... ]

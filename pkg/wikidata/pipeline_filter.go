@@ -200,6 +200,8 @@ func (p *Pipeline) postProcessArticles(rawArticles []Article, lat, lon float64, 
 			minLinks := p.getSitelinksMin(a.Category)
 			if a.Sitelinks >= minLinks {
 				processed = append(processed, *a)
+			} else {
+				logging.Trace(p.logger, "Pipeline: Dropped low sitelinks", "qid", a.QID, "sitelinks", a.Sitelinks, "min", minLinks)
 			}
 		} else {
 			// Candidate for rescue

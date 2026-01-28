@@ -1,4 +1,7 @@
 ﻿Release History
+ 
+## v0.3.57 (2026-01-29)
+- **Fix**: **POI Ingestion Stability**. Resolved a critical bug where new landmarks were occasionally ignored during fresh network fetches, preventing them from appearing in the UI until the application was restarted.
 
 ## v0.3.56 (2026-01-28)
 - **Feature**: **Pregrounding with Perplexity Sonar**. Categories marked with `preground: true` (e.g., Stadium, Theme Park) now fetch real-time context from Perplexity Sonar before narration, enriching POI scripts with current events and local details.

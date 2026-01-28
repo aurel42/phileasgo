@@ -55,6 +55,31 @@ const htmlContent = `
         }
         
         iframe { width: 100%; height: 100%; border: none; background: #0f0f0f; }
+        
+        .error-overlay {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #f5f5f5;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 100;
+        }
+        .error-overlay.visible { display: flex; }
+        .error-overlay p { color: #666; font-size: 14px; margin: 0; }
+        .retry-btn {
+            padding: 10px 24px;
+            font-size: 14px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .retry-btn:hover { background: #1976d2; }
 
         #terminal-output span.info { color: #4caf50; }
         #terminal-output span.warn { color: #ff9800; }
@@ -73,6 +98,10 @@ const htmlContent = `
         <!-- App Tab (Main Map) -->
         <div id="content-app" class="tab-content">
             <iframe id="frame-app"></iframe>
+            <div id="error-app" class="error-overlay">
+                <p>Failed to load. Check your connection and try again.</p>
+                <button class="retry-btn" onclick="retryApp()">Retry</button>
+            </div>
         </div>
 
         <!-- Terminal Tab -->
@@ -141,14 +170,54 @@ const htmlContent = `
             }
         }
 
-        // Exposed to Go
         window.setTerminalTitle = function(name) {
             currentProcessName = name;
             tabTerm.innerText = name.toUpperCase();
         };
 
+        let appUrl = '';
+        const frameApp = document.getElementById('frame-app');
+        const errorApp = document.getElementById('error-app');
+
+        function showAppError() {
+            errorApp.classList.add('visible');
+        }
+
+        function hideAppError() {
+            errorApp.classList.remove('visible');
+        }
+
+        window.retryApp = function() {
+            if (appUrl) {
+                hideAppError();
+                frameApp.src = appUrl;
+            }
+        };
+
+        // Detect navigation errors in iframe
+        frameApp.addEventListener('load', function() {
+            try {
+                // Try to access the iframe's content - if it loaded an error page,
+                // the title often contains error-related text
+                const iframeDoc = frameApp.contentDocument || frameApp.contentWindow.document;
+                const title = iframeDoc.title.toLowerCase();
+                const body = iframeDoc.body ? iframeDoc.body.innerText.toLowerCase() : '';
+                
+                if (title.includes('error') || body.includes('network change') || 
+                    body.includes('cannot be reached') || body.includes('err_')) {
+                    showAppError();
+                } else {
+                    hideAppError();
+                }
+            } catch (e) {
+                // Cross-origin or other access error - page probably loaded fine
+                hideAppError();
+            }
+        });
+
         window.enableApp = function(url) {
-            document.getElementById('frame-app').src = url;
+            appUrl = url;
+            frameApp.src = url;
             // Also load config tab (using the generic settings route)
             document.getElementById('frame-config').src = url + "/#/settings";
             

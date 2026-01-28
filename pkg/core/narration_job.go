@@ -679,7 +679,6 @@ func (j *NarrationJob) incrementVisibilityBoost(ctx context.Context) {
 	// TESTING: Hardcoded 500ft threshold - tune this value based on testing
 	const boostThresholdFt = 500.0
 	if j.lastAGL < boostThresholdFt {
-		slog.Debug("NarrationJob: Skipping visibility boost (low altitude)", "agl", j.lastAGL, "threshold", boostThresholdFt)
 		return
 	}
 
