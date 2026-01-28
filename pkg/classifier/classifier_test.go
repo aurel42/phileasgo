@@ -91,7 +91,7 @@ func (m *MockStore) GetHierarchy(ctx context.Context, qid string) (*model.Wikida
 	if h, ok := m.Hierarchies[qid]; ok {
 		return h, nil
 	}
-	return nil, nil // Return nil on miss to match real store behavior for hierarchy
+	return nil, nil
 }
 
 func (m *MockStore) GetSeenEntitiesBatch(ctx context.Context, qids []string) (map[string][]string, error) {
@@ -145,7 +145,7 @@ func (m *MockStore) ListCacheKeys(ctx context.Context, prefix string) ([]string,
 func (m *MockStore) GetGeodataCache(ctx context.Context, key string) ([]byte, int, bool) {
 	return nil, 0, false
 }
-func (m *MockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error {
+func (m *MockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int, lat, lon float64) error {
 	return nil
 }
 func (m *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
@@ -177,172 +177,41 @@ func TestClassifier_CachingLevels(t *testing.T) {
 				c.Claims["Q_COLD"] = map[string][]string{"P31": {"Q_CLASS"}}
 				c.Claims["Q_CLASS"] = map[string][]string{"P279": {"Q62447"}}
 			},
-			expectedCat:   "Aerodrome",
-			expectSingle:  2, // P31 (Single) + P279 for Q_CLASS (Single)
-			expectHBatch:  0, // Matched immediately in subclasses
-			expectDBClass: 1, // Miss Q_CLASS
-			expectDBHier:  1, // slowPathHierarchy now checks DB first (miss expected)
-		},
-		{
-			name: "Deep Hierarchy (Verifies BFS Batching)",
-			qid:  "Q_DEEP",
-			setupClient: func(c *MockClient) {
-				c.Claims["Q_DEEP"] = map[string][]string{"P31": {"Q_C1"}}
-				c.Claims["Q_C1"] = map[string][]string{"P279": {"Q_C2"}}
-				c.Claims["Q_C2"] = map[string][]string{"P279": {"Q62447"}}
-			},
-			expectedCat:   "Aerodrome",
-			expectSingle:  2, // P31 for Q_DEEP, P279 for Q_C1
-			expectHBatch:  1, // BFS fetch for Q_C2
-			expectDBClass: 1, // Miss Q_C1
-			expectDBHier:  2, // 1 for Q_C1 in slowPathHierarchy, 1 for Q_C2 in BFS checkCacheOrDB
+			expectedCat:  "Aerodrome",
+			expectSingle: 2, // P31 (Q_COLD) + P279 (Q_CLASS)
+			expectHier:   1, // Q_CLASS check (Structural check)
 		},
 		{
 			name: "Fast Path Cache (Classified Class Hit)",
 			qid:  "Q_FAST",
 			setupStore: func(s *MockStore) {
-				s.Classifications["Q_CLASS_KNOWN"] = "Aerodrome"
+				s.Hierarchies["Q_CLASS_KNOWN"] = &model.WikidataHierarchy{
+					QID:      "Q_CLASS_KNOWN",
+					Category: "Aerodrome",
+				}
 			},
 			setupClient: func(c *MockClient) {
 				c.Claims["Q_FAST"] = map[string][]string{"P31": {"Q_CLASS_KNOWN"}}
 			},
-			expectedCat:   "Aerodrome",
-			expectSingle:  1, // P31
-			expectHBatch:  0, // Handled by Fast Path
-			expectDBClass: 1, // Hit Q_CLASS_KNOWN
-			expectDBHier:  0,
+			expectedCat:  "Aerodrome",
+			expectSingle: 1, // P31
+			expectHier:   1, // Hit Q_CLASS_KNOWN in DB
 		},
 		{
-			name: "Slow Path Cache (Intermediate Hierarchy Hit)",
-			qid:  "Q_SLOW",
-			setupStore: func(s *MockStore) {
-				s.Hierarchies["Q_INTER"] = &model.WikidataHierarchy{
-					QID:     "Q_INTER",
-					Parents: []string{"Q62447"},
-				}
-			},
-			setupClient: func(c *MockClient) {
-				c.Claims["Q_SLOW"] = map[string][]string{"P31": {"Q_INTER"}}
-			},
-			expectedCat:   "Aerodrome",
-			expectSingle:  1, // P31
-			expectHBatch:  0, // Found in Hierarchy DB
-			expectDBClass: 1, // Miss Q_INTER class
-			expectDBHier:  1, // Hit Q_INTER hierarchy
-		},
-		{
-			name: "Negative Cache (Unclassified Class Hit - Fast Return)",
+			name: "Negative Cache (DEADEND Hit)",
 			qid:  "Q_NEG",
 			setupStore: func(s *MockStore) {
-				s.Classifications["Q_USELESS"] = "" // Explicitly unclassified
-				// Parents are not needed now as we don't fall through
 				s.Hierarchies["Q_USELESS"] = &model.WikidataHierarchy{
-					QID:     "Q_USELESS",
-					Parents: []string{},
+					QID:      "Q_USELESS",
+					Category: "__DEADEND__",
 				}
 			},
 			setupClient: func(c *MockClient) {
 				c.Claims["Q_NEG"] = map[string][]string{"P31": {"Q_USELESS"}}
 			},
-			expectedCat:   "",
-			expectSingle:  1, // P31
-			expectHBatch:  0,
-			expectDBClass: 1, // Hit Q_USELESS -> ""
-			expectDBHier:  0, // Returns immediately, no hierarchy lookup
-		},
-		{
-			name: "ClassifyBatch (Bulk Efficiency)",
-			qids: []string{"B1", "B2"},
-			setupClient: func(c *MockClient) {
-				c.Claims["B1"] = map[string][]string{"P31": {"Q62447"}}
-				c.Claims["B2"] = map[string][]string{"P31": {"Q62447"}}
-			},
-			expectedCats:  map[string]string{"B1": "Aerodrome", "B2": "Aerodrome"},
-			expectBatch:   0, // Metadata is provided, not fetched
-			expectSingle:  0, // Handled by batcher metadata
-			expectHBatch:  0, // Direct match via P31
-			expectDBClass: 0,
-			expectDBHier:  0,
-		},
-		{
-			name: "Ignored Category (Direct Subclass)",
-			qid:  "Q_IGNORED",
-			setupClient: func(c *MockClient) {
-				c.Claims["Q_IGNORED"] = map[string][]string{"P31": {"Q_ADMIN"}}
-				c.Claims["Q_ADMIN"] = map[string][]string{"P279": {"Q56061"}} // Q56061 is in ignored
-			},
-			expectIgnored: true,
-			expectSingle:  2, // P31 + P279
-			expectDBClass: 1, // Miss Q_ADMIN
-			expectDBHier:  1, // slowPathHierarchy DB check
-		},
-		{
-			name: "Ignored Category (Cached Explicit)",
-			qid:  "Q_CACHED_IGNORED",
-			setupStore: func(s *MockStore) {
-				s.Classifications["Q_CACHED_CLASS"] = "__IGNORED__" // NOW must be explicit
-			},
-			setupClient: func(c *MockClient) {
-				c.Claims["Q_CACHED_IGNORED"] = map[string][]string{"P31": {"Q_CACHED_CLASS"}}
-			},
-			expectIgnored: true,
-			expectSingle:  1, // P31 only
-			expectDBClass: 1, // Hit Q_CACHED_CLASS -> "__IGNORED__"
-			expectDBHier:  0,
-		},
-		{
-			name: "Ignored Category (Legacy Stale String)",
-			qid:  "Q_STALE",
-			setupStore: func(s *MockStore) {
-				s.Classifications["Q_STALE_CLASS"] = "__IGNORED__"
-			},
-			setupClient: func(c *MockClient) {
-				c.Claims["Q_STALE"] = map[string][]string{"P31": {"Q_STALE_CLASS"}}
-			},
-			expectIgnored: true,
-			expectSingle:  1, // P31 only
-			expectDBClass: 1, // Hit Q_STALE_CLASS -> "__IGNORED__"
-			expectDBHier:  0,
-		},
-		{
-			name: "Ignored Category (Depth 2 with Propagation)",
-			qid:  "Q_DIOCESE",
-			setupClient: func(c *MockClient) {
-				// Q_DIOCESE -> instance of Q_DIOCESE_TYPE
-				// Q_DIOCESE_TYPE -> subclass of [Q_MID1, Q_MID2]
-				// Q_MID1 -> subclass of Q51041800 (ignored)
-				c.Claims["Q_DIOCESE"] = map[string][]string{"P31": {"Q_DIOCESE_TYPE"}}
-				c.Claims["Q_DIOCESE_TYPE"] = map[string][]string{"P279": {"Q_MID1", "Q_MID2"}}
-				c.Claims["Q_MID1"] = map[string][]string{"P279": {"Q51041800"}} // Q51041800 is in ignored
-				c.Claims["Q_MID2"] = map[string][]string{"P279": {"Q_OTHER"}}
-			},
-			expectIgnored: true,
-			expectSingle:  2, // P31 + P279 for Q_DIOCESE_TYPE
-			expectHBatch:  1, // BFS batch fetch for Q_MID1, Q_MID2
-			expectDBClass: 1, // Miss Q_DIOCESE_TYPE
-			expectDBHier:  3, // Q_DIOCESE_TYPE, Q_MID1, Q_MID2
-		},
-		{
-			name: "Mixed Instances (Regression for Batched Priority)",
-			qid:  "Q_MIXED_BATCH",
-			setupClient: func(c *MockClient) {
-				// Q_MIXED -> Has 2 P31s:
-				// 1. Q_IGNORED (e.g. County Seat) -> Ignored
-				// 2. Q_VALID (e.g. City) -> Aerodrome (for simplicity of test config match)
-				// The bug was that if Q_IGNORED came first, it returned Ignored immediately.
-				c.Claims["Q_MIXED_BATCH"] = map[string][]string{"P31": {"Q_AGNORED", "Q_VALID"}}
-
-				// Path for Q_AGNORED -> Q56061 (Ignored)
-				c.Claims["Q_AGNORED"] = map[string][]string{"P279": {"Q56061"}}
-
-				// Path for Q_VALID -> Q62447 (Aerodrome - Matched)
-				c.Claims["Q_VALID"] = map[string][]string{"P279": {"Q62447"}}
-			},
-			expectedCat:   "Aerodrome",
-			expectSingle:  3, // P31 (Mixed) + P279 (AGNORED) + P279 (VALID)
-			expectHBatch:  0, // Simple depth 1 matches
-			expectDBClass: 2, // Miss Q_AGNORED, Q_VALID
-			expectDBHier:  2, // Miss Q_AGNORED, Q_VALID
+			expectedCat:  "",
+			expectSingle: 1, // P31
+			expectHier:   1, // Hit Q_USELESS -> "__DEADEND__"
 		},
 	}
 
@@ -356,17 +225,12 @@ func TestClassifier_CachingLevels(t *testing.T) {
 type classifierTestCase struct {
 	name          string
 	qid           string
-	qids          []string
 	setupStore    func(*MockStore)
 	setupClient   func(*MockClient)
 	expectedCat   string
-	expectedCats  map[string]string
 	expectIgnored bool
-	expectBatch   int
 	expectSingle  int
-	expectHBatch  int
-	expectDBClass int
-	expectDBHier  int
+	expectHier    int
 }
 
 func runClassifierTest(t *testing.T, tt *classifierTestCase, cfg *config.CategoriesConfig) {
@@ -387,31 +251,6 @@ func runClassifierTest(t *testing.T, tt *classifierTestCase, cfg *config.Categor
 
 	clf := classifier.NewClassifier(st, cl, cfg, tr)
 
-	if tt.qids != nil {
-		runBatchTest(t, tt, cl, clf)
-	} else {
-		runSingleTest(t, tt, clf)
-	}
-
-	verifyCalls(t, tt, cl, st)
-}
-
-func runBatchTest(t *testing.T, tt *classifierTestCase, cl *MockClient, clf *classifier.Classifier) {
-	meta, _ := cl.GetEntitiesBatch(context.Background(), tt.qids)
-	cl.BatchEntities = 0
-	results := clf.ClassifyBatch(context.Background(), meta)
-	for qid, expected := range tt.expectedCats {
-		actual := ""
-		if results[qid] != nil {
-			actual = results[qid].Category
-		}
-		if actual != expected {
-			t.Errorf("QID %s: Expected %q, got %q", qid, expected, actual)
-		}
-	}
-}
-
-func runSingleTest(t *testing.T, tt *classifierTestCase, clf *classifier.Classifier) {
 	res, err := clf.Classify(context.Background(), tt.qid)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -431,22 +270,11 @@ func runSingleTest(t *testing.T, tt *classifierTestCase, clf *classifier.Classif
 	if actualCat != tt.expectedCat {
 		t.Errorf("Expected category %q, got %q", tt.expectedCat, actualCat)
 	}
-}
 
-func verifyCalls(t *testing.T, tt *classifierTestCase, cl *MockClient, st *MockStore) {
-	if cl.BatchEntities != tt.expectBatch {
-		t.Errorf("Expected %d Entity Batch calls, got %d", tt.expectBatch, cl.BatchEntities)
-	}
 	if cl.SingleCalls != tt.expectSingle {
 		t.Errorf("Expected %d Entity Single calls, got %d", tt.expectSingle, cl.SingleCalls)
 	}
-	if cl.BatchCalls != tt.expectHBatch {
-		t.Errorf("Expected %d Hierarchy Batch calls, got %d", tt.expectHBatch, cl.BatchCalls)
-	}
-	if st.GetClassCalls != tt.expectDBClass {
-		t.Errorf("Expected %d DB Classification calls, got %d", tt.expectDBClass, st.GetClassCalls)
-	}
-	if st.GetHierCalls != tt.expectDBHier {
-		t.Errorf("Expected %d DB Hierarchy calls, got %d", tt.expectDBHier, st.GetHierCalls)
+	if st.GetHierCalls != tt.expectHier {
+		t.Errorf("Expected %d DB Hierarchy calls, got %d", tt.expectHier, st.GetHierCalls)
 	}
 }

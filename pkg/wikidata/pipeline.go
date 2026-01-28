@@ -8,6 +8,7 @@ import (
 
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/poi"
+	"phileasgo/pkg/rescue"
 	"phileasgo/pkg/store"
 )
 
@@ -42,7 +43,7 @@ func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo
 }
 
 // ProcessTileData takes raw SPARQL JSON, parses it, runs classification, ENRICHES, and SAVES to DB.
-func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat, centerLon float64, force bool) (articles []Article, rescuedCount int, err error) {
+func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat, centerLon float64, force bool, medians rescue.MedianStats) (articles []Article, rescuedCount int, err error) {
 	// Use the exposed streaming parser from client.go
 	// Note: We need a Reader, so we wrap the byte slice
 	rawArticles, _, err := parseSPARQLStreaming(strings.NewReader(string(rawJSON)))
@@ -91,7 +92,7 @@ func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLa
 	}
 
 	// 5. Process, Filter, and Hydrate
-	processed, rescued, err := p.processAndHydrate(ctx, rawArticles, centerLat, centerLon, localLangs)
+	processed, rescued, err := p.processAndHydrate(ctx, rawArticles, centerLat, centerLon, localLangs, medians)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -103,28 +104,32 @@ func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLa
 	return processed, rescued, err
 }
 
-func (p *Pipeline) processAndHydrate(ctx context.Context, rawArticles []Article, centerLat, centerLon float64, allowedLangs []string) (processed []Article, rescuedCount int, err error) {
-	candidates, rescued, err := p.postProcessArticles(rawArticles)
+func (p *Pipeline) processAndHydrate(ctx context.Context, rawArticles []Article, centerLat, centerLon float64, allowedLangs []string, medians rescue.MedianStats) (processed []Article, rescuedCount int, err error) {
+	processed, rescuedCount, err = p.postProcessArticles(rawArticles, centerLat, centerLon, medians)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	if len(candidates) == 0 {
+	if len(processed) == 0 {
 		return nil, 0, nil
 	}
 
-	if dc, ok := p.classifier.(DimClassifier); ok {
-		var rejected []string
-		candidates, rejected = MergeArticles(candidates, dc.GetConfig(), p.logger)
+	// Merge logic (now uses processed since they have categories)
+	var candidates []Article
+	candidates = processed
 
-		if len(rejected) > 0 {
-			toMark := make(map[string][]string)
-			for _, qid := range rejected {
-				toMark[qid] = []string{"merged"}
-			}
-			if err := p.store.MarkEntitiesSeen(ctx, toMark); err != nil {
-				p.logger.Warn("Failed to mark merged-away articles as seen", "error", err)
-			}
+	// Remove old DimClassifier check, just use base classifier
+	cfg := p.classifier.GetConfig()
+	var rejected []string
+	candidates, rejected = MergeArticles(candidates, cfg, p.logger)
+
+	if len(rejected) > 0 {
+		toMark := make(map[string][]string)
+		for _, qid := range rejected {
+			toMark[qid] = []string{"merged"}
+		}
+		if err := p.store.MarkEntitiesSeen(ctx, toMark); err != nil {
+			p.logger.Warn("Failed to mark merged-away articles as seen", "error", err)
 		}
 	}
 
@@ -133,5 +138,5 @@ func (p *Pipeline) processAndHydrate(ctx context.Context, rawArticles []Article,
 		return nil, 0, err
 	}
 
-	return hydrated, rescued, nil
+	return hydrated, rescuedCount, nil
 }

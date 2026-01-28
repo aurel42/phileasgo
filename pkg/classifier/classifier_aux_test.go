@@ -33,36 +33,7 @@ func TestClassifier_AuxiliaryCoverage(t *testing.T) {
 		t.Error("GetConfig returned wrong config")
 	}
 
-	// 2. Dimensions Lifecycle
-	clf.ResetDimensions()
-	clf.ObserveDimensions(100, 100, 1000)
-	clf.FinalizeDimensions()
-
-	// 3. ShouldRescue & Multiplier
-	// Case A: Ignored Instance prevents rescue coverage
-	if clf.ShouldRescue(1000, 1000, 1000, []string{"Q_IGNORED"}) {
-		t.Error("ShouldRescue should return false if instance is ignored")
-	}
-	// Case B: Delegation coverage
-	_ = clf.ShouldRescue(10, 10, 10, []string{"Q_OTHER"})
-
-	// Multiplier delegation coverage
-	// Feed some data to establish medians
-	for i := 0; i < 20; i++ {
-		clf.ObserveDimensions(10, 10, 100)
-	}
-	clf.FinalizeDimensions()
-
-	// Check multiplier for something much larger
-	m := clf.GetMultiplier(100, 100, 1000)
-	if m <= 1.0 {
-		t.Logf("Expected multiplier > 1.0 for large item, got %f", m)
-	}
-
-	// Check standard
-	_ = clf.GetMultiplier(10, 10, 100)
-
-	// 4. Dynamic Interests
+	// 2. Dynamic Interests
 	dynamic := map[string]string{"Q_DYN": "Mountain"}
 	clf.SetDynamicInterests(dynamic)
 

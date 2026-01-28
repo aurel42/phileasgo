@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"phileasgo/pkg/logging"
+	"phileasgo/pkg/rescue"
 )
 
 func (p *Pipeline) filterExistingPOIs(ctx context.Context, rawArticles []Article, qids []string) []Article {
@@ -183,102 +184,74 @@ func (p *Pipeline) filterByQIDs(articles []Article, excludeQIDs []string) []Arti
 	return filtered
 }
 
-func (p *Pipeline) postProcessArticles(rawArticles []Article) (processed []Article, rescuedCount int, err error) {
-	dc, isDim := p.classifier.(DimClassifier)
-	if isDim {
-		dc.ResetDimensions()
-		for i := range rawArticles {
-			h, l, area := getArticleDimensions(&rawArticles[i])
-			dc.ObserveDimensions(h, l, area)
-		}
-	}
-
+func (p *Pipeline) postProcessArticles(rawArticles []Article, lat, lon float64, medians rescue.MedianStats) (processed []Article, rescuedCount int, err error) {
+	// Separate candidates for rescue (those with no category) from those already classified
+	var candidates []Article
 	processed = make([]Article, 0, len(rawArticles))
+
 	for i := range rawArticles {
 		a := &rawArticles[i]
-		isPOI, rescued := p.checkPOIStatus(a, dc)
-
-		if rescued {
-			rescuedCount++
+		if a.Ignored {
+			continue
 		}
-		if isPOI {
-			processed = append(processed, *a)
+
+		if a.Category != "" {
+			// Already classified or ignored by category
+			minLinks := p.getSitelinksMin(a.Category)
+			if a.Sitelinks >= minLinks {
+				processed = append(processed, *a)
+			}
+		} else {
+			// Candidate for rescue
+			candidates = append(candidates, *a)
 		}
 	}
 
-	if isDim {
-		dc.FinalizeDimensions()
+	// Rescue Logic
+	if len(candidates) > 0 {
+		rescuedCount = p.rescueFromBatch(candidates, lat, lon, medians, &processed)
 	}
+
 	return processed, rescuedCount, nil
 }
 
-func (p *Pipeline) checkPOIStatus(a *Article, dc DimClassifier) (isPOI, rescued bool) {
-	if a.Ignored {
-		return false, false
-	}
-
-	if a.Category != "" {
-		minLinks := p.getSitelinksMin(dc, a.Category)
-		if a.Sitelinks >= minLinks {
-			isPOI = true
+func (p *Pipeline) rescueFromBatch(candidates []Article, lat, lon float64, medians rescue.MedianStats, processed *[]Article) int {
+	rescueCandidates := make([]rescue.Article, len(candidates))
+	for i := range candidates {
+		rescueCandidates[i] = rescue.Article{
+			ID:     candidates[i].QID,
+			Height: candidates[i].Height,
+			Length: candidates[i].Length,
+			Area:   candidates[i].Area,
 		}
 	}
 
-	if dc != nil {
-		h, l, area := getArticleDimensions(a)
-		if dc.ShouldRescue(h, l, area, a.Instances) {
-			isPOI = true
-			if a.Category == "" {
-				p.assignRescueCategory(a, h, l, area)
-				rescued = true
-			} else {
-				p.logger.Debug("Article kept as Dimension Candidate", "qid", a.QID, "category", a.Category)
+	// Determine local tile max
+	localMax := rescue.AnalyzeTile(lat, lon, rescueCandidates)
+
+	// Determine rescued
+	rescued := rescue.Batch(rescueCandidates, localMax, medians)
+
+	// Apply back
+	count := 0
+	for _, ra := range rescued {
+		for i := range candidates {
+			if candidates[i].QID != ra.ID {
+				continue
 			}
-		}
-		a.DimensionMultiplier = dc.GetMultiplier(h, l, area)
-		if a.DimensionMultiplier > 1.0 {
-			logging.Trace(p.logger, "Dimension Multiplier applied", "qid", a.QID, "mult", a.DimensionMultiplier)
+			candidates[i].Category = ra.Category
+			candidates[i].DimensionMultiplier = ra.DimensionMultiplier
+			*processed = append(*processed, candidates[i])
+			count++
+			break
 		}
 	}
-
-	return isPOI, rescued
+	return count
 }
 
-func (p *Pipeline) assignRescueCategory(a *Article, h, l, area float64) {
-	switch {
-	case area > 0:
-		a.Category = "Area"
-		p.logger.Debug("Rescued article by Area", "title", a.LocalTitles, "qid", a.QID)
-	case h > 0:
-		a.Category = "Height"
-		p.logger.Debug("Rescued article by Height", "title", a.LocalTitles, "qid", a.QID)
-	case l > 0:
-		a.Category = "Length"
-		logging.Trace(p.logger, "Rescued article by Length", "title", a.LocalTitles, "qid", a.QID)
-	default:
-		a.Category = "Landmark"
-	}
-}
-
-func (p *Pipeline) getSitelinksMin(dc DimClassifier, category string) int {
-	if dc == nil {
-		return 0
-	}
-	if cfg, ok := dc.GetConfig().Categories[category]; ok {
+func (p *Pipeline) getSitelinksMin(category string) int {
+	if cfg, ok := p.classifier.GetConfig().Categories[category]; ok {
 		return cfg.SitelinksMin
 	}
 	return 0
-}
-
-func getArticleDimensions(a *Article) (h, l, area float64) {
-	if a.Height != nil {
-		h = *a.Height
-	}
-	if a.Length != nil {
-		l = *a.Length
-	}
-	if a.Area != nil {
-		area = *a.Area
-	}
-	return h, l, area
 }

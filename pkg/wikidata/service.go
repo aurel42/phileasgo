@@ -15,6 +15,7 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/poi"
 	"phileasgo/pkg/request"
+	"phileasgo/pkg/rescue"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/tracker"
@@ -43,7 +44,7 @@ type Service struct {
 
 	// In-memory cache to avoid spamming the DB for tiles we verified recently
 	recentMu    sync.RWMutex
-	recentTiles map[string]time.Time
+	recentTiles map[string]TileWrapper
 
 	// Spatial Deduplication
 	inflightMu    sync.Mutex
@@ -65,6 +66,7 @@ type Service struct {
 type Classifier interface {
 	Classify(ctx context.Context, qid string) (*model.ClassificationResult, error)
 	ClassifyBatch(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult
+	GetConfig() *config.CategoriesConfig
 }
 
 // WikipediaProvider abstracts Wikipedia client for testing
@@ -72,16 +74,6 @@ type WikipediaProvider interface {
 	GetArticleLengths(ctx context.Context, titles []string, lang string) (map[string]int, error)
 	GetArticleContent(ctx context.Context, title, lang string) (string, error)
 	GetArticleHTML(ctx context.Context, title, lang string) (string, error)
-}
-
-// DimClassifier extends Classifier with dimension capabilities
-type DimClassifier interface {
-	ResetDimensions()
-	ObserveDimensions(h, l, a float64)
-	FinalizeDimensions()
-	ShouldRescue(h, l, a float64, instances []string) bool
-	GetMultiplier(h, l, a float64) float64
-	GetConfig() *config.CategoriesConfig
 }
 
 // NewService creates a new Wikidata Service.
@@ -113,12 +105,17 @@ func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Cl
 		classifier:    cl,
 		cfg:           cfg,
 		logger:        logger,
-		recentTiles:   make(map[string]time.Time),
+		recentTiles:   make(map[string]TileWrapper),
 		inflightTiles: make(map[string]bool),
 		userLang:      normalizedLang,
 		mapper:        mapper,
 	}
 	return svc
+}
+
+type TileWrapper struct {
+	SeenAt time.Time
+	Stats  rescue.TileStats
 }
 
 // Start begins the background fetch loop.
@@ -221,26 +218,17 @@ func (s *Service) processTick(ctx context.Context) {
 
 		// Memory Cache Check
 		s.recentMu.RLock()
-		_, ok := s.recentTiles[key]
+		wrapper, ok := s.recentTiles[key]
 		s.recentMu.RUnlock()
-		if ok {
+		if ok && time.Since(wrapper.SeenAt) < 24*time.Hour {
 			continue // Checked recently, skip
 		}
 
-		s.recentMu.Lock()
-		s.recentTiles[key] = time.Now() // Mark before fetch
-		s.recentMu.Unlock()
+		// Calculate neighborhood medians
+		medians := s.getNeighborhoodStats(c.Tile)
 
-		logging.Trace(s.logger, "Checking tile",
-			"tile", key,
-			"dist_km", fmt.Sprintf("%.1f", c.Dist),
-			"cost", fmt.Sprintf("%.1f", c.Cost),
-			"redundant", c.IsRedundant,
-			"airborne", isAirborne,
-		)
-
-		// fetchTile now returns true if it was a cache hit (fast), false if network/slow/error
-		isCacheHit := s.fetchTile(ctx, c)
+		// fetchTile now takes medians
+		isCacheHit := s.fetchTile(ctx, c, medians)
 		processedCount++
 
 		if !isCacheHit {
@@ -251,7 +239,7 @@ func (s *Service) processTick(ctx context.Context) {
 	}
 }
 
-func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
+func (s *Service) fetchTile(ctx context.Context, c Candidate, medians rescue.MedianStats) bool {
 	// 1. In-flight check
 	key := c.Tile.Key()
 	s.inflightMu.Lock()
@@ -274,8 +262,12 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
 	cachedBody, _, ok := s.store.GetGeodataCache(ctx, key)
 	if ok && len(cachedBody) > 0 {
 		logging.Trace(s.logger, "Cache Hit (Optimized)", "tile", key)
-		processed, rescued, err := s.pipeline.ProcessTileData(ctx, cachedBody, centerLat, centerLon, false)
+		// Pass medians to pipeline
+		processed, rescued, err := s.pipeline.ProcessTileData(ctx, cachedBody, centerLat, centerLon, false, medians)
 		if err == nil {
+			// Update stats even on cache hit
+			s.updateTileStats(key, centerLat, centerLon, processed)
+
 			logging.Trace(s.logger, "Processed cached tile",
 				"tile", key,
 				"saved", len(processed),
@@ -311,8 +303,9 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate) bool {
 	_ = rawJSON // rawJSON no longer needed here; caching is internal
 
 	// 5. Process, Enrich, and Save
-	processed, rescued, err := s.pipeline.ProcessTileData(ctx, []byte(rawJSON), centerLat, centerLon, false)
+	processed, rescued, err := s.pipeline.ProcessTileData(ctx, []byte(rawJSON), centerLat, centerLon, false, medians)
 	if err == nil {
+		s.updateTileStats(key, centerLat, centerLon, processed)
 		s.logger.Debug("Fetched and Saved new tile",
 			"tile", c.Tile.Key(),
 			"raw", len(articles),
@@ -430,4 +423,49 @@ func (s *Service) EvictFarTiles(lat, lon, thresholdKm float64) int {
 		s.logger.Debug("Evicted far tiles from memory", "count", count, "threshold_km", thresholdKm)
 	}
 	return count
+}
+
+func (s *Service) getNeighborhoodStats(tile HexTile) rescue.MedianStats {
+	radiusKm := 20.0 // Default
+	if s.cfg.Rescue.PromoteByDimension.RadiusKM > 0 {
+		radiusKm = float64(s.cfg.Rescue.PromoteByDimension.RadiusKM)
+	}
+
+	centerLat, centerLon := s.gridCenter(tile)
+	var neighbors []rescue.TileStats
+
+	s.recentMu.RLock()
+	defer s.recentMu.RUnlock()
+
+	for _, wrapper := range s.recentTiles {
+		distKm := geo.Distance(geo.Point{Lat: centerLat, Lon: centerLon}, geo.Point{Lat: wrapper.Stats.Lat, Lon: wrapper.Stats.Lon}) / 1000.0
+		if distKm <= radiusKm {
+			neighbors = append(neighbors, wrapper.Stats)
+		}
+	}
+
+	return rescue.CalculateMedian(neighbors)
+}
+
+func (s *Service) updateTileStats(key string, lat, lon float64, articles []Article) {
+	// Map wikidata.Article to rescue.Article for processing
+	rescueArticles := make([]rescue.Article, len(articles))
+	for i := range articles {
+		rescueArticles[i] = rescue.Article{
+			ID:     articles[i].QID,
+			Height: articles[i].Height,
+			Length: articles[i].Length,
+			Area:   articles[i].Area,
+		}
+	}
+
+	stats := rescue.AnalyzeTile(lat, lon, rescueArticles)
+
+	s.recentMu.Lock()
+	defer s.recentMu.Unlock()
+
+	s.recentTiles[key] = TileWrapper{
+		SeenAt: time.Now(),
+		Stats:  stats,
+	}
 }

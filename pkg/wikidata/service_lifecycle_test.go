@@ -99,7 +99,7 @@ func TestService_Lifecycle(t *testing.T) {
 
 	// 3. EvictFarTiles
 	svc.recentMu.Lock()
-	svc.recentTiles["wd_h3_8928308280fffff"] = time.Now()
+	svc.recentTiles["wd_h3_8928308280fffff"] = TileWrapper{SeenAt: time.Now()}
 	svc.recentMu.Unlock()
 
 	count := svc.EvictFarTiles(40.7, -74.0, 10.0) // 10km threshold

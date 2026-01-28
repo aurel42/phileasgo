@@ -12,6 +12,7 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/poi"
 	"phileasgo/pkg/request"
+	"phileasgo/pkg/rescue"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/tracker"
@@ -104,8 +105,6 @@ func (m *mockStore) Close() error { return nil }
 type MockClassifier struct {
 	ClassifyFunc      func(ctx context.Context, qid string) (*model.ClassificationResult, error)
 	ClassifyBatchFunc func(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult
-	RescueFunc        func(h, l, a float64, i []string) bool
-	GetMultiplierFunc func(h, l, a float64) float64
 }
 
 func (m *MockClassifier) Classify(ctx context.Context, qid string) (*model.ClassificationResult, error) {
@@ -121,24 +120,6 @@ func (m *MockClassifier) ClassifyBatch(ctx context.Context, entities map[string]
 	}
 	return nil
 }
-
-func (m *MockClassifier) ShouldRescue(h, l, a float64, i []string) bool {
-	if m.RescueFunc != nil {
-		return m.RescueFunc(h, l, a, i)
-	}
-	return false
-}
-
-func (m *MockClassifier) GetMultiplier(h, l, a float64) float64 {
-	if m.GetMultiplierFunc != nil {
-		return m.GetMultiplierFunc(h, l, a)
-	}
-	return 1.0
-}
-
-func (m *MockClassifier) ObserveDimensions(h, l, a float64) {}
-func (m *MockClassifier) ResetDimensions()                  {}
-func (m *MockClassifier) FinalizeDimensions()               {}
 
 func (m *MockClassifier) GetConfig() *config.CategoriesConfig {
 	return &config.CategoriesConfig{
@@ -281,7 +262,7 @@ func TestFetchTile_CacheOptimization(t *testing.T) {
 	}
 
 	// Execute FetchTile (Private Method)
-	svc.fetchTile(context.Background(), candidate)
+	svc.fetchTile(context.Background(), candidate, rescue.MedianStats{})
 
 	// Since we didn't crash and didn't call QuerySPARQL (fatal mock), test passes.
 }
@@ -469,10 +450,6 @@ func TestProcessTileData(t *testing.T) {
 				return res
 			}
 
-			cl.RescueFunc = func(h, l, area float64, instances []string) bool {
-				return h > 0 || l > 0 || area > 0
-			}
-
 			// Construct Pipeline directly
 			pl := NewPipeline(
 				st,
@@ -488,7 +465,7 @@ func TestProcessTileData(t *testing.T) {
 			)
 
 			// EXECUTE
-			gotArticles, gotRescued, err := pl.ProcessTileData(context.Background(), []byte(tt.rawJSON), 0, 0, tt.forceDesc)
+			gotArticles, gotRescued, err := pl.ProcessTileData(context.Background(), []byte(tt.rawJSON), 0, 0, tt.forceDesc, rescue.MedianStats{})
 
 			// ASSERT
 			if (err != nil) != tt.expectError {
@@ -533,5 +510,52 @@ func TestBuildCheapQuery(t *testing.T) {
 	gotDefault := buildCheapQuery(52.5, 13.4, "")
 	if !strings.Contains(gotDefault, `wikibase:radius "9.8"`) {
 		t.Errorf("Cheap Query fallback radius expected 9.8, got %s", gotDefault)
+	}
+}
+func TestGetNeighborhoodStats(t *testing.T) {
+	svc := &Service{
+		recentTiles: make(map[string]TileWrapper),
+		cfg:         config.WikidataConfig{Rescue: config.RescueConfig{PromoteByDimension: config.PromoteByDimensionConfig{RadiusKM: 20}}},
+	}
+
+	// Grid setup for coordinates
+	svc.scheduler = &Scheduler{grid: NewGrid()}
+
+	// Center point for T1
+	tile := HexTile{Index: "891f1a48c6bffff"}
+	centerLat, centerLon := svc.gridCenter(tile)
+
+	// T1 is the tile itself
+	svc.recentTiles[tile.Index] = TileWrapper{
+		Stats: rescue.TileStats{Lat: centerLat, Lon: centerLon, MaxHeight: 100},
+	}
+	// T2 is far
+	svc.recentTiles["8928308280fffff"] = TileWrapper{
+		Stats: rescue.TileStats{Lat: 40.0, Lon: -74.0, MaxHeight: 500},
+	}
+
+	medians := svc.getNeighborhoodStats(tile)
+
+	// T2 should be ignored because it's too far (radius 20km)
+	if medians.MedianHeight != 100 {
+		t.Errorf("Expected MedianHeight 100, got %f", medians.MedianHeight)
+	}
+}
+
+func TestUpdateTileStats(t *testing.T) {
+	svc := &Service{
+		recentTiles: make(map[string]TileWrapper),
+	}
+	h100 := 100.0
+	articles := []Article{
+		{QID: "Q1", Height: &h100},
+	}
+
+	svc.updateTileStats("T_NEW", 50.0, 10.0, articles)
+
+	if stats, ok := svc.recentTiles["T_NEW"]; !ok {
+		t.Error("Tile stats not saved")
+	} else if stats.Stats.MaxHeight != 100 {
+		t.Errorf("Expected MaxHeight 100, got %f", stats.Stats.MaxHeight)
 	}
 }

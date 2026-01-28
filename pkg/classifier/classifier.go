@@ -13,6 +13,11 @@ import (
 	"sync"
 )
 
+const (
+	catIgnored = "__IGNORED__"
+	catDeadEnd = "__DEADEND__"
+)
+
 // WikidataClient defines the interface for interacting with Wikidata
 type WikidataClient interface {
 	GetEntityClaims(ctx context.Context, id, property string) ([]string, string, error)
@@ -27,7 +32,6 @@ type Classifier struct {
 	config        *config.CategoriesConfig
 	lookup        config.CategoryLookup
 	tracker       *tracker.Tracker
-	dimensions    *DimensionTracker
 	dynamicLookup config.CategoryLookup
 	mu            sync.RWMutex
 }
@@ -35,12 +39,11 @@ type Classifier struct {
 // NewClassifier creates a new classifier
 func NewClassifier(s store.HierarchyStore, c WikidataClient, cfg *config.CategoriesConfig, tr *tracker.Tracker) *Classifier {
 	return &Classifier{
-		store:      s,
-		client:     c,
-		config:     cfg,
-		lookup:     cfg.BuildLookup(),
-		tracker:    tr,
-		dimensions: NewDimensionTracker(10), // 10 tile window
+		store:   s,
+		client:  c,
+		config:  cfg,
+		lookup:  cfg.BuildLookup(),
+		tracker: tr,
 	}
 }
 
@@ -196,17 +199,19 @@ func (c *Classifier) classifyHierarchyNode(ctx context.Context, qid string) (*mo
 	// 2. Fast Path: DB Cache
 	storedCat, found, err := c.store.GetClassification(ctx, qid)
 	if err == nil && found {
-		if storedCat == "__IGNORED__" {
+		if storedCat == catIgnored {
 			// Cached as explicitly ignored
 			return &model.ClassificationResult{Ignored: true}, nil
+		}
+		if storedCat == catDeadEnd {
+			// Cached as a Dead End
+			return nil, nil
 		}
 		if storedCat != "" {
 			return c.resultFor(storedCat), nil
 		}
 
-		// If found but empty, it implies a "Dead End" (Checked and found nothing).
-		// Return nil to stop the loop.
-		return nil, nil
+		// Continue if completely empty (legacy or intermediate)
 	}
 
 	// 3. Slow Path: Graph Traversal (Subclass Of P279)
@@ -223,8 +228,11 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 		subclasses = hNode.Parents
 		label = hNode.Name
 		if hNode.Category != "" {
-			if hNode.Category == "__IGNORED__" {
+			if hNode.Category == catIgnored {
 				return &model.ClassificationResult{Ignored: true}, nil
+			}
+			if hNode.Category == catDeadEnd {
+				return nil, nil
 			}
 			return c.resultFor(hNode.Category), nil
 		}
@@ -283,15 +291,19 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 		// 1. Filter: Determine what to fetch vs use from cache
 		for _, id := range queue {
 			match, parents, foundInDB := c.checkCacheOrDB(ctx, id)
-			if match != "" {
-				if match == "__IGNORED__" {
-					// Propagate ignored to all traversed nodes
-					c.propagateIgnored(ctx, allTraversed)
-					return c.finalizeIgnored(ctx, qid, subclasses, label)
-				}
-				return c.finalizeMatch(ctx, qid, match, subclasses, label)
-			}
 			if foundInDB {
+				if match != "" {
+					if match == catIgnored {
+						// Propagate ignored to all traversed nodes
+						c.propagateIgnored(ctx, allTraversed)
+						return c.finalizeIgnored(ctx, qid, subclasses, label)
+					}
+					if match == catDeadEnd {
+						// Dead end reached in branch, move to next queue item
+						continue
+					}
+					return c.finalizeMatch(ctx, qid, match, subclasses, label)
+				}
 				parentsFromCache[id] = parents
 			} else {
 				toFetch = append(toFetch, id)
@@ -324,8 +336,8 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 		currentDepth++
 	}
 
-	// Result: Miss if we exit loop
-	_ = c.store.SaveClassification(ctx, qid, "", subclasses, label)
+	// Result: Miss if we exit loop - mark as Dead End
+	_ = c.store.SaveClassification(ctx, qid, catDeadEnd, subclasses, label)
 	return nil, nil
 }
 
@@ -334,7 +346,7 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 func (c *Classifier) propagateIgnored(ctx context.Context, nodes []string) {
 	for _, node := range nodes {
 		// Update node to __IGNORED__ (upsert - will update if exists)
-		if err := c.store.SaveClassification(ctx, node, "__IGNORED__", nil, ""); err != nil {
+		if err := c.store.SaveClassification(ctx, node, catIgnored, nil, ""); err != nil {
 			slog.Warn("Failed to propagate ignored to node", "node", node, "error", err)
 		}
 	}
@@ -413,6 +425,9 @@ func (c *Classifier) fetchAndCacheLayer(ctx context.Context, ids []string) map[s
 
 		// Resolve category immediately from parents to prevent cache poisoning
 		category := ""
+		if len(parents) == 0 {
+			category = catDeadEnd
+		}
 		for _, p := range parents {
 			if cat, ok := c.getLookupMatch(p); ok {
 				category = cat
@@ -446,15 +461,18 @@ func (c *Classifier) fetchAndCacheLayer(ctx context.Context, ids []string) map[s
 		if category == "" {
 			for _, p := range parents {
 				if _, ok := c.config.IgnoredCategories[p]; ok {
-					category = "__IGNORED__"
+					category = catIgnored
 					break
 				}
 			}
 		}
 
-		// Save to DB
-		if err := c.store.SaveClassification(ctx, id, category, parents, lbl); err != nil {
-			slog.Warn("Failed to save hierarchy node", "id", id, "error", err)
+		// Save to DB ONLY if we found a definite result (Match or Ignore)
+		// Intermediate nodes remain uncached to prevent "poisoning" the hierarchy.
+		if category != "" {
+			if err := c.store.SaveClassification(ctx, id, category, parents, lbl); err != nil {
+				slog.Warn("Failed to save hierarchy node", "id", id, "error", err)
+			}
 		}
 		results[id] = parents
 	}
@@ -481,10 +499,10 @@ func (c *Classifier) resultFor(catName string) *model.ClassificationResult {
 	}
 }
 
-// finalizeIgnored saves empty category to DB (marking as ignored) and returns ignored result.
+// finalizeIgnored saves ignored sentinel to DB and returns ignored result.
 func (c *Classifier) finalizeIgnored(ctx context.Context, qid string, parents []string, label string) (*model.ClassificationResult, error) {
 	// Save with regular sentinel to mark as ignored in cache
-	if err := c.store.SaveClassification(ctx, qid, "__IGNORED__", parents, label); err != nil {
+	if err := c.store.SaveClassification(ctx, qid, catIgnored, parents, label); err != nil {
 		return nil, fmt.Errorf("failed to save ignored classification: %w", err)
 	}
 	return &model.ClassificationResult{Ignored: true}, nil
@@ -492,42 +510,17 @@ func (c *Classifier) finalizeIgnored(ctx context.Context, qid string, parents []
 
 // No longer using individual fetch wrappers here as we call client directly or via batch metadata.
 
-// ObserveDimensions records dimensions for rescue tracking.
-func (c *Classifier) ObserveDimensions(h, l, a float64) {
-	c.dimensions.ObserveArticle(h, l, a)
-}
-
-// ResetDimensions resets tracker for a new tile.
-func (c *Classifier) ResetDimensions() {
-	c.dimensions.ResetTile()
-}
-
-// FinalizeDimensions saves the tile records.
-func (c *Classifier) FinalizeDimensions() {
-	c.dimensions.FinalizeTile()
-}
+// FinalizeDimensions is a no-op kept for transition/interface compatibility.
+func (c *Classifier) FinalizeDimensions() {}
 
 // GetConfig returns the categories configuration.
 func (c *Classifier) GetConfig() *config.CategoriesConfig {
 	return c.config
 }
 
-// ShouldRescue checks if an unclassified article should be a Landmark.
-// It checks both direct instances and the full hierarchy via the classification cache.
-func (c *Classifier) ShouldRescue(h, l, a float64, instances []string) bool {
-	// First check if any direct instance is explicitly ignored
-	for _, inst := range instances {
-		if _, ok := c.config.IgnoredCategories[inst]; ok {
-			return false
-		}
-	}
-
-	return c.dimensions.ShouldRescue(h, l, a)
-}
-
-// GetMultiplier yields the dimension-based score boost for an article.
+// GetMultiplier is no longer used, returns 1.0.
 func (c *Classifier) GetMultiplier(h, l, a float64) float64 {
-	return c.dimensions.GetMultiplier(h, l, a)
+	return 1.0
 }
 
 // SetDynamicInterests updates the dynamic QID interests.

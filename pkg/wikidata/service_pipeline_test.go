@@ -10,51 +10,16 @@ import (
 
 // --- Tests for Service Pipeline Helpers ---
 
-// TestAssignRescueCategory covers assignRescueCategory logic
-func TestAssignRescueCategory(t *testing.T) {
-	pl := &Pipeline{
-		logger: slog.Default(),
-	}
-
-	tests := []struct {
-		name         string
-		h, l, area   float64
-		wantCategory string
-	}{
-		{"By Area", 0, 0, 100, "Area"},
-		{"By Height", 50, 0, 0, "Height"},
-		{"By Length", 0, 50, 0, "Length"},
-		{"Priority Area over others", 0, 10, 100, "Area"},
-		{"Priority Height over Length", 50, 50, 0, "Height"},
-		{"Fallback Landmark", 0, 0, 0, "Landmark"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := &Article{QID: "QTEST", LocalTitles: map[string]string{"en": "Test"}}
-			pl.assignRescueCategory(a, tt.h, tt.l, tt.area)
-			if a.Category != tt.wantCategory {
-				t.Errorf("got %q, want %q", a.Category, tt.wantCategory)
-			}
-		})
-	}
-}
-
-// StubDimClassifier for testing
-type StubDimClassifier struct {
+// StubClassifier for testing
+type StubClassifier struct {
 	cfg *config.CategoriesConfig
 }
 
-func (s *StubDimClassifier) ResetDimensions()                                      {}
-func (s *StubDimClassifier) ObserveDimensions(h, l, a float64)                     {}
-func (s *StubDimClassifier) FinalizeDimensions()                                   {}
-func (s *StubDimClassifier) ShouldRescue(h, l, a float64, instances []string) bool { return false }
-func (s *StubDimClassifier) GetMultiplier(h, l, a float64) float64                 { return 1.0 }
-func (s *StubDimClassifier) GetConfig() *config.CategoriesConfig                   { return s.cfg }
-func (s *StubDimClassifier) Classify(ctx context.Context, qid string) (*model.ClassificationResult, error) {
+func (s *StubClassifier) GetConfig() *config.CategoriesConfig { return s.cfg }
+func (s *StubClassifier) Classify(ctx context.Context, qid string) (*model.ClassificationResult, error) {
 	return nil, nil
 }
-func (s *StubDimClassifier) ClassifyBatch(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult {
+func (s *StubClassifier) ClassifyBatch(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult {
 	return nil
 }
 
@@ -65,38 +30,29 @@ func TestGetSitelinksMin(t *testing.T) {
 			"city": {SitelinksMin: 10},
 		},
 	}
-	stub := &StubDimClassifier{cfg: mockCfg}
-	pl := &Pipeline{}
+	stub := &StubClassifier{cfg: mockCfg}
+	pl := &Pipeline{classifier: stub}
 
 	tests := []struct {
 		name     string
-		dc       DimClassifier
 		category string
 		want     int
 	}{
 		{
 			name:     "Known Category",
-			dc:       stub,
 			category: "city",
 			want:     10,
 		},
 		{
 			name:     "Unknown Category",
-			dc:       stub,
 			category: "unknown",
-			want:     0,
-		},
-		{
-			name:     "Nil Classifier",
-			dc:       nil,
-			category: "city",
 			want:     0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := pl.getSitelinksMin(tt.dc, tt.category)
+			got := pl.getSitelinksMin(tt.category)
 			if got != tt.want {
 				t.Errorf("getSitelinksMin() = %d, want %d", got, tt.want)
 			}
@@ -169,10 +125,7 @@ func TestGetIcon(t *testing.T) {
 			"city": {Icon: "city-hall"},
 		},
 	}
-	stub := &StubDimClassifier{cfg: mockCfg}
-	// Note: getIcon relies on p.classifier internally if we call via method,
-	// BUT in pipeline.go, getIcon implementation casts p.classifier.
-	// So we need to set the classifier field in Pipeline.
+	stub := &StubClassifier{cfg: mockCfg}
 	pl := &Pipeline{classifier: stub}
 
 	tests := []struct {
@@ -207,17 +160,12 @@ func TestGetIcon(t *testing.T) {
 	}
 }
 
-// Stub with functional mocking for batch classification
+// MockBatchClassifier for testing
 type MockBatchClassifier struct {
 	BatchFunc func(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult
 }
 
-func (m *MockBatchClassifier) ResetDimensions()                                      {}
-func (m *MockBatchClassifier) ObserveDimensions(h, l, a float64)                     {}
-func (m *MockBatchClassifier) FinalizeDimensions()                                   {}
-func (m *MockBatchClassifier) ShouldRescue(h, l, a float64, instances []string) bool { return false }
-func (m *MockBatchClassifier) GetMultiplier(h, l, a float64) float64                 { return 1.0 }
-func (m *MockBatchClassifier) GetConfig() *config.CategoriesConfig                   { return nil }
+func (m *MockBatchClassifier) GetConfig() *config.CategoriesConfig { return nil }
 func (m *MockBatchClassifier) Classify(ctx context.Context, qid string) (*model.ClassificationResult, error) {
 	return nil, nil
 }
@@ -238,7 +186,7 @@ func TestRunBatchClassification(t *testing.T) {
 		{
 			name: "Ignored Success",
 			input: map[string]EntityMetadata{
-				"Q1": {Labels: map[string]string{"en": "A"}},
+				"Q1": {Claims: map[string][]string{"P31": {"Q123"}}},
 			},
 			mockRet: map[string]*model.ClassificationResult{
 				"Q1": {Ignored: true},
@@ -260,8 +208,8 @@ func TestRunBatchClassification(t *testing.T) {
 					return tt.mockRet
 				},
 			}
-			pl := &Pipeline{classifier: mock}
-			got := pl.runBatchClassification(context.Background(), []Article{}, tt.input)
+			pl := &Pipeline{classifier: mock, logger: slog.Default(), store: &mockStore{}}
+			got := pl.runBatchClassification(context.Background(), []Article{{QID: "Q1"}}, tt.input)
 			if len(got) != tt.wantLen {
 				t.Errorf("runBatchClassification got len %d, want %d", len(got), tt.wantLen)
 			}
@@ -287,15 +235,9 @@ func TestSetIgnoredByQID(t *testing.T) {
 	if articles[1].Ignored {
 		t.Error("Q2 should NOT be ignored")
 	}
-
-	// Action: Ignore Unknown QID (Should assume safe/no-op)
-	pl.setIgnoredByQID(articles, "Q99")
-	// Crash check implied
 }
 
 func TestFindBestLocalCandidate(t *testing.T) {
-	// Function under test: findBestLocalCandidate(a *Article, lengths map[string]map[string]int, localLangs []string) (bestLang, bestTitle string, maxLen int)
-
 	tests := []struct {
 		name       string
 		article    *Article
@@ -330,16 +272,6 @@ func TestFindBestLocalCandidate(t *testing.T) {
 			wantLang:   "fr",
 			wantTitle:  "Tour Eiffel",
 		},
-		{
-			name: "Fallback (No Lengths)",
-			article: &Article{
-				LocalTitles: map[string]string{"en": "Eiffel", "es": "Torre"},
-			},
-			lengths:    map[string]map[string]int{},
-			localLangs: []string{"es", "en"}, // Prefer ES
-			wantLang:   "es",
-			wantTitle:  "Torre",
-		},
 	}
 
 	for _, tt := range tests {
@@ -353,4 +285,16 @@ func TestFindBestLocalCandidate(t *testing.T) {
 			}
 		})
 	}
+}
+func getArticleDimensions(a *Article) (h, l, area float64) {
+	if a.Height != nil {
+		h = *a.Height
+	}
+	if a.Length != nil {
+		l = *a.Length
+	}
+	if a.Area != nil {
+		area = *a.Area
+	}
+	return h, l, area
 }

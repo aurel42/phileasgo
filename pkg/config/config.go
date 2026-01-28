@@ -233,8 +233,20 @@ type TriggersConfig struct {
 
 // WikidataConfig holds Wikidata-specific settings.
 type WikidataConfig struct {
-	Area          AreaConfig `yaml:"area"`
-	FetchInterval Duration   `yaml:"fetch_interval"`
+	Area          AreaConfig   `yaml:"area"`
+	FetchInterval Duration     `yaml:"fetch_interval"`
+	Rescue        RescueConfig `yaml:"rescue"`
+}
+
+// RescueConfig holds settings for rescuing unclassified POIs.
+type RescueConfig struct {
+	PromoteByDimension PromoteByDimensionConfig `yaml:"promote_by_dimension"`
+}
+
+// PromoteByDimensionConfig holds settings for rescuing by physical dimensions.
+type PromoteByDimensionConfig struct {
+	Enabled  bool `yaml:"enabled"`
+	RadiusKM int  `yaml:"radius_km"`
 }
 
 // TerrainConfig holds terrain and line-of-sight settings.
@@ -360,6 +372,12 @@ func DefaultConfig() *Config {
 				MaxDist:     Distance(80000), // 80km
 			},
 			FetchInterval: Duration(5 * time.Second),
+			Rescue: RescueConfig{
+				PromoteByDimension: PromoteByDimensionConfig{
+					Enabled:  true,
+					RadiusKM: 20,
+				},
+			},
 		},
 		Terrain: TerrainConfig{
 			LineOfSight:   true,

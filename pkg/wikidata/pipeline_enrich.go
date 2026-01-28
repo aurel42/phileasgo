@@ -24,12 +24,11 @@ func (p *Pipeline) enrichAndSave(ctx context.Context, articles []Article, localL
 		}
 	}
 
-	var finalPOIs []*model.POI = candidates
-	if dc, ok := p.classifier.(DimClassifier); ok {
-		var mergedRejected []string
-		finalPOIs, mergedRejected = MergePOIs(candidates, dc.GetConfig(), p.logger)
-		rejectedQIDs = append(rejectedQIDs, mergedRejected...)
-	}
+	var finalPOIs []*model.POI
+	cfg := p.classifier.GetConfig()
+	var mergedRejected []string
+	finalPOIs, mergedRejected = MergePOIs(candidates, cfg, p.logger)
+	rejectedQIDs = append(rejectedQIDs, mergedRejected...)
 
 	for _, poi := range finalPOIs {
 		if err := p.poi.UpsertPOI(ctx, poi); err != nil {
