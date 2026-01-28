@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"sync"
 	"time"
 
 	"phileasgo/pkg/db"
@@ -528,6 +529,49 @@ func (s *SQLiteStore) GetCache(ctx context.Context, key string) ([]byte, bool) {
 	return val, true
 }
 
+// --- Compression Pooling ---
+
+var (
+	// Pool for gzip writers to reuse flate state
+	gzipWriterPool = sync.Pool{
+		New: func() interface{} {
+			return gzip.NewWriter(io.Discard)
+		},
+	}
+	// Pool for generic byte buffers
+	bufferPool = sync.Pool{
+		New: func() interface{} {
+			return new(bytes.Buffer)
+		},
+	}
+)
+
+func compress(data []byte) ([]byte, error) {
+	// Get Buffer
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufferPool.Put(buf)
+
+	// Get Writer
+	w := gzipWriterPool.Get().(*gzip.Writer)
+	defer gzipWriterPool.Put(w)
+
+	// Reset Writer to write to our buffer
+	w.Reset(buf)
+
+	if _, err := w.Write(data); err != nil {
+		return nil, err
+	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+
+	// Must copy because buf is returned to pool
+	out := make([]byte, buf.Len())
+	copy(out, buf.Bytes())
+	return out, nil
+}
+
 func decompress(data []byte) ([]byte, error) {
 	r, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
@@ -559,18 +603,6 @@ func (s *SQLiteStore) SetCache(ctx context.Context, key string, val []byte) erro
 	query := `INSERT OR REPLACE INTO cache (key, value, created_at) VALUES (?, ?, ?)`
 	_, err = s.db.ExecContext(ctx, query, key, val, time.Now())
 	return err
-}
-
-func compress(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	w := gzip.NewWriter(&buf)
-	if _, err := w.Write(data); err != nil {
-		return nil, err
-	}
-	if err := w.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
 
 // --- Geodata Cache ---

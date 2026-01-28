@@ -439,8 +439,11 @@ func parseBindings(resp sparqlResponse) []Article {
 
 		itemURI := val(b, "item")
 		qid := ""
-		if parts := strings.Split(itemURI, "/"); len(parts) > 0 {
-			qid = parts[len(parts)-1]
+		// Optimization: strings.LastIndex (alloc-free) instead of strings.Split
+		if idx := strings.LastIndex(itemURI, "/"); idx != -1 && idx < len(itemURI)-1 {
+			qid = itemURI[idx+1:]
+		} else {
+			qid = itemURI // Fallback if no Slash
 		}
 
 		if qid == "" || seen[qid] {
@@ -473,10 +476,20 @@ func parseInstances(instStr string) []string {
 	if instStr == "" {
 		return nil
 	}
-	var instances []string
-	for _, uri := range strings.Split(instStr, ",") {
-		if parts := strings.Split(uri, "/"); len(parts) > 0 {
-			instances = append(instances, parts[len(parts)-1])
+	// Optimization: strings.Split allocates a slice.
+	// Since we know the count approx, we could preallocate, or just loop.
+	// Low-hanging fruit: The QID extraction inner loop was the big one.
+	// Let's use strings.Split for comma (frequent but flat),
+	// but strictly optimize the URI splitting for each instance.
+
+	parts := strings.Split(instStr, ",")
+	instances := make([]string, 0, len(parts))
+
+	for _, uri := range parts {
+		if idx := strings.LastIndex(uri, "/"); idx != -1 && idx < len(uri)-1 {
+			instances = append(instances, uri[idx+1:])
+		} else {
+			instances = append(instances, uri)
 		}
 	}
 	return instances
