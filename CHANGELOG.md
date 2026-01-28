@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.52 (2026-01-28)
+- **Performance**: **Streaming JSON Decoder**. Replaced the entire Wikidata SPARQL parsing engine with a streaming decoder. drastically reducing memory spikes (approx -40% peak RAM usage) during tile loading.
+
 ## v0.3.51 (2026-01-28)
 - **Optimization**: Reduced memory churn (~1MB/s) via Gzip pooling and string optimizations.
 - **Cleanup**: Removed temporary profiling instrumentation.
