@@ -2,9 +2,9 @@ package wikidata
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/poi"
@@ -43,12 +43,12 @@ func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo
 
 // ProcessTileData takes raw SPARQL JSON, parses it, runs classification, ENRICHES, and SAVES to DB.
 func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat, centerLon float64, force bool) (articles []Article, rescuedCount int, err error) {
-	var result sparqlResponse
-	if err := json.Unmarshal(rawJSON, &result); err != nil {
-		return nil, 0, fmt.Errorf("%w: failed to unmarshal raw json: %v", ErrParse, err)
+	// Use the exposed streaming parser from client.go
+	// Note: We need a Reader, so we wrap the byte slice
+	rawArticles, _, err := parseSPARQLStreaming(strings.NewReader(string(rawJSON)))
+	if err != nil {
+		return nil, 0, fmt.Errorf("%w: failed to parse sparql stream: %v", ErrParse, err)
 	}
-
-	rawArticles := parseBindings(result)
 	qids := make([]string, len(rawArticles))
 	for i := range rawArticles {
 		qids[i] = rawArticles[i].QID

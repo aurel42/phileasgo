@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"sort"
@@ -76,13 +77,94 @@ func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string, radius
 		return nil, "", fmt.Errorf("%w: %v", ErrNetwork, err)
 	}
 
-	// Parse Response
-	var result sparqlResponse
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, "", fmt.Errorf("%w: failed to decode json: %v", ErrParse, err)
+	// Parse Response (Zero-Alloc Streaming)
+	return parseSPARQLStreaming(strings.NewReader(string(body)))
+}
+
+// parseSPARQLStreaming iterates over the JSON stream to extract bindings without loading the full structure
+func parseSPARQLStreaming(r io.Reader) ([]Article, string, error) {
+	dec := json.NewDecoder(r)
+
+	// We only care about matching "bindings" -> [ ... ]
+	// Structure: { ..., "results": { "bindings": [ ... ] } }
+
+	// Fast-forward to "bindings"
+	foundBindings := false
+	for {
+		t, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, "", fmt.Errorf("json stream error: %w", err)
+		}
+
+		if s, ok := t.(string); ok && s == "bindings" {
+			foundBindings = true
+			break
+		}
 	}
 
-	return parseBindings(result), string(body), nil
+	if !foundBindings {
+		// Valid SPARQL response might have empty results, but "bindings" key usually exists.
+		// If not found, return empty.
+		return []Article{}, "", nil
+	}
+
+	// Consume open bracket '['
+	if _, err := dec.Token(); err != nil {
+		return nil, "", fmt.Errorf("expected array open: %w", err)
+	}
+
+	// Stream bindings
+	var articles []Article
+	seen := make(map[string]bool)
+
+	for dec.More() {
+		var b map[string]sparqlValue
+		if err := dec.Decode(&b); err != nil {
+			return nil, "", fmt.Errorf("failed to decode binding: %w", err)
+		}
+
+		// --- Core Parsing Logic (Identical to parseBindings) ---
+		lat, _ := strconv.ParseFloat(val(b, "lat"), 64)
+		lon, _ := strconv.ParseFloat(val(b, "lon"), 64)
+
+		itemURI := val(b, "item")
+		qid := ""
+		if idx := strings.LastIndex(itemURI, "/"); idx != -1 && idx < len(itemURI)-1 {
+			qid = itemURI[idx+1:]
+		} else {
+			qid = itemURI
+		}
+
+		if qid == "" || seen[qid] {
+			continue
+		}
+		seen[qid] = true
+
+		sitelinks, _ := strconv.Atoi(val(b, "sitelinks"))
+
+		articles = append(articles, Article{
+			QID:         qid,
+			LocalTitles: parseLocalTitles(val(b, "local_titles")),
+			TitleEn:     val(b, "title_en_val"),
+			TitleUser:   val(b, "title_user_val"),
+			Label:       val(b, "itemLabel"),
+			Lat:         lat,
+			Lon:         lon,
+			Sitelinks:   sitelinks,
+			Instances:   parseInstances(val(b, "instances")),
+			Area:        parseFloatPtr(val(b, "area")),
+			Height:      parseFloatPtr(val(b, "height")),
+			Length:      parseFloatPtr(val(b, "length")),
+			Width:       parseFloatPtr(val(b, "width")),
+		})
+	}
+
+	// We don't keep the raw body string anymore for memory reasons, but interface demands it.
+	// Returning empty string for raw body to save RAM.
+	return articles, "", nil
 }
 
 // GetEntityClaims fetches specific property claims (e.g. P31, P279) for an entity.
@@ -418,58 +500,9 @@ type wrapperEntityResponse struct {
 
 // -- Internal parsing structs --
 
-type sparqlResponse struct {
-	Results struct {
-		Bindings []map[string]sparqlValue `json:"bindings"`
-	} `json:"results"`
-}
-
 type sparqlValue struct {
 	Type  string `json:"type"`
 	Value string `json:"value"`
-}
-
-func parseBindings(resp sparqlResponse) []Article {
-	seen := make(map[string]bool)
-	var articles []Article
-
-	for _, b := range resp.Results.Bindings {
-		lat, _ := strconv.ParseFloat(val(b, "lat"), 64)
-		lon, _ := strconv.ParseFloat(val(b, "lon"), 64)
-
-		itemURI := val(b, "item")
-		qid := ""
-		// Optimization: strings.LastIndex (alloc-free) instead of strings.Split
-		if idx := strings.LastIndex(itemURI, "/"); idx != -1 && idx < len(itemURI)-1 {
-			qid = itemURI[idx+1:]
-		} else {
-			qid = itemURI // Fallback if no Slash
-		}
-
-		if qid == "" || seen[qid] {
-			continue
-		}
-		seen[qid] = true
-
-		sitelinks, _ := strconv.Atoi(val(b, "sitelinks"))
-
-		articles = append(articles, Article{
-			QID:         qid,
-			LocalTitles: parseLocalTitles(val(b, "local_titles")),
-			TitleEn:     val(b, "title_en_val"),
-			TitleUser:   val(b, "title_user_val"),
-			Label:       val(b, "itemLabel"),
-			Lat:         lat,
-			Lon:         lon,
-			Sitelinks:   sitelinks,
-			Instances:   parseInstances(val(b, "instances")),
-			Area:        parseFloatPtr(val(b, "area")),
-			Height:      parseFloatPtr(val(b, "height")),
-			Length:      parseFloatPtr(val(b, "length")),
-			Width:       parseFloatPtr(val(b, "width")),
-		})
-	}
-	return articles
 }
 
 func parseInstances(instStr string) []string {

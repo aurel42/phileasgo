@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -135,23 +137,48 @@ func (m *LanguageMapper) refresh(ctx context.Context) error {
 		return err
 	}
 
-	// Parse
-	var result sparqlResponse
-	if err := json.Unmarshal(body, &result); err != nil {
-		return err
+	// Parse (Streaming)
+	newMap := make(map[string][]model.LanguageInfo)
+
+	dec := json.NewDecoder(strings.NewReader(string(body)))
+	// Fast-forward to bindings
+	foundBindings := false
+	for {
+		t, err := dec.Token()
+		if err == io.EOF {
+			return nil
+		} // End of stream
+		if err != nil {
+			return err
+		}
+		if s, ok := t.(string); ok && s == "bindings" {
+			foundBindings = true
+			break
+		}
 	}
 
-	newMap := make(map[string][]model.LanguageInfo)
-	for _, b := range result.Results.Bindings {
-		cc := val(b, "countryCode")
-		lc := val(b, "langCode")
-		ln := val(b, "officialLangLabel") // Label Service provides this
+	if foundBindings {
+		// consumed "bindings"
+		if _, err := dec.Token(); err != nil {
+			return err
+		} // [
 
-		if cc != "" && lc != "" {
-			if ln == "" {
-				ln = "Unknown"
+		for dec.More() {
+			var b map[string]sparqlValue
+			if err := dec.Decode(&b); err != nil {
+				return err
 			}
-			newMap[cc] = append(newMap[cc], model.LanguageInfo{Code: lc, Name: ln})
+
+			cc := val(b, "countryCode")
+			lc := val(b, "langCode")
+			ln := val(b, "officialLangLabel") // Label Service provides this
+
+			if cc != "" && lc != "" {
+				if ln == "" {
+					ln = "Unknown"
+				}
+				newMap[cc] = append(newMap[cc], model.LanguageInfo{Code: lc, Name: ln})
+			}
 		}
 	}
 
