@@ -5,10 +5,11 @@ import (
 	"os"
 	"sync"
 
-	"phileasgo/pkg/geo"
-
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/geojson"
+
+	"phileasgo/pkg/geo"
+	"phileasgo/pkg/model"
 )
 
 // River represents a loaded river feature
@@ -25,17 +26,6 @@ type Sentinel struct {
 	logger *slog.Logger
 	rivers []River
 	mu     sync.RWMutex
-}
-
-// Candidate represents a potential river match
-type Candidate struct {
-	Name         string
-	ClosestPoint geo.Point
-	Distance     float64 // meters
-	IsAhead      bool
-	// Mouth/Source for hydration
-	Mouth  geo.Point
-	Source geo.Point
 }
 
 // NewSentinel loads river data and initializes the sentinel.
@@ -117,7 +107,7 @@ func (s *Sentinel) loadData(path string) error {
 }
 
 // Update checks for nearby rivers relative to aircraft.
-func (s *Sentinel) Update(lat, lon, heading float64) interface{} {
+func (s *Sentinel) Update(lat, lon, heading float64) *model.RiverCandidate {
 	const DetectionRadius = 25000.0 // 25km (broad search, narrow down later)
 
 	p := geo.Point{Lat: lat, Lon: lon}
@@ -126,7 +116,7 @@ func (s *Sentinel) Update(lat, lon, heading float64) interface{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var best *Candidate
+	var best *model.RiverCandidate
 	minDist := 1000000.0 // large init
 
 	for _, r := range s.rivers {
@@ -169,13 +159,16 @@ func (s *Sentinel) Update(lat, lon, heading float64) interface{} {
 		// 4. Competition
 		if riverClosest < minDist {
 			minDist = riverClosest
-			best = &Candidate{
-				Name:         r.Name,
-				ClosestPoint: rPoint,
-				Distance:     riverClosest,
-				IsAhead:      true,
-				Mouth:        r.Mouth,
-				Source:       r.Source,
+			best = &model.RiverCandidate{
+				Name:       r.Name,
+				ClosestLat: rPoint.Lat,
+				ClosestLon: rPoint.Lon,
+				Distance:   riverClosest,
+				IsAhead:    true,
+				MouthLat:   r.Mouth.Lat,
+				MouthLon:   r.Mouth.Lon,
+				SourceLat:  r.Source.Lat,
+				SourceLon:  r.Source.Lon,
 			}
 		}
 	}

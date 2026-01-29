@@ -35,10 +35,12 @@ type TileFetcher interface {
 	GetPOIsNear(ctx context.Context, lat, lon, radiusMeters float64) ([]*model.POI, error)
 }
 
-// RiverSentinel abstracts the river detection engine.
+// RiverSentinel abstracts the river engine.
 type RiverSentinel interface {
-	Update(lat, lon, heading float64) interface{} // Returns *rivers.Candidate or nil
+	Update(lat, lon, heading float64) *model.RiverCandidate
 }
+
+// Returns *rivers.Candidate or nil
 
 type Manager struct {
 	config *config.Config
@@ -593,51 +595,32 @@ func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (
 	}
 
 	// 2. Call Sentinel
-	result := m.riverSentinel.Update(lat, lon, heading)
-	if result == nil {
+	candidate := m.riverSentinel.Update(lat, lon, heading)
+	if candidate == nil {
 		return nil, nil // No river ahead
 	}
 
-	// Type assertion to access candidate data
-	// (interface{} is used to break import cycle; real type is *rivers.Candidate)
-
-	// Use reflection-free approach: we know the shape
-	// This is a bit ugly but avoids cyclic imports
-	// TODO: Refactor to define Candidate in pkg/model if this pattern grows
-	candidateVal, ok := result.(*struct {
-		Name         string
-		ClosestPoint geo.Point
-		Distance     float64
-		IsAhead      bool
-		Mouth        geo.Point
-		Source       geo.Point
-	})
-	if !ok {
-		m.logger.Warn("UpdateRivers: unexpected candidate type")
-		return nil, nil
-	}
-
-	m.logger.Debug("River candidate detected", "name", candidateVal.Name, "dist", candidateVal.Distance)
+	m.logger.Debug("River candidate detected", "name", candidate.Name, "dist", candidate.Distance)
 
 	// 3. Hydrate: Try Mouth, then Source, then Surrounding
 	const hydrationRadius = 5000.0 // 5km search radius in tiles
 
 	// 3a. Ensure Mouth Tile is loaded
-	if err := m.tileFetcher.EnsureTilesLoaded(ctx, candidateVal.Mouth.Lat, candidateVal.Mouth.Lon); err != nil {
+	if err := m.tileFetcher.EnsureTilesLoaded(ctx, candidate.MouthLat, candidate.MouthLon); err != nil {
 		m.logger.Warn("Failed to load mouth tile", "err", err)
 	}
 
 	// 3b. Search for Water POI near Mouth
-	pois, err := m.tileFetcher.GetPOIsNear(ctx, candidateVal.Mouth.Lat, candidateVal.Mouth.Lon, hydrationRadius)
+	pois, err := m.tileFetcher.GetPOIsNear(ctx, candidate.MouthLat, candidate.MouthLon, hydrationRadius)
 	if err == nil {
 		for _, p := range pois {
 			if p.Category == "Water" {
 				// Found! Attach context and return
 				p.RiverContext = &model.RiverContext{
 					IsActive:   true,
-					DistanceM:  candidateVal.Distance,
-					ClosestLat: candidateVal.ClosestPoint.Lat,
-					ClosestLon: candidateVal.ClosestPoint.Lon,
+					DistanceM:  candidate.Distance,
+					ClosestLat: candidate.ClosestLat,
+					ClosestLon: candidate.ClosestLon,
 				}
 				m.logger.Info("Hydrated river POI from mouth tile", "qid", p.WikidataID, "name", p.DisplayName())
 				return p, nil
@@ -646,18 +629,18 @@ func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (
 	}
 
 	// 3c. Try Source
-	if err := m.tileFetcher.EnsureTilesLoaded(ctx, candidateVal.Source.Lat, candidateVal.Source.Lon); err != nil {
+	if err := m.tileFetcher.EnsureTilesLoaded(ctx, candidate.SourceLat, candidate.SourceLon); err != nil {
 		m.logger.Warn("Failed to load source tile", "err", err)
 	}
-	pois, err = m.tileFetcher.GetPOIsNear(ctx, candidateVal.Source.Lat, candidateVal.Source.Lon, hydrationRadius)
+	pois, err = m.tileFetcher.GetPOIsNear(ctx, candidate.SourceLat, candidate.SourceLon, hydrationRadius)
 	if err == nil {
 		for _, p := range pois {
 			if p.Category == "Water" {
 				p.RiverContext = &model.RiverContext{
 					IsActive:   true,
-					DistanceM:  candidateVal.Distance,
-					ClosestLat: candidateVal.ClosestPoint.Lat,
-					ClosestLon: candidateVal.ClosestPoint.Lon,
+					DistanceM:  candidate.Distance,
+					ClosestLat: candidate.ClosestLat,
+					ClosestLon: candidate.ClosestLon,
 				}
 				m.logger.Info("Hydrated river POI from source tile", "qid", p.WikidataID, "name", p.DisplayName())
 				return p, nil
@@ -666,7 +649,7 @@ func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (
 	}
 
 	// 3d. Fallback: Check surrounding tiles of Mouth (TODO: implement if needed)
-	m.logger.Debug("River detected but no matching POI found in tiles", "name", candidateVal.Name)
+	m.logger.Debug("River detected but no matching POI found in tiles", "name", candidate.Name)
 	return nil, nil
 }
 

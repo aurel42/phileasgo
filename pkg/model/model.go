@@ -67,6 +67,19 @@ type RiverContext struct {
 	ClosestLon    float64
 }
 
+// RiverCandidate represents a potential river match found by the Sentinel.
+type RiverCandidate struct {
+	Name       string
+	ClosestLat float64
+	ClosestLon float64
+	Distance   float64 // meters
+	IsAhead    bool
+	MouthLat   float64
+	MouthLon   float64
+	SourceLat  float64
+	SourceLon  float64
+}
+
 // LocationInfo represents rich geographic context.
 type LocationInfo struct {
 	CityName    string `json:"city_name"`

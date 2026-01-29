@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"phileasgo/pkg/geo"
+	"phileasgo/pkg/model"
 
 	"github.com/paulmach/orb"
 )
@@ -183,15 +184,18 @@ func TestRiverStruct(t *testing.T) {
 	}
 }
 
-// TestCandidateStruct verifies Candidate struct fields.
+// TestCandidateStruct verifies model.RiverCandidate struct fields.
 func TestCandidateStruct(t *testing.T) {
-	c := Candidate{
-		Name:         "Test River",
-		ClosestPoint: geo.Point{Lat: 0.5, Lon: 0.5},
-		Distance:     1000,
-		IsAhead:      true,
-		Mouth:        geo.Point{Lat: 1, Lon: 1},
-		Source:       geo.Point{Lat: 0, Lon: 0},
+	c := model.RiverCandidate{
+		Name:       "Test River",
+		ClosestLat: 0.5,
+		ClosestLon: 0.5,
+		Distance:   1000,
+		IsAhead:    true,
+		MouthLat:   1,
+		MouthLon:   1,
+		SourceLat:  0,
+		SourceLon:  0,
 	}
 
 	if c.Name != "Test River" {
@@ -291,10 +295,7 @@ func TestSentinelUpdate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := s.Update(tc.lat, tc.lon, tc.heading)
-
-			// Check if we expect nil candidate
-			c, _ := result.(*Candidate)
+			c := s.Update(tc.lat, tc.lon, tc.heading)
 
 			if tc.expectNil {
 				if c != nil {
@@ -328,8 +329,7 @@ func TestSentinelUpdateEmptyRivers(t *testing.T) {
 		rivers: []River{},
 	}
 
-	result := s.Update(48.0, 8.0, 0)
-	c, _ := result.(*Candidate)
+	c := s.Update(48.0, 8.0, 0)
 	if c != nil {
 		t.Errorf("expected nil candidate with no rivers, got: %+v", c)
 	}

@@ -1,8 +1,11 @@
 ﻿Release History
  
+## v0.3.61 (2026-01-29)
+- **Fix**: **River Detection Stability**. Resolved "unexpected candidate type" warning that could cause river detection to fail silently. Structural refactor to resolve internal circular dependencies.
+ 
 ## v0.3.60 (2026-01-29)
 - **Improvement**: **Pregrounding-Aware Stub Detection**. Low-info Wikipedia articles are now "rescued" from stub mode if they promis rich content via pregrounding, enabling full quality narrations for thin POIs.
-- **Fix**: **Narration Length**. Fixed a regression.
+- **Fix**: **Narration Length**. Fixed a regression leading to overly long narrations.
  
 ## v0.3.59 (2026-01-29)
 - **Improvement**: **Narration Depth Scaling**. Integrated Perplexity (pregrounding) context into word count calculations, allowing for significantly longer and more detailed narrations when specialized research is available.
