@@ -1,0 +1,212 @@
+2026/01/29 01:49:12 INFO EssayHandler: Topic pool exhausted. Starting new rotation cycle. topics=3
+2026/01/29 01:49:12 INFO EssayHandler: Topic pool exhausted. Starting new rotation cycle. topics=3
+2026/01/29 01:49:12 WARN Gemini model validation failed (proceeding due to TEST_MODE) error="no profiles configured for gemini provider"
+2026/01/29 01:49:12 INFO Narrator: Replaying last POI title="Test POI"
+2026/01/29 01:49:12 INFO Narrator: Replaying last Essay title="Great History"
+2026/01/29 01:49:12 WARN Narrator: Replaying audio but no state to restore
+--- FAIL: TestSampleNarrationLength_Scaling (0.00s)
+    --- FAIL: TestSampleNarrationLength_Scaling/Zero_source_-_No_capping_(Fallback) (0.00s)
+        scaling_test.go:71: 
+            	Error Trace:	c:/Users/aurel/Projects/phileasgo/pkg/narrator/scaling_test.go:71
+            	Error:      	Not equal: 
+            	            	expected: 100
+            	            	actual  : 0
+            	Test:       	TestSampleNarrationLength_Scaling/Zero_source_-_No_capping_(Fallback)
+    --- FAIL: TestSampleNarrationLength_Scaling/Factor_1.0_-_Proportional (0.00s)
+        scaling_test.go:71: 
+            	Error Trace:	c:/Users/aurel/Projects/phileasgo/pkg/narrator/scaling_test.go:71
+            	Error:      	Not equal: 
+            	            	expected: 150
+            	            	actual  : 75
+            	Test:       	TestSampleNarrationLength_Scaling/Factor_1.0_-_Proportional
+2026/01/29 01:49:12 INFO AI Narrator service started
+2026/01/29 01:49:12 INFO Narrator: Border announcement requested from=France to=Germany
+2026/01/29 01:49:12 INFO Narrator: Narration stats type=border name="Border Crossing" id=border requested_len=30 words=2 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:12 INFO Narrator: Border announcement skipped (queue constraints)
+2026/01/29 01:49:12 INFO Narrator: Border announcement skipped (priority jobs pending)
+2026/01/29 01:49:12 ERROR Narrator: TTS synthesis failed error="rate limited"
+2026/01/29 01:49:12 WARN Narrator: Activating edge-tts fallback for this session
+2026/01/29 01:49:12 WARN Narrator: Skipping current POI (script incompatible with fallback TTS). Will retry with next POI.
+2026/01/29 01:49:12 WARN Narrator: Failed to load units template system=metric error="template: no template \"units/metric.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 WARN Narrator: Failed to load units template system=metric error="template: no template \"units/metric.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 WARN Narrator: Failed to load units template system=metric error="template: no template \"units/metric.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 WARN Narrator: Failed to fetch Wikipedia HTML title=Baz error=fail
+2026/01/29 01:49:12 INFO Narrator: Pregrounded POI context poi=Q123 chars=24
+2026/01/29 01:49:12 INFO Narrator: Generating Landing Debrief...
+2026/01/29 01:49:12 INFO Narrator: Debrief requested but trip summary is too short. length=0
+2026/01/29 01:49:12 INFO Narrator: Generating Debrief max_words=100
+2026/01/29 01:49:12 INFO Narrator: Narration stats type=debrief name=Debrief id=debrief requested_len=100 words=7 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:12 INFO Narrator: Debrief requested but trip summary is too short. length=0
+2026/01/29 01:49:12 INFO Narrator: Debrief skipped (priority jobs pending)
+2026/01/29 01:49:12 INFO AI Narrator service started
+2026/01/29 01:49:12 INFO Narrator: Triggering Essay
+2026/01/29 01:49:12 INFO EssayHandler: Topic pool exhausted. Starting new rotation cycle. topics=1
+2026/01/29 01:49:12 INFO Narrator: Narrating Essay topic="History of Flight"
+2026/01/29 01:49:12 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 INFO Narrator: Narration stats type=essay name="Essay: History of Flight" id=essay requested_len=50 words=2 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:12 INFO AI Narrator service started
+2026/01/29 01:49:12 INFO Narrator: Triggering Essay
+2026/01/29 01:49:12 INFO EssayHandler: Topic pool exhausted. Starting new rotation cycle. topics=1
+2026/01/29 01:49:12 INFO Narrator: Narrating Essay topic="History of Flight"
+2026/01/29 01:49:12 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 ERROR Narrator: Essay generation failed error="LLM generation failed: llm fail"
+2026/01/29 01:49:12 INFO Narrator: Narration stats type=border name="Border Crossing" id=border requested_len=0 words=3 audio_duration=10s acc_gen_time=0.0s next_prediction=0.0s
+2026/01/29 01:49:12 INFO Narrator: Narration stats type=screenshot name=Screenshot id=screenshot requested_len=0 words=1 audio_duration=10s acc_gen_time=0.0s next_prediction=0.0s
+2026/01/29 01:49:12 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 WARN Narrator: Script exceeded limit, attempting rescue requested=10 actual=21
+2026/01/29 01:49:12 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 INFO Narrator: Script rescue successful original=21 rescued=2
+2026/01/29 01:49:12 INFO Narrator: Narration stats type=screenshot name="Screenshot Analysis" id=screenshot requested_len=50 words=2 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:12 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:12 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 ERROR Narrator: Failed to render screenshot prompt error="template: no template \"narrator/screenshot.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 INFO Narrator: Manual play requested poi_id=Q123 enqueue_if_busy=false
+2026/01/29 01:49:13 INFO Narrator: Promoting item in queue poi_id=Q123
+2026/01/29 01:49:13 INFO Narrator: Automated play triggering poi_id=Q456
+2026/01/29 01:49:13 INFO Narrator: Skipping auto-play (priority queue not empty)
+2026/01/29 01:49:13 INFO Narrator: Automated play triggering poi_id=Q789
+2026/01/29 01:49:13 INFO Narrator: Skipping auto-play (UserPause active) poi_id=Q789
+2026/01/29 01:49:13 INFO Narrator: Manual play requested poi_id=Q789 enqueue_if_busy=false
+2026/01/29 01:49:13 INFO Narrator: Promoting item in queue poi_id=Q789
+2026/01/29 01:49:13 INFO Narrator: Session reset (teleport/new flight detected)
+2026/01/29 01:49:13 INFO Narrator: Promoting item in queue poi_id=Q2
+2026/01/29 01:49:13 INFO Narrator: Replaying last POI title="Test POI"
+2026/01/29 01:49:13 INFO Narrator: Replaying last Essay title=""
+2026/01/29 01:49:13 INFO Narrator: Skip cooldown requested
+2026/01/29 01:49:13 INFO AI Narrator service started
+2026/01/29 01:49:13 INFO Narrator: Manual play requested poi_id=Q1 enqueue_if_busy=false
+2026/01/29 01:49:13 INFO Narrator: Promoting item in queue poi_id=Q1
+2026/01/29 01:49:13 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 INFO Narrator: Narration stats type=poi name="Test POI" id=Q1 requested_len=0 words=2 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:13 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 INFO AI Narrator service started
+2026/01/29 01:49:13 INFO Narrator: Manual play requested poi_id=QMISSING enqueue_if_busy=false
+2026/01/29 01:49:13 INFO Narrator: Promoting item in queue poi_id=QMISSING
+2026/01/29 01:49:13 ERROR Narrator: Priority job failed - POI not found poi_id=QMISSING
+2026/01/29 01:49:13 INFO AI Narrator service started
+2026/01/29 01:49:13 INFO Narrator: Manual play requested poi_id=Q2 enqueue_if_busy=false
+2026/01/29 01:49:13 INFO Narrator: Promoting item in queue poi_id=Q2
+2026/01/29 01:49:13 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 ERROR Narrator: Priority generation failed type=poi error="LLM generation failed: llm fail"
+2026/01/29 01:49:13 INFO AI Narrator service started
+2026/01/29 01:49:13 INFO Narrator: Manual play requested poi_id=Q3 enqueue_if_busy=false
+2026/01/29 01:49:13 INFO Narrator: Promoting item in queue poi_id=Q3
+2026/01/29 01:49:13 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:13 ERROR Narrator: TTS synthesis failed error="tts fail"
+2026/01/29 01:49:13 ERROR Narrator: Priority generation failed type=poi error="TTS synthesis failed: tts fail"
+2026/01/29 01:49:14 INFO AI Narrator service started
+2026/01/29 01:49:14 INFO Narrator: Manual play requested poi_id=Q4 enqueue_if_busy=false
+2026/01/29 01:49:14 INFO Narrator: Promoting item in queue poi_id=Q4
+2026/01/29 01:49:14 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Queue playback failed, trying next title=P4 error="audio playback failed: audio fail"
+2026/01/29 01:49:14 INFO AI Narrator service started
+2026/01/29 01:49:14 INFO Narrator: Manual play requested poi_id=QWiki enqueue_if_busy=false
+2026/01/29 01:49:14 INFO Narrator: Promoting item in queue poi_id=QWiki
+2026/01/29 01:49:14 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Narration stats type=poi name="Wiki POI" id=QWiki requested_len=0 words=2 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO AI Narrator service started
+2026/01/29 01:49:14 INFO Narrator: Manual play requested poi_id=QNav enqueue_if_busy=false
+2026/01/29 01:49:14 INFO Narrator: Promoting item in queue poi_id=QNav
+2026/01/29 01:49:14 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Narration stats type=poi name=QNav id=QNav requested_len=0 words=1 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO AI Narrator service started
+2026/01/29 01:49:14 INFO Narrator: Manual play requested poi_id=QCurrent enqueue_if_busy=false
+2026/01/29 01:49:14 INFO Narrator: Promoting item in queue poi_id=QCurrent
+2026/01/29 01:49:14 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Narration stats type=poi name=QCurrent id=QCurrent requested_len=0 words=1 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO AI Narrator service started
+2026/01/29 01:49:14 INFO AI Narrator service stopped
+2026/01/29 01:49:14 INFO AI Narrator service started
+2026/01/29 01:49:14 INFO Narrator: Manual play requested poi_id=Q8080 enqueue_if_busy=false
+2026/01/29 01:49:14 INFO Narrator: Promoting item in queue poi_id=Q8080
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Narration stats type=poi name="" id="" requested_len=0 words=1 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO AI Narrator service started
+2026/01/29 01:49:14 INFO Narrator: Manual play requested poi_id=Q8080 enqueue_if_busy=false
+2026/01/29 01:49:14 INFO Narrator: Promoting item in queue poi_id=Q8080
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Narration stats type=poi name="" id="" requested_len=0 words=1 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO AI Narrator service started
+2026/01/29 01:49:14 INFO Narrator: Manual play requested poi_id=Q8080 enqueue_if_busy=false
+2026/01/29 01:49:14 INFO Narrator: Promoting item in queue poi_id=Q8080
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Narration stats type=poi name="" id="" requested_len=0 words=1 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO AI Narrator service started
+2026/01/29 01:49:14 INFO AI Narrator service started
+2026/01/29 01:49:14 INFO Narrator: Manual play requested poi_id=Q12345 enqueue_if_busy=false
+2026/01/29 01:49:14 INFO Narrator: Promoting item in queue poi_id=Q12345
+2026/01/29 01:49:14 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Queue playback failed, trying next title=Q1 error="audio playback failed: fail"
+2026/01/29 01:49:14 INFO Narrator: Narration stats type=poi name=QGen id=QGen requested_len=0 words=1 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Pipeline preparing next narrative poi_id=QStaged
+2026/01/29 01:49:14 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Manual play requested poi_id=QStaged enqueue_if_busy=false
+2026/01/29 01:49:14 INFO Narrator: Promoting item in queue poi_id=QStaged
+2026/01/29 01:49:14 INFO Narrator: Narration stats type=poi name=POI id=QStaged requested_len=0 words=1 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Pipeline preparing next narrative poi_id=QStaged
+2026/01/29 01:49:14 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Manual play requested poi_id=QOther enqueue_if_busy=false
+2026/01/29 01:49:14 INFO Narrator: Promoting item in queue poi_id=QOther
+2026/01/29 01:49:14 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 INFO Narrator: Narration stats type=poi name=POI id=QOther requested_len=0 words=1 audio_duration=10s acc_gen_time=0.0s next_prediction=0.0s
+2026/01/29 01:49:14 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:14 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:15 INFO Narrator: Manual play requested poi_id=QFresh enqueue_if_busy=false
+2026/01/29 01:49:15 INFO Narrator: Promoting item in queue poi_id=QFresh
+2026/01/29 01:49:15 WARN Narrator: Failed to load units template system=hybrid error="template: no template \"units/hybrid.tmpl\" associated with template \"root\""
+2026/01/29 01:49:15 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:15 INFO Narrator: Narration stats type=poi name=POI id=QFresh requested_len=0 words=1 audio_duration=10s acc_gen_time=0.0s next_prediction=60.0s
+2026/01/29 01:49:15 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:15 ERROR Narrator: Failed to render summary update template error="template: no template \"narrator/summary_update.tmpl\" associated with template \"root\""
+2026/01/29 01:49:15 WARN Narrator: Script exceeded limit, attempting rescue requested=200 actual=1000
+2026/01/29 01:49:15 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:15 WARN Narrator: Failed to render TTS template, using fallback template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/01/29 01:49:15 ERROR Narrator: Script rescue failed, using original error="LLM could not extract valid script"
+2026/01/29 01:49:15 WARN Narrator: Activating edge-tts fallback for this session
+2026/01/29 01:49:15 INFO Narrator: Skip cooldown requested
+2026/01/29 01:49:15 INFO Narrator stub service started
+2026/01/29 01:49:15 INFO Narrator stub service stopped
+2026/01/29 01:49:15 INFO Narrator stub: manual play requested poi_id=Q1
+2026/01/29 01:49:15 INFO Narrator stub: essay play requested
+FAIL
+FAIL	phileasgo/pkg/narrator	2.869s
+FAIL

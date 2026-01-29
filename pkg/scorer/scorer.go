@@ -501,6 +501,16 @@ func (sess *DefaultSession) applyBadges(poi *model.POI) {
 		poi.Badges = append(poi.Badges, "msfs")
 	}
 
+	// Calculate Effective Length for logic (Wiki + potential Pregrounding)
+	effectiveLen := float64(poi.WPArticleLength)
+	if s.pregroundingEnabled && s.catConfig != nil && s.catConfig.ShouldPreground(poi.Category) {
+		boost := s.config.PregroundBoost
+		if boost <= 0 {
+			boost = 4000 // Default
+		}
+		effectiveLen += float64(boost)
+	}
+
 	// [BADGE] Deep Dive (Stateless, keep on blue markers)
 	limit := s.config.Badges.DeepDive.ArticleLenMin
 	if limit == 0 {
@@ -511,11 +521,16 @@ func (sess *DefaultSession) applyBadges(poi *model.POI) {
 	}
 
 	// [BADGE] Stub (Stateless, mutually exclusive with Deep Dive ideally, but logic handles it)
+	// Design: We only mark as stub if the combined potential info depth is low.
 	stubLimit := s.config.Badges.Stub.ArticleLenMax
 	if stubLimit == 0 {
-		stubLimit = 2000 // Safe default
+		stubLimit = 2500 // Aligned with config default
 	}
-	if poi.WPArticleLength > 0 && poi.WPArticleLength < stubLimit {
+
+	// A POI is a stub if:
+	// 1. It has some Wikipedia text (length > 0)
+	// 2. The combined potential depth (Wiki + PregroundBoost) is below the limit.
+	if poi.WPArticleLength > 0 && int(effectiveLen) < stubLimit {
 		poi.Badges = append(poi.Badges, "stub")
 	}
 }

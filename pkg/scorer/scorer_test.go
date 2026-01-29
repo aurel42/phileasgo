@@ -586,3 +586,85 @@ func TestScorer_PregroundingBonus(t *testing.T) {
 		})
 	}
 }
+func TestScorer_StubRescue(t *testing.T) {
+	scorerCfg := &config.ScorerConfig{
+		PregroundBoost: 4000,
+		Badges: config.BadgesConfig{
+			Stub: config.StubBadgeConfig{
+				ArticleLenMax: 2500,
+			},
+		},
+	}
+
+	catCfg := &config.CategoriesConfig{
+		Categories: map[string]config.Category{
+			"monument": {Preground: true},  // Enabled
+			"statue":   {Preground: false}, // Disabled
+		},
+	}
+	catCfg.BuildLookup()
+
+	visMgr := visibility.NewManagerForTest([]visibility.AltitudeRow{
+		{AltAGL: 1000, Distances: map[visibility.SizeType]float64{visibility.SizeM: 10.0}},
+	})
+	visCalc := visibility.NewCalculator(visMgr, nil)
+
+	tests := []struct {
+		name             string
+		pregroundEnabled bool
+		category         string
+		wikiLen          int
+		wantStub         bool
+	}{
+		{
+			name:             "Stub by Wiki only (statue)",
+			pregroundEnabled: true,
+			category:         "statue",
+			wikiLen:          500,
+			wantStub:         true,
+		},
+		{
+			name:             "Rescued by Pregrounding (monument)",
+			pregroundEnabled: true,
+			category:         "monument",
+			wikiLen:          500, // 500 + 4000 > 2500
+			wantStub:         false,
+		},
+		{
+			name:             "Pregrounding Fetch Unavailable (0 depth)",
+			pregroundEnabled: true,
+			category:         "statue", // Preground: false
+			wikiLen:          500,
+			wantStub:         true,
+		},
+		{
+			name:             "Disabled global pregrounding",
+			pregroundEnabled: false,
+			category:         "monument",
+			wikiLen:          500,
+			wantStub:         true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sc := NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, tt.pregroundEnabled)
+			poi := &model.POI{Category: tt.category, WPArticleLength: tt.wikiLen}
+			input := &ScoringInput{Telemetry: sim.Telemetry{AltitudeAGL: 1000}}
+
+			session := sc.NewSession(input)
+			session.Calculate(poi)
+
+			isStub := false
+			for _, b := range poi.Badges {
+				if b == "stub" {
+					isStub = true
+				}
+			}
+
+			if isStub != tt.wantStub {
+				t.Errorf("got isStub=%v, want %v", isStub, tt.wantStub)
+			}
+		})
+	}
+}

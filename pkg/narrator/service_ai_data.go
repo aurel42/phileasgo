@@ -418,48 +418,43 @@ func (s *AIService) getCommonPromptData() NarrationPromptData {
 }
 
 func (s *AIService) sampleNarrationLength(p *model.POI, strategy string, sourceWords int) (words int, strategyUsed string) {
-	// Base targets from config (default 50/200)
+	// 1. Base targets from config
 	shortTarget := s.cfg.Narrator.NarrationLengthShortWords
 	longTarget := s.cfg.Narrator.NarrationLengthLongWords
-	if shortTarget == 0 {
+	if shortTarget <= 0 {
 		shortTarget = 50
 	}
-	if longTarget == 0 {
+	if longTarget <= 0 {
 		longTarget = 200
 	}
 
-	// 3. Determine Base Target based on Strategy
+	// 2. Determine Strategy and Base Target
 	if strategy == "" {
 		strategy = DetermineSkewStrategy(p, s.poiMgr, false)
 	}
-
 	baseTarget := longTarget
 	if strategy == StrategyMinSkew {
 		baseTarget = shortTarget
 	}
 
-	// 4. Apply Multiplier (User preference 1..5)
-	targetWords := s.applyWordLengthMultiplier(baseTarget)
+	// 3. Calculate Upper Limit (Config * Multiplier)
+	targetLimit := s.applyWordLengthMultiplier(baseTarget)
 
-	// PHASE 3: Dynamic Scaling based on source depth
-	finalWords := targetWords
-	scalingLog := "none"
-	if sourceWords > 0 {
-		factor := s.cfg.Narrator.LengthScalingFactor
-		if factor <= 0 {
-			factor = 0.5 // Safety default
-		}
-		limit := int(float64(sourceWords) * factor)
-		if limit < finalWords {
-			finalWords = limit
-			scalingLog = fmt.Sprintf("capped by source (%d * %.2f = %d)", sourceWords, factor, limit)
-		}
+	// 4. Calculate Source Limit (Depth / 2)
+	sourceLimit := sourceWords / 2
+
+	// 5. Final Result: min(sourceLimit, targetLimit)
+	finalWords := targetLimit
+	scalingLog := "none (honoring target)"
+	if sourceLimit < targetLimit {
+		finalWords = sourceLimit
+		scalingLog = fmt.Sprintf("capped by source (%d / 2 = %d)", sourceWords, sourceLimit)
 	}
 
 	slog.Debug("Narrator: Sampling Length",
 		"strategy", strategy,
-		"base_target", baseTarget,
-		"user_target", targetWords,
+		"source_words", sourceWords,
+		"target_limit", targetLimit,
 		"final_words", finalWords,
 		"scaling", scalingLog,
 	)

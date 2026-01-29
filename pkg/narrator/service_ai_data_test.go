@@ -361,3 +361,113 @@ func TestFetchPregroundContext(t *testing.T) {
 		})
 	}
 }
+
+func TestSampleNarrationLength_WordCount(t *testing.T) {
+	mockStore := &MockStore{
+		State: make(map[string]string),
+	}
+	svc := &AIService{
+		cfg: &config.Config{
+			Narrator: config.NarratorConfig{
+				NarrationLengthShortWords: 50,
+				NarrationLengthLongWords:  200,
+			},
+		},
+		st: mockStore,
+	}
+
+	tests := []struct {
+		name        string
+		strategy    string
+		wikiWords   int
+		preWords    int
+		textLength  string // user setting "1".."5"
+		expectWords int
+	}{
+		// --- Multiplier Tests (High Depth) ---
+		{
+			name:        "Short Target - Mult 1.0 (50x1.0)",
+			strategy:    StrategyMinSkew,
+			wikiWords:   500,
+			preWords:    0,
+			textLength:  "1",
+			expectWords: 50,
+		},
+		{
+			name:        "Short Target - Mult 2.0 (50x2.0)",
+			strategy:    StrategyMinSkew,
+			wikiWords:   500,
+			preWords:    0,
+			textLength:  "5",
+			expectWords: 100,
+		},
+		{
+			name:        "Long Target - Mult 1.0 (200x1.0)",
+			strategy:    StrategyMaxSkew,
+			wikiWords:   500,
+			preWords:    0,
+			textLength:  "1",
+			expectWords: 200,
+		},
+		{
+			name:        "Long Target - Mult 2.0 (200x2.0)",
+			strategy:    StrategyMaxSkew,
+			wikiWords:   1000,
+			preWords:    0,
+			textLength:  "5",
+			expectWords: 400,
+		},
+
+		// --- Source Depth Capping Tests ---
+		{
+			name:        "Capped by Wiki depth (40/2=20)",
+			strategy:    StrategyMinSkew,
+			wikiWords:   40,
+			preWords:    0,
+			textLength:  "1",
+			expectWords: 20,
+		},
+		{
+			name:        "Boosted by Pregrounding (40+160 = 200/2=100)",
+			strategy:    StrategyMaxSkew,
+			wikiWords:   40,
+			preWords:    160,
+			textLength:  "1",
+			expectWords: 100,
+		},
+		{
+			name:        "Zero Info = Zero Words (min(0, target))",
+			strategy:    StrategyMaxSkew,
+			wikiWords:   0,
+			preWords:    0,
+			textLength:  "1",
+			expectWords: 0,
+		},
+		{
+			name:        "Pregrounding Unavailable (Degrade to Wiki)",
+			strategy:    StrategyMaxSkew,
+			wikiWords:   400,
+			preWords:    0,
+			textLength:  "1",
+			expectWords: 200, // min(400/2, 200*1.0)
+		},
+		{
+			name:        "Low Info vs High Multiplier",
+			strategy:    StrategyMaxSkew,
+			wikiWords:   100, // sourceLimit = 50
+			preWords:    0,
+			textLength:  "5", // targetLimit = 400
+			expectWords: 50,  // min(50, 400)
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockStore.State["text_length"] = tt.textLength
+			got, _ := svc.sampleNarrationLength(&model.POI{}, tt.strategy, tt.wikiWords+tt.preWords)
+			if got != tt.expectWords {
+				t.Errorf("%s: got %d, want %d", tt.name, got, tt.expectWords)
+			}
+		})
+	}
+}
