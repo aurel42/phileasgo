@@ -8,10 +8,16 @@ import (
 	"time"
 )
 
-// handleGenerationState manages the busy state and cancellation logic.
-func (s *AIService) handleGenerationState(manual bool) error {
+func (s *AIService) handleGenerationState(req *GenerationRequest) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if req.SkipBusyCheck {
+		// Caller already claimed the lock (e.g. from the queue worker)
+		s.generating = true
+		return nil
+	}
+
 	if s.generating {
 		return fmt.Errorf("narrator already generating")
 	}

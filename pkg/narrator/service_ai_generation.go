@@ -13,7 +13,7 @@ import (
 // GenerateNarrative creates a narrative from a standardized request.
 func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationRequest) (*model.Narrative, error) {
 	// 1. Sync State Check
-	if err := s.handleGenerationState(req.Manual); err != nil {
+	if err := s.handleGenerationState(req); err != nil {
 		return nil, err
 	}
 	startTime := time.Now()

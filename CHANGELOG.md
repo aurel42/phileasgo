@@ -1,5 +1,8 @@
 ﻿Release History
  
+## v0.3.58 (2026-01-29)
+- **Fix**: **Pregrounding Race Condition**. Resolved a race in the generation queue that could trigger redundant Perplexity API calls when multiple automated or manual narration requests overlapped.
+ 
 ## v0.3.57 (2026-01-29)
 - **Fix**: **POI Ingestion Stability**. Resolved a critical bug where new landmarks were occasionally ignored during fresh network fetches, preventing them from appearing in the UI until the application was restarted.
 

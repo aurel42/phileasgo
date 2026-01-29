@@ -59,24 +59,37 @@ func (s *AIService) HasPendingGeneration() bool {
 func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 	s.mu.Lock()
 	// Serialization: Only one generation at a time.
-	// If already generating, the current GenerateNarrative will kick this again on finish.
 	if s.generating || s.genQ.Count() == 0 {
+		s.mu.Unlock()
+		return
+	}
+
+	// 1. Claim state EARLY to prevent other triggers from starting pregrounding
+	s.generating = true
+
+	// 2. Pop the job
+	job := s.genQ.Pop()
+	if job == nil {
+		s.generating = false
 		s.mu.Unlock()
 		return
 	}
 	s.mu.Unlock()
 
-	// Peek first to get job info, then Pop inside the goroutine?
-	// Or Pop now? If we Pop now, we must ensure processing happens.
-	// But ProcessGenerationQueue is async logic wrapper.
-	// Let's rely on Manager.
-	job := s.genQ.Pop()
-	if job == nil {
-		return
-	}
-
 	// Process Job
 	go func() {
+		// Safety: ensure we always release the lock if anything in this goroutine fails
+		// before GenerateNarrative (which has its own defer).
+		done := false
+		defer func() {
+			if !done {
+				s.mu.Lock()
+				s.generating = false
+				s.generatingPOI = nil
+				s.mu.Unlock()
+			}
+		}()
+
 		genCtx := context.Background()
 		var req *GenerationRequest
 
@@ -92,13 +105,14 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 			prompt, _ := s.prompts.Render("narrator/script.tmpl", promptData)
 
 			req = &GenerationRequest{
-				Type:     model.NarrativeTypePOI,
-				Prompt:   prompt,
-				Title:    p.DisplayName(),
-				SafeID:   strings.ReplaceAll(p.WikidataID, "/", "_"),
-				POI:      p,
-				MaxWords: promptData.MaxWords,
-				Manual:   job.Manual,
+				Type:          model.NarrativeTypePOI,
+				Prompt:        prompt,
+				Title:         p.DisplayName(),
+				SafeID:        strings.ReplaceAll(p.WikidataID, "/", "_"),
+				POI:           p,
+				MaxWords:      promptData.MaxWords,
+				Manual:        job.Manual,
+				SkipBusyCheck: true,
 			}
 
 		case model.NarrativeTypeScreenshot:
@@ -120,15 +134,16 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 			}
 
 			req = &GenerationRequest{
-				Type:      model.NarrativeTypeScreenshot,
-				Prompt:    prompt,
-				Title:     "Screenshot Analysis",
-				SafeID:    "screenshot_" + time.Now().Format("150405"),
-				ImagePath: job.ImagePath,
-				Lat:       job.Telemetry.Latitude,
-				Lon:       job.Telemetry.Longitude,
-				MaxWords:  s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
-				Manual:    true,
+				Type:          model.NarrativeTypeScreenshot,
+				Prompt:        prompt,
+				Title:         "Screenshot Analysis",
+				SafeID:        "screenshot_" + time.Now().Format("150405"),
+				ImagePath:     job.ImagePath,
+				Lat:           job.Telemetry.Latitude,
+				Lon:           job.Telemetry.Longitude,
+				MaxWords:      s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
+				Manual:        true,
+				SkipBusyCheck: true,
 			}
 
 		case model.NarrativeTypeBorder:
@@ -161,12 +176,13 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 				return
 			}
 			req = &GenerationRequest{
-				Type:     model.NarrativeTypeBorder,
-				Prompt:   prompt,
-				Title:    "Border Crossing",
-				SafeID:   "border_" + time.Now().Format("150405"),
-				MaxWords: data.MaxWords,
-				Manual:   true,
+				Type:          model.NarrativeTypeBorder,
+				Prompt:        prompt,
+				Title:         "Border Crossing",
+				SafeID:        "border_" + time.Now().Format("150405"),
+				MaxWords:      data.MaxWords,
+				Manual:        true,
+				SkipBusyCheck: true,
 			}
 
 		default:
@@ -174,6 +190,7 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 			return
 		}
 
+		done = true
 		n, err := s.GenerateNarrative(genCtx, req)
 		if err != nil {
 			slog.Error("Narrator: Priority generation failed", "type", job.Type, "error", err)

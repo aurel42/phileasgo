@@ -38,8 +38,9 @@ type GenerationRequest struct {
 	Lon float64
 
 	// Constraints
-	MaxWords int
-	Manual   bool
+	MaxWords      int
+	Manual        bool
+	SkipBusyCheck bool // If true, handleGenerationState will skip the busy check (assumes caller claimed it)
 }
 
 // ScriptEntry represents a previously generated narration script.
