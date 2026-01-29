@@ -52,6 +52,8 @@ func run() error {
 	radius := flag.Float64("radius", 15.0, "Search radius in kilometers")
 	showAll := flag.Bool("all", false, "Show all articles, not just first 50")
 	checkQID := flag.String("check", "", "Check specific QID in DB (poi and seen_entities tables)")
+	latFlag := flag.Float64("lat", 0, "Override latitude (skip telemetry fetch)")
+	lonFlag := flag.Float64("lon", 0, "Override longitude (skip telemetry fetch)")
 	flag.Parse()
 
 	// Load config
@@ -60,22 +62,32 @@ func run() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Fetch telemetry from running server
-	serverAddr := cfg.Server.Address
-	if serverAddr == "" {
-		serverAddr = "localhost:1920"
-	}
+	var lat, lon float64
 
-	tel, err := fetchTelemetry(serverAddr)
-	if err != nil {
-		return fmt.Errorf("failed to fetch telemetry: %w\nIs PhileasGo running?", err)
-	}
+	// Use command-line coordinates if provided, otherwise fetch telemetry
+	if *latFlag != 0 && *lonFlag != 0 {
+		lat = *latFlag
+		lon = *lonFlag
+		fmt.Printf("Using provided coordinates: %.4f, %.4f\n", lat, lon)
+	} else {
+		// Fetch telemetry from running server
+		serverAddr := cfg.Server.Address
+		if serverAddr == "" {
+			serverAddr = "localhost:1920"
+		}
 
-	if !tel.Valid {
-		return fmt.Errorf("telemetry not valid (no data received from simulator yet)")
-	}
+		tel, err := fetchTelemetry(serverAddr)
+		if err != nil {
+			return fmt.Errorf("failed to fetch telemetry: %w\nIs PhileasGo running?", err)
+		}
 
-	fmt.Printf("Position: %.4f, %.4f\n", tel.Latitude, tel.Longitude)
+		if !tel.Valid {
+			return fmt.Errorf("telemetry not valid (no data received from simulator yet)")
+		}
+		lat = tel.Latitude
+		lon = tel.Longitude
+		fmt.Printf("Position: %.4f, %.4f\n", lat, lon)
+	}
 	fmt.Printf("Search radius: %.1f km\n\n", *radius)
 
 	// Open database
@@ -96,8 +108,8 @@ func run() error {
 	// Find tiles in the vicinity (±0.5° bounding box, approximately 55km)
 	degRadius := 0.5
 	tiles, err := st.GetGeodataInBounds(ctx,
-		tel.Latitude-degRadius, tel.Latitude+degRadius,
-		tel.Longitude-degRadius, tel.Longitude+degRadius,
+		lat-degRadius, lat+degRadius,
+		lon-degRadius, lon+degRadius,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to query tiles: %w", err)
@@ -112,7 +124,8 @@ func run() error {
 	fmt.Printf("Found %d cached tiles\n\n", len(tiles))
 
 	// Analyze tiles
-	articles, err := scanTiles(ctx, st, tiles, tel.Latitude, tel.Longitude, *radius*1000)
+	articles, err := scanTiles(ctx, st, tiles, lat, lon, *radius*1000)
+
 	if err != nil {
 		return err
 	}

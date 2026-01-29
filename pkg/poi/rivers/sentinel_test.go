@@ -80,6 +80,70 @@ func TestLoadDataWithValidGeoJSON(t *testing.T) {
 	}
 }
 
+// TestLoadDataWithMergedSegments verifies that segments with the same name are merged.
+func TestLoadDataWithMergedSegments(t *testing.T) {
+	geojson := `{
+		"type": "FeatureCollection",
+		"features": [
+			{
+				"type": "Feature",
+				"properties": {"name": "Rhine"},
+				"geometry": {
+					"type": "LineString",
+					"coordinates": [[8.0, 47.0], [8.0, 48.0]]
+				}
+			},
+			{
+				"type": "Feature",
+				"properties": {"name": "Rhine"},
+				"geometry": {
+					"type": "LineString",
+					"coordinates": [[8.0, 48.0], [8.0, 49.0]]
+				}
+			},
+			{
+				"type": "Feature",
+				"properties": {"name": "Rhine"},
+				"geometry": {
+					"type": "LineString",
+					"coordinates": [[8.0, 49.0], [8.0, 50.0]]
+				}
+			}
+		]
+	}`
+
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "merged_rivers.geojson")
+	if err := os.WriteFile(tmpFile, []byte(geojson), 0o644); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+
+	s := NewSentinel(quietLogger(), tmpFile)
+	if len(s.rivers) != 1 {
+		t.Fatalf("expected 1 merged river, got %d", len(s.rivers))
+	}
+
+	r := s.rivers[0]
+	if r.Name != "Rhine" {
+		t.Errorf("expected name 'Rhine', got %q", r.Name)
+	}
+
+	// Verify merged geometry: 3 segments = 3 lines in MultiLineString
+	if len(r.Geom) != 3 {
+		t.Errorf("expected 3 merged segments, got %d", len(r.Geom))
+	}
+
+	// Verify extremities: endpoints at 47.0 and 50.0 should be mouth/source
+	// (order doesn't matter for now as long as they are the ends)
+	gotExtremities := map[float64]bool{
+		r.Source.Lat: true,
+		r.Mouth.Lat:  true,
+	}
+	if !gotExtremities[47.0] || !gotExtremities[50.0] {
+		t.Errorf("expected extremities at 47.0 and 50.0, got Source=%v, Mouth=%v", r.Source, r.Mouth)
+	}
+}
+
 // TestLoadDataEdgeCases tests various edge cases in loadData.
 func TestLoadDataEdgeCases(t *testing.T) {
 	tests := []struct {

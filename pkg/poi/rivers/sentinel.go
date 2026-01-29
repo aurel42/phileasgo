@@ -51,6 +51,24 @@ func (s *Sentinel) loadData(path string) error {
 		return err
 	}
 
+	groups := s.groupSegments(fc)
+
+	for name, group := range groups {
+		s.rivers = append(s.rivers, s.createRiverFromGroup(name, group))
+	}
+
+	s.logger.Info("Loaded and merged rivers", "count", len(s.rivers))
+	return nil
+}
+
+type riverGroup struct {
+	mls  orb.MultiLineString
+	bbox orb.Bound
+}
+
+func (s *Sentinel) groupSegments(fc *geojson.FeatureCollection) map[string]*riverGroup {
+	groups := make(map[string]*riverGroup)
+
 	for _, f := range fc.Features {
 		name := ""
 		if n, ok := f.Properties["name_en"].(string); ok && n != "" {
@@ -78,32 +96,59 @@ func (s *Sentinel) loadData(path string) error {
 			continue
 		}
 
-		// Determine Ends
-		// Assuming last point of last segment is mouth (standard for NE rivers but validation helps)
-		// For now we trust the order or just take extremities.
-		// Let's create a bbox for fast filter
-		bbox := mls.Bound()
-
-		// Find "End" and "Start" based on simplified assumption or just endpoints of the longest line?
-		// Usually MLS is segmented. The bounding box extremities might work?
-		// Or simpler: The *endpoints* of the geometry.
-		// Since it's a MultiLineString, it might be disjoint.
-		// Ideally we treat each feature as a single river entity.
-		// Lets take the first point of first segment and last point of last segment.
-		start := geo.Point{Lat: mls[0][0][1], Lon: mls[0][0][0]}
-		lastSeg := mls[len(mls)-1]
-		end := geo.Point{Lat: lastSeg[len(lastSeg)-1][1], Lon: lastSeg[len(lastSeg)-1][0]}
-
-		s.rivers = append(s.rivers, River{
-			Name:   name,
-			Geom:   mls,
-			Mouth:  end, // Assume downstream
-			Source: start,
-			BBox:   bbox,
-		})
+		group, ok := groups[name]
+		if !ok {
+			group = &riverGroup{
+				mls:  make(orb.MultiLineString, 0),
+				bbox: mls.Bound(),
+			}
+			groups[name] = group
+		} else {
+			b := mls.Bound()
+			group.bbox = group.bbox.Extend(b.Min)
+			group.bbox = group.bbox.Extend(b.Max)
+		}
+		group.mls = append(group.mls, mls...)
 	}
-	s.logger.Info("Loaded rivers", "count", len(s.rivers))
-	return nil
+	return groups
+}
+
+func (s *Sentinel) createRiverFromGroup(name string, group *riverGroup) River {
+	// Identify Global Ends
+	endpoints := make(map[orb.Point]int)
+	for _, line := range group.mls {
+		if len(line) < 2 {
+			continue
+		}
+		endpoints[line[0]]++
+		endpoints[line[len(line)-1]]++
+	}
+
+	var extremities []orb.Point
+	for p, count := range endpoints {
+		if count == 1 {
+			extremities = append(extremities, p)
+		}
+	}
+
+	var source, mouth geo.Point
+	if len(extremities) >= 2 {
+		source = geo.Point{Lat: extremities[0][1], Lon: extremities[0][0]}
+		mouth = geo.Point{Lat: extremities[1][1], Lon: extremities[1][0]}
+	} else if len(group.mls) > 0 {
+		l := group.mls
+		source = geo.Point{Lat: l[0][0][1], Lon: l[0][0][0]}
+		lastLine := l[len(l)-1]
+		mouth = geo.Point{Lat: lastLine[len(lastLine)-1][1], Lon: lastLine[len(lastLine)-1][0]}
+	}
+
+	return River{
+		Name:   name,
+		Geom:   group.mls,
+		Mouth:  mouth,
+		Source: source,
+		BBox:   group.bbox,
+	}
 }
 
 // Update checks for nearby rivers relative to aircraft.

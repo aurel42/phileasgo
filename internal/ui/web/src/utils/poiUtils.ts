@@ -13,3 +13,9 @@ export const isPOIVisible = (poi: POI, minScore: number): boolean => {
 
     return false;
 };
+
+export const getPOIDisplayName = (poi: { name_user?: string; name_en?: string; name_local?: string }): string => {
+    if (poi.name_user) return poi.name_user;
+    if (poi.name_en) return poi.name_en;
+    return poi.name_local || 'Unknown';
+};

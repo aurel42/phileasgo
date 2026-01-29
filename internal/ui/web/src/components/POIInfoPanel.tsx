@@ -4,6 +4,7 @@ import type { POI } from '../hooks/usePOIs';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AudioStatus } from '../types/audio';
 import { useNarrator } from '../hooks/useNarrator';
+import { getPOIDisplayName } from '../utils/poiUtils';
 
 interface POIInfoPanelProps {
     poi: POI | null;
@@ -21,11 +22,7 @@ const getColor = (score: number) => {
     return `hsl(${hue}, 100%, 50%)`;
 };
 
-const getName = (poi: POI) => {
-    if (poi.name_user) return poi.name_user;
-    if (poi.name_en) return poi.name_en;
-    return poi.name_local || 'Unknown';
-};
+const getName = getPOIDisplayName;
 
 const getLocalNameIfDifferent = (poi: POI, primaryName: string) => {
     if (poi.name_local && poi.name_local !== primaryName) {

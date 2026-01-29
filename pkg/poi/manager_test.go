@@ -566,8 +566,40 @@ func TestManager_UpdateRivers(t *testing.T) {
 		SourceLat: 11.0,
 		SourceLon: 11.0,
 	}
-	p, err = mgr.UpdateRivers(ctx, 10.5, 10.5, 0)
-	if err != nil || p != nil {
-		t.Errorf("Expected nil POI when none found, got %v", p)
+	// 5. Verify movement and tracking
+	sentinel.candidate = &model.RiverCandidate{
+		Name:       "Rhine",
+		MouthLat:   50.0,
+		MouthLon:   8.0,
+		Distance:   50,
+		ClosestLat: 49.95,
+		ClosestLon: 8.05,
+	}
+	// POI is already in fetcher map from step 2
+
+	p, err = mgr.UpdateRivers(ctx, 49.95, 8.05, 0)
+	if err != nil || p == nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+
+	// Verify coordinates updated to ClosestLat/Lon
+	if p.Lat != 49.95 || p.Lon != 8.05 {
+		t.Errorf("Coordinates not updated: got %f,%f want 49.95,8.05", p.Lat, p.Lon)
+	}
+
+	// Verify tracked in manager
+	tracked := mgr.GetTrackedPOIs()
+	found := false
+	for _, tp := range tracked {
+		if tp.WikidataID == "Q1" {
+			found = true
+			if tp.Lat != 49.95 {
+				t.Errorf("Tracked POI coordinates not updated: got %f want 49.95", tp.Lat)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("River POI not tracked in manager")
 	}
 }

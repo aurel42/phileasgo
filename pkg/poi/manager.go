@@ -612,43 +612,54 @@ func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (
 
 	// 3b. Search for Water POI near Mouth
 	pois, err := m.tileFetcher.GetPOIsNear(ctx, candidate.MouthLat, candidate.MouthLon, hydrationRadius)
+	var p *model.POI
 	if err == nil {
-		for _, p := range pois {
-			if p.Category == "Water" {
-				// Found! Attach context and return
-				p.RiverContext = &model.RiverContext{
-					IsActive:   true,
-					DistanceM:  candidate.Distance,
-					ClosestLat: candidate.ClosestLat,
-					ClosestLon: candidate.ClosestLon,
-				}
-				m.logger.Info("Hydrated river POI from mouth tile", "qid", p.WikidataID, "name", p.DisplayName())
-				return p, nil
+		for _, found := range pois {
+			if strings.EqualFold(found.Category, "Water") {
+				p = found
+				break
 			}
 		}
 	}
 
-	// 3c. Try Source
-	if err := m.tileFetcher.EnsureTilesLoaded(ctx, candidate.SourceLat, candidate.SourceLon); err != nil {
-		m.logger.Warn("Failed to load source tile", "err", err)
-	}
-	pois, err = m.tileFetcher.GetPOIsNear(ctx, candidate.SourceLat, candidate.SourceLon, hydrationRadius)
-	if err == nil {
-		for _, p := range pois {
-			if p.Category == "Water" {
-				p.RiverContext = &model.RiverContext{
-					IsActive:   true,
-					DistanceM:  candidate.Distance,
-					ClosestLat: candidate.ClosestLat,
-					ClosestLon: candidate.ClosestLon,
+	// 3c. Try Source if mouth failed
+	if p == nil {
+		if err := m.tileFetcher.EnsureTilesLoaded(ctx, candidate.SourceLat, candidate.SourceLon); err != nil {
+			m.logger.Warn("Failed to load source tile", "err", err)
+		}
+		pois, err = m.tileFetcher.GetPOIsNear(ctx, candidate.SourceLat, candidate.SourceLon, hydrationRadius)
+		if err == nil {
+			for _, found := range pois {
+				if strings.EqualFold(found.Category, "Water") {
+					p = found
+					break
 				}
-				m.logger.Info("Hydrated river POI from source tile", "qid", p.WikidataID, "name", p.DisplayName())
-				return p, nil
 			}
 		}
 	}
 
-	// 3d. Fallback: Check surrounding tiles of Mouth (TODO: implement if needed)
+	if p != nil {
+		// Found! Attach context, update position, and TRACK
+		p.RiverContext = &model.RiverContext{
+			IsActive:   true,
+			DistanceM:  candidate.Distance,
+			ClosestLat: candidate.ClosestLat,
+			ClosestLon: candidate.ClosestLon,
+		}
+		// Jump coordinates to aircraft vicinity (15s design)
+		p.Lat = candidate.ClosestLat
+		p.Lon = candidate.ClosestLon
+
+		// Ensure it's in the active cache (Tracker)
+		if err := m.TrackPOI(ctx, p); err != nil {
+			m.logger.Warn("Failed to track river POI", "qid", p.WikidataID, "error", err)
+		}
+
+		m.logger.Info("Hydrated and tracked river POI", "qid", p.WikidataID, "name", p.DisplayName())
+		return p, nil
+	}
+
+	// 3d. Fallback: No POI found
 	m.logger.Debug("River detected but no matching POI found in tiles", "name", candidate.Name)
 	return nil, nil
 }

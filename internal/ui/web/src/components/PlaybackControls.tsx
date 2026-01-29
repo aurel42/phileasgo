@@ -5,6 +5,7 @@ import { Pause, Play, Square, SkipForward, Volume2, RotateCcw } from 'lucide-rea
 import { useAudio } from '../hooks/useAudio';
 import { useNarrator } from '../hooks/useNarrator';
 import type { AudioStatus } from '../types/audio';
+import { getPOIDisplayName } from '../utils/poiUtils';
 
 interface PlaybackControlsProps {
     status?: AudioStatus;
@@ -47,7 +48,11 @@ export const PlaybackControls = ({ status: externalStatus }: PlaybackControlsPro
     // Determine Title
     // If not active/playing/preparing, maybe show nothing or "IDLE"
     const showTitle = narratorStatus?.playback_status && narratorStatus.playback_status !== 'idle';
-    const displayTitle = narratorStatus?.current_title || "";
+    let displayTitle = narratorStatus?.current_title || "";
+
+    if (!displayTitle && isPreparing && narratorStatus?.preparing_poi) {
+        displayTitle = getPOIDisplayName(narratorStatus.preparing_poi);
+    }
 
     const formatTime = (seconds: number) => {
         if (!seconds && seconds !== 0) return "0:00";

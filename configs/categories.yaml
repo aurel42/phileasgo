@@ -48,6 +48,7 @@ categories:
   City:
     qids:
       "Q515": "city"
+      "Q124250988": "urban settlement"
     weight: 0.8
     icon: "city"
     sitelinks_min: 3
@@ -186,7 +187,7 @@ categories:
       "Q3957": "town"
     weight: 0.4
     icon: "town"
-    sitelinks_min: 2
+    sitelinks_min: 3
     size: "L"
     preground: true
   Village:
@@ -194,7 +195,7 @@ categories:
       "Q532": "village"
     weight: 0.3
     icon: "village"
-    sitelinks_min: 2
+    sitelinks_min: 5
     size: "M"
     preground: true
   Volcano:

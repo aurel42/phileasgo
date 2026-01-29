@@ -1,5 +1,9 @@
 ﻿Release History
  
+## v0.3.63 (2026-01-29)
+- **Improvement**: **Advanced River Tracking**. River segments are now merged by name during discovery, enabling accurate detection of large rivers (like the Rhine) and ensuring POI markers correctly follow the flight path.
+- **UI**: **Narrator Preparation Clarity**. Replaced the generic "LOADING..." status with the actual title of the upcoming POI, providing immediate feedback on what will be narrated next.
+ 
 ## v0.3.62 (2026-01-29)
 - **Fix**: **Duplicate Narration Prevention**. Resolved a race condition where automated POIs could be triggered multiple times if data fetching took longer than the polling interval.
 
