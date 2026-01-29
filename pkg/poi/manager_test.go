@@ -2,6 +2,7 @@ package poi
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -76,6 +77,28 @@ func (s *MockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) 
 	return false, nil
 }
 func (s *MockStore) Close() error { return nil }
+
+// Mocks for River Detection
+type MockRiverSentinel struct {
+	candidate *model.RiverCandidate
+}
+
+func (m *MockRiverSentinel) Update(lat, lon, heading float64) *model.RiverCandidate {
+	return m.candidate
+}
+
+type MockTileFetcher struct {
+	poiMap map[string][]*model.POI
+	err    error
+}
+
+func (m *MockTileFetcher) EnsureTilesLoaded(ctx context.Context, lat, lon float64) error {
+	return nil
+}
+func (m *MockTileFetcher) GetPOIsNear(ctx context.Context, lat, lon, radiusMeters float64) ([]*model.POI, error) {
+	key := fmt.Sprintf("%.1f,%.1f", lat, lon)
+	return m.poiMap[key], m.err
+}
 
 func TestManager_TrackPOI_Nameless(t *testing.T) {
 	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
@@ -471,5 +494,80 @@ func TestManager_CountScoredAbove_Competition(t *testing.T) {
 	count := mgr.CountScoredAbove(5.0, 100)
 	if count != 1 {
 		t.Errorf("CountScoredAbove expected 1 (only playable), got %d", count)
+	}
+}
+
+func TestManager_UpdateRivers(t *testing.T) {
+	ctx := context.Background()
+	store := NewMockStore()
+	mgr := NewManager(&config.Config{}, store, nil)
+
+	sentinel := &MockRiverSentinel{}
+	fetcher := &MockTileFetcher{poiMap: make(map[string][]*model.POI)}
+	mgr.SetRiverSentinel(sentinel)
+	mgr.SetTileFetcher(fetcher)
+
+	// 1. No river ahead
+	p, err := mgr.UpdateRivers(ctx, 0, 0, 0)
+	if err != nil || p != nil {
+		t.Errorf("Expected nil POI, got %v (err: %v)", p, err)
+	}
+
+	// 2. River detected, hydrated from Mouth
+	sentinel.candidate = &model.RiverCandidate{
+		Name:       "Rhine",
+		MouthLat:   50.0,
+		MouthLon:   8.0,
+		Distance:   100,
+		ClosestLat: 49.9,
+		ClosestLon: 8.1,
+	}
+	fetcher.poiMap["50.0,8.0"] = []*model.POI{
+		{WikidataID: "Q1", Category: "Water", NameEn: "Rhine"},
+	}
+
+	p, err = mgr.UpdateRivers(ctx, 49.9, 8.1, 0)
+	if err != nil || p == nil {
+		t.Fatalf("Hydration failed: %v", err)
+	}
+	if p.RiverContext == nil || p.RiverContext.DistanceM != 100 {
+		t.Errorf("RiverContext not attached correctly: %+v", p.RiverContext)
+	}
+
+	// 3. River detected, hydrated from Source (Mouth returns nil)
+	sentinel.candidate = &model.RiverCandidate{
+		Name:       "Danube",
+		MouthLat:   48.0,
+		MouthLon:   12.0,
+		SourceLat:  47.5,
+		SourceLon:  10.5,
+		Distance:   200,
+		ClosestLat: 47.9,
+		ClosestLon: 11.1,
+	}
+	fetcher.poiMap["48.0,12.0"] = nil // Mouth empty
+	fetcher.poiMap["47.5,10.5"] = []*model.POI{
+		{WikidataID: "Q2", Category: "Water", NameEn: "Danube"},
+	}
+
+	p, err = mgr.UpdateRivers(ctx, 47.9, 11.1, 0)
+	if err != nil || p == nil {
+		t.Fatalf("Hydration from source failed: %v", err)
+	}
+	if p.RiverContext.DistanceM != 200 {
+		t.Errorf("RiverContext distance mismatch: %f", p.RiverContext.DistanceM)
+	}
+
+	// 4. River detected, no POI found
+	sentinel.candidate = &model.RiverCandidate{
+		Name:      "Nowhere",
+		MouthLat:  10.0,
+		MouthLon:  10.0,
+		SourceLat: 11.0,
+		SourceLon: 11.0,
+	}
+	p, err = mgr.UpdateRivers(ctx, 10.5, 10.5, 0)
+	if err != nil || p != nil {
+		t.Errorf("Expected nil POI when none found, got %v", p)
 	}
 }

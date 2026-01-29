@@ -67,13 +67,16 @@ func (s *AIService) playPOIAutomated(ctx context.Context, p *model.POI, tel *sim
 		slog.Info("Narrator: Skipping auto-play (priority queue not empty)")
 		return
 	}
-	if s.IsGenerating() {
+
+	// Synchronously claim the generation slot to prevent race conditions during pregrounding/Wikipedia fetches
+	if !s.claimGeneration(p) {
 		slog.Info("Narrator: Skipping auto-play (busy generating)")
 		return
 	}
 
 	if !s.canEnqueuePlayback("poi", false) {
 		slog.Info("Narrator: Play request rejected by queue constraints", "poi_id", p.WikidataID, "manual", false)
+		s.releaseGeneration()
 		return
 	}
 
@@ -82,7 +85,15 @@ func (s *AIService) playPOIAutomated(ctx context.Context, p *model.POI, tel *sim
 		// Ensure generation context survives
 		genCtx := context.Background()
 
-		// Build Prompt
+		// Safety: Release state if GenerateNarrative is never reached due to errors
+		done := false
+		defer func() {
+			if !done {
+				s.releaseGeneration()
+			}
+		}()
+
+		// Build Prompt (This phase takes ~15s and was previously unprotected)
 		promptData := s.buildPromptData(genCtx, p, tel, strategy)
 		prompt, err := s.prompts.Render("narrator/script.tmpl", promptData)
 		if err != nil {
@@ -92,15 +103,17 @@ func (s *AIService) playPOIAutomated(ctx context.Context, p *model.POI, tel *sim
 
 		// Create Request
 		req := GenerationRequest{
-			Type:     model.NarrativeTypePOI,
-			Prompt:   prompt,
-			Title:    p.DisplayName(),
-			SafeID:   strings.ReplaceAll(p.WikidataID, "/", "_"),
-			POI:      p,
-			MaxWords: promptData.MaxWords,
-			Manual:   false,
+			Type:          model.NarrativeTypePOI,
+			Prompt:        prompt,
+			Title:         p.DisplayName(),
+			SafeID:        strings.ReplaceAll(p.WikidataID, "/", "_"),
+			POI:           p,
+			MaxWords:      promptData.MaxWords,
+			Manual:        false,
+			SkipBusyCheck: true, // Acknowledge that we claimed the state already
 		}
 
+		done = true // GenerateNarrative takes over the cleanup via its own defer
 		narrative, err := s.GenerateNarrative(genCtx, &req)
 		if err != nil {
 			slog.Error("Narrator: Generation failed", "poi_id", p.WikidataID, "error", err)

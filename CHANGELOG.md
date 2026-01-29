@@ -1,5 +1,8 @@
 ﻿Release History
  
+## v0.3.62 (2026-01-29)
+- **Fix**: **Duplicate Narration Prevention**. Resolved a race condition where automated POIs could be triggered multiple times if data fetching took longer than the polling interval.
+
 ## v0.3.61 (2026-01-29)
 - **Fix**: **River Detection Stability**. Resolved "unexpected candidate type" warning that could cause river detection to fail silently. Structural refactor to resolve internal circular dependencies.
  

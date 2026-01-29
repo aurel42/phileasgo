@@ -115,6 +115,11 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 				SkipBusyCheck: true,
 			}
 
+			// Update state so IsPOIBusy(p.WikidataID) is true during generation
+			s.mu.Lock()
+			s.generatingPOI = p
+			s.mu.Unlock()
+
 		case model.NarrativeTypeScreenshot:
 			loc := s.geoSvc.GetLocation(job.Telemetry.Latitude, job.Telemetry.Longitude)
 			data := map[string]any{

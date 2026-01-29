@@ -13,7 +13,7 @@ func (s *AIService) handleGenerationState(req *GenerationRequest) error {
 	defer s.mu.Unlock()
 
 	if req.SkipBusyCheck {
-		// Caller already claimed the lock (e.g. from the queue worker)
+		// Caller already claimed the lock (e.g. from the queue worker or detached worker)
 		s.generating = true
 		return nil
 	}
@@ -23,6 +23,27 @@ func (s *AIService) handleGenerationState(req *GenerationRequest) error {
 	}
 	s.generating = true
 	return nil
+}
+
+// claimGeneration synchronously claims the busy state for the narrator.
+// Returns true if claimed, false if already busy.
+func (s *AIService) claimGeneration(p *model.POI) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.generating {
+		return false
+	}
+	s.generating = true
+	s.generatingPOI = p
+	return true
+}
+
+// releaseGeneration releases the busy state for the narrator.
+func (s *AIService) releaseGeneration() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.generating = false
+	s.generatingPOI = nil
 }
 
 // IsActive returns true if narrator is currently active (generating or playing).
