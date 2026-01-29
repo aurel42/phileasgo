@@ -90,24 +90,57 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
         fetchThumbnail();
     }, [poi, thumbnailFromData, freshPoi?.narration_strategy]);
 
-    // If no POI, we are in a generic nomination mode (Debrief, Essay)
+    // If no POI, we are in a generic nomination mode (Debrief, Essay, Screenshot)
     if (!poi) {
-        const displayTitle = currentTitle || (currentType === 'debrief' ? 'Flight Debrief' : 'Essay');
-        const displayCategory = currentType === 'debrief' ? 'Flight Summary' : 'Regional Essay';
+        let displayTitle = currentTitle;
+        let displayCategory = 'Regional Essay';
+        let defaultText = 'Enjoy this regional essay about your current surroundings.';
+
+        if (currentType === 'debrief') {
+            displayTitle = displayTitle || 'Flight Debrief';
+            displayCategory = 'Flight Summary';
+            defaultText = 'Your flight has concluded. Listen to the automated pilot debrief.';
+        } else if (currentType === 'screenshot') {
+            displayTitle = displayTitle || 'Photograph Analysis';
+            displayCategory = 'Visual Reconnaissance';
+            defaultText = 'Analyzing the captured imagery with local geographical context.';
+        } else {
+            displayTitle = displayTitle || 'Regional Essay';
+        }
+
+        const screenshotUrl = (currentType === 'screenshot' && narratorStatus?.current_image_path)
+            ? `/api/images/serve?path=${encodeURIComponent(narratorStatus.current_image_path)}`
+            : null;
+
         return (
-            <div className="poi-info-panel generic-narration">
-                <div className="panel-header">
-                    <button className="close-btn role-btn" onClick={onClose}>×</button>
-                    <div className="role-label">{displayCategory}</div>
+            <div className="poi-info-panel generic-narration" style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: screenshotUrl ? '1' : '1 1 auto', minWidth: 0 }}>
+                    <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div className="role-label">{displayCategory}</div>
+                        <button className="close-btn role-btn" onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#666', fontSize: '20px', cursor: 'pointer' }}>×</button>
+                    </div>
+                    <div className="poi-details">
+                        <h1 className="role-title" style={{ margin: '8px 0' }}>{displayTitle}</h1>
+                        <p className="role-text-lg" style={{ opacity: 0.8 }}>
+                            {defaultText}
+                        </p>
+                    </div>
                 </div>
-                <div className="poi-details">
-                    <h1 className="role-title" style={{ margin: '8px 0' }}>{displayTitle}</h1>
-                    <p className="role-text-lg">
-                        {currentType === 'debrief'
-                            ? "Your flight has concluded. Listen to the automated pilot debrief."
-                            : "Enjoy this regional essay about your current surroundings."}
-                    </p>
-                </div>
+                {screenshotUrl && (
+                    <div style={{ flex: '0 0 60%', minWidth: 0 }}>
+                        <img
+                            src={screenshotUrl}
+                            alt="Screenshot Analysis"
+                            className="poi-thumbnail"
+                            style={{
+                                width: '100%',
+                                height: 'auto',
+                                boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+                                border: '1px solid rgba(255,255,255,0.1)'
+                            }}
+                        />
+                    </div>
+                )}
             </div>
         );
     }

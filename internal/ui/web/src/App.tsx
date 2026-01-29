@@ -82,32 +82,32 @@ function App() {
         autoOpenedRef.current = true;
         lastAutoOpenedIdRef.current = poiId;
       }
-    } else if (narratorStatus?.playback_status === 'playing' && (narratorStatus?.current_type === 'debrief' || narratorStatus?.current_type === 'essay')) {
+    } else if (narratorStatus?.playback_status === 'playing' && (narratorStatus?.current_type === 'debrief' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot')) {
       // Auto-open for non-POI narratives
-      const title = narratorStatus.current_title || (narratorStatus.current_type === 'debrief' ? 'Debrief' : 'Essay');
+      const title = narratorStatus.current_title ||
+        (narratorStatus.current_type === 'debrief' ? 'Debrief' :
+          narratorStatus.current_type === 'screenshot' ? 'Photograph Analysis' : 'Essay');
       if (lastAutoOpenedIdRef.current !== title) {
-        // Since we don't have a POI, we need a way to show a "generic" info panel.
-        // For now, let's just use the presence of current_title/type to keep the panel open if we were to have one.
-        // However, the UI is very POI-centric. 
-        // A better approach for now might be to NOT auto-open the dashboard panel for debriefs if we don't have a GenericInfoPanel yet,
-        // OR we can make POIInfoPanel more resilient.
         lastAutoOpenedIdRef.current = title;
+        // Since we don't have a POI, the render logic handles showing the generic panel
+        autoOpenedRef.current = true;
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [narratorStatus?.playback_status, narratorStatus?.current_poi?.wikidata_id, pois]);
+  }, [narratorStatus?.playback_status, narratorStatus?.current_poi?.wikidata_id, narratorStatus?.current_type, narratorStatus?.current_title, pois]);
 
   // Auto-close panel when narrator stops or switches to non-POI content (e.g. screenshot)
   useEffect(() => {
     const isIdle = narratorStatus?.playback_status === 'idle';
     const isPlayingNonPoi = narratorStatus?.playback_status === 'playing' && !narratorStatus?.current_poi;
+    const isSpecialType = narratorStatus?.current_type === 'debrief' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot';
 
-    if ((isIdle || isPlayingNonPoi) && autoOpenedRef.current) {
+    if ((isIdle || (isPlayingNonPoi && !isSpecialType)) && autoOpenedRef.current) {
       setSelectedPOI(null);
       autoOpenedRef.current = false;
       lastAutoOpenedIdRef.current = null;
     }
-  }, [narratorStatus?.playback_status, narratorStatus?.current_poi]);
+  }, [narratorStatus?.playback_status, narratorStatus?.current_poi, narratorStatus?.current_type]);
 
   // Handler for manual POI selection (from map)
   const handlePOISelect = useCallback((poi: POI) => {
@@ -330,9 +330,9 @@ function App() {
       </div>
       <div className="dashboard-container">
         <PlaybackControls />
-        {(selectedPOI || (narratorStatus?.playback_status === 'playing' && narratorStatus?.current_type === 'debrief')) ? (
+        {(selectedPOI || (narratorStatus?.playback_status === 'playing' && (narratorStatus?.current_type === 'debrief' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot'))) ? (
           <POIInfoPanel
-            key={selectedPOI?.wikidata_id || 'debrief'}
+            key={selectedPOI?.wikidata_id || (narratorStatus?.current_type + '-' + narratorStatus?.current_title)}
             poi={selectedPOI}
             pois={pois}
             aircraftHeading={telemetry?.Heading || 0}

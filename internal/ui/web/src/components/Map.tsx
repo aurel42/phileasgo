@@ -296,8 +296,18 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
             const maxLatDiff = Math.max(...nonBluePois.map(p => Math.abs(p.lat - lat)));
             const maxLonDiff = Math.max(...nonBluePois.map(p => Math.abs(p.lon - lon)));
 
-            const latBuffer = Math.max(maxLatDiff, 0.01);
-            const lonBuffer = Math.max(maxLonDiff, 0.01);
+            let latBuffer = Math.max(maxLatDiff, 0.01);
+            let lonBuffer = Math.max(maxLonDiff, 0.01);
+
+            // Refinement: Adjust bounding box based on map aspect ratio
+            // If map is higher than wide (narrow side panel), zero out width (lon)
+            // If map is wider than high, zero out height (lat)
+            const mapSize = map.getSize();
+            if (mapSize.y > mapSize.x) {
+                lonBuffer = 0;
+            } else if (mapSize.x > mapSize.y) {
+                latBuffer = 0;
+            }
 
             const symmetricBounds = L.latLngBounds(
                 [lat - latBuffer, lon - lonBuffer],

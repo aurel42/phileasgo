@@ -1,11 +1,15 @@
 ﻿Release History
  
+## v0.3.65 (2026-01-29)
+
+- **Adaptive Map Zoom**: Refined the auto-zoom logic to respect viewport aspect ratio. This prevents unnecessary zooming out on narrow displays (like sidebars) by prioritizing the larger dimension for bounds calculation.
+- **Intelligent Info Panel**: Standardized the info panel's auto-open behavior for non-POI narratives. The panel now automatically opens and displays context-appropriate visuals for **Screenshots (Photograph Analysis)** and **Regional Essays**.
+- **Fix**: Resolved an issue where screenshot narrations failed to trigger the dashboard info panel.
 ## v0.3.64 (2026-01-29)
 
 - **Anchor Baseline Algorithm**: Implemented a new significance detection logic that correctly handles sparse and rural areas by including zero-value tiles in local medians.
 - **Physical Noise Floors**: Added configurable minimum thresholds (30m height, 500m length, 10k sqm area) to prevent promotion of insignificant objects in empty regions.
 - **Improved Dimension Tracking**: Fixed bootstrapping bias by including all valid local objects in statistical baselines while ignoring administrative entities.
-- **Rescue Instrumentation**: Added concise debug logging with tile-specific dimension stats and comparison medians.
 
 ## v0.3.63 (2026-01-29)
 - **Improvement**: **Advanced River Tracking**. River segments are now merged by name during discovery, enabling accurate detection of large rivers (like the Rhine) and ensuring POI markers correctly follow the flight path.
