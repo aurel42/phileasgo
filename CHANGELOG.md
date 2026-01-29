@@ -1,5 +1,8 @@
 ﻿Release History
  
+## v0.3.59 (2026-01-29)
+- **Improvement**: **Narration Depth Scaling**. Integrated Perplexity (pregrounding) context into word count calculations, allowing for significantly longer and more detailed narrations when specialized research is available.
+ 
 ## v0.3.58 (2026-01-29)
 - **Fix**: **Pregrounding Race Condition**. Resolved a race in the generation queue that could trigger redundant Perplexity API calls when multiple automated or manual narration requests overlapped.
  

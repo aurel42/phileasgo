@@ -32,7 +32,12 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 	wikiInfo := s.fetchWikipediaText(ctx, p)
 	wpText := wikiInfo.Prose
 
-	maxWords, domStrat := s.sampleNarrationLength(p, strategy, wikiInfo.WordCount)
+	// Phase 3: Pregrounding context - fetch early to influence word count
+	pregroundText := s.fetchPregroundContext(ctx, p)
+	pregroundWords := len(strings.Fields(pregroundText))
+
+	// Include pregrounding context in source depth for scaling
+	maxWords, domStrat := s.sampleNarrationLength(p, strategy, wikiInfo.WordCount+pregroundWords)
 
 	isStub := false
 	for _, b := range p.Badges {
@@ -117,7 +122,7 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		TripSummary:          s.getTripSummary(),
 		LastSentence:         s.lastScriptEnd,
 		FlightStatusSentence: generateFlightStatusSentence(tel),
-		PregroundContext:     s.fetchPregroundContext(ctx, p),
+		PregroundContext:     pregroundText,
 	}
 	// Fetch TTS instructions with full context
 	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
