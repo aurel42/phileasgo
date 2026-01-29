@@ -472,29 +472,35 @@ func (s *Service) updateTileStats(key string, lat, lon float64, articles []Artic
 	}
 }
 
-// EnsureTilesLoaded implements poi.TileFetcher - ensures the tile at (lat, lon) is loaded.
-func (s *Service) EnsureTilesLoaded(ctx context.Context, lat, lon float64) error {
-	// Convert lat/lon to tile key
-	tile := s.scheduler.grid.TileAt(lat, lon)
-	key := tile.Key()
-
-	// Check if already in recent cache
-	s.recentMu.RLock()
-	_, ok := s.recentTiles[key]
-	s.recentMu.RUnlock()
-	if ok {
-		return nil // Already have it
+// EnsurePOIsLoaded ensures that the requested entities are classified and enriched.
+// It checks the local store first to avoid redundant API calls for known POIs.
+func (s *Service) EnsurePOIsLoaded(ctx context.Context, qids []string, lat, lon float64) error {
+	// 1. Filter out already known POIs
+	var unknown []string
+	for _, qid := range qids {
+		if p, err := s.store.GetPOI(ctx, qid); err == nil && p != nil {
+			continue
+		}
+		unknown = append(unknown, qid)
 	}
 
-	// Trigger fetch via existing logic
-	c := Candidate{Tile: tile}
-	medians := s.getNeighborhoodStats(tile)
-	s.fetchTile(ctx, c, medians)
+	if len(unknown) == 0 {
+		return nil
+	}
 
-	return nil
+	// 2. Fetch from Wikidata
+	rawArticles, _, err := s.client.QueryEntities(ctx, unknown)
+	if err != nil {
+		return fmt.Errorf("%w: failed to fetch entities: %v", ErrNetwork, err)
+	}
+
+	// 3. Process via Pipeline (Classification, Hydration, Enrichment, Saving)
+	// We use an empty MedianStats since this is a manual pull for specific entities
+	_, _, _, err = s.pipeline.ProcessEntities(ctx, rawArticles, lat, lon, rescue.MedianStats{})
+	return err
 }
 
-// GetPOIsNear implements poi.TileFetcher - returns POIs near (lat, lon) from the Manager's cache.
+// GetPOIsNear implements poi.POILoader - returns POIs near (lat, lon) from the Manager's cache.
 func (s *Service) GetPOIsNear(ctx context.Context, lat, lon, radiusMeters float64) ([]*model.POI, error) {
 	// Delegate to POI Manager which holds the tracked POIs
 	return s.poi.GetPOIsNear(lat, lon, radiusMeters), nil

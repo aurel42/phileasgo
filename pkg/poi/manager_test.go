@@ -31,7 +31,9 @@ func (s *MockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) 
 func (s *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
 
 // Stubs for other interface methods...
-func (s *MockStore) GetPOI(ctx context.Context, id string) (*model.POI, error) { return nil, nil }
+func (s *MockStore) GetPOI(ctx context.Context, id string) (*model.POI, error) {
+	return s.savedPOIs[id], nil
+}
 func (s *MockStore) GetPOIsBatch(ctx context.Context, ids []string) (map[string]*model.POI, error) {
 	return nil, nil
 }
@@ -87,15 +89,26 @@ func (m *MockRiverSentinel) Update(lat, lon, heading float64) *model.RiverCandid
 	return m.candidate
 }
 
-type MockTileFetcher struct {
+type MockLoader struct {
 	poiMap map[string][]*model.POI
+	stored map[string]*model.POI // Map to "hydrate" into the mock store
+	store  *MockStore            // Connection to the store
 	err    error
 }
 
-func (m *MockTileFetcher) EnsureTilesLoaded(ctx context.Context, lat, lon float64) error {
+func (m *MockLoader) EnsurePOIsLoaded(ctx context.Context, qids []string, lat, lon float64) error {
+	if m.err != nil {
+		return m.err
+	}
+	for _, qid := range qids {
+		if p, ok := m.stored[qid]; ok && m.store != nil {
+			m.store.SavePOI(ctx, p)
+		}
+	}
 	return nil
 }
-func (m *MockTileFetcher) GetPOIsNear(ctx context.Context, lat, lon, radiusMeters float64) ([]*model.POI, error) {
+
+func (m *MockLoader) GetPOIsNear(ctx context.Context, lat, lon, radiusMeters float64) ([]*model.POI, error) {
 	key := fmt.Sprintf("%.1f,%.1f", lat, lon)
 	return m.poiMap[key], m.err
 }
@@ -503,9 +516,12 @@ func TestManager_UpdateRivers(t *testing.T) {
 	mgr := NewManager(&config.Config{}, store, nil)
 
 	sentinel := &MockRiverSentinel{}
-	fetcher := &MockTileFetcher{poiMap: make(map[string][]*model.POI)}
+	loader := &MockLoader{
+		stored: make(map[string]*model.POI),
+		store:  store,
+	}
 	mgr.SetRiverSentinel(sentinel)
-	mgr.SetTileFetcher(fetcher)
+	mgr.SetPOILoader(loader)
 
 	// 1. No river ahead
 	p, err := mgr.UpdateRivers(ctx, 0, 0, 0)
@@ -513,18 +529,15 @@ func TestManager_UpdateRivers(t *testing.T) {
 		t.Errorf("Expected nil POI, got %v (err: %v)", p, err)
 	}
 
-	// 2. River detected, hydrated from Mouth
+	// 2. River detected, hydrated by QID
 	sentinel.candidate = &model.RiverCandidate{
 		Name:       "Rhine",
-		MouthLat:   50.0,
-		MouthLon:   8.0,
+		WikidataID: "Q1",
 		Distance:   100,
 		ClosestLat: 49.9,
 		ClosestLon: 8.1,
 	}
-	fetcher.poiMap["50.0,8.0"] = []*model.POI{
-		{WikidataID: "Q1", Category: "Water", NameEn: "Rhine"},
-	}
+	loader.stored["Q1"] = &model.POI{WikidataID: "Q1", Category: "Water", NameEn: "Rhine"}
 
 	p, err = mgr.UpdateRivers(ctx, 49.9, 8.1, 0)
 	if err != nil || p == nil {
@@ -534,48 +547,14 @@ func TestManager_UpdateRivers(t *testing.T) {
 		t.Errorf("RiverContext not attached correctly: %+v", p.RiverContext)
 	}
 
-	// 3. River detected, hydrated from Source (Mouth returns nil)
-	sentinel.candidate = &model.RiverCandidate{
-		Name:       "Danube",
-		MouthLat:   48.0,
-		MouthLon:   12.0,
-		SourceLat:  47.5,
-		SourceLon:  10.5,
-		Distance:   200,
-		ClosestLat: 47.9,
-		ClosestLon: 11.1,
-	}
-	fetcher.poiMap["48.0,12.0"] = nil // Mouth empty
-	fetcher.poiMap["47.5,10.5"] = []*model.POI{
-		{WikidataID: "Q2", Category: "Water", NameEn: "Danube"},
-	}
-
-	p, err = mgr.UpdateRivers(ctx, 47.9, 11.1, 0)
-	if err != nil || p == nil {
-		t.Fatalf("Hydration from source failed: %v", err)
-	}
-	if p.RiverContext.DistanceM != 200 {
-		t.Errorf("RiverContext distance mismatch: %f", p.RiverContext.DistanceM)
-	}
-
-	// 4. River detected, no POI found
-	sentinel.candidate = &model.RiverCandidate{
-		Name:      "Nowhere",
-		MouthLat:  10.0,
-		MouthLon:  10.0,
-		SourceLat: 11.0,
-		SourceLon: 11.0,
-	}
-	// 5. Verify movement and tracking
+	// 3. Verify movement and tracking
 	sentinel.candidate = &model.RiverCandidate{
 		Name:       "Rhine",
-		MouthLat:   50.0,
-		MouthLon:   8.0,
+		WikidataID: "Q1",
 		Distance:   50,
 		ClosestLat: 49.95,
 		ClosestLon: 8.05,
 	}
-	// POI is already in fetcher map from step 2
 
 	p, err = mgr.UpdateRivers(ctx, 49.95, 8.05, 0)
 	if err != nil || p == nil {
@@ -587,7 +566,7 @@ func TestManager_UpdateRivers(t *testing.T) {
 		t.Errorf("Coordinates not updated: got %f,%f want 49.95,8.05", p.Lat, p.Lon)
 	}
 
-	// Verify tracked in manager
+	// Verify tracked in manager memory
 	tracked := mgr.GetTrackedPOIs()
 	found := false
 	for _, tp := range tracked {
@@ -601,5 +580,23 @@ func TestManager_UpdateRivers(t *testing.T) {
 	}
 	if !found {
 		t.Error("River POI not tracked in manager")
+	}
+
+	// 4. River detected, no POI found in store after hydration
+	sentinel.candidate = &model.RiverCandidate{
+		Name:       "Mystery River",
+		WikidataID: "QMystery",
+		Distance:   300,
+		ClosestLat: 10.0,
+		ClosestLon: 10.0,
+	}
+	// loader.stored doesn't have QMystery
+
+	p, err = mgr.UpdateRivers(ctx, 10.0, 10.0, 0)
+	if err != nil {
+		t.Fatalf("Update mystery river failed: %v", err)
+	}
+	if p != nil {
+		t.Errorf("Expected nil POI for unknown river, got %v", p)
 	}
 }

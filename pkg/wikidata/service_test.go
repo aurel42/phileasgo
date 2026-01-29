@@ -133,6 +133,7 @@ func (m *MockClassifier) GetConfig() *config.CategoriesConfig {
 // MockWikidataClient implements ClientInterface for testing
 type MockWikidataClient struct {
 	QuerySPARQLFunc       func(ctx context.Context, query, cacheKey string, radiusM int, lat, lon float64) ([]Article, string, error)
+	QueryEntitiesFunc     func(ctx context.Context, ids []string) ([]Article, string, error)
 	GetEntitiesBatchFunc  func(ctx context.Context, ids []string) (map[string]EntityMetadata, error)
 	FetchFallbackDataFunc func(ctx context.Context, ids []string, allowedSites []string) (map[string]FallbackData, error)
 	GetEntityClaimsFunc   func(ctx context.Context, id, property string) (targets []string, label string, err error)
@@ -141,6 +142,13 @@ type MockWikidataClient struct {
 func (m *MockWikidataClient) QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int, lat, lon float64) ([]Article, string, error) {
 	if m.QuerySPARQLFunc != nil {
 		return m.QuerySPARQLFunc(ctx, query, cacheKey, radiusM, lat, lon)
+	}
+	return nil, "[]", nil
+}
+
+func (m *MockWikidataClient) QueryEntities(ctx context.Context, ids []string) ([]Article, string, error) {
+	if m.QueryEntitiesFunc != nil {
+		return m.QueryEntitiesFunc(ctx, ids)
 	}
 	return nil, "[]", nil
 }

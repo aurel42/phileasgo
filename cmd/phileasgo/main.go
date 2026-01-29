@@ -230,7 +230,7 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 	// River Sentinel Wiring (Phase 3)
 	riverSentinel := rivers.NewSentinel(slog.With("component", "river_sentinel"), "data/ne_50m_rivers_lake_centerlines.geojson")
 	poiMgr.SetRiverSentinel(riverSentinel)
-	poiMgr.SetTileFetcher(wikiSvc)
+	poiMgr.SetPOILoader(wikiSvc)
 
 	return &CoreServices{
 		WikiSvc:         wikiSvc,

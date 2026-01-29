@@ -1,12 +1,14 @@
 ﻿Release History
  
+## v0.3.66 (2026-01-29)
+- **Identity-based River Hydration**: Refactored the river integration to use Wikidata IDs (QID), ensuring reliable narration for large rivers regardless of geometry fragmentation in the source data.
+- **Unified POI Pipeline**: Standardized the hydration and enrichment process for all entities, enabling targeted loading of specific POIs via identity lookups.
+ 
 ## v0.3.65 (2026-01-29)
-
-- **Adaptive Map Zoom**: Refined the auto-zoom logic to respect viewport aspect ratio. This prevents unnecessary zooming out on narrow displays (like sidebars) by prioritizing the larger dimension for bounds calculation.
-- **Intelligent Info Panel**: Standardized the info panel's auto-open behavior for non-POI narratives. The panel now automatically opens and displays context-appropriate visuals for **Screenshots (Photograph Analysis)** and **Regional Essays**.
+- **Adaptive Map Zoom**: Refined the auto-zoom logic to respect viewport aspect ratio.
 - **Fix**: Resolved an issue where screenshot narrations failed to trigger the dashboard info panel.
-## v0.3.64 (2026-01-29)
 
+## v0.3.64 (2026-01-29)
 - **Anchor Baseline Algorithm**: Implemented a new significance detection logic that correctly handles sparse and rural areas by including zero-value tiles in local medians.
 - **Physical Noise Floors**: Added configurable minimum thresholds (30m height, 500m length, 10k sqm area) to prevent promotion of insignificant objects in empty regions.
 - **Improved Dimension Tracking**: Fixed bootstrapping bias by including all valid local objects in statistical baselines while ignoring administrative entities.

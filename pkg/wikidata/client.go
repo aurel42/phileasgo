@@ -25,6 +25,7 @@ const (
 // ClientInterface defines the interface for Wikidata interactions.
 type ClientInterface interface {
 	QuerySPARQL(ctx context.Context, query, cacheKey string, radiusM int, lat, lon float64) ([]Article, string, error)
+	QueryEntities(ctx context.Context, ids []string) ([]Article, string, error)
 	GetEntitiesBatch(ctx context.Context, ids []string) (map[string]EntityMetadata, error)
 	FetchFallbackData(ctx context.Context, ids, allowedSites []string) (map[string]FallbackData, error)
 	GetEntityClaims(ctx context.Context, id, property string) (targets []string, label string, err error)
@@ -80,6 +81,44 @@ func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string, radius
 	// Parse Response (Zero-Alloc Streaming)
 	articles, _, err := ParseSPARQLStreaming(strings.NewReader(string(body)))
 	return articles, string(body), err
+}
+
+// QueryEntities fetches specific entities by their QIDs using the same unified schema as tile queries.
+func (c *Client) QueryEntities(ctx context.Context, ids []string) ([]Article, string, error) {
+	if len(ids) == 0 {
+		return nil, "", nil
+	}
+
+	var builders []string
+	for _, id := range ids {
+		builders = append(builders, "wd:"+id)
+	}
+	valuesClause := strings.Join(builders, " ")
+
+	query := fmt.Sprintf(`SELECT DISTINCT ?item ?lat ?lon ?sitelinks 
+            (GROUP_CONCAT(DISTINCT ?instance_of_uri; separator=",") AS ?instances) 
+            ?area ?height ?length ?width
+        WHERE { 
+            VALUES ?item { %s }
+            ?item p:P625/psv:P625 [ wikibase:geoLatitude ?lat ; wikibase:geoLongitude ?lon ] . 
+            
+            OPTIONAL { ?item wdt:P31 ?instance_of_uri . } 
+            OPTIONAL { ?item wikibase:sitelinks ?sitelinks . } 
+            OPTIONAL { ?item wdt:P2046 ?area . }
+            OPTIONAL { ?item wdt:P2048 ?height . }
+            OPTIONAL { ?item wdt:P2043 ?length . }
+            OPTIONAL { ?item wdt:P2049 ?width . }
+            
+            FILTER(?sitelinks > 0)
+        } 
+        GROUP BY ?item ?lat ?lon ?sitelinks ?area ?height ?length ?width`, valuesClause)
+
+	// Since we are querying specific entities, we use a dedicated cache prefix
+	sort.Strings(ids)
+	hash := md5.Sum([]byte(strings.Join(ids, ",")))
+	cacheKey := fmt.Sprintf("wd_entities_%s", hex.EncodeToString(hash[:]))
+
+	return c.QuerySPARQL(ctx, query, cacheKey, 0, 0, 0)
 }
 
 // ParseSPARQLStreaming iterates over the JSON stream to extract bindings without loading the full structure.

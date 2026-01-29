@@ -14,11 +14,12 @@ import (
 
 // River represents a loaded river feature
 type River struct {
-	Name   string
-	Geom   orb.MultiLineString
-	Mouth  geo.Point
-	Source geo.Point
-	BBox   orb.Bound
+	Name       string
+	WikidataID string
+	Geom       orb.MultiLineString
+	Mouth      geo.Point
+	Source     geo.Point
+	BBox       orb.Bound
 }
 
 // Sentinel monitors aircraft position relative to rivers.
@@ -54,6 +55,10 @@ func (s *Sentinel) loadData(path string) error {
 	groups := s.groupSegments(fc)
 
 	for name, group := range groups {
+		if group.wikidataID == "" {
+			s.logger.Debug("Dropping river without Wikidata ID", "name", name)
+			continue
+		}
 		s.rivers = append(s.rivers, s.createRiverFromGroup(name, group))
 	}
 
@@ -62,8 +67,9 @@ func (s *Sentinel) loadData(path string) error {
 }
 
 type riverGroup struct {
-	mls  orb.MultiLineString
-	bbox orb.Bound
+	mls        orb.MultiLineString
+	bbox       orb.Bound
+	wikidataID string
 }
 
 func (s *Sentinel) groupSegments(fc *geojson.FeatureCollection) map[string]*riverGroup {
@@ -109,6 +115,11 @@ func (s *Sentinel) groupSegments(fc *geojson.FeatureCollection) map[string]*rive
 			group.bbox = group.bbox.Extend(b.Max)
 		}
 		group.mls = append(group.mls, mls...)
+
+		// Capture Wikidata ID if present in this segment
+		if wid, ok := f.Properties["wikidataid"].(string); ok && wid != "" {
+			group.wikidataID = wid
+		}
 	}
 	return groups
 }
@@ -143,11 +154,12 @@ func (s *Sentinel) createRiverFromGroup(name string, group *riverGroup) River {
 	}
 
 	return River{
-		Name:   name,
-		Geom:   group.mls,
-		Mouth:  mouth,
-		Source: source,
-		BBox:   group.bbox,
+		Name:       name,
+		WikidataID: group.wikidataID,
+		Geom:       group.mls,
+		Mouth:      mouth,
+		Source:     source,
+		BBox:       group.bbox,
 	}
 }
 
@@ -206,6 +218,7 @@ func (s *Sentinel) Update(lat, lon, heading float64) *model.RiverCandidate {
 			minDist = riverClosest
 			best = &model.RiverCandidate{
 				Name:       r.Name,
+				WikidataID: r.WikidataID,
 				ClosestLat: rPoint.Lat,
 				ClosestLon: rPoint.Lon,
 				Distance:   riverClosest,

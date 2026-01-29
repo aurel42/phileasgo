@@ -70,6 +70,7 @@ type RiverContext struct {
 // RiverCandidate represents a potential river match found by the Sentinel.
 type RiverCandidate struct {
 	Name       string
+	WikidataID string
 	ClosestLat float64
 	ClosestLon float64
 	Distance   float64 // meters

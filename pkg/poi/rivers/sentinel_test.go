@@ -38,7 +38,7 @@ func TestLoadDataWithValidGeoJSON(t *testing.T) {
 		"features": [
 			{
 				"type": "Feature",
-				"properties": {"name_en": "Test River", "name": "Testfluss"},
+				"properties": {"name_en": "Test River", "name": "Testfluss", "wikidataid": "Q1"},
 				"geometry": {
 					"type": "MultiLineString",
 					"coordinates": [[[8.0, 47.0], [8.0, 48.0], [8.0, 49.0]]]
@@ -46,7 +46,7 @@ func TestLoadDataWithValidGeoJSON(t *testing.T) {
 			},
 			{
 				"type": "Feature",
-				"properties": {"name": "Secondary River"},
+				"properties": {"name": "Secondary River", "wikidataid": "Q2"},
 				"geometry": {
 					"type": "LineString",
 					"coordinates": [[10.0, 48.0], [11.0, 48.0]]
@@ -87,7 +87,7 @@ func TestLoadDataWithMergedSegments(t *testing.T) {
 		"features": [
 			{
 				"type": "Feature",
-				"properties": {"name": "Rhine"},
+				"properties": {"name": "Rhine", "wikidataid": "Q100"},
 				"geometry": {
 					"type": "LineString",
 					"coordinates": [[8.0, 47.0], [8.0, 48.0]]
@@ -169,7 +169,7 @@ func TestLoadDataEdgeCases(t *testing.T) {
 			name: "unsupported geometry type",
 			geojson: `{"type": "FeatureCollection", "features": [{
 				"type": "Feature",
-				"properties": {"name": "Test"},
+				"properties": {"name": "Test", "wikidataid": "Q1"},
 				"geometry": {"type": "Point", "coordinates": [0, 0]}
 			}]}`,
 			expectedRivers: 0, // skipped due to Point type
@@ -178,7 +178,7 @@ func TestLoadDataEdgeCases(t *testing.T) {
 			name: "empty geometry",
 			geojson: `{"type": "FeatureCollection", "features": [{
 				"type": "Feature",
-				"properties": {"name": "Test"},
+				"properties": {"name": "Test", "wikidataid": "Q1"},
 				"geometry": {"type": "MultiLineString", "coordinates": []}
 			}]}`,
 			expectedRivers: 0, // skipped due to empty MLS
@@ -187,7 +187,7 @@ func TestLoadDataEdgeCases(t *testing.T) {
 			name: "empty linestring in MLS",
 			geojson: `{"type": "FeatureCollection", "features": [{
 				"type": "Feature",
-				"properties": {"name": "Test"},
+				"properties": {"name": "Test", "wikidataid": "Q1"},
 				"geometry": {"type": "MultiLineString", "coordinates": [[]]}
 			}]}`,
 			expectedRivers: 0, // skipped due to empty first line
@@ -230,11 +230,12 @@ func TestLoadDataWithInvalidJSON(t *testing.T) {
 // TestRiverStruct verifies River struct fields.
 func TestRiverStruct(t *testing.T) {
 	r := River{
-		Name:   "Test River",
-		Geom:   orb.MultiLineString{{{0, 0}, {1, 1}}},
-		Mouth:  geo.Point{Lat: 1, Lon: 1},
-		Source: geo.Point{Lat: 0, Lon: 0},
-		BBox:   orb.Bound{Min: orb.Point{0, 0}, Max: orb.Point{1, 1}},
+		Name:       "Test River",
+		WikidataID: "Q123",
+		Geom:       orb.MultiLineString{{{0, 0}, {1, 1}}},
+		Mouth:      geo.Point{Lat: 1, Lon: 1},
+		Source:     geo.Point{Lat: 0, Lon: 0},
+		BBox:       orb.Bound{Min: orb.Point{0, 0}, Max: orb.Point{1, 1}},
 	}
 
 	if r.Name != "Test River" {
@@ -252,6 +253,7 @@ func TestRiverStruct(t *testing.T) {
 func TestCandidateStruct(t *testing.T) {
 	c := model.RiverCandidate{
 		Name:       "Test River",
+		WikidataID: "Q123",
 		ClosestLat: 0.5,
 		ClosestLon: 0.5,
 		Distance:   1000,
@@ -281,7 +283,8 @@ func TestSentinelUpdate(t *testing.T) {
 		logger: quietLogger(),
 		rivers: []River{
 			{
-				Name: "Rhine",
+				Name:       "Rhine",
+				WikidataID: "Q1",
 				Geom: orb.MultiLineString{
 					// River segment running North-South at lon=8
 					// orb.Point is [lon, lat]
@@ -292,7 +295,8 @@ func TestSentinelUpdate(t *testing.T) {
 				BBox:   orb.Bound{Min: orb.Point{7.5, 46.5}, Max: orb.Point{8.5, 50.5}},
 			},
 			{
-				Name: "Danube",
+				Name:       "Danube",
+				WikidataID: "Q2",
 				Geom: orb.MultiLineString{
 					// River segment running East-West at lat=48
 					{{10.0, 48.0}, {11.0, 48.0}, {12.0, 48.0}},

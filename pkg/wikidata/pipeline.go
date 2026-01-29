@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 
 	"phileasgo/pkg/config"
@@ -48,8 +49,7 @@ func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo
 
 // ProcessTileData takes raw SPARQL JSON, parses it, runs classification, ENRICHES, and SAVES to DB.
 func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat, centerLon float64, force bool, medians rescue.MedianStats) (articles, rawArticles []Article, rescuedCount int, err error) {
-	// Use the exposed streaming parser from client.go
-	// Note: We need a Reader, so we wrap the byte slice
+	// 1. Parse Response (Zero-Alloc Streaming)
 	rawArticles, _, err = ParseSPARQLStreaming(strings.NewReader(string(rawJSON)))
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("%w: failed to parse sparql stream: %v", ErrParse, err)
@@ -59,30 +59,67 @@ func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLa
 		qids[i] = rawArticles[i].QID
 	}
 
-	// 1. Filter out already existing POIs (Drop them immediately)
+	// 2. Filter out already existing POIs (Drop them immediately)
 	rawArticles = p.filterExistingPOIs(ctx, rawArticles, qids)
 
-	// 2. Filter seen articles (drop them immediately), UNLESS forced
+	// 3. Filter seen articles (drop them immediately), UNLESS forced
 	if !force {
 		rawArticles = p.filterSeenArticles(ctx, rawArticles)
 	}
 
-	// 3. Batch Classification for new articles (marks Ignored/Category)
-	p.classifyArticlesOnly(ctx, rawArticles)
+	// 4. Unified Processing Flow
+	processed, all, rescued, err := p.ProcessEntities(ctx, rawArticles, centerLat, centerLon, medians)
+	return processed, all, rescued, err
+}
 
-	// Keep a copy of all articles for stats (including those marked Ignored, but we'll filter them later in Service)
-	allArticles := make([]Article, len(rawArticles))
-	copy(allArticles, rawArticles)
+// ProcessEntities takes a slice of Articles (usually from SPARQL parsing) and runs them through the full pipeline:
+// Classification -> Filtering -> Hydration -> Enrichment -> Saving.
+func (p *Pipeline) ProcessEntities(ctx context.Context, articles []Article, lat, lon float64, medians rescue.MedianStats) (processed, all []Article, rescuedCount int, err error) {
+	if len(articles) == 0 {
+		return nil, nil, 0, nil
+	}
+
+	// 1. Batch Classification for new articles (marks Ignored/Category)
+	p.classifyArticlesOnly(ctx, articles)
+
+	// Keep a copy of all articles for stats (including those marked Ignored)
+	all = make([]Article, len(articles))
+	copy(all, articles)
 
 	// Filter out ignored for the rest of the pipeline
-	rawArticles = p.filterIgnoredArticles(rawArticles)
+	articles = p.filterIgnoredArticles(articles)
 
-	// 4. Compute Allowed Languages for Filter
+	// 2. Compute Allowed Languages for Filter
+	localLangs := p.getLangsForLocation(lat, lon)
+
+	// 3. Hydrate & Filter
+	processed, rescuedCount, err = p.processAndHydrate(ctx, articles, lat, lon, localLangs, medians)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	// 4. Enrich & Save
+	if len(processed) > 0 {
+		if err := p.enrichAndSave(ctx, processed, localLangs, "en"); err != nil {
+			return nil, nil, 0, err
+		}
+	}
+
+	return processed, all, rescuedCount, nil
+}
+
+func (p *Pipeline) getLangsForLocation(lat, lon float64) []string {
 	countrySet := make(map[string]struct{})
-	countrySet[p.geo.GetCountry(centerLat, centerLon)] = struct{}{}
-	tile := p.grid.TileAt(centerLat, centerLon)
-	for _, corner := range p.grid.TileCorners(tile) {
-		countrySet[p.geo.GetCountry(corner.Lat, corner.Lon)] = struct{}{}
+	countrySet[p.geo.GetCountry(lat, lon)] = struct{}{}
+
+	// Only check neighbors if this is a H3 tile center (approx check)
+	tile := p.grid.TileAt(lat, lon)
+	tLat, tLon := p.grid.TileCenter(tile)
+	const precision = 0.001
+	if math.Abs(lat-tLat) < precision && math.Abs(lon-tLon) < precision {
+		for _, corner := range p.grid.TileCorners(tile) {
+			countrySet[p.geo.GetCountry(corner.Lat, corner.Lon)] = struct{}{}
+		}
 	}
 
 	langSet := make(map[string]struct{})
@@ -101,17 +138,7 @@ func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLa
 	for l := range langSet {
 		localLangs = append(localLangs, l)
 	}
-
-	processed, rescued, err := p.processAndHydrate(ctx, rawArticles, centerLat, centerLon, localLangs, medians)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-
-	if len(processed) > 0 {
-		err = p.enrichAndSave(ctx, processed, localLangs, "en")
-	}
-
-	return processed, allArticles, rescued, err
+	return localLangs
 }
 
 func (p *Pipeline) processAndHydrate(ctx context.Context, rawArticles []Article, centerLat, centerLon float64, allowedLangs []string, medians rescue.MedianStats) (processed []Article, rescuedCount int, err error) {

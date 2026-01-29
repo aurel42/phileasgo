@@ -27,10 +27,10 @@ type ManagerStore interface {
 	store.StateStore
 }
 
-// TileFetcher abstracts tile fetching for river hydration (breaks circular dependency).
-type TileFetcher interface {
-	// EnsureTilesLoaded loads tiles near the given coordinate if not already cached.
-	EnsureTilesLoaded(ctx context.Context, lat, lon float64) error
+// Loader abstracts POI hydration (breaks circular dependency).
+type Loader interface {
+	// EnsurePOIsLoaded ensures that the requested entities are classified and enriched.
+	EnsurePOIsLoaded(ctx context.Context, qids []string, lat, lon float64) error
 	// GetPOIsNear returns all cached POIs near the given coordinate.
 	GetPOIsNear(ctx context.Context, lat, lon, radiusMeters float64) ([]*model.POI, error)
 }
@@ -63,7 +63,7 @@ type Manager struct {
 	onValleyAltitude  func(altMeters float64)
 
 	// River Integration (set via setter to break circular dependency)
-	tileFetcher   TileFetcher
+	poiLoader     Loader
 	riverSentinel RiverSentinel
 }
 
@@ -78,9 +78,9 @@ func NewManager(cfg *config.Config, s ManagerStore, catCfg *config.CategoriesCon
 	}
 }
 
-// SetTileFetcher injects the TileFetcher (typically the WikidataService).
-func (m *Manager) SetTileFetcher(tf TileFetcher) {
-	m.tileFetcher = tf
+// SetPOILoader injects the POI loader (typically the WikidataService).
+func (m *Manager) SetPOILoader(pl Loader) {
+	m.poiLoader = pl
 }
 
 // SetRiverSentinel injects the RiverSentinel.
@@ -590,7 +590,7 @@ func (m *Manager) LastScoredPosition() (lat, lon float64) {
 // It should only be called from a dedicated 15s ticker, NOT the main scoring loop.
 func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (*model.POI, error) {
 	// 1. Check dependencies
-	if m.riverSentinel == nil || m.tileFetcher == nil {
+	if m.riverSentinel == nil || m.poiLoader == nil {
 		return nil, nil // Not configured, skip silently
 	}
 
@@ -600,45 +600,16 @@ func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (
 		return nil, nil // No river ahead
 	}
 
-	m.logger.Debug("River candidate detected", "name", candidate.Name, "dist", candidate.Distance)
+	m.logger.Debug("River candidate detected", "name", candidate.Name, "qid", candidate.WikidataID, "dist", candidate.Distance)
 
-	// 3. Hydrate: Try Mouth, then Source, then Surrounding
-	const hydrationRadius = 5000.0 // 5km search radius in tiles
-
-	// 3a. Ensure Mouth Tile is loaded
-	if err := m.tileFetcher.EnsureTilesLoaded(ctx, candidate.MouthLat, candidate.MouthLon); err != nil {
-		m.logger.Warn("Failed to load mouth tile", "err", err)
+	// 3. Hydrate by QID
+	if err := m.poiLoader.EnsurePOIsLoaded(ctx, []string{candidate.WikidataID}, lat, lon); err != nil {
+		m.logger.Warn("Failed to hydrate river by QID", "qid", candidate.WikidataID, "err", err)
 	}
 
-	// 3b. Search for Water POI near Mouth
-	pois, err := m.tileFetcher.GetPOIsNear(ctx, candidate.MouthLat, candidate.MouthLon, hydrationRadius)
-	var p *model.POI
-	if err == nil {
-		for _, found := range pois {
-			if strings.EqualFold(found.Category, "Water") {
-				p = found
-				break
-			}
-		}
-	}
-
-	// 3c. Try Source if mouth failed
-	if p == nil {
-		if err := m.tileFetcher.EnsureTilesLoaded(ctx, candidate.SourceLat, candidate.SourceLon); err != nil {
-			m.logger.Warn("Failed to load source tile", "err", err)
-		}
-		pois, err = m.tileFetcher.GetPOIsNear(ctx, candidate.SourceLat, candidate.SourceLon, hydrationRadius)
-		if err == nil {
-			for _, found := range pois {
-				if strings.EqualFold(found.Category, "Water") {
-					p = found
-					break
-				}
-			}
-		}
-	}
-
-	if p != nil {
+	// 4. Check if it's now tracked (either just hydrated or already existing)
+	p, err := m.GetPOI(ctx, candidate.WikidataID)
+	if err == nil && p != nil {
 		// Found! Attach context, update position, and TRACK
 		p.RiverContext = &model.RiverContext{
 			IsActive:   true,
@@ -659,8 +630,8 @@ func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (
 		return p, nil
 	}
 
-	// 3d. Fallback: No POI found
-	m.logger.Debug("River detected but no matching POI found in tiles", "name", candidate.Name)
+	// 5. Fallback: No POI found
+	m.logger.Debug("River detected but no matching POI found", "name", candidate.Name, "qid", candidate.WikidataID)
 	return nil, nil
 }
 
