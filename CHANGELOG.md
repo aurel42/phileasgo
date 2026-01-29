@@ -1,5 +1,12 @@
 ﻿Release History
  
+## v0.3.64 (2026-01-29)
+
+- **Anchor Baseline Algorithm**: Implemented a new significance detection logic that correctly handles sparse and rural areas by including zero-value tiles in local medians.
+- **Physical Noise Floors**: Added configurable minimum thresholds (30m height, 500m length, 10k sqm area) to prevent promotion of insignificant objects in empty regions.
+- **Improved Dimension Tracking**: Fixed bootstrapping bias by including all valid local objects in statistical baselines while ignoring administrative entities.
+- **Rescue Instrumentation**: Added concise debug logging with tile-specific dimension stats and comparison medians.
+
 ## v0.3.63 (2026-01-29)
 - **Improvement**: **Advanced River Tracking**. River segments are now merged by name during discovery, enabling accurate detection of large rivers (like the Rhine) and ensuring POI markers correctly follow the flight path.
 - **UI**: **Narrator Preparation Clarity**. Replaced the generic "LOADING..." status with the actual title of the upcoming POI, providing immediate feedback on what will be narrated next.

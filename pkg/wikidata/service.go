@@ -90,7 +90,7 @@ func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Cl
 	logger := slog.With("component", "wikidata")
 	mapper := NewLanguageMapper(st, rc, slog.With("component", "mapper"))
 
-	pipeline := NewPipeline(st, client, wiki, geoSvc, poiMgr, sched.grid, mapper, cl, logger, normalizedLang)
+	pipeline := NewPipeline(st, client, wiki, geoSvc, poiMgr, sched.grid, mapper, cl, cfg, logger, normalizedLang)
 
 	svc := &Service{
 		pipeline:      pipeline,
@@ -263,10 +263,10 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate, medians rescue.Med
 	if ok && len(cachedBody) > 0 {
 		logging.Trace(s.logger, "Cache Hit (Optimized)", "tile", key)
 		// Pass medians to pipeline
-		processed, rescued, err := s.pipeline.ProcessTileData(ctx, cachedBody, centerLat, centerLon, false, medians)
+		processed, rawArticles, rescued, err := s.pipeline.ProcessTileData(ctx, cachedBody, centerLat, centerLon, false, medians)
 		if err == nil {
 			// Update stats even on cache hit
-			s.updateTileStats(key, centerLat, centerLon, processed)
+			s.updateTileStats(key, centerLat, centerLon, rawArticles)
 
 			logging.Trace(s.logger, "Processed cached tile",
 				"tile", key,
@@ -302,10 +302,9 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate, medians rescue.Med
 	}
 	_ = rawJSON // rawJSON no longer needed here; caching is internal
 
-	// 5. Process, Enrich, and Save
-	processed, rescued, err := s.pipeline.ProcessTileData(ctx, []byte(rawJSON), centerLat, centerLon, false, medians)
+	processed, rawArticles, rescued, err := s.pipeline.ProcessTileData(ctx, []byte(rawJSON), centerLat, centerLon, false, medians)
 	if err == nil {
-		s.updateTileStats(key, centerLat, centerLon, processed)
+		s.updateTileStats(key, centerLat, centerLon, rawArticles)
 		s.logger.Debug("Fetched and Saved new tile",
 			"tile", c.Tile.Key(),
 			"raw", len(articles),
@@ -448,15 +447,18 @@ func (s *Service) getNeighborhoodStats(tile HexTile) rescue.MedianStats {
 }
 
 func (s *Service) updateTileStats(key string, lat, lon float64, articles []Article) {
-	// Map wikidata.Article to rescue.Article for processing
-	rescueArticles := make([]rescue.Article, len(articles))
+	// Map non-Ignored wikidata.Article to rescue.Article for processing
+	var rescueArticles []rescue.Article
 	for i := range articles {
-		rescueArticles[i] = rescue.Article{
+		if articles[i].Ignored {
+			continue
+		}
+		rescueArticles = append(rescueArticles, rescue.Article{
 			ID:     articles[i].QID,
 			Height: articles[i].Height,
 			Length: articles[i].Length,
 			Area:   articles[i].Area,
-		}
+		})
 	}
 
 	stats := rescue.AnalyzeTile(lat, lon, rescueArticles)

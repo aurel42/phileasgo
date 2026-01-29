@@ -246,8 +246,11 @@ type RescueConfig struct {
 
 // PromoteByDimensionConfig holds settings for rescuing by physical dimensions.
 type PromoteByDimensionConfig struct {
-	Enabled  bool `yaml:"enabled"`
-	RadiusKM int  `yaml:"radius_km"`
+	Enabled   bool    `yaml:"enabled"`
+	RadiusKM  int     `yaml:"radius_km"`
+	MinHeight float64 `yaml:"min_height"` // Absolute minimum height for rescue
+	MinLength float64 `yaml:"min_length"` // Absolute minimum length for rescue
+	MinArea   float64 `yaml:"min_area"`   // Absolute minimum area for rescue
 }
 
 // TerrainConfig holds terrain and line-of-sight settings.
@@ -376,8 +379,11 @@ func DefaultConfig() *Config {
 			FetchInterval: Duration(5 * time.Second),
 			Rescue: RescueConfig{
 				PromoteByDimension: PromoteByDimensionConfig{
-					Enabled:  true,
-					RadiusKM: 20,
+					Enabled:   true,
+					RadiusKM:  20,
+					MinHeight: 30.0,
+					MinLength: 500.0,
+					MinArea:   10000.0,
 				},
 			},
 		},

@@ -63,18 +63,23 @@ func (p *Pipeline) filterSeenArticles(ctx context.Context, rawArticles []Article
 	return filtered
 }
 
-func (p *Pipeline) classifyAndFilterArticles(ctx context.Context, rawArticles []Article) []Article {
+func (p *Pipeline) classifyArticlesOnly(ctx context.Context, rawArticles []Article) {
 	candidates := p.collectUnclassifiedQIDs(rawArticles)
 	if len(candidates) == 0 {
-		return rawArticles
+		return
 	}
 
-	ignoredQIDs := p.classifyInChunks(ctx, rawArticles, candidates)
-	if len(ignoredQIDs) > 0 {
-		logging.Trace(p.logger, "Classification ignored articles", "count", len(ignoredQIDs))
-	}
+	p.classifyInChunks(ctx, rawArticles, candidates)
+}
 
-	return p.filterByQIDs(rawArticles, ignoredQIDs)
+func (p *Pipeline) filterIgnoredArticles(rawArticles []Article) []Article {
+	filtered := make([]Article, 0, len(rawArticles))
+	for i := range rawArticles {
+		if !rawArticles[i].Ignored {
+			filtered = append(filtered, rawArticles[i])
+		}
+	}
+	return filtered
 }
 
 func (p *Pipeline) collectUnclassifiedQIDs(articles []Article) []string {
@@ -169,21 +174,6 @@ func (p *Pipeline) setIgnoredByQID(articles []Article, qid string) {
 	}
 }
 
-func (p *Pipeline) filterByQIDs(articles []Article, excludeQIDs []string) []Article {
-	excludeSet := make(map[string]bool)
-	for _, qid := range excludeQIDs {
-		excludeSet[qid] = true
-	}
-
-	filtered := make([]Article, 0, len(articles))
-	for i := range articles {
-		if !excludeSet[articles[i].QID] {
-			filtered = append(filtered, articles[i])
-		}
-	}
-	return filtered
-}
-
 func (p *Pipeline) postProcessArticles(rawArticles []Article, lat, lon float64, medians rescue.MedianStats) (processed []Article, rescuedCount int, err error) {
 	// Separate candidates for rescue (those with no category) from those already classified
 	var candidates []Article
@@ -232,7 +222,10 @@ func (p *Pipeline) rescueFromBatch(candidates []Article, lat, lon float64, media
 	localMax := rescue.AnalyzeTile(lat, lon, rescueCandidates)
 
 	// Determine rescued
-	rescued := rescue.Batch(rescueCandidates, localMax, medians)
+	rescued := rescue.Batch(rescueCandidates, localMax, medians, p.cfg.Rescue.PromoteByDimension.MinHeight, p.cfg.Rescue.PromoteByDimension.MinLength, p.cfg.Rescue.PromoteByDimension.MinArea)
+
+	// Concise Logging
+	p.logRescueStats(lat, lon, localMax, medians, rescueCandidates, rescued)
 
 	// Apply back
 	count := 0
@@ -243,12 +236,41 @@ func (p *Pipeline) rescueFromBatch(candidates []Article, lat, lon float64, media
 			}
 			candidates[i].Category = ra.Category
 			candidates[i].DimensionMultiplier = ra.DimensionMultiplier
+			p.logger.Debug("Rescued article by dimension", "qid", ra.ID, "category", ra.Category, "multiplier", ra.DimensionMultiplier)
 			*processed = append(*processed, candidates[i])
 			count++
 			break
 		}
 	}
 	return count
+}
+
+func (p *Pipeline) logRescueStats(lat, lon float64, localMax rescue.TileStats, medians rescue.MedianStats, candidates, rescued []rescue.Article) {
+	if localMax.MaxHeight <= 0 && localMax.MaxLength <= 0 && localMax.MaxArea <= 0 {
+		return
+	}
+
+	var maxHQID, maxLQID, maxAQID string
+	for _, c := range candidates {
+		if c.Height != nil && *c.Height == localMax.MaxHeight && maxHQID == "" {
+			maxHQID = c.ID
+		}
+		if c.Length != nil && *c.Length == localMax.MaxLength && maxLQID == "" {
+			maxLQID = c.ID
+		}
+		if c.Area != nil && *c.Area == localMax.MaxArea && maxAQID == "" {
+			maxAQID = c.ID
+		}
+	}
+
+	key := p.grid.TileAt(lat, lon).Key()
+	p.logger.Debug("Dimension Rescue Tile Stats",
+		"tile", key,
+		"max_h", localMax.MaxHeight, "max_h_qid", maxHQID, "med_h", medians.MedianHeight,
+		"max_l", localMax.MaxLength, "max_l_qid", maxLQID, "med_l", medians.MedianLength,
+		"max_a", localMax.MaxArea, "max_a_qid", maxAQID, "med_a", medians.MedianArea,
+		"rescued", len(rescued),
+	)
 }
 
 func (p *Pipeline) getSitelinksMin(category string) int {

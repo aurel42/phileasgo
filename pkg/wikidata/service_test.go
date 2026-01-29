@@ -460,12 +460,13 @@ func TestProcessTileData(t *testing.T) {
 				NewGrid(), // Grid (extracted from new scheduler)
 				NewLanguageMapper(st, nil, slog.Default()), // Mapper
 				cl,
+				config.WikidataConfig{},
 				slog.Default(),
 				"en",
 			)
 
 			// EXECUTE
-			gotArticles, gotRescued, err := pl.ProcessTileData(context.Background(), []byte(tt.rawJSON), 0, 0, tt.forceDesc, rescue.MedianStats{})
+			gotArticles, _, gotRescued, err := pl.ProcessTileData(context.Background(), []byte(tt.rawJSON), 0, 0, tt.forceDesc, rescue.MedianStats{})
 
 			// ASSERT
 			if (err != nil) != tt.expectError {
@@ -557,5 +558,17 @@ func TestUpdateTileStats(t *testing.T) {
 		t.Error("Tile stats not saved")
 	} else if stats.Stats.MaxHeight != 100 {
 		t.Errorf("Expected MaxHeight 100, got %f", stats.Stats.MaxHeight)
+	}
+
+	// Test case: Ignored articles should be excluded
+	articlesWithIgnored := []Article{
+		{QID: "Q1", Height: &h100},
+		{QID: "Q_LARGE", Height: func() *float64 { f := 5000.0; return &f }(), Ignored: true},
+	}
+	svc.updateTileStats("T_IGNORED", 50.0, 10.0, articlesWithIgnored)
+	if stats, ok := svc.recentTiles["T_IGNORED"]; !ok {
+		t.Error("Tile stats not saved for T_IGNORED")
+	} else if stats.Stats.MaxHeight != 100 {
+		t.Errorf("Expected MaxHeight 100 (excluding Ignored 5000), got %f", stats.Stats.MaxHeight)
 	}
 }

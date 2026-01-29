@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/logging"
 	"phileasgo/pkg/poi"
@@ -23,12 +24,13 @@ type Pipeline struct {
 	grid       *Grid
 	mapper     *LanguageMapper
 	classifier Classifier
+	cfg        config.WikidataConfig
 	logger     *slog.Logger
 	userLang   string
 }
 
 // NewPipeline creates a new Pipeline.
-func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo.Service, p *poi.Manager, gr *Grid, m *LanguageMapper, c Classifier, log *slog.Logger, lang string) *Pipeline {
+func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo.Service, p *poi.Manager, gr *Grid, m *LanguageMapper, c Classifier, cfg config.WikidataConfig, log *slog.Logger, lang string) *Pipeline {
 	return &Pipeline{
 		store:      st,
 		client:     cl,
@@ -38,18 +40,19 @@ func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo
 		grid:       gr,
 		mapper:     m,
 		classifier: c,
+		cfg:        cfg,
 		logger:     log,
 		userLang:   lang,
 	}
 }
 
 // ProcessTileData takes raw SPARQL JSON, parses it, runs classification, ENRICHES, and SAVES to DB.
-func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat, centerLon float64, force bool, medians rescue.MedianStats) (articles []Article, rescuedCount int, err error) {
+func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLat, centerLon float64, force bool, medians rescue.MedianStats) (articles, rawArticles []Article, rescuedCount int, err error) {
 	// Use the exposed streaming parser from client.go
 	// Note: We need a Reader, so we wrap the byte slice
-	rawArticles, _, err := ParseSPARQLStreaming(strings.NewReader(string(rawJSON)))
+	rawArticles, _, err = ParseSPARQLStreaming(strings.NewReader(string(rawJSON)))
 	if err != nil {
-		return nil, 0, fmt.Errorf("%w: failed to parse sparql stream: %v", ErrParse, err)
+		return nil, nil, 0, fmt.Errorf("%w: failed to parse sparql stream: %v", ErrParse, err)
 	}
 	qids := make([]string, len(rawArticles))
 	for i := range rawArticles {
@@ -64,8 +67,15 @@ func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLa
 		rawArticles = p.filterSeenArticles(ctx, rawArticles)
 	}
 
-	// 3. Batch Classification for new articles (also filters out ignored)
-	rawArticles = p.classifyAndFilterArticles(ctx, rawArticles)
+	// 3. Batch Classification for new articles (marks Ignored/Category)
+	p.classifyArticlesOnly(ctx, rawArticles)
+
+	// Keep a copy of all articles for stats (including those marked Ignored, but we'll filter them later in Service)
+	allArticles := make([]Article, len(rawArticles))
+	copy(allArticles, rawArticles)
+
+	// Filter out ignored for the rest of the pipeline
+	rawArticles = p.filterIgnoredArticles(rawArticles)
 
 	// 4. Compute Allowed Languages for Filter
 	countrySet := make(map[string]struct{})
@@ -92,17 +102,16 @@ func (p *Pipeline) ProcessTileData(ctx context.Context, rawJSON []byte, centerLa
 		localLangs = append(localLangs, l)
 	}
 
-	// 5. Process, Filter, and Hydrate
 	processed, rescued, err := p.processAndHydrate(ctx, rawArticles, centerLat, centerLon, localLangs, medians)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, 0, err
 	}
 
 	if len(processed) > 0 {
 		err = p.enrichAndSave(ctx, processed, localLangs, "en")
 	}
 
-	return processed, rescued, err
+	return processed, allArticles, rescued, err
 }
 
 func (p *Pipeline) processAndHydrate(ctx context.Context, rawArticles []Article, centerLat, centerLon float64, allowedLangs []string, medians rescue.MedianStats) (processed []Article, rescuedCount int, err error) {

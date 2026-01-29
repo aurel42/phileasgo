@@ -24,53 +24,113 @@ func TestCalculateMedian(t *testing.T) {
 	}
 }
 
-func TestRescueBatch(t *testing.T) {
-	h1 := 10.0
-	h2 := 500.0
-	candidates := []Article{
-		{ID: "Q1", Height: &h1},
-		{ID: "Q2", Height: &h2},
+func TestBatch(t *testing.T) {
+	floatPtr := func(f float64) *float64 { return &f }
+
+	tests := []struct {
+		name       string
+		candidates []Article
+		localMax   TileStats
+		medians    MedianStats
+		wantCount  int
+		wantID     string
+		wantCat    string
+	}{
+		{
+			name: "Single Height Outlier",
+			candidates: []Article{
+				{ID: "Q1", Height: floatPtr(10)},
+				{ID: "Q2", Height: floatPtr(500)},
+			},
+			localMax:  TileStats{MaxHeight: 500},
+			medians:   MedianStats{MedianHeight: 50}, // Threshold 100
+			wantCount: 1,
+			wantID:    "Q2",
+			wantCat:   "height",
+		},
+		{
+			name: "Uniform Height (No Rescue)",
+			candidates: []Article{
+				{ID: "Q1", Height: floatPtr(50)},
+				{ID: "Q2", Height: floatPtr(50)},
+			},
+			localMax:  TileStats{MaxHeight: 50},
+			medians:   MedianStats{MedianHeight: 50}, // Threshold 100
+			wantCount: 0,
+		},
+		{
+			name: "Length Outlier",
+			candidates: []Article{
+				{ID: "Q1", Length: floatPtr(10)},
+				{ID: "Q2", Length: floatPtr(1000)},
+			},
+			localMax:  TileStats{MaxLength: 1000},
+			medians:   MedianStats{MedianLength: 100}, // Threshold 200
+			wantCount: 1,
+			wantID:    "Q2",
+			wantCat:   "length",
+		},
+		{
+			name: "Area Outlier",
+			candidates: []Article{
+				{ID: "Q1", Area: floatPtr(100)},
+				{ID: "Q2", Area: floatPtr(10000)},
+			},
+			localMax:  TileStats{MaxArea: 10000},
+			medians:   MedianStats{MedianArea: 1000}, // Threshold 2000
+			wantCount: 1,
+			wantID:    "Q2",
+			wantCat:   "area",
+		},
+		{
+			name: "Multiple Dimensions (No Multi-Rescue for same ID)",
+			candidates: []Article{
+				{ID: "Q1", Height: floatPtr(500), Length: floatPtr(1000)},
+			},
+			localMax:  TileStats{MaxHeight: 500, MaxLength: 1000},
+			medians:   MedianStats{MedianHeight: 50, MedianLength: 100},
+			wantCount: 1,
+			wantID:    "Q1",
+			wantCat:   "height", // Priority order in Batch: Height -> Length -> Area
+		},
+		{
+			name: "Anchor Baseline (Sparse Area)",
+			candidates: []Article{
+				{ID: "Q_TOWER", Height: floatPtr(50)},
+				{ID: "Q_ANTENNA", Height: floatPtr(5)},
+			},
+			localMax:  TileStats{MaxHeight: 50},
+			medians:   MedianStats{MedianHeight: 0}, // No neighbors have height
+			wantCount: 1,
+			wantID:    "Q_TOWER",
+			wantCat:   "height",
+		},
+		{
+			name: "Anchor Baseline (Noise Suppression)",
+			candidates: []Article{
+				{ID: "Q_ANTENNA", Height: floatPtr(5)},
+			},
+			localMax:  TileStats{MaxHeight: 5},
+			medians:   MedianStats{MedianHeight: 0},
+			wantCount: 0,
+		},
 	}
 
-	localMax := TileStats{MaxHeight: 500.0}
-	medians := MedianStats{MedianHeight: 50.0} // Threshold = 100
-
-	rescued := Batch(candidates, localMax, medians)
-
-	if len(rescued) != 1 {
-		t.Fatalf("Expected 1 rescued article, got %d", len(rescued))
-	}
-	if rescued[0].ID != "Q2" {
-		t.Errorf("Expected Q2 to be rescued, got %s", rescued[0].ID)
-	}
-	if rescued[0].Category != "height" {
-		t.Errorf("Expected category 'height', got %s", rescued[0].Category)
-	}
-
-	// Test Length Rescue
-	l1, l2 := 10.0, 500.0
-	candidatesLength := []Article{
-		{ID: "Q3", Length: &l1},
-		{ID: "Q4", Length: &l2},
-	}
-	localMaxL := TileStats{MaxLength: 500.0}
-	mediansL := MedianStats{MedianLength: 50.0}
-	rescuedL := Batch(candidatesLength, localMaxL, mediansL)
-	if len(rescuedL) != 1 || rescuedL[0].ID != "Q4" || rescuedL[0].Category != "length" {
-		t.Errorf("Length rescue failed: got %v", rescuedL)
-	}
-
-	// Test Area Rescue
-	a1, a2 := 10.0, 500.0
-	candidatesArea := []Article{
-		{ID: "Q5", Area: &a1},
-		{ID: "Q6", Area: &a2},
-	}
-	localMaxA := TileStats{MaxArea: 500.0}
-	mediansA := MedianStats{MedianArea: 50.0}
-	rescuedA := Batch(candidatesArea, localMaxA, mediansA)
-	if len(rescuedA) != 1 || rescuedA[0].ID != "Q6" || rescuedA[0].Category != "area" {
-		t.Errorf("Area rescue failed: got %v", rescuedA)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Batch(tt.candidates, tt.localMax, tt.medians, 30.0, 500.0, 10000.0)
+			if len(got) != tt.wantCount {
+				t.Fatalf("got %d rescued, want %d", len(got), tt.wantCount)
+			}
+			if tt.wantCount > 0 {
+				if got[0].ID != tt.wantID {
+					t.Errorf("got ID %s, want %s", got[0].ID, tt.wantID)
+				}
+				if got[0].Category != tt.wantCat {
+					t.Errorf("got category %s, want %s", got[0].Category, tt.wantCat)
+				}
+			}
+		})
 	}
 }
 
@@ -83,7 +143,7 @@ func TestRescueBatch_Duplicate(t *testing.T) {
 	localMax := TileStats{MaxHeight: 500.0, MaxLength: 500.0}
 	medians := MedianStats{MedianHeight: 50.0, MedianLength: 50.0}
 
-	rescued := Batch(candidates, localMax, medians)
+	rescued := Batch(candidates, localMax, medians, 30.0, 500.0, 10000.0)
 
 	if len(rescued) != 1 {
 		t.Fatalf("Expected 1 rescued article (no duplicates), got %d", len(rescued))

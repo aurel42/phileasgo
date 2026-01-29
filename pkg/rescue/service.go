@@ -58,15 +58,9 @@ func CalculateMedian(neighbors []TileStats) MedianStats {
 	areas := make([]float64, 0, len(neighbors))
 
 	for _, n := range neighbors {
-		if n.MaxHeight > 0 {
-			heights = append(heights, n.MaxHeight)
-		}
-		if n.MaxLength > 0 {
-			lengths = append(lengths, n.MaxLength)
-		}
-		if n.MaxArea > 0 {
-			areas = append(areas, n.MaxArea)
-		}
+		heights = append(heights, n.MaxHeight)
+		lengths = append(lengths, n.MaxLength)
+		areas = append(areas, n.MaxArea)
 	}
 
 	return MedianStats{
@@ -76,49 +70,69 @@ func CalculateMedian(neighbors []TileStats) MedianStats {
 	}
 }
 
-// RescueBatch identifies significant unclassified entities based on neighborhood medians.
+// Batch identifies significant unclassified entities based on neighborhood medians and noise floors.
 // It returns a list of rescued articles (copies with categories assigned).
-func Batch(candidates []Article, localMax TileStats, medians MedianStats) []Article {
+func Batch(candidates []Article, localMax TileStats, medians MedianStats, minH, minL, minA float64) []Article {
 	var rescued []Article
 
 	// Dimension: Height
-	if localMax.MaxHeight > 0 && localMax.MaxHeight > 2*medians.MedianHeight {
-		if a := findBest(candidates, func(art Article) bool {
-			return art.Height != nil && *art.Height == localMax.MaxHeight
-		}); a != nil {
-			a.Category = "height"
-			a.DimensionMultiplier = localMax.MaxHeight / medians.MedianHeight
+	if a := rescueDimension(candidates, "height", localMax.MaxHeight, medians.MedianHeight, minH); a != nil {
+		rescued = append(rescued, *a)
+	}
+
+	// Dimension: Length
+	if a := rescueDimension(candidates, "length", localMax.MaxLength, medians.MedianLength, minL); a != nil {
+		if !isDuplicate(rescued, a.ID) {
 			rescued = append(rescued, *a)
 		}
 	}
 
-	// Dimension: Length
-	if localMax.MaxLength > 0 && localMax.MaxLength > 2*medians.MedianLength {
-		if a := findBest(candidates, func(art Article) bool {
-			return art.Length != nil && *art.Length == localMax.MaxLength
-		}); a != nil {
-			if !isDuplicate(rescued, a.ID) {
-				a.Category = "length"
-				a.DimensionMultiplier = localMax.MaxLength / medians.MedianLength
-				rescued = append(rescued, *a)
-			}
-		}
-	}
-
 	// Dimension: Area
-	if localMax.MaxArea > 0 && localMax.MaxArea > 2*medians.MedianArea {
-		if a := findBest(candidates, func(art Article) bool {
-			return art.Area != nil && *art.Area == localMax.MaxArea
-		}); a != nil {
-			if !isDuplicate(rescued, a.ID) {
-				a.Category = "area"
-				a.DimensionMultiplier = localMax.MaxArea / medians.MedianArea
-				rescued = append(rescued, *a)
-			}
+	if a := rescueDimension(candidates, "area", localMax.MaxArea, medians.MedianArea, minA); a != nil {
+		if !isDuplicate(rescued, a.ID) {
+			rescued = append(rescued, *a)
 		}
 	}
 
 	return rescued
+}
+
+func rescueDimension(candidates []Article, category string, maxVal, medianVal, minVal float64) *Article {
+	if maxVal <= 0 {
+		return nil
+	}
+
+	threshold := 2 * medianVal
+	if threshold < minVal {
+		threshold = minVal
+	}
+
+	if maxVal < threshold {
+		return nil
+	}
+
+	a := findBest(candidates, func(art Article) bool {
+		switch category {
+		case "height":
+			return art.Height != nil && *art.Height == maxVal
+		case "length":
+			return art.Length != nil && *art.Length == maxVal
+		case "area":
+			return art.Area != nil && *art.Area == maxVal
+		}
+		return false
+	})
+
+	if a == nil {
+		return nil
+	}
+
+	a.Category = category
+	a.DimensionMultiplier = 1.0
+	if medianVal > 0 {
+		a.DimensionMultiplier = maxVal / medianVal
+	}
+	return a
 }
 
 func median(data []float64) float64 {
