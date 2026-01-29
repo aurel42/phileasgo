@@ -602,12 +602,31 @@ func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (
 
 	m.logger.Debug("River candidate detected", "name", candidate.Name, "qid", candidate.WikidataID, "dist", candidate.Distance)
 
-	// 3. Hydrate by QID
+	// 3. Check if already tracked to avoid redundant hydration
+	m.mu.RLock()
+	p, alreadyTracked := m.trackedPOIs[candidate.WikidataID]
+	m.mu.RUnlock()
+
+	if alreadyTracked {
+		// Just update the position and context silently
+		p.RiverContext = &model.RiverContext{
+			IsActive:   true,
+			DistanceM:  candidate.Distance,
+			ClosestLat: candidate.ClosestLat,
+			ClosestLon: candidate.ClosestLon,
+		}
+		p.Lat = candidate.ClosestLat
+		p.Lon = candidate.ClosestLon
+		m.logger.Debug("Updated existing river POI coordinates", "qid", p.WikidataID, "name", p.DisplayName())
+		return p, nil
+	}
+
+	// 4. Hydrate by QID (First time discovery)
 	if err := m.poiLoader.EnsurePOIsLoaded(ctx, []string{candidate.WikidataID}, lat, lon); err != nil {
 		m.logger.Warn("Failed to hydrate river by QID", "qid", candidate.WikidataID, "err", err)
 	}
 
-	// 4. Check if it's now tracked (either just hydrated or already existing)
+	// 5. Fetch and Track (Discovery path)
 	p, err := m.GetPOI(ctx, candidate.WikidataID)
 	if err == nil && p != nil {
 		// Found! Attach context, update position, and TRACK

@@ -1,8 +1,12 @@
 ﻿Release History
  
+## v0.3.67 (2026-01-29)
+- **Active-POI Map Awareness**: Improved auto-zoom logic to ensure currently narrated POIs always remain visible regardless of viewport aspect ratio.
+- **Optimized River Hydration**: Refactored the periodic tracking loop to eliminate redundant re-hydration and console log noise.
+ 
 ## v0.3.66 (2026-01-29)
-- **Identity-based River Hydration**: Refactored the river integration to use Wikidata IDs (QID), ensuring reliable narration for large rivers regardless of geometry fragmentation in the source data.
-- **Unified POI Pipeline**: Standardized the hydration and enrichment process for all entities, enabling targeted loading of specific POIs via identity lookups.
+- **Identity-based River Hydration**: Refactored the river integration to use Wikidata IDs (QID).
+- **Unified POI Pipeline**: Standardized the hydration and enrichment process for all entities.
  
 ## v0.3.65 (2026-01-29)
 - **Adaptive Map Zoom**: Refined the auto-zoom logic to respect viewport aspect ratio.

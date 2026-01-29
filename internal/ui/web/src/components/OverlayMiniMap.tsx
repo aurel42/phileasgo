@@ -236,8 +236,26 @@ export const OverlayMiniMap = ({ lat, lon, heading, pois, currentNarratedId, pre
             const maxLonDiff = Math.max(...nonBluePois.map(p => Math.abs(p.lon - lon)));
 
             // Add a small minimum buffer (e.g. 0.01 deg ~1km) to avoid infinity/division by zero issues
-            const latBuffer = Math.max(maxLatDiff, 0.01);
-            const lonBuffer = Math.max(maxLonDiff, 0.01);
+            let latBuffer = Math.max(maxLatDiff, 0.01);
+            let lonBuffer = Math.max(maxLonDiff, 0.01);
+
+            // Refinement: Adjust bounding box based on map aspect ratio
+            // If map is higher than wide (narrow side panel), favor latitude (portrait)
+            // If map is wider than high, favor longitude (landscape)
+            // CRITICAL: If a POI is active (green), we MUST keep its dimension in the buffer
+            // even if it would otherwise be zeroed out.
+            const playingPoi = nonBluePois.find(p => p.wikidata_id === currentNarratedId);
+            const activePoiLatDiff = playingPoi ? Math.abs(playingPoi.lat - lat) : 0;
+            const activePoiLonDiff = playingPoi ? Math.abs(playingPoi.lon - lon) : 0;
+
+            const mapSize = map.getSize();
+            if (mapSize.y > mapSize.x) {
+                // Portrait: Keep lon enough for active POI
+                lonBuffer = activePoiLonDiff;
+            } else if (mapSize.x > mapSize.y) {
+                // Landscape: Keep lat enough for active POI
+                latBuffer = activePoiLatDiff;
+            }
 
             const symmetricBounds = L.latLngBounds(
                 [lat - latBuffer, lon - lonBuffer],

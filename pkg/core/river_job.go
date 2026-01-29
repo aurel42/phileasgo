@@ -57,15 +57,14 @@ func (j *RiverJob) Run(ctx context.Context, t *sim.Telemetry) {
 	j.lastTime = time.Now()
 
 	// Call Manager.UpdateRivers
-	poi, err := j.manager.UpdateRivers(ctx, t.Latitude, t.Longitude, t.Heading)
+	_, err := j.manager.UpdateRivers(ctx, t.Latitude, t.Longitude, t.Heading)
 	if err != nil {
 		j.logger.Warn("UpdateRivers failed", "error", err)
 		return
 	}
 
-	if poi != nil {
-		j.logger.Info("River POI hydrated", "name", poi.DisplayName(), "qid", poi.WikidataID)
-	}
+	// If poi != nil, it means discovery or update happened.
+	// Logging is now handled inside Manager.UpdateRivers at appropriate levels (DEBUG for updates, INFO for discovery).
 }
 
 // GetLastRiverPOI returns the last detected river POI (for testing/debugging).
