@@ -7,122 +7,94 @@ import (
 func TestStageMachine(t *testing.T) {
 
 	tests := []struct {
-		name        string
-		tel         Telemetry
-		ticks       int
-		expected    string
-		wasAirborne bool
+		name     string
+		sequence []Telemetry
+		expected string
 	}{
 		{
-			name: "Initial Parked",
-			tel: Telemetry{
-				IsOnGround:  true,
-				EngineOn:    false,
-				GroundSpeed: 0,
+			name: "Start Mid-Air (Initial)",
+			sequence: []Telemetry{
+				{IsOnGround: false, AltitudeAGL: 5000, VerticalSpeed: 0},
 			},
-			ticks:    2,
-			expected: StageParked,
+			expected: StageAirborne,
 		},
 		{
-			name: "Transition to Taxi",
-			tel: Telemetry{
-				IsOnGround:  true,
-				EngineOn:    true,
-				GroundSpeed: 10,
+			name: "Start Mid-Air (Confirm Cruise)",
+			sequence: []Telemetry{
+				{IsOnGround: false, AltitudeAGL: 5000, VerticalSpeed: 0},
+				{IsOnGround: false, AltitudeAGL: 5000, VerticalSpeed: 0},
+				{IsOnGround: false, AltitudeAGL: 5000, VerticalSpeed: 0},
 			},
-			ticks:    2,
-			expected: StageTaxi,
-		},
-		{
-			name: "Transition to TakeOff Roll",
-			tel: Telemetry{
-				IsOnGround:  true,
-				EngineOn:    true,
-				GroundSpeed: 50,
-			},
-			ticks:    2,
-			expected: StageTakeOff,
-		},
-		{
-			name: "Transition to TakeOff Airborne",
-			tel: Telemetry{
-				IsOnGround:  false,
-				AltitudeAGL: 100,
-			},
-			ticks:    2,
-			expected: StageTakeOff,
-		},
-		{
-			name: "Transition to Climb",
-			tel: Telemetry{
-				IsOnGround:    false,
-				AltitudeAGL:   1000,
-				VerticalSpeed: 500,
-			},
-			ticks:    2,
-			expected: StageClimb,
-		},
-		{
-			name: "Transition to Cruise",
-			tel: Telemetry{
-				IsOnGround:    false,
-				AltitudeAGL:   5000,
-				VerticalSpeed: 50,
-			},
-			ticks:    2,
 			expected: StageCruise,
 		},
 		{
-			name: "Transition to Descend",
-			tel: Telemetry{
-				IsOnGround:    false,
-				AltitudeAGL:   3000,
-				VerticalSpeed: -500,
+			name: "Start On Ground (Initial)",
+			sequence: []Telemetry{
+				{IsOnGround: true, EngineOn: false, GroundSpeed: 0},
 			},
-			ticks:    2,
-			expected: StageDescend,
+			expected: StageOnGround,
 		},
 		{
-			name: "Transition to Landed",
-			tel: Telemetry{
-				IsOnGround:  true,
-				GroundSpeed: 30,
+			name: "Start On Ground (Confirm Parked)",
+			sequence: []Telemetry{
+				{IsOnGround: true, EngineOn: false, GroundSpeed: 0},
+				{IsOnGround: true, EngineOn: false, GroundSpeed: 0},
+				{IsOnGround: true, EngineOn: false, GroundSpeed: 0},
 			},
-			wasAirborne: true,
-			ticks:       2,
-			expected:    StageLanded,
-		},
-		{
-			name: "Hysteresis Check (1 tick no change)",
-			tel: Telemetry{
-				IsOnGround:  true,
-				EngineOn:    false,
-				GroundSpeed: 0,
-			},
-			ticks:    1,
-			expected: StageOnGround, // Starts at OnGround, candidate is Parked
-		},
-		{
-			name: "Hysteresis Check (2 ticks commit)",
-			tel: Telemetry{
-				IsOnGround:  true,
-				EngineOn:    false,
-				GroundSpeed: 0,
-			},
-			ticks:    2,
 			expected: StageParked,
+		},
+		{
+			name: "Normal Flow: Parked -> Taxi -> TakeOff -> Climb -> Cruise",
+			sequence: []Telemetry{
+				// 1. Init
+				{IsOnGround: true, EngineOn: false, GroundSpeed: 0},
+				// 2. Parked
+				{IsOnGround: true, EngineOn: false, GroundSpeed: 0},
+				{IsOnGround: true, EngineOn: false, GroundSpeed: 0},
+				// 3. Taxi
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 10},
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 10},
+				// 4. TakeOff Roll
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 60},
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 80},
+				// 5. Airborne TakeOff
+				{IsOnGround: false, AltitudeAGL: 100, VerticalSpeed: 500},
+				{IsOnGround: false, AltitudeAGL: 200, VerticalSpeed: 600},
+				// 6. Climb
+				{IsOnGround: false, AltitudeAGL: 1000, VerticalSpeed: 800},
+				{IsOnGround: false, AltitudeAGL: 2000, VerticalSpeed: 800},
+				// 7. Cruise
+				{IsOnGround: false, AltitudeAGL: 5000, VerticalSpeed: 0},
+				{IsOnGround: false, AltitudeAGL: 5000, VerticalSpeed: 0},
+			},
+			expected: StageCruise,
+		},
+		{
+			name: "Mid-Air Start: No Spurious TakeOff",
+			sequence: []Telemetry{
+				{IsOnGround: false, AltitudeAGL: 200, VerticalSpeed: 0}, // App starts at 200ft
+				{IsOnGround: false, AltitudeAGL: 200, VerticalSpeed: 0},
+				{IsOnGround: false, AltitudeAGL: 200, VerticalSpeed: 0},
+			},
+			expected: StageCruise,
+		},
+		{
+			name: "Landed Detection",
+			sequence: []Telemetry{
+				{IsOnGround: false, AltitudeAGL: 5000, VerticalSpeed: 0}, // Start airborne
+				{IsOnGround: true, GroundSpeed: 40},                      // Touchdown
+				{IsOnGround: true, GroundSpeed: 20},                      // Slowing down
+			},
+			expected: StageLanded,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sm := NewStageMachine()
-			if tt.wasAirborne {
-				sm.wasAirborne = true
-			}
 			var last string
-			for i := 0; i < tt.ticks; i++ {
-				last = sm.Update(&tt.tel)
+			for _, tel := range tt.sequence {
+				last = sm.Update(&tel)
 			}
 			if last != tt.expected {
 				t.Errorf("Expected %s, got %s", tt.expected, last)

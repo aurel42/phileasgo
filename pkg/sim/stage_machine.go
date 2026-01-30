@@ -26,16 +26,28 @@ type StageMachine struct {
 	wasAirborne   bool
 }
 
-// NewStageMachine creates a stage machine initialized to ground.
+// NewStageMachine creates a stage machine in an uninitialized state.
 func NewStageMachine() *StageMachine {
 	return &StageMachine{
-		current:     StageOnGround,
-		wasOnGround: true,
+		current: "",
 	}
 }
 
 // Update evaluates telemetry and returns the current refined stage.
 func (m *StageMachine) Update(t *Telemetry) string {
+	// First-tick Initialization: determine fallback from actual ground status
+	if m.current == "" {
+		if t.IsOnGround {
+			m.current = StageOnGround
+			m.wasOnGround = true
+		} else {
+			m.current = StageAirborne
+			m.wasAirborne = true
+		}
+		// Skip hysteresis for initial state
+		return m.current
+	}
+
 	candidate := m.detectCandidate(t)
 
 	// Hysteresis: Require 2 ticks to confirm state change
