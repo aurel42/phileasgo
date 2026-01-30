@@ -129,14 +129,14 @@ Words: {{.MaxWords}}`
 		MaxWords: 50,
 	}
 
-	pd := &NarrationPromptData{
-		TargetCountry: "France",
-		Lat:           48.85,
-		Lon:           2.35,
+	pd := NarrationPromptData{
+		"TargetCountry": "France",
+		"Lat":           48.85,
+		"Lon":           2.35,
 	}
 
 	// Render
-	res, err := eh.BuildPrompt(context.Background(), topic, pd)
+	res, err := eh.BuildPrompt(context.Background(), topic, &pd)
 	if err != nil {
 		t.Fatalf("BuildPrompt failed: %v", err)
 	}
@@ -180,12 +180,12 @@ func TestEssayHandler_BuildPrompt_CoordinatesPassthrough(t *testing.T) {
 	}
 
 	topic := &EssayTopic{ID: "t1", Name: "Test", MaxWords: 50}
-	pd := &NarrationPromptData{
-		Lat: 48.8566,
-		Lon: 2.3522,
+	pd := NarrationPromptData{
+		"Lat": 48.8566,
+		"Lon": 2.3522,
 	}
 
-	res, err := eh.BuildPrompt(context.Background(), topic, pd)
+	res, err := eh.BuildPrompt(context.Background(), topic, &pd)
 	if err != nil {
 		t.Fatalf("BuildPrompt failed: %v", err)
 	}

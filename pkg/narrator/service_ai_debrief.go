@@ -44,8 +44,8 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 
 	// 2. Build Prompt
 	data := s.getCommonPromptData()
-	data.MaxWords = s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords)
-	data.TripSummary = summary // Use the local copy we took with RLock
+	data["MaxWords"] = s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords)
+	data["TripSummary"] = summary // Use the local copy we took with RLock
 
 	prompt, err := s.prompts.Render("narrator/debrief.tmpl", data)
 	if err != nil {

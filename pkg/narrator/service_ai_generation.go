@@ -205,7 +205,7 @@ func (s *AIService) extractTitleFromScript(script string) (title, cleanScript st
 func (s *AIService) rescueScript(ctx context.Context, script string, maxWords int) (string, error) {
 	// Fetch TTS instructions for consistent formatting during rescue
 	pd := s.getCommonPromptData()
-	ttsInstr := s.fetchTTSInstructions(&pd)
+	ttsInstr := s.fetchTTSInstructions(pd)
 
 	prompt, err := s.prompts.Render("context/rescue_script.tmpl", map[string]any{
 		"Script":          script,

@@ -92,21 +92,12 @@ func (h *EssayHandler) SelectTopic() (*EssayTopic, error) {
 	return nil, fmt.Errorf("topic %s not found in rotation", selectedID)
 }
 
-// BuildPrompt constructs the LLM prompt for the given topic and context.
 func (h *EssayHandler) BuildPrompt(ctx context.Context, topic *EssayTopic, pd *NarrationPromptData) (string, error) {
 	// Prepare template data
-	// We map the PromptData fields + Topic specific fields
-	data := struct {
-		*NarrationPromptData
-		TopicName        string
-		TopicDescription string
-		MaxWords         int
-	}{
-		NarrationPromptData: pd,
-		TopicName:           topic.Name,
-		TopicDescription:    topic.Description,
-		MaxWords:            topic.MaxWords,
-	}
+	// We merge the Topic specific fields into the prompt data
+	(*pd)["TopicName"] = topic.Name
+	(*pd)["TopicDescription"] = topic.Description
+	(*pd)["MaxWords"] = topic.MaxWords
 
-	return h.prompts.Render("narrator/essay.tmpl", data)
+	return h.prompts.Render("narrator/essay.tmpl", pd)
 }

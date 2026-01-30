@@ -32,15 +32,15 @@ func (a *LetsgooAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) {
 	// Aircraft situation
 	loc := a.provider.geoSvc.GetLocation(t.Latitude, t.Longitude)
 
-	pd.City = loc.CityName
-	pd.Region = loc.Admin1Name
-	pd.Country = loc.CountryCode
-	pd.Lat = t.Latitude
-	pd.Lon = t.Longitude
-	pd.AltitudeAGL = t.AltitudeAGL
-	pd.GroundSpeed = t.GroundSpeed
-	pd.FlightStage = sim.FormatStage(t.FlightStage)
-	pd.FlightStatusSentence = generateFlightStatusSentence(t)
+	pd["City"] = loc.CityName
+	pd["Region"] = loc.Admin1Name
+	pd["Country"] = loc.CountryCode
+	pd["Lat"] = t.Latitude
+	pd["Lon"] = t.Longitude
+	pd["AltitudeAGL"] = t.AltitudeAGL
+	pd["GroundSpeed"] = t.GroundSpeed
+	pd["FlightStage"] = sim.FormatStage(t.FlightStage)
+	pd["FlightStatusSentence"] = generateFlightStatusSentence(t)
 
 	return pd, nil
 }

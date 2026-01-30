@@ -14,29 +14,21 @@ import (
 )
 
 func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.Telemetry, strategy string) NarrationPromptData {
-	// CC & Lang
-	loc := s.geoSvc.GetLocation(p.Lat, p.Lon)
-	cc := loc.CountryCode
-	region := loc.CityName
-	if loc.CityName != "Unknown" {
-		region = "Near " + loc.CityName
-	}
-
 	if tel == nil {
 		t, _ := s.sim.GetTelemetry(ctx)
 		tel = &t
 	}
-	nav := s.calculateNavInstruction(p, tel)
 
-	// Stub Detection & Text Fetch
+	pd := s.getCommonPromptData()
+	s.injectTelemetry(pd, tel)
+	s.injectPOI(ctx, pd, p)
+	s.injectUnits(pd)
+
+	// Custom/Specific logic for this request
 	wikiInfo := s.fetchWikipediaText(ctx, p)
-	wpText := wikiInfo.Prose
-
-	// Phase 3: Pregrounding context - fetch early to influence word count
-	pregroundText := s.fetchPregroundContext(ctx, p)
+	pregroundText := pd["PregroundContext"].(string)
 	pregroundWords := len(strings.Fields(pregroundText))
 
-	// Include pregrounding context in source depth for scaling
 	maxWords, domStrat := s.sampleNarrationLength(p, strategy, wikiInfo.WordCount+pregroundWords)
 
 	isStub := false
@@ -49,88 +41,21 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 	if isStub {
 		maxWords = 0
 	}
-
 	p.NarrationStrategy = domStrat
 
-	// Language Logic (User's Target Language)
-	targetLang := s.cfg.Narrator.TargetLanguage
-	langCode := "en"
-	langName := "English"
-	langLocale := targetLang
+	pd["MaxWords"] = maxWords
+	pd["DomStrat"] = domStrat
+	pd["IsStub"] = isStub
+	pd["NavInstruction"] = s.calculateNavInstruction(p, tel)
+	pd["ArticleURL"] = p.WPURL
 
-	// Parse "de-DE" -> "DE"
-	parts := strings.Split(targetLang, "-")
-	if len(parts) == 2 {
-		// Valid locale format
-		targetCC := parts[1]
-		if s.langRes != nil {
-			info := s.langRes.GetLanguageInfo(targetCC)
-			langCode = info.Code
-			langName = info.Name
-		} else {
-			// Fallback if resolver missing (unlikely in prod)
-			langCode = parts[0]
-		}
-	} else if len(parts) > 0 {
-		// Fallback for non-standard config (though validation should catch this)
-		langCode = parts[0]
-	}
-
-	pd := NarrationPromptData{
-		TourGuideName:        "Ava", // TODO: Get from voice profile
-		Persona:              "Intelligent, fascinating",
-		Accent:               "Neutral",
-		Language:             targetLang,
-		Language_code:        langCode,
-		Language_name:        langName,
-		Language_region_code: langLocale,
-		FemalePersona:        "Intelligent, fascinating",
-		FemaleAccent:         "Neutral",
-		PassengerMale:        "Andrew",
-		MalePersona:          "Curious traveler",
-		MaleAccent:           "Neutral",
-		FlightStage:          sim.FormatStage(tel.FlightStage),
-		NameNative:           p.NameLocal,
-		POINameNative:        p.NameLocal,
-		NameUser:             p.DisplayName(),
-		POINameUser:          p.DisplayName(),
-		Category:             p.Category,
-		WikipediaText:        wpText,
-		ArticleURL:           p.WPURL,
-		IsStub:               isStub,
-		NavInstruction:       nav,
-		TargetLanguage:       s.cfg.Narrator.TargetLanguage,
-		TargetCountry:        cc,
-		Country:              cc,
-		TargetRegion:         region,
-		Region:               region,
-		MaxWords:             maxWords,
-		DominanceStrategy:    domStrat,
-		RecentPoisContext:    s.fetchRecentContext(ctx, p.Lat, p.Lon),
-		RecentContext:        s.fetchRecentContext(ctx, p.Lat, p.Lon),
-		Lat:                  tel.Latitude,
-		Lon:                  tel.Longitude,
-		UnitsInstruction:     s.fetchUnitsInstruction(),
-		Interests:            s.interests,
-		Avoid:                s.avoid,
-		AltitudeMSL:          tel.AltitudeMSL,
-		AltitudeAGL:          tel.AltitudeAGL,
-		Heading:              tel.Heading,
-		GroundSpeed:          tel.GroundSpeed,
-		PredictedLat:         tel.PredictedLatitude,
-		PredictedLon:         tel.PredictedLongitude,
-		TripSummary:          s.getTripSummary(),
-		LastSentence:         s.lastScriptEnd,
-		FlightStatusSentence: generateFlightStatusSentence(tel),
-		PregroundContext:     pregroundText,
-	}
-	// Fetch TTS instructions with full context
-	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
+	// Final fetch of TTS instructions with full context
+	pd["TTSInstructions"] = s.fetchTTSInstructions(pd)
 
 	return pd
 }
 
-func (s *AIService) fetchTTSInstructions(data any) string {
+func (s *AIService) fetchTTSInstructions(data NarrationPromptData) string {
 	var tmplName string
 
 	// If fallback TTS is active, always use edge-tts template
@@ -286,77 +211,103 @@ func (s *AIService) fetchPregroundContext(ctx context.Context, p *model.POI) str
 	return result
 }
 
-// NarrationPromptData struct for templates
-type NarrationPromptData struct {
-	TourGuideName        string
-	Persona              string
-	Accent               string
-	Language             string
-	Language_code        string
-	Language_name        string
-	Language_region_code string
-	FemalePersona        string
-	FemaleAccent         string
-	PassengerMale        string
-	MalePersona          string
-	MaleAccent           string
-	FlightStage          string
-	NameNative           string
-	POINameNative        string
-	NameUser             string
-	POINameUser          string
-	Category             string
-	WikipediaText        string
-	NavInstruction       string
-	TargetLanguage       string
-	TargetCountry        string
-	Country              string
-	TargetRegion         string
-	Region               string
-	Lat                  float64
-	Lon                  float64
-	MaxWords             int
-	RecentPoisContext    string
-	RecentContext        string
-	UnitsInstruction     string
-	TTSInstructions      string
-	Interests            []string
-	Avoid                []string
-	AltitudeMSL          float64
-	AltitudeAGL          float64
-	Heading              float64
-	GroundSpeed          float64
-	PredictedLat         float64
-	PredictedLon         float64
-	DominanceStrategy    string
-	TripSummary          string
-	LastSentence         string
-	FlightStatusSentence string
+// NarrationPromptData is a dynamic map for template context.
+type NarrationPromptData map[string]any
 
-	// Narrator Logic
-	PregroundContext string // Sonar-enriched local context (empty if disabled or N/A)
-	IsStub           bool
+// Set adds or updates a field in the prompt data.
+func (pd NarrationPromptData) Set(key string, val any) {
+	pd[key] = val
+}
 
-	// Generic fields for flexibility in common macros
-	Title  string
-	Script string
-	From   string
-	To     string
+// Get returns a field from the prompt data.
+func (pd NarrationPromptData) Get(key string) any {
+	return pd[key]
+}
 
-	// Specific fields for summary updates
-	CurrentSummary string
-	LastTitle      string
-	LastScript     string
+func (s *AIService) injectTelemetry(pd NarrationPromptData, t *sim.Telemetry) {
+	if t == nil {
+		return
+	}
+	pd["Lat"] = t.Latitude
+	pd["Lon"] = t.Longitude
+	pd["AltitudeMSL"] = t.AltitudeMSL
+	pd["AltitudeAGL"] = t.AltitudeAGL
+	pd["Heading"] = t.Heading
+	pd["GroundSpeed"] = t.GroundSpeed
+	pd["PredictedLat"] = t.PredictedLatitude
+	pd["PredictedLon"] = t.PredictedLongitude
+	pd["FlightStage"] = sim.FormatStage(t.FlightStage)
+	pd["FlightStatusSentence"] = generateFlightStatusSentence(t)
 
-	// Specific fields for other templates (Thumbnail, Wikidata, Essay, Screenshot)
-	Name             string
-	ArticleURL       string
-	Images           []ImageResult
-	CategoryList     string
-	TopicName        string
-	TopicDescription string
-	City             string
-	Alt              string
+	// Geographical context for aircraft position
+	loc := s.geoSvc.GetLocation(t.Latitude, t.Longitude)
+	pd["TargetRegion"] = fmt.Sprintf("Near %s", loc.CityName)
+	pd["TargetCountry"] = loc.CountryCode
+}
+
+func (s *AIService) injectPersona(pd NarrationPromptData) {
+	pd["TourGuideName"] = "Ava"
+	pd["Persona"] = "Intelligent, fascinating"
+	pd["Accent"] = "Neutral"
+	pd["Language"] = s.cfg.Narrator.TargetLanguage
+	pd["FemalePersona"] = "Intelligent, fascinating"
+	pd["FemaleAccent"] = "Neutral"
+	pd["PassengerMale"] = "Andrew"
+	pd["MalePersona"] = "Curious traveler"
+	pd["MaleAccent"] = "Neutral"
+	pd["TripSummary"] = s.getTripSummary()
+	pd["LastSentence"] = s.lastScriptEnd
+	pd["TargetLanguage"] = s.cfg.Narrator.TargetLanguage
+	pd["MaxWords"] = s.cfg.Narrator.NarrationLengthLongWords
+
+	// Language decoding logic if needed by templates
+	targetLang := s.cfg.Narrator.TargetLanguage
+	langCode := "en"
+	langName := "English"
+	parts := strings.Split(targetLang, "-")
+	if len(parts) >= 1 {
+		langCode = parts[0]
+		if len(parts) == 2 && s.langRes != nil {
+			info := s.langRes.GetLanguageInfo(parts[1])
+			if info.Name != "" {
+				langName = info.Name
+			}
+		}
+	}
+	pd["Language_code"] = langCode
+	pd["Language_name"] = langName
+	pd["Language_region_code"] = targetLang
+
+	pd["TTSInstructions"] = s.fetchTTSInstructions(pd)
+}
+
+func (s *AIService) injectPOI(ctx context.Context, pd NarrationPromptData, p *model.POI) {
+	if p == nil {
+		return
+	}
+	pd["POINameNative"] = p.NameEn // Use En as fallback if native missing
+	if p.NameLocal != "" {
+		pd["POINameNative"] = p.NameLocal
+	}
+	pd["POINameUser"] = p.DisplayName()
+	pd["Category"] = p.Category
+	pd["Lat"] = p.Lat
+	pd["Lon"] = p.Lon
+
+	// Location info
+	loc := s.geoSvc.GetLocation(p.Lat, p.Lon)
+	pd["Country"] = loc.CountryCode
+	pd["Region"] = loc.Admin1Name
+	pd["City"] = loc.CityName
+
+	// Content
+	pd["WikipediaText"] = s.fetchWikipediaText(ctx, p).Prose
+	pd["PregroundContext"] = s.fetchPregroundContext(ctx, p)
+	pd["RecentContext"] = s.fetchRecentContext(ctx, p.Lat, p.Lon)
+}
+
+func (s *AIService) injectUnits(pd NarrationPromptData) {
+	pd["UnitsInstruction"] = s.fetchUnitsInstruction()
 }
 
 // ImageResult represents a candidate image for selection.
@@ -367,53 +318,8 @@ type ImageResult struct {
 
 // getCommonPromptData returns a baseline NarrationPromptData with language, persona, and trip context.
 func (s *AIService) getCommonPromptData() NarrationPromptData {
-	s.mu.RLock()
-	tripSummary := s.tripSummary
-	lastSentence := s.lastScriptEnd
-	s.mu.RUnlock()
-
-	// Language Logic (User's Target Language)
-	targetLang := s.cfg.Narrator.TargetLanguage
-	langCode := "en"
-	langName := "English"
-	langLocale := targetLang
-
-	parts := strings.Split(targetLang, "-")
-	if len(parts) == 2 {
-		targetCC := parts[1]
-		if s.langRes != nil {
-			info := s.langRes.GetLanguageInfo(targetCC)
-			langCode = info.Code
-			langName = info.Name
-		} else {
-			langCode = parts[0]
-		}
-	} else if len(parts) > 0 {
-		langCode = parts[0]
-	}
-
-	pd := NarrationPromptData{
-		TourGuideName:        "Ava",
-		Persona:              "Intelligent, fascinating",
-		Accent:               "Neutral",
-		Language:             targetLang,
-		Language_code:        langCode,
-		Language_name:        langName,
-		Language_region_code: langLocale,
-		FemalePersona:        "Intelligent, fascinating",
-		FemaleAccent:         "Neutral",
-		PassengerMale:        "Andrew",
-		MalePersona:          "Curious traveler",
-		MaleAccent:           "Neutral",
-		TripSummary:          tripSummary,
-		LastSentence:         lastSentence,
-		TargetLanguage:       targetLang,
-		MaxWords:             s.cfg.Narrator.NarrationLengthLongWords,
-	}
-
-	// Fetch TTS instructions with this context
-	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
-
+	pd := make(NarrationPromptData)
+	s.injectPersona(pd)
 	return pd
 }
 

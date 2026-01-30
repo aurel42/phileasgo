@@ -50,8 +50,8 @@ func TestBuildPromptData(t *testing.T) {
 		poi := &model.POI{Lat: 10, Lon: 20}
 		pd := svc.buildPromptData(context.Background(), poi, nil, "uniform")
 
-		if pd.LastSentence != "It was a dark and stormy night" {
-			t.Errorf("Expected last sentence injected, got %q", pd.LastSentence)
+		if pd["LastSentence"] != "It was a dark and stormy night" {
+			t.Errorf("Expected last sentence injected, got %q", pd["LastSentence"])
 		}
 	})
 
@@ -66,22 +66,22 @@ func TestBuildPromptData(t *testing.T) {
 		pd := svc.buildPromptData(context.Background(), poi, nil, "uniform")
 
 		// Assertions
-		if pd.TourGuideName != "Ava" {
-			t.Errorf("Expected Ava, got %s", pd.TourGuideName)
+		if pd["TourGuideName"] != "Ava" {
+			t.Errorf("Expected Ava, got %v", pd["TourGuideName"])
 		}
-		if pd.Language_code != "en" {
-			t.Errorf("Expected en, got %s", pd.Language_code)
+		if pd["Language_code"] != "en" {
+			t.Errorf("Expected en, got %v", pd["Language_code"])
 		}
-		if pd.TargetRegion != "Near TestCity" {
-			t.Errorf("Expected Near TestCity, got %s", pd.TargetRegion)
+		if pd["TargetRegion"] != "Near TestCity" {
+			t.Errorf("Expected Near TestCity, got %v", pd["TargetRegion"])
 		}
 		// Wiki text should be fetched (and cleaned)
-		if pd.WikipediaText != "WikiText" {
-			t.Errorf("Expected WikiText, got %s", pd.WikipediaText)
+		if pd["WikipediaText"] != "WikiText" {
+			t.Errorf("Expected WikiText, got %v", pd["WikipediaText"])
 		}
 		// Nav instruction: Distance 0 -> Ground < 4.5km -> Empty
-		if pd.NavInstruction != "" {
-			t.Errorf("Expected empty nav for 0 dist, got %s", pd.NavInstruction)
+		if pd["NavInstruction"] != "" {
+			t.Errorf("Expected empty nav for 0 dist, got %v", pd["NavInstruction"])
 		}
 	})
 
@@ -89,8 +89,8 @@ func TestBuildPromptData(t *testing.T) {
 		svc.cfg.Narrator.TargetLanguage = "de-DE"
 		poi := &model.POI{Lat: 10, Lon: 20}
 		pd := svc.buildPromptData(context.Background(), poi, nil, "uniform")
-		if pd.Language_code != "de" { // "de" is fallback if no resolver
-			t.Errorf("Expected de, got %s", pd.Language_code)
+		if pd["Language_code"] != "de" { // "de" is fallback if no resolver
+			t.Errorf("Expected de, got %v", pd["Language_code"])
 		}
 	})
 }
@@ -250,10 +250,10 @@ func TestTripSummary(t *testing.T) {
 
 	// Check prompt data
 	pd := NarrationPromptData{
-		TripSummary: svc.getTripSummary(),
+		"TripSummary": svc.getTripSummary(),
 	}
-	if pd.TripSummary != "Initial trip summary." {
-		t.Errorf("Expected summary 'Initial trip summary.', got %s", pd.TripSummary)
+	if pd["TripSummary"] != "Initial trip summary." {
+		t.Errorf("Expected summary 'Initial trip summary.', got %v", pd["TripSummary"])
 	}
 }
 

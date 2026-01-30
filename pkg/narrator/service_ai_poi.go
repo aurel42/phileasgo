@@ -108,7 +108,7 @@ func (s *AIService) playPOIAutomated(ctx context.Context, p *model.POI, tel *sim
 			Title:         p.DisplayName(),
 			SafeID:        strings.ReplaceAll(p.WikidataID, "/", "_"),
 			POI:           p,
-			MaxWords:      promptData.MaxWords,
+			MaxWords:      promptData["MaxWords"].(int),
 			Manual:        false,
 			SkipBusyCheck: true, // Acknowledge that we claimed the state already
 		}
@@ -150,7 +150,7 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 		Title:    p.DisplayName(),
 		SafeID:   strings.ReplaceAll(p.WikidataID, "/", "_"),
 		POI:      p,
-		MaxWords: promptData.MaxWords,
+		MaxWords: promptData["MaxWords"].(int),
 		Manual:   false,
 	}
 

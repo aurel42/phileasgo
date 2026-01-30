@@ -181,10 +181,10 @@ func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript
 
 	// Build update prompt data
 	data := s.getCommonPromptData()
-	data.CurrentSummary = currentSummary
-	data.LastTitle = lastTitle
-	data.LastScript = lastScript
-	data.MaxWords = s.cfg.Narrator.SummaryMaxWords
+	data["CurrentSummary"] = currentSummary
+	data["LastTitle"] = lastTitle
+	data["LastScript"] = lastScript
+	data["MaxWords"] = s.cfg.Narrator.SummaryMaxWords
 
 	prompt, err := s.prompts.Render("narrator/summary_update.tmpl", data)
 	if err != nil {
@@ -274,7 +274,7 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 		Title:         p.DisplayName(),
 		SafeID:        strings.ReplaceAll(p.WikidataID, "/", "_"),
 		POI:           p,
-		MaxWords:      promptData.MaxWords,
+		MaxWords:      promptData["MaxWords"].(int),
 		Manual:        job.Manual,
 		SkipBusyCheck: true,
 	}
@@ -289,16 +289,15 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 
 func (s *AIService) handleScreenshotJob(ctx context.Context, job *generation.Job) *GenerationRequest {
 	loc := s.geoSvc.GetLocation(job.Telemetry.Latitude, job.Telemetry.Longitude)
-	data := map[string]any{
-		"City":        loc.CityName,
-		"Region":      loc.Admin1Name,
-		"Country":     loc.CountryCode,
-		"MaxWords":    s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
-		"TripSummary": s.getTripSummary(),
-		"Lat":         fmt.Sprintf("%.3f", job.Telemetry.Latitude),
-		"Lon":         fmt.Sprintf("%.3f", job.Telemetry.Longitude),
-		"Alt":         fmt.Sprintf("%.0f", job.Telemetry.AltitudeAGL),
-	}
+	data := s.getCommonPromptData()
+	data["City"] = loc.CityName
+	data["Region"] = loc.Admin1Name
+	data["Country"] = loc.CountryCode
+	data["MaxWords"] = s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords)
+	data["TripSummary"] = s.getTripSummary()
+	data["Lat"] = fmt.Sprintf("%.3f", job.Telemetry.Latitude)
+	data["Lon"] = fmt.Sprintf("%.3f", job.Telemetry.Longitude)
+	data["Alt"] = fmt.Sprintf("%.0f", job.Telemetry.AltitudeAGL)
 	prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
 	if err != nil {
 		slog.Error("Narrator: Failed to render screenshot prompt", "error", err)
@@ -320,29 +319,11 @@ func (s *AIService) handleScreenshotJob(ctx context.Context, job *generation.Job
 }
 
 func (s *AIService) handleBorderJob(ctx context.Context, job *generation.Job) *GenerationRequest {
-	data := struct {
-		TourGuideName   string
-		Persona         string
-		Accent          string
-		From            string
-		To              string
-		MaxWords        int
-		Language_name   string
-		Language_code   string
-		TripSummary     string
-		TTSInstructions string
-	}{
-		TourGuideName: "Ava", // TODO: Config
-		Persona:       "Intelligent, fascinating",
-		Accent:        "Neutral",
-		From:          job.From,
-		To:            job.To,
-		MaxWords:      30, // Short statement
-		Language_name: "English",
-		Language_code: "en-US",
-		TripSummary:   s.getTripSummary(),
-	}
-	data.TTSInstructions = s.fetchTTSInstructions(data)
+	data := s.getCommonPromptData()
+	data["From"] = job.From
+	data["To"] = job.To
+	data["MaxWords"] = 30 // Short statement
+	data["TTSInstructions"] = s.fetchTTSInstructions(data)
 	prompt, err := s.prompts.Render("narrator/border.tmpl", data)
 	if err != nil {
 		slog.Error("Narrator: Failed to render border prompt", "error", err)
@@ -353,7 +334,7 @@ func (s *AIService) handleBorderJob(ctx context.Context, job *generation.Job) *G
 		Prompt:        prompt,
 		Title:         "Border Crossing",
 		SafeID:        "border_" + time.Now().Format("150405"),
-		MaxWords:      data.MaxWords,
+		MaxWords:      data["MaxWords"].(int),
 		Manual:        true,
 		SkipBusyCheck: true,
 	}

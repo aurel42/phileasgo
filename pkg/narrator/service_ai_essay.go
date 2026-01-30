@@ -85,19 +85,13 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		region = "Near " + loc.CityName
 	}
 
-	pd := NarrationPromptData{
-		TourGuideName:    "Ava", // TODO: Config
-		FemalePersona:    "Intelligent, fascinating",
-		FemaleAccent:     "Neutral",
-		TargetLanguage:   s.cfg.Narrator.TargetLanguage,
-		TargetCountry:    loc.CountryCode,
-		TargetRegion:     region,
-		Lat:              tel.Latitude,
-		Lon:              tel.Longitude,
-		UnitsInstruction: s.fetchUnitsInstruction(),
-		TripSummary:      s.getTripSummary(),
-	}
-	pd.TTSInstructions = s.fetchTTSInstructions(&pd)
+	pd := s.getCommonPromptData()
+	s.injectTelemetry(pd, tel)
+	s.injectUnits(pd)
+
+	pd["TargetCountry"] = loc.CountryCode
+	pd["TargetRegion"] = region
+	pd["TTSInstructions"] = s.fetchTTSInstructions(pd)
 
 	prompt, err := s.essayH.BuildPrompt(ctx, topic, &pd)
 	if err != nil {

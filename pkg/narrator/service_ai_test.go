@@ -219,7 +219,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			// Temp prompts
 			tmpDir := t.TempDir()
 			_ = os.MkdirAll(filepath.Join(tmpDir, "narrator"), 0o755)
-			_ = os.WriteFile(filepath.Join(tmpDir, "narrator", "script.tmpl"), []byte("Prompt: {{.NavInstruction}} Context: {{.RecentPoisContext}}"), 0o644)
+			_ = os.WriteFile(filepath.Join(tmpDir, "narrator", "script.tmpl"), []byte("Prompt: {{.NavInstruction}} Context: {{.RecentContext}}"), 0o644)
 			_ = os.MkdirAll(filepath.Join(tmpDir, "common"), 0o755)
 			pm, _ := prompts.NewManager(tmpDir)
 
@@ -746,40 +746,40 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 
 	// Create a dummy but complete data set
 	data := svc.getCommonPromptData()
-	data.FlightStage = "Cruise"
-	data.NameNative = "Test POI"
-	data.POINameNative = "Test POI"
-	data.NameUser = "Test POI"
-	data.POINameUser = "Test POI"
-	data.Category = "City"
-	data.WikipediaText = "Test wiki content."
-	data.NavInstruction = "10km ahead"
-	data.Lat = 10.0
-	data.Lon = 20.0
-	data.AltitudeAGL = 5000
-	data.Heading = 180
-	data.GroundSpeed = 120
-	data.RecentPoisContext = "None"
-	data.RecentContext = "None"
-	data.UnitsInstruction = "Use metric units."
-	data.FlightStatusSentence = "Flying over the sea."
-	data.From = "France"
-	data.To = "Italy"
-	data.Title = "Sample Title"
-	data.Script = "Sample Script Content"
-	data.CurrentSummary = "Previous summary content"
-	data.LastTitle = "Last title"
-	data.LastScript = "Last script"
+	data["FlightStage"] = "Cruise"
+	data["NameNative"] = "Test POI"
+	data["POINameNative"] = "Test POI"
+	data["NameUser"] = "Test POI"
+	data["POINameUser"] = "Test POI"
+	data["Category"] = "City"
+	data["WikipediaText"] = "Test wiki content."
+	data["NavInstruction"] = "10km ahead"
+	data["Lat"] = 10.0
+	data["Lon"] = 20.0
+	data["AltitudeAGL"] = 5000.0
+	data["Heading"] = 180.0
+	data["GroundSpeed"] = 120.0
+	data["RecentPoisContext"] = "None"
+	data["RecentContext"] = "None"
+	data["UnitsInstruction"] = "Use metric units."
+	data["FlightStatusSentence"] = "Flying over the sea."
+	data["From"] = "France"
+	data["To"] = "Italy"
+	data["Title"] = "Sample Title"
+	data["Script"] = "Sample Script Content"
+	data["CurrentSummary"] = "Previous summary content"
+	data["LastTitle"] = "Last title"
+	data["LastScript"] = "Last script"
 
 	// New fields for all templates
-	data.Name = "Test POI Name"
-	data.ArticleURL = "https://en.wikipedia.org/wiki/Test"
-	data.Images = []ImageResult{{Title: "Img1", URL: "url1"}}
-	data.CategoryList = "Airport, Cathedral, Castle"
-	data.TopicName = "Local History"
-	data.TopicDescription = "A brief history of the local area."
-	data.City = "Sample City"
-	data.Alt = "5000"
+	data["Name"] = "Test POI Name"
+	data["ArticleURL"] = "https://en.wikipedia.org/wiki/Test"
+	data["Images"] = []ImageResult{{Title: "Img1", URL: "url1"}}
+	data["CategoryList"] = "Airport, Cathedral, Castle"
+	data["TopicName"] = "Local History"
+	data["TopicDescription"] = "A brief history of the local area."
+	data["City"] = "Sample City"
+	data["Alt"] = "5000"
 
 	// Walk prompts directory and test every .tmpl file (except common/)
 	err = filepath.Walk(promptsDir, func(path string, info os.FileInfo, err error) error {

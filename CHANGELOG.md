@@ -1,5 +1,8 @@
-﻿Release History
- 
+﻿## v0.3.71 (2026-01-30)
+- **Dynamic Template Context**: Refactored the core AI prompt system to use flexible, map-based data injection, enabling faster template iteration without Go code changes.
+- **Improved Geographical Precision**: Standardized top-level template variables for City, Region, and Country across all narration types.
+- **Architectural Refinement**: Decoupled environmental data gathering into specialized "injectors" for telemetry, persona, and units.
+
 ## v0.3.70 (2026-01-30)
 - **Flight-Stage Driven Selection**: Refactored POI auto-narration to trigger only during airborne phases, eliminating legacy timer-based hacks and ground-suppression heuristics.
 - **Precise Debrief Triggers**: Changed the landing debrief to trigger upon reaching the `Landed` stage.
