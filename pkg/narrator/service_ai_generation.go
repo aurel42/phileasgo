@@ -79,6 +79,11 @@ func (s *AIService) generateInitialScript(ctx context.Context, req *GenerationRe
 	profile := string(req.Type)
 	if req.Type == model.NarrativeTypePOI {
 		profile = "narration"
+	} else if req.Type == model.NarrativeTypeLetsgo || req.Type == model.NarrativeTypeBriefing {
+		// New Announcements: check for specific profile, then fallback to shared 'announcements'
+		if !s.llm.HasProfile(profile) {
+			profile = "announcements"
+		}
 	}
 
 	if req.ImagePath != "" {

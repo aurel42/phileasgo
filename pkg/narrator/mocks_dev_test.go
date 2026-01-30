@@ -18,7 +18,8 @@ type MockLLM struct {
 	Err                   error
 	GenerateTextFunc      func(ctx context.Context, name, prompt string) (string, error)
 	GenerateImageTextFunc func(ctx context.Context, name, prompt, imagePath string) (string, error)
-	HasProfileVal         bool // Controls HasProfile return value (defaults to true if not set)
+	HasProfileVal         bool                   // Controls HasProfile return value (defaults to false)
+	HasProfileFunc        func(name string) bool // Function to control HasProfile return value
 
 	GenerateTextCalls      int
 	GenerateImageTextCalls int
@@ -37,7 +38,12 @@ func (m *MockLLM) GenerateJSON(ctx context.Context, name, prompt string, target 
 	return nil
 }
 func (m *MockLLM) HealthCheck(ctx context.Context) error { return nil }
-func (m *MockLLM) HasProfile(name string) bool           { return m.HasProfileVal }
+func (m *MockLLM) HasProfile(name string) bool {
+	if m.HasProfileFunc != nil {
+		return m.HasProfileFunc(name)
+	}
+	return m.HasProfileVal
+}
 func (m *MockLLM) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
 	m.GenerateImageTextCalls++
 	if m.GenerateImageTextFunc != nil {

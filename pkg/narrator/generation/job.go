@@ -3,6 +3,7 @@ package generation
 import (
 	"time"
 
+	"phileasgo/pkg/announcement"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 )
@@ -20,6 +21,9 @@ type Job struct {
 	// For Border Crossings
 	From string
 	To   string
+
+	// For Announcements (Phases 2 & 3)
+	Announcement announcement.Announcement
 
 	// Callback handles the generated narrative.
 	// If nil, the dispatcher must decide on a default (e.g. playback).

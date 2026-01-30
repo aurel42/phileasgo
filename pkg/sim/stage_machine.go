@@ -126,12 +126,7 @@ func (m *StageMachine) detectGroundCandidate(t *Telemetry) string {
 }
 
 func (m *StageMachine) detectAirborneCandidate(t *Telemetry) string {
-	// Landmark: Initial Takeoff (Airborne but low and was on ground)
-	if m.wasOnGround && t.AltitudeAGL < 500 {
-		return StageTakeOff
-	}
-
-	// Performance States
+	// 1. Performance States (Trend established)
 	if t.VerticalSpeed > 300 {
 		return StageClimb
 	}
@@ -140,6 +135,11 @@ func (m *StageMachine) detectAirborneCandidate(t *Telemetry) string {
 	}
 	if t.VerticalSpeed > -200 && t.VerticalSpeed < 200 {
 		return StageCruise
+	}
+
+	// 2. Initial Takeoff (Airborne but was just on ground and no performance trend yet)
+	if m.wasOnGround {
+		return StageTakeOff
 	}
 
 	return StageAirborne

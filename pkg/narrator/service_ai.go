@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"phileasgo/pkg/announcement"
 	"phileasgo/pkg/audio"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm"
@@ -94,7 +95,8 @@ type AIService struct {
 	pendingManualStrategy string
 
 	// Infrastructure
-	announcements *AnnouncementManager
+	announcements   *AnnouncementManager // Legacy
+	announcementMgr *announcement.Manager
 
 	// Replay State
 	lastPOI        *model.POI
@@ -171,6 +173,10 @@ func NewAIService(
 
 	// Initialize Announcement Manager
 	s.announcements = NewAnnouncementManager(s)
+	s.announcementMgr = announcement.NewManager(s)
+
+	// Register Announcements
+	s.announcementMgr.Register(NewLetsgooAnnouncement(s))
 
 	return s
 }
@@ -249,6 +255,14 @@ func (s *AIService) Heartbeat(ctx context.Context, tel *sim.Telemetry) {
 
 	if ann != nil {
 		ann.Tick(ctx, tel)
+	}
+
+	s.mu.RLock()
+	ann2 := s.announcementMgr
+	s.mu.RUnlock()
+
+	if ann2 != nil {
+		ann2.Tick(ctx, tel)
 	}
 }
 

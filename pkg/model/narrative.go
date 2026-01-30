@@ -13,6 +13,8 @@ const (
 	NarrativeTypeScreenshot NarrativeType = "screenshot"
 	NarrativeTypeDebrief    NarrativeType = "debrief"
 	NarrativeTypeBorder     NarrativeType = "border"
+	NarrativeTypeLetsgo     NarrativeType = "letsgo"
+	NarrativeTypeBriefing   NarrativeType = "briefing"
 )
 
 // Narrative represents a prepared narration ready for playback.

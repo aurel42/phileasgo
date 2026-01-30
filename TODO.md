@@ -25,27 +25,14 @@ X feature: notification when crossing state or country borders, entering interna
 X control the config using transponder codes and ident
 X build an frontend app that wraps the browser UI
 X marker badges for interesting states (e.g. deferred)
-- preplan a whole trip?
+- preplan a whole trip? trip themes?
 - new IDENT/Playback control function: "expand on this"
-- change wp prose in prompt from truncated to wrapped
+X change wp prose in prompt from truncated to wrapped
 X regression: restore telemetry loop to 1Hz
-- ensure we use the correct coordinates for the city/country code (not predicted)
 - overlay info panel: allow adaptive font size for the title if it's too long to fit
 - POI script: tell the LLM how far away we are and weather the POI is ahead or to the side?
-- regression: border announcements no longer working
-
-# flight stage state machine:
-- fallback: on_the_ground
-- parked: on ground, engine off, gs<1kts
-- taxi: on ground, engine on, 5kts>gs>25kts
-- hold: on ground, engine on, gs<1kts
-- take-off: 1) on ground, gs>40kts, 2) was on-ground, is now airborne, agl<500ft
-- fallback: airborne
-- climb: airborne, vs>300fpm
-- descend: airborne, vs<-300fpm
-- cruise: airborne, vs<+/-200 fpm
-- landed: was airborne, now on ground
-Initialize with the appropriate fallback state, only change state when conditions are met
+- debug "patient" mode, and rework urgent/patient/deferral logic
+X flight stage state machine:
 
 # Announcement infrastructure:
 - Hook into ticker loop, shouldfire once per second

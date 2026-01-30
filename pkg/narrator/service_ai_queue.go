@@ -7,8 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"phileasgo/pkg/announcement"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator/generation"
+	"phileasgo/pkg/sim"
 )
 
 // HasPendingManualOverride returns true if a user-requested POI is queued.
@@ -56,6 +58,19 @@ func (s *AIService) HasPendingGeneration() bool {
 	return s.genQ.HasPending()
 }
 
+func (s *AIService) EnqueueAnnouncement(ctx context.Context, a announcement.Announcement, t *sim.Telemetry, onComplete func(*model.Narrative)) {
+	s.enqueueGeneration(&generation.Job{
+		Type:         a.Type(),
+		Telemetry:    t,
+		Announcement: a,
+		CreatedAt:    time.Now(),
+		OnComplete:   onComplete,
+	})
+
+	// Trigger processing
+	go s.ProcessGenerationQueue(ctx)
+}
+
 func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 	s.mu.Lock()
 	// Serialization: Only one generation at a time.
@@ -95,108 +110,21 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 
 		switch job.Type {
 		case model.NarrativeTypePOI:
-			p, err := s.poiMgr.GetPOI(genCtx, job.POIID)
-			if err != nil {
-				slog.Error("Narrator: Priority job failed - POI not found", "poi_id", job.POIID)
-				return
-			}
-
-			promptData := s.buildPromptData(genCtx, p, job.Telemetry, job.Strategy)
-			prompt, _ := s.prompts.Render("narrator/script.tmpl", promptData)
-
-			req = &GenerationRequest{
-				Type:          model.NarrativeTypePOI,
-				Prompt:        prompt,
-				Title:         p.DisplayName(),
-				SafeID:        strings.ReplaceAll(p.WikidataID, "/", "_"),
-				POI:           p,
-				MaxWords:      promptData.MaxWords,
-				Manual:        job.Manual,
-				SkipBusyCheck: true,
-			}
-
-			// Update state so IsPOIBusy(p.WikidataID) is true during generation
-			s.mu.Lock()
-			s.generatingPOI = p
-			s.mu.Unlock()
-
+			req = s.handlePOIJob(genCtx, job)
 		case model.NarrativeTypeScreenshot:
-			loc := s.geoSvc.GetLocation(job.Telemetry.Latitude, job.Telemetry.Longitude)
-			data := map[string]any{
-				"City":        loc.CityName,
-				"Region":      loc.Admin1Name,
-				"Country":     loc.CountryCode,
-				"MaxWords":    s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
-				"TripSummary": s.getTripSummary(),
-				"Lat":         fmt.Sprintf("%.3f", job.Telemetry.Latitude),
-				"Lon":         fmt.Sprintf("%.3f", job.Telemetry.Longitude),
-				"Alt":         fmt.Sprintf("%.0f", job.Telemetry.AltitudeAGL),
-			}
-			prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
-			if err != nil {
-				slog.Error("Narrator: Failed to render screenshot prompt", "error", err)
-				return
-			}
-
-			req = &GenerationRequest{
-				Type:          model.NarrativeTypeScreenshot,
-				Prompt:        prompt,
-				Title:         "Screenshot Analysis",
-				SafeID:        "screenshot_" + time.Now().Format("150405"),
-				ImagePath:     job.ImagePath,
-				Lat:           job.Telemetry.Latitude,
-				Lon:           job.Telemetry.Longitude,
-				MaxWords:      s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
-				Manual:        true,
-				SkipBusyCheck: true,
-			}
-
+			req = s.handleScreenshotJob(genCtx, job)
 		case model.NarrativeTypeBorder:
-			data := struct {
-				TourGuideName   string
-				Persona         string
-				Accent          string
-				From            string
-				To              string
-				MaxWords        int
-				Language_name   string
-				Language_code   string
-				TripSummary     string
-				TTSInstructions string
-			}{
-				TourGuideName: "Ava", // TODO: Config
-				Persona:       "Intelligent, fascinating",
-				Accent:        "Neutral",
-				From:          job.From,
-				To:            job.To,
-				MaxWords:      30, // Short statement
-				Language_name: "English",
-				Language_code: "en-US",
-				TripSummary:   s.getTripSummary(),
-			}
-			data.TTSInstructions = s.fetchTTSInstructions(data)
-			prompt, err := s.prompts.Render("narrator/border.tmpl", data)
-			if err != nil {
-				slog.Error("Narrator: Failed to render border prompt", "error", err)
-				return
-			}
-			req = &GenerationRequest{
-				Type:          model.NarrativeTypeBorder,
-				Prompt:        prompt,
-				Title:         "Border Crossing",
-				SafeID:        "border_" + time.Now().Format("150405"),
-				MaxWords:      data.MaxWords,
-				Manual:        true,
-				SkipBusyCheck: true,
-			}
-
+			req = s.handleBorderJob(genCtx, job)
 		default:
-			slog.Warn("Narrator: ProcessPriorityQueue received unsupported job type", "type", job.Type)
+			req = s.handleAnnouncementJob(genCtx, job)
+		}
+
+		if req == nil {
 			return
 		}
 
 		done = true
-		n, err := s.GenerateNarrative(genCtx, req)
+		narrative, err := s.GenerateNarrative(genCtx, req)
 		if err != nil {
 			slog.Error("Narrator: Priority generation failed", "type", job.Type, "error", err)
 			// Trigger next even on failure
@@ -206,10 +134,10 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 
 		// Handle Result
 		if job.OnComplete != nil {
-			job.OnComplete(n)
+			job.OnComplete(narrative)
 		} else {
 			// Fallback: Default Playback
-			s.enqueuePlayback(n, true)
+			s.enqueuePlayback(narrative, true)
 			go s.ProcessPlaybackQueue(genCtx)
 		}
 
@@ -328,4 +256,136 @@ func (s *AIService) ResetSession(ctx context.Context) {
 	s.playbackQ.Clear()
 
 	slog.Info("Narrator: Session reset (teleport/new flight detected)")
+}
+
+func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *GenerationRequest {
+	p, err := s.poiMgr.GetPOI(ctx, job.POIID)
+	if err != nil {
+		slog.Error("Narrator: Priority job failed - POI not found", "poi_id", job.POIID)
+		return nil
+	}
+
+	promptData := s.buildPromptData(ctx, p, job.Telemetry, job.Strategy)
+	prompt, _ := s.prompts.Render("narrator/script.tmpl", promptData)
+
+	req := &GenerationRequest{
+		Type:          model.NarrativeTypePOI,
+		Prompt:        prompt,
+		Title:         p.DisplayName(),
+		SafeID:        strings.ReplaceAll(p.WikidataID, "/", "_"),
+		POI:           p,
+		MaxWords:      promptData.MaxWords,
+		Manual:        job.Manual,
+		SkipBusyCheck: true,
+	}
+
+	// Update state so IsPOIBusy(p.WikidataID) is true during generation
+	s.mu.Lock()
+	s.generatingPOI = p
+	s.mu.Unlock()
+
+	return req
+}
+
+func (s *AIService) handleScreenshotJob(ctx context.Context, job *generation.Job) *GenerationRequest {
+	loc := s.geoSvc.GetLocation(job.Telemetry.Latitude, job.Telemetry.Longitude)
+	data := map[string]any{
+		"City":        loc.CityName,
+		"Region":      loc.Admin1Name,
+		"Country":     loc.CountryCode,
+		"MaxWords":    s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
+		"TripSummary": s.getTripSummary(),
+		"Lat":         fmt.Sprintf("%.3f", job.Telemetry.Latitude),
+		"Lon":         fmt.Sprintf("%.3f", job.Telemetry.Longitude),
+		"Alt":         fmt.Sprintf("%.0f", job.Telemetry.AltitudeAGL),
+	}
+	prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
+	if err != nil {
+		slog.Error("Narrator: Failed to render screenshot prompt", "error", err)
+		return nil
+	}
+
+	return &GenerationRequest{
+		Type:          model.NarrativeTypeScreenshot,
+		Prompt:        prompt,
+		Title:         "Screenshot Analysis",
+		SafeID:        "screenshot_" + time.Now().Format("150405"),
+		ImagePath:     job.ImagePath,
+		Lat:           job.Telemetry.Latitude,
+		Lon:           job.Telemetry.Longitude,
+		MaxWords:      s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
+		Manual:        true,
+		SkipBusyCheck: true,
+	}
+}
+
+func (s *AIService) handleBorderJob(ctx context.Context, job *generation.Job) *GenerationRequest {
+	data := struct {
+		TourGuideName   string
+		Persona         string
+		Accent          string
+		From            string
+		To              string
+		MaxWords        int
+		Language_name   string
+		Language_code   string
+		TripSummary     string
+		TTSInstructions string
+	}{
+		TourGuideName: "Ava", // TODO: Config
+		Persona:       "Intelligent, fascinating",
+		Accent:        "Neutral",
+		From:          job.From,
+		To:            job.To,
+		MaxWords:      30, // Short statement
+		Language_name: "English",
+		Language_code: "en-US",
+		TripSummary:   s.getTripSummary(),
+	}
+	data.TTSInstructions = s.fetchTTSInstructions(data)
+	prompt, err := s.prompts.Render("narrator/border.tmpl", data)
+	if err != nil {
+		slog.Error("Narrator: Failed to render border prompt", "error", err)
+		return nil
+	}
+	return &GenerationRequest{
+		Type:          model.NarrativeTypeBorder,
+		Prompt:        prompt,
+		Title:         "Border Crossing",
+		SafeID:        "border_" + time.Now().Format("150405"),
+		MaxWords:      data.MaxWords,
+		Manual:        true,
+		SkipBusyCheck: true,
+	}
+}
+
+func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.Job) *GenerationRequest {
+	if job.Announcement == nil {
+		slog.Warn("Narrator: ProcessPriorityQueue received unsupported job type", "type", job.Type)
+		return nil
+	}
+
+	data, err := job.Announcement.GetPromptData(job.Telemetry)
+	if err != nil {
+		slog.Error("Narrator: Failed to get announcement data", "error", err)
+		return nil
+	}
+
+	// Find prompt template based on narrative type
+	tmpl := fmt.Sprintf("announcement/%s.tmpl", strings.ToLower(string(job.Type)))
+	prompt, err := s.prompts.Render(tmpl, data)
+	if err != nil {
+		slog.Error("Narrator: Failed to render announcement prompt", "error", err, "tmpl", tmpl)
+		return nil
+	}
+
+	return &GenerationRequest{
+		Type:          job.Type,
+		Prompt:        prompt,
+		Title:         job.Announcement.Title(),
+		SafeID:        job.Announcement.ID(),
+		MaxWords:      300,
+		Manual:        true, // Announcements are treated with same priority as manual
+		SkipBusyCheck: true,
+	}
 }

@@ -417,6 +417,7 @@ func DefaultConfig() *Config {
 					Profiles: map[string]string{
 						"essay":          "gemini-2.5-flash",
 						"narration":      "gemini-2.5-flash-lite",
+						"announcements":  "gemini-2.5-flash-lite",
 						"dynamic_config": "gemini-2.5-flash",
 						"script_rescue":  "gemini-2.5-flash-lite",
 						"thumbnails":     "gemini-2.5-flash-lite",
