@@ -55,9 +55,10 @@ func TestNarrationJob_EssayConfig(t *testing.T) {
 				IsOnGround:  false,
 				Latitude:    48.0,
 				Longitude:   -123.0,
+				FlightStage: sim.StageCruise,
 			}
-			job.lastTime = time.Time{} // expired cooldown
-			job.takeoffTime = time.Now().Add(-10 * time.Minute)
+			// Force cooldown ready for non-playing case
+			job.lastTime = time.Now().Add(-10 * time.Minute)
 
 			if got := job.CanPrepareEssay(tel); got != tt.expectFire {
 				t.Errorf("CanPrepareEssay() = %v, want %v", got, tt.expectFire)

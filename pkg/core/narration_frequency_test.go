@@ -179,14 +179,15 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 			// Note: We pass nil for store, so it falls back to cfg.Frequency
 			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
 
-			// Ensure ready state
-			job.lastTime = time.Time{}
-			job.takeoffTime = time.Now().Add(-10 * time.Minute) // Grace period over
+			// Force cooldown ready for non-playing case
+			job.lastTime = time.Now().Add(-10 * time.Minute)
+			// Grace period over
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: 3000,
 				Latitude:    48.0,
 				Longitude:   -123.0,
+				FlightStage: sim.StageCruise,
 			}
 
 			// 1. Check if we can prepare a POI narration (Frequency/Pipeline logic)
@@ -235,7 +236,7 @@ type mockFrequencyPOIManager struct {
 	countAboveFunc func(threshold float64, limit int) int
 }
 
-func (m *mockFrequencyPOIManager) GetNarrationCandidates(limit int, minScore *float64, isOnGround bool) []*model.POI {
+func (m *mockFrequencyPOIManager) GetNarrationCandidates(limit int, minScore *float64) []*model.POI {
 	if m.best == nil {
 		return []*model.POI{}
 	}

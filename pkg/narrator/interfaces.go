@@ -10,7 +10,7 @@ import (
 type POIProvider interface {
 	GetPOI(ctx context.Context, qid string) (*model.POI, error)
 
-	GetNarrationCandidates(limit int, minScore *float64, isOnGround bool) []*model.POI
+	GetNarrationCandidates(limit int, minScore *float64) []*model.POI
 	CountScoredAbove(threshold float64, limit int) int
 
 	LastScoredPosition() (lat, lon float64)

@@ -182,7 +182,7 @@ func TestPhase2_CanPreparePOI(t *testing.T) {
 			}
 
 			// The method we are testing:
-			got := job.CanPreparePOI(&sim.Telemetry{IsOnGround: false, Latitude: 48.0, Longitude: -123.0})
+			got := job.CanPreparePOI(&sim.Telemetry{Latitude: 48.0, Longitude: -123.0, FlightStage: sim.StageCruise})
 			if got != tt.expectCanPrepare {
 				t.Errorf("CanPreparePOI() = %v, want %v", got, tt.expectCanPrepare)
 			}
@@ -206,13 +206,13 @@ func TestPhase2_CanPrepareEssay(t *testing.T) {
 	}
 
 	// 1. Valid
-	tel := &sim.Telemetry{AltitudeAGL: 3000, Latitude: 48.0, Longitude: -123.0}
+	tel := &sim.Telemetry{AltitudeAGL: 3000, Latitude: 48.0, Longitude: -123.0, FlightStage: sim.StageCruise}
 	if !job.CanPrepareEssay(tel) {
 		t.Error("Expected CanPrepareEssay to true")
 	}
 
 	// 2. Low Altitude
-	telInfo := &sim.Telemetry{AltitudeAGL: 1000, Latitude: 48.0, Longitude: -123.0}
+	telInfo := &sim.Telemetry{AltitudeAGL: 1000, Latitude: 48.0, Longitude: -123.0, FlightStage: sim.StageCruise}
 	if job.CanPrepareEssay(telInfo) {
 		t.Error("Expected CanPrepareEssay to be false (Low Altitude)")
 	}
@@ -236,6 +236,7 @@ func TestPhase2_PreparePOI(t *testing.T) {
 		AltitudeAGL: 3000,
 		Latitude:    48.0,
 		Longitude:   -123.0,
+		FlightStage: sim.StageCruise,
 	}
 	job.lastAGL = 3000 // Ensure boost logic isn't skipped
 
@@ -272,10 +273,8 @@ func TestPhase2_CanPrepareDebrief(t *testing.T) {
 		narrator: &mockNarratorService{},
 		poiMgr:   &mockPOIManager{lat: 48.0, lon: -123.0},
 		sim:      &mockJobSimClient{state: sim.StateActive},
-		lastTime: time.Time{}, // Not recently active
-		// Simulating "Just Landed" state
-		takeoffTime:    time.Now().Add(-1 * time.Hour), // Was airborne
-		hasCheckedOnce: true,
+		lastTime: time.Now().Add(-30 * time.Second), // Not recently active
+		// Just Landed state is now inferred via FlightStage in telemetry
 	}
 
 	// 1. Valid (Just Landed - requires tracking previous state, but CanPrepareDebrief
@@ -292,9 +291,8 @@ func TestPhase2_CanPrepareDebrief(t *testing.T) {
 	// For this test, we assume the method checks basic eligibility:
 	// OnGround && Enabled && !Debriefed
 
-	job.takeoffTime = time.Now().Add(-30 * time.Minute) // We took off 30m ago
-	// And we are now on ground
-	tel := &sim.Telemetry{IsOnGround: true, Latitude: 48.0, Longitude: -123.0}
+	// 1. Valid (Just Landed - triggered via FlightStage)
+	tel := &sim.Telemetry{IsOnGround: true, Latitude: 48.0, Longitude: -123.0, FlightStage: sim.StageLanded}
 
 	// We need a flag in NarrationJob to say "Flight Active" vs "Flight Ended"?
 	// Or we rely on the trigger being edge-based in the Main Loop?
@@ -312,11 +310,11 @@ func TestPhase2_CanPrepareDebrief(t *testing.T) {
 		t.Error("Expected CanPrepareDebrief to be false (Already Debriefed)")
 	}
 
-	// 3. Not Flown (e.g. just started on ground)
+	// 3. Not Flown (e.g. taxiing - should return false if not in landed stage)
 	job.hasDebriefed = false
-	job.takeoffTime = time.Time{} // Reset
+	tel.FlightStage = sim.StageTaxi
 	if job.CanPrepareDebrief(tel) {
-		t.Error("Expected CanPrepareDebrief to be false (No Flight Detected)")
+		t.Error("Expected CanPrepareDebrief to be false (Taxiing, Not Landed)")
 	}
 }
 
@@ -333,7 +331,7 @@ func TestPhase2_PrepareDebrief(t *testing.T) {
 		sim:      &mockJobSimClient{state: sim.StateActive},
 	}
 
-	tel := &sim.Telemetry{IsOnGround: true, Latitude: 48.0, Longitude: -123.0}
+	tel := &sim.Telemetry{Latitude: 48.0, Longitude: -123.0}
 
 	// Success
 	job.PrepareDebrief(context.Background(), tel)

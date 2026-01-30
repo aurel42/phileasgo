@@ -252,7 +252,7 @@ func TestManager_CandidateLogic(t *testing.T) {
 	}
 
 	// 1. GetNarrationCandidates (Best)
-	candidates := mgr.GetNarrationCandidates(1, nil, false)
+	candidates := mgr.GetNarrationCandidates(1, nil)
 	if len(candidates) == 0 || candidates[0].WikidataID != "P1" {
 		t.Errorf("GetNarrationCandidates(limit=1) failed. Want P1, got %v", candidates)
 	}
@@ -268,7 +268,7 @@ func TestManager_CandidateLogic(t *testing.T) {
 	}
 
 	// 3. GetNarrationCandidates (Sort)
-	sorted := mgr.GetNarrationCandidates(3, nil, false)
+	sorted := mgr.GetNarrationCandidates(3, nil)
 	if len(sorted) != 3 {
 		t.Fatalf("GetNarrationCandidates(3) expected 3, got %d", len(sorted))
 	}
@@ -435,11 +435,11 @@ func TestManager_GetNarrationCandidates(t *testing.T) {
 			wantIDs:    []string{"P1", "P2", "P_Airport"},
 		},
 		{
-			name:       "Ground - Aerodromes Only",
+			name:       "Ground - No longer filtered (Stage check handled by Narrator)",
 			isOnGround: true,
 			limit:      10,
 			minScore:   nil,
-			wantIDs:    []string{"P_Airport"},
+			wantIDs:    []string{"P1", "P2", "P_Airport"},
 		},
 		{
 			name:       "Score Threshold (MinScore 9.0)",
@@ -459,7 +459,7 @@ func TestManager_GetNarrationCandidates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mgr.GetNarrationCandidates(tt.limit, tt.minScore, tt.isOnGround)
+			got := mgr.GetNarrationCandidates(tt.limit, tt.minScore)
 
 			if len(got) != len(tt.wantIDs) {
 				t.Errorf("got %d candidates, want %d", len(got), len(tt.wantIDs))
@@ -474,7 +474,7 @@ func TestManager_GetNarrationCandidates(t *testing.T) {
 	}
 
 	// Double Check BestCandidate logic
-	best := mgr.GetNarrationCandidates(1, nil, false)
+	best := mgr.GetNarrationCandidates(1, nil)
 	if len(best) == 0 || best[0].WikidataID != "P1" {
 		t.Errorf("GetNarrationCandidates(1): Expected P1, got %v", best)
 	}

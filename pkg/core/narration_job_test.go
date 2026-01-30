@@ -10,7 +10,6 @@ import (
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/watcher"
-	"strings"
 	"testing"
 	"time"
 )
@@ -91,9 +90,6 @@ type mockPOIManager struct {
 }
 
 func (m *mockPOIManager) GetBestCandidate(isOnGround bool) *model.POI {
-	if isOnGround && m.best != nil && !strings.EqualFold(m.best.Category, "aerodrome") {
-		return nil
-	}
 	return m.best
 }
 
@@ -106,14 +102,11 @@ func (m *mockPOIManager) LastScoredPosition() (lat, lon float64) {
 }
 
 func (m *mockPOIManager) GetCandidates(limit int, isOnGround bool) []*model.POI {
-	return m.GetNarrationCandidates(limit, nil, isOnGround)
+	return m.GetNarrationCandidates(limit, nil)
 }
 
-func (m *mockPOIManager) GetNarrationCandidates(limit int, minScore *float64, isOnGround bool) []*model.POI {
+func (m *mockPOIManager) GetNarrationCandidates(limit int, minScore *float64) []*model.POI {
 	if m.best == nil {
-		return []*model.POI{}
-	}
-	if isOnGround && !strings.EqualFold(m.best.Category, "aerodrome") {
 		return []*model.POI{}
 	}
 	// Mock score check
@@ -167,16 +160,16 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 			expectShouldFire: false,
 		},
 		{
-			name:             "Ground: High Score POI (Aerodrome) -> Narrate",
+			name:             "Stage: Taxi -> No Narrate (even if high score)",
 			altitudeAGL:      0,
-			bestPOI:          &model.POI{Score: 15.0, Lat: 48.0, Lon: -123.0, Category: "Aerodrome"}, // Explicit Category
-			expectShouldFire: true,
+			bestPOI:          &model.POI{Score: 15.0, Lat: 48.0, Lon: -123.0, Category: "Aerodrome"},
+			expectShouldFire: false,
 		},
 		{
-			name:             "Ground: High Score POI (Castle) -> No Narrate (Filter)",
-			altitudeAGL:      0,
+			name:             "Stage: Climb -> Narrate (High Score)",
+			altitudeAGL:      1000,
 			bestPOI:          &model.POI{Score: 15.0, Lat: 48.0, Lon: -123.0, Category: "Castle"},
-			expectShouldFire: false,
+			expectShouldFire: true,
 		},
 		{
 			name:             "Airborne (Low): No POI -> No Essay",
@@ -240,7 +233,15 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 
 			// Force cooldown to expired for test
 			job.lastTime = time.Time{}
-			job.takeoffTime = time.Now().Add(-10 * time.Minute)
+
+			tel.FlightStage = sim.StageAirborne
+			if tt.altitudeAGL < 50 {
+				tel.FlightStage = sim.StageTaxi // Something on ground
+			}
+			if tt.expectShouldFire {
+				// Ensure we use a stage that allows firing
+				tel.FlightStage = sim.StageCruise
+			}
 
 			// Test Readiness
 			ready := job.CanPreparePOI(tel)
@@ -360,7 +361,6 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 
 			// Set State
 			job.lastTime = time.Now().Add(-tt.lastNarrationAgo)
-			job.takeoffTime = time.Now().Add(-10 * time.Minute)
 			if tt.lastEssayAgo > 0 {
 				job.lastEssayTime = time.Now().Add(-tt.lastEssayAgo)
 			}
@@ -368,9 +368,10 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 			// Telemetry (Airborne to allow essay)
 			tel := &sim.Telemetry{
 				AltitudeAGL: 3000,
-				IsOnGround:  false,
 				Latitude:    48.0,
 				Longitude:   -123.0,
+				FlightStage: sim.StageCruise,
+				IsOnGround:  false, // Explicitly set for this test to ensure airborne
 			}
 
 			// 1. Priority Logic Simulation (Mirroring Main Loop)
@@ -562,9 +563,9 @@ func TestNarrationJob_AdaptiveMode(t *testing.T) {
 		AltitudeAGL: 3000,
 		Latitude:    48.0,
 		Longitude:   -123.0,
+		FlightStage: sim.StageCruise,
 	}
 	job.lastTime = time.Time{} // Force ready
-	job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
 	// 1. CanPreparePOI should be TRUE
 	if !job.CanPreparePOI(tel) {
@@ -598,9 +599,9 @@ func TestNarrationJob_DynamicMinScore(t *testing.T) {
 		AltitudeAGL: 3000,
 		Latitude:    48.0,
 		Longitude:   -123.0,
+		FlightStage: sim.StageCruise,
 	}
 	job.lastTime = time.Time{}
-	job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
 	// 1. CanPreparePOI should be TRUE (System Ready, not checking score yet)
 	if !job.CanPreparePOI(tel) {
@@ -718,12 +719,12 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 
 			// Force cooldown ready for non-playing case
 			job.lastTime = time.Time{}
-			job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: 3000,
 				Latitude:    48.0,
 				Longitude:   -123.0,
+				FlightStage: sim.StageCruise,
 			}
 
 			// 1. CanPreparePOI
@@ -746,80 +747,60 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 	}
 }
 
-func TestNarrationJob_PostTakeoffGracePeriod(t *testing.T) {
+func TestNarrationJob_FlightStageRestrictions(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.AutoNarrate = true
 	cfg.Narrator.MinScoreThreshold = 5.0
 
 	tests := []struct {
 		name             string
-		isOnGround       bool
-		takeoffTimeAgo   time.Duration // 0 means not set (or just set now)
+		stage            string
 		expectShouldFire bool
 	}{
 		{
-			name:             "On ground - allow ground candidates",
-			isOnGround:       true,
-			takeoffTimeAgo:   10 * time.Minute, // Should be reset
-			expectShouldFire: true,
-		},
-		{
-			name:             "Just took off (0s ago) - grace period active",
-			isOnGround:       false,
-			takeoffTimeAgo:   0,
+			name:             "Taxi - blocked",
+			stage:            sim.StageTaxi,
 			expectShouldFire: false,
 		},
 		{
-			name:             "In grace period (30s ago) - still blocked",
-			isOnGround:       false,
-			takeoffTimeAgo:   30 * time.Second,
+			name:             "Take-off - blocked",
+			stage:            sim.StageTakeOff,
 			expectShouldFire: false,
 		},
 		{
-			name:             "Grace period expired (61s ago) - allow narration",
-			isOnGround:       false,
-			takeoffTimeAgo:   61 * time.Second,
+			name:             "Climb - allowed",
+			stage:            sim.StageClimb,
 			expectShouldFire: true,
+		},
+		{
+			name:             "Cruise - allowed",
+			stage:            sim.StageCruise,
+			expectShouldFire: true,
+		},
+		{
+			name:             "Descend - allowed",
+			stage:            sim.StageDescend,
+			expectShouldFire: true,
+		},
+		{
+			name:             "Landed - blocked",
+			stage:            sim.StageLanded,
+			expectShouldFire: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockN := &mockNarratorService{}
-			// Use aerodrome for ground case, regular POI for airborne
-			poi := &model.POI{Score: 10.0, WikidataID: "Q1", Lat: 48.0, Lon: -123.0}
-			if tt.isOnGround {
-				poi.Category = "Aerodrome"
-			}
+			poi := &model.POI{Score: 10.0, WikidataID: "Q1", Lat: 48.0, Lon: -123.0, Category: "Aerodrome"}
 			pm := &mockPOIManager{best: poi, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
 			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
 
-			// Prime the job with ground telemetry to avoid "Started Airborne" bypass logic
-			// This simulates that the application started while on the ground.
-			job.CanPreparePOI(&sim.Telemetry{
-				IsOnGround: true,
-				Latitude:   48.0,
-				Longitude:  -123.0,
-			})
-			job.lastTime = time.Time{} // Force cooldown ready
-
-			// Setup Takeoff Time
-			if tt.takeoffTimeAgo > 0 {
-				job.takeoffTime = time.Now().Add(-tt.takeoffTimeAgo)
-			} else {
-				// If 0 and not on ground, we simulate "just started" or "not set yet"
-				// But checkPostTakeoffGrace will set it if zero.
-				// To test "just started", we can leave it zero, or set it to Now.
-				// If we leave it zero, checkPostTakeoffGrace sets it to Now and returns false (since < 1m).
-				job.takeoffTime = time.Time{}
-			}
-
 			tel := &sim.Telemetry{
-				AltitudeAGL: 1000,
-				IsOnGround:  tt.isOnGround,
 				Latitude:    48.0,
 				Longitude:   -123.0,
+				FlightStage: tt.stage,
 			}
 
 			fired := job.CanPreparePOI(tel)
@@ -911,6 +892,7 @@ func TestNarrationJob_StartAirborne_NoDelay(t *testing.T) {
 		IsOnGround:  false,
 		Latitude:    48.0,
 		Longitude:   -123.0,
+		FlightStage: sim.StageCruise,
 	}
 
 	// Should fire IMMEDIATELY (no grace period) because we started in the air
@@ -942,7 +924,6 @@ func TestNarrationJob_ScreenshotDetection(t *testing.T) {
 	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, w)
 
 	job.lastTime = time.Time{} // Force ready
-	job.takeoffTime = time.Now().Add(-10 * time.Minute)
 
 	tel := &sim.Telemetry{
 		AltitudeAGL: 3000,

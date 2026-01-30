@@ -19,7 +19,7 @@ import (
 
 // POIProvider matches the GetBestCandidate method used by NarrationJob.
 type POIProvider interface {
-	GetNarrationCandidates(limit int, minScore *float64, isOnGround bool) []*model.POI
+	GetNarrationCandidates(limit int, minScore *float64) []*model.POI
 	LastScoredPosition() (lat, lon float64)
 }
 
@@ -39,11 +39,9 @@ type NarrationJob struct {
 	lastEssayTime    time.Time
 	lastCheckedCount int
 
-	// Post-takeoff grace period tracking
-	takeoffTime    time.Time // Track when we left the ground
-	lastAGL        float64   // Last known AGL for visibility boost check
-	hasCheckedOnce bool      // Flag to handle startup state (e.g. starting mid-flight)
-	hasDebriefed   bool      // Flag to ensure debrief runs only once per flight
+	// Flight tracking
+	lastAGL      float64 // Last known AGL for visibility boost check
+	hasDebriefed bool    // Flag to ensure debrief runs only once per flight
 }
 
 func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker, w *watcher.Service) *NarrationJob {
@@ -107,7 +105,7 @@ func (j *NarrationJob) CanPreparePOI(t *sim.Telemetry) bool {
 	if !j.checkPreConditions(t) {
 		return false
 	}
-	if !j.checkPostTakeoffGrace(t) {
+	if !j.checkFlightStagePOI(t) {
 		return false
 	}
 
@@ -225,24 +223,11 @@ func (j *NarrationJob) CanPrepareDebrief(t *sim.Telemetry) bool {
 		return false
 	}
 
-	// 3. Ground Logic
-	// Must be on ground
-	if !t.IsOnGround {
+	// 3. Stage Trigger
+	// Trigger only when we reach the "landed" stage
+	if t.FlightStage != sim.StageLanded {
 		return false
 	}
-
-	// 4. Flight Logic
-	// Must have had a takeoff recently (tracked by takeoffTime)
-	// If takeoffTime is zero, we never took off in this session.
-	if j.takeoffTime.IsZero() {
-		return false
-	}
-
-	// Optional: Check if we landed "recently"?
-	// Actually, if we are on ground AND takeoffTime is set AND !hasDebriefed,
-	// it implies we landed and are waiting to debrief.
-	// We might want to wait a few seconds after landing?
-	// For now, immediate is fine, PlayDebrief has internal checks too?
 
 	return true
 }
@@ -256,44 +241,23 @@ func (j *NarrationJob) PrepareDebrief(ctx context.Context, t *sim.Telemetry) {
 
 	if j.narrator.PlayDebrief(ctx, t) {
 		j.hasDebriefed = true
-		// Reset takeoff time so we don't debrief again until next flight?
-		// No, hasDebriefed flag handles this for the current "cycle".
-		// But if we take off again, we need to reset hasDebriefed.
-		// That reset logic belongs in checkPostTakeoffGrace or similar flight detection logic.
 	}
 }
 
-// checkPostTakeoffGrace enforces a 1-minute silence after takeoff.
-func (j *NarrationJob) checkPostTakeoffGrace(t *sim.Telemetry) bool {
-	if t.IsOnGround {
-		j.takeoffTime = time.Time{} // Reset
-		j.hasCheckedOnce = true
-		return true // Allowed on ground (for airport narration)
-	}
-
-	// Startup Logic: If first check and we are ALREADY airborne, assume mid-flight
-	if !j.hasCheckedOnce {
-		j.hasCheckedOnce = true
-		if !t.IsOnGround {
-			slog.Info("NarrationJob: Started airborne, bypassing takeoff grace period")
-			// Set takeoff time to distant past so check passes
-			j.takeoffTime = time.Now().Add(-24 * time.Hour)
-			return true
-		}
-	}
-
-	if j.takeoffTime.IsZero() {
-		j.takeoffTime = time.Now()
-		slog.Debug("NarrationJob: Takeoff detected", "time", j.takeoffTime)
-	}
-
-	if time.Since(j.takeoffTime) < 1*time.Minute {
-		// Log periodically (every 10s) to avoid spam? relying on debug level.
-		slog.Debug("NarrationJob: In post-takeoff grace period", "elapsed", time.Since(j.takeoffTime))
+// checkFlightStagePOI enforces flight stage restrictions for POI auto-narration.
+func (j *NarrationJob) checkFlightStagePOI(t *sim.Telemetry) bool {
+	switch t.FlightStage {
+	case sim.StageAirborne, sim.StageClimb, sim.StageCruise, sim.StageDescend:
+		// Reset debrief flag when we are airborne/climbing so we can debrief again on next landing
+		j.hasDebriefed = false
+		return true
+	case sim.StageLanded:
+		// Also allowed on ground for airport narration, but NOT once landed (until debriefed)
+		// Wait, user said ONLY auto-select if in airborne, cruise, climb, descend.
+		return false
+	default:
 		return false
 	}
-
-	return true
 }
 
 // checkFrequencyRules determines if we can fire based on frequency settings (1-5).
@@ -435,9 +399,9 @@ func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 		return false
 	}
 
-	// Takeoff grace: Wait at least DelayBeforeEssay after takeoff
-	// This gives POIs a chance to be narrated before falling back to essays
-	if !j.takeoffTime.IsZero() && time.Since(j.takeoffTime) < delayBeforeEssay {
+	// Essay stage rules: same as POI but allows some extra padding maybe?
+	// For now, let's keep it strictly to the same airborne stages
+	if !j.checkFlightStagePOI(t) {
 		return false
 	}
 
@@ -465,7 +429,7 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 	}
 
 	minScore := j.getPOIQueryThreshold()
-	candidates := j.poiMgr.GetNarrationCandidates(1000, minScore, t.IsOnGround)
+	candidates := j.poiMgr.GetNarrationCandidates(1000, minScore)
 	if len(candidates) == 0 {
 		if j.lastCheckedCount != -1 {
 			slog.Debug("NarrationJob: No candidates in range")
@@ -534,7 +498,7 @@ func (j *NarrationJob) selectBestCandidate(visibleCandidates []*model.POI) *mode
 func (j *NarrationJob) getBestCandidateFallback(t *sim.Telemetry) *model.POI {
 	slog.Debug("NarrationJob: LOS disabled or no checker", "los_enabled", j.cfg.Terrain.LineOfSight, "checker_nil", j.losChecker == nil)
 	minScore := j.getPOIQueryThreshold()
-	cands := j.poiMgr.GetNarrationCandidates(1, minScore, t.IsOnGround)
+	cands := j.poiMgr.GetNarrationCandidates(1, minScore)
 	if len(cands) > 0 {
 		return cands[0]
 	}

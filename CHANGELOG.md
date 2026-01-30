@@ -1,5 +1,15 @@
 ﻿Release History
  
+## v0.3.70 (2026-01-30)
+- **Flight-Stage Driven Selection**: Refactored POI auto-narration to trigger only during airborne phases, eliminating legacy timer-based hacks and ground-suppression heuristics.
+- **Precise Debrief Triggers**: Optimized the landing debrief to trigger immediately upon reaching the `Landed` stage, providing a more reliable post-flight summary.
+- **Cleaned Discovery Pipeline**: Simplified the POI management interface by removing obsolete ground-proximity filters, relying on the unified stage machine for environmental awareness.
+
+## v0.3.69 (2026-01-30)
+- **Unified Announcement Infrastructure**: Implemented a core registry and state machine for non-blocking airport and flight-event announcements.
+- **Queue-First Architecture**: Restored the prioritized queuing system to ensure announcements and POIs transition smoothly without stopping the main simulation loop.
+- **System Stability**: Resolved critical race conditions in the generation queue that could lead to redundant LLM calls.
+ 
 ## v0.3.68 (2026-01-30)
 - **Stateful Flight Stage Tracking**: Implemented a comprehensive state machine to accurately detect transitions between Parked, Taxi, Take-off, Climb, Cruise, Descend, and Landed phases.
 - **Hysteresis Logic**: Added a 2-tick confirmation requirement (2 seconds) for flight stage changes to eliminate jitter and flickering in the UI and AI narration.

@@ -127,7 +127,7 @@ type MockPOIProvider struct {
 	CountScoredAboveFunc      func(threshold float64, limit int) int
 	GetFilteredCandidatesFunc func(filterMode string, targetCount int, minScore float64, isOnGround bool) ([]*model.POI, float64)
 
-	GetNarrationCandidatesFunc func(limit int, minScore *float64, isOnGround bool) []*model.POI
+	GetNarrationCandidatesFunc func(limit int, minScore *float64) []*model.POI
 }
 
 func (m *MockPOIProvider) GetPOI(ctx context.Context, qid string) (*model.POI, error) {
@@ -148,9 +148,9 @@ func (m *MockPOIProvider) LastScoredPosition() (lat, lon float64) {
 	return 0, 0
 }
 
-func (m *MockPOIProvider) GetNarrationCandidates(limit int, minScore *float64, isOnGround bool) []*model.POI {
+func (m *MockPOIProvider) GetNarrationCandidates(limit int, minScore *float64) []*model.POI {
 	if m.GetNarrationCandidatesFunc != nil {
-		return m.GetNarrationCandidatesFunc(limit, minScore, isOnGround)
+		return m.GetNarrationCandidatesFunc(limit, minScore)
 	}
 	return []*model.POI{}
 }

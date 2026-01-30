@@ -408,18 +408,14 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 }
 
 // GetNarrationCandidates returns a list of POIs strictly filtered for narration eligibility.
-// Filters: Playable (TTL), Visible, Score >= minScore (if set), Ground Logic (Aerodrome only).
-func (m *Manager) GetNarrationCandidates(limit int, minScore *float64, isOnGround bool) []*model.POI {
+// Filters: Playable (TTL), Visible, Score >= minScore (if set).
+func (m *Manager) GetNarrationCandidates(limit int, minScore *float64) []*model.POI {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	candidates := make([]*model.POI, 0, len(m.trackedPOIs))
 
 	for _, p := range m.trackedPOIs {
-		// 1. Ground Logic
-		if isOnGround && !strings.EqualFold(p.Category, "aerodrome") {
-			continue
-		}
 
 		// 2. Playability (Cooldown)
 		if !m.isPlayable(p) {
