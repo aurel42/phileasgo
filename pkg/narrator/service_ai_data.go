@@ -89,7 +89,7 @@ func (s *AIService) buildPromptData(ctx context.Context, p *model.POI, tel *sim.
 		PassengerMale:        "Andrew",
 		MalePersona:          "Curious traveler",
 		MaleAccent:           "Neutral",
-		FlightStage:          determineFlightStage(tel),
+		FlightStage:          sim.FormatStage(tel.FlightStage),
 		NameNative:           p.NameLocal,
 		POINameNative:        p.NameLocal,
 		NameUser:             p.DisplayName(),

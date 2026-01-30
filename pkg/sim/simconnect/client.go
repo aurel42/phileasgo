@@ -74,6 +74,10 @@ type Client struct {
 
 	// Ground Track Calculation
 	trackBuf *geo.TrackBuffer
+	vsBuf    *sim.VerticalSpeedBuffer
+
+	// State Machine
+	stageMachine *sim.StageMachine
 
 	// Telemetry Validity
 	hasValidData bool
@@ -102,6 +106,8 @@ func NewClient(appName, dllPath string) (*Client, error) {
 		predictionWindow: 60 * time.Second,
 		pendingSpawns:    make(map[uint32]chan uint32),
 		trackBuf:         geo.NewTrackBuffer(5),
+		vsBuf:            sim.NewVerticalSpeedBuffer(5 * time.Second),
+		stageMachine:     sim.NewStageMachine(),
 	}
 
 	// Load DLL
@@ -312,6 +318,7 @@ func (c *Client) setupDataDefinitions() error {
 		{"GROUND VELOCITY", "Knots", DATATYPE_FLOAT64},
 		{"SIM ON GROUND", "Bool", DATATYPE_INT32},
 		{"GENERAL ENG COMBUSTION:1", "Bool", DATATYPE_INT32},
+		{"GENERAL ENG COMBUSTION:2", "Bool", DATATYPE_INT32},
 		{"CAMERA STATE", "Enum", DATATYPE_INT32},
 		{"SIM DISABLED", "Bool", DATATYPE_INT32},
 		{"TRANSPONDER CODE:1", "Number", DATATYPE_INT32},
@@ -525,6 +532,9 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 				trackTrue = c.trackBuf.Push(currentPos, data.Heading)
 			}
 
+			// Calculate Vertical Speed
+			vs := c.vsBuf.Update(time.Now(), data.AltitudeMSL)
+
 			c.telemetry = sim.Telemetry{
 				Latitude:           data.Latitude,
 				Longitude:          data.Longitude,
@@ -532,14 +542,19 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 				AltitudeAGL:        data.AltitudeAGL,
 				Heading:            trackTrue,
 				GroundSpeed:        data.GroundSpeed,
+				VerticalSpeed:      vs,
 				PredictedLatitude:  predLat,
 				PredictedLongitude: predLon,
 				IsOnGround:         isOnGround,
+				EngineOn:           data.Engine > 0 || data.Engine2 > 0,
 				APStatus:           formatAPStatus(data),
 				Squawk:             int(data.Squawk),
 				Ident:              data.Ident != 0,
 			}
-			c.telemetry.FlightStage = sim.DetermineFlightStage(&c.telemetry)
+
+			// Update Stage Machine
+			c.telemetry.FlightStage = c.stageMachine.Update(&c.telemetry)
+
 			c.hasValidData = true
 		}
 	}

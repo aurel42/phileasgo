@@ -50,7 +50,8 @@ type Telemetry struct {
 	PredictedLongitude float64
 
 	IsOnGround  bool   // True if parked or taxiing
-	FlightStage string // Ground, Takeoff, Climb, Cruise, Approach, Landing
+	EngineOn    bool   // True if any engine is running
+	FlightStage string // Detailed stage (parked, taxi, climb, etc)
 	APStatus    string // G1000-style autopilot status (e.g. "HDG 270  AP  ALT 5000ft")
 
 	// Transponder
@@ -58,7 +59,8 @@ type Telemetry struct {
 	Ident  bool // TRANSPONDER IDENT
 }
 
-// DetermineFlightStage calculates the flight phase based on telemetry.
+// DetermineFlightStage calculates a basic flight phase.
+// Deprecated: Use StageMachine for stateful flight stage tracking.
 func DetermineFlightStage(t *Telemetry) string {
 	if t.IsOnGround {
 		return "GROUND"

@@ -61,6 +61,10 @@ type MockClient struct {
 
 	// Ground Track Calculation
 	trackBuf *geo.TrackBuffer
+	vsBuf    *sim.VerticalSpeedBuffer
+
+	// State Machine
+	stageMachine *sim.StageMachine
 
 	useCustomScenario bool
 }
@@ -88,6 +92,8 @@ func NewClient(cfg Config) *MockClient {
 		stateStart:   time.Now(),
 		lastTurnTime: time.Now(),
 		trackBuf:     geo.NewTrackBuffer(5),
+		vsBuf:        sim.NewVerticalSpeedBuffer(5 * time.Second),
+		stageMachine: sim.NewStageMachine(),
 	}
 
 	m.wg.Add(1)
@@ -177,8 +183,11 @@ func (m *MockClient) update() {
 	dt := float64(tickRateMs) / 1000.0 // seconds
 	stateDuration := now.Sub(m.stateStart)
 
+	m.tel.EngineOn = true // Default mock behavior (engines on)
+
 	switch m.state {
 	case StageParked:
+		m.tel.EngineOn = false
 		m.tel.GroundSpeed = 0
 		m.tel.IsOnGround = true
 		if stateDuration >= m.config.DurationParked {
@@ -260,7 +269,12 @@ func (m *MockClient) update() {
 
 	m.tel.IsOnGround = isOnGround
 	// m.tel.Heading is already updated by updateAirborne (wander logic)
-	m.tel.FlightStage = sim.DetermineFlightStage(&m.tel)
+
+	// Update Vertical Speed calculation
+	m.tel.VerticalSpeed = m.vsBuf.Update(now, m.tel.AltitudeMSL)
+
+	// Update Stage Machine
+	m.tel.FlightStage = m.stageMachine.Update(&m.tel)
 }
 
 func (m *MockClient) initScenario() {

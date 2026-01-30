@@ -1,8 +1,16 @@
 ﻿Release History
  
+## v0.3.68 (2026-01-30)
+- **Stateful Flight Stage Tracking**: Implemented a comprehensive state machine to accurately detect transitions between Parked, Taxi, Take-off, Climb, Cruise, Descend, and Landed phases.
+- **Hysteresis Logic**: Added a 2-tick confirmation requirement (2 seconds) for flight stage changes to eliminate jitter and flickering in the UI and AI narration.
+- **Smoothed Vertical Speed**: Introduced a manual VSI calculation using a 5-second rolling window of altitude samples, providing more stable performance metrics.
+- **SimConnect Multi-Engine Support**: Expanded telemetry capture to include multiple engine combustion states for precise ground-state detection.
+- **Omniscient Narrator**: Standardized AI narration prompts to use the centralized, debounced flight stage logic for consistent environmental awareness.
+
 ## v0.3.67 (2026-01-29)
 - **Active-POI Map Awareness**: Improved auto-zoom logic to ensure currently narrated POIs always remain visible regardless of viewport aspect ratio.
 - **Optimized River Hydration**: Refactored the periodic tracking loop to eliminate redundant re-hydration and console log noise.
+- **Fix**: **Telemetry Frequency Regression**. Restored the central heartbeat to 1 Hz (1s), resolving a regression where the system was polling at 10 Hz. Added documentation explaining the stability benefits of the 1 Hz interval.
  
 ## v0.3.66 (2026-01-29)
 - **Identity-based River Hydration**: Refactored the river integration to use Wikidata IDs (QID).

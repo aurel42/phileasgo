@@ -9,25 +9,6 @@ import (
 	"phileasgo/pkg/sim"
 )
 
-func determineFlightStage(t *sim.Telemetry) string {
-	if t == nil {
-		return "Unknown"
-	}
-	if t.IsOnGround {
-		return "Ground"
-	}
-	// Simple heuristics for airborne phases
-	if t.AltitudeAGL < 2000 {
-		if t.VerticalSpeed > 300 {
-			return "Takeoff/Climb"
-		}
-		if t.VerticalSpeed < -300 {
-			return "Approach/Landing"
-		}
-	}
-	return "Cruise"
-}
-
 func generateFlightStatusSentence(t *sim.Telemetry) string {
 	if t == nil {
 		return "The aircraft position is unknown."

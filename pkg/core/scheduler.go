@@ -65,7 +65,8 @@ func (s *Scheduler) AddJob(j Job) {
 func (s *Scheduler) Start(ctx context.Context) {
 	interval := time.Duration(s.cfg.Ticker.TelemetryLoop)
 	if interval <= 0 {
-		interval = 100 * time.Millisecond
+		// 1Hz for stability; high frequency is unnecessary as SimConnect data updates at 1Hz
+		interval = 1 * time.Second
 	}
 
 	ticker := time.NewTicker(interval)

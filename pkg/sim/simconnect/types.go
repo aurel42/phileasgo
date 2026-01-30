@@ -89,6 +89,7 @@ type TelemetryData struct {
 	GroundSpeed float64
 	OnGround    int32
 	Engine      int32
+	Engine2     int32
 	Camera      int32
 	SimDisabled int32 // Added to maintain 8-byte alignment (SIM DISABLED)
 	Squawk      int32 // TRANSPONDER CODE:1
