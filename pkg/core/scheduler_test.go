@@ -31,6 +31,7 @@ func (m *mockSchedNarrator) PlayDebrief(ctx context.Context, tel *sim.Telemetry)
 func (m *mockSchedNarrator) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
 	return true
 }
+func (m *mockSchedNarrator) Heartbeat(ctx context.Context, tel *sim.Telemetry) {}
 
 // mockSimClient implements sim.Client
 type mockSimClient struct {

@@ -1,6 +1,7 @@
 package narrator
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"time"
@@ -92,6 +93,9 @@ type AIService struct {
 	pendingManualID       string
 	pendingManualStrategy string
 
+	// Infrastructure
+	announcements *AnnouncementManager
+
 	// Replay State
 	lastPOI        *model.POI
 	lastEssayTopic *EssayTopic
@@ -164,6 +168,10 @@ func NewAIService(
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)
+
+	// Initialize Announcement Manager
+	s.announcements = NewAnnouncementManager(s)
+
 	return s
 }
 
@@ -231,6 +239,17 @@ func (s *AIService) TriggerIdentAction() {
 // POIManager returns the internal POI manager.
 func (s *AIService) POIManager() POIProvider {
 	return s.poiMgr
+}
+
+// Heartbeat drives periodic tasks like announcements.
+func (s *AIService) Heartbeat(ctx context.Context, tel *sim.Telemetry) {
+	s.mu.RLock()
+	ann := s.announcements
+	s.mu.RUnlock()
+
+	if ann != nil {
+		ann.Tick(ctx, tel)
+	}
 }
 
 // LLMProvider returns the internal LLM provider.

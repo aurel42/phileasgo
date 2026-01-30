@@ -26,7 +26,6 @@ func (s *AIService) PlayImage(ctx context.Context, imagePath string, tel *sim.Te
 		tel = &t
 	}
 
-	// 4. Enqueue for Priority Generation
 	s.enqueueGeneration(&generation.Job{
 		Type:      model.NarrativeTypeScreenshot,
 		ImagePath: imagePath,

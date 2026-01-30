@@ -21,6 +21,7 @@ type Debriefer interface {
 // Borderrer interface for triggering border announcements.
 type Borderrer interface {
 	PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool
+	Heartbeat(ctx context.Context, tel *sim.Telemetry)
 }
 
 // LocationProvider interface for reverse geocoding.

@@ -113,6 +113,11 @@ func (s *Scheduler) tick(ctx context.Context) {
 		s.sink.Update(&tel)
 	}
 
+	// 2.2 Announcements Heartbeat
+	if s.narrator != nil {
+		s.narrator.Heartbeat(ctx, &tel)
+	}
+
 	// 2.5 Teleport Detection
 	// Check if we moved exceptionally far in a single tick (teleport/map change)
 	currPos := geo.Point{Lat: tel.Latitude, Lon: tel.Longitude}

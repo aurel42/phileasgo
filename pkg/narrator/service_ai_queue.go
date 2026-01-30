@@ -204,9 +204,14 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 			return
 		}
 
-		// Enqueue & Trigger
-		s.enqueuePlayback(n, true)
-		go s.ProcessPlaybackQueue(genCtx)
+		// Handle Result
+		if job.OnComplete != nil {
+			job.OnComplete(n)
+		} else {
+			// Fallback: Default Playback
+			s.enqueuePlayback(n, true)
+			go s.ProcessPlaybackQueue(genCtx)
+		}
 
 		// Self-perpetuation: Trigger next queued item
 		s.ProcessGenerationQueue(genCtx)

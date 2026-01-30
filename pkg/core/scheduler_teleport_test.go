@@ -25,6 +25,7 @@ func (m *mockTeleportNarrator) PlayDebrief(ctx context.Context, tel *sim.Telemet
 func (m *mockTeleportNarrator) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
 	return true
 }
+func (m *mockTeleportNarrator) Heartbeat(ctx context.Context, tel *sim.Telemetry) {}
 
 type mockResettable struct {
 	resetCalled bool

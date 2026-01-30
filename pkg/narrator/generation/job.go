@@ -20,4 +20,8 @@ type Job struct {
 	// For Border Crossings
 	From string
 	To   string
+
+	// Callback handles the generated narrative.
+	// If nil, the dispatcher must decide on a default (e.g. playback).
+	OnComplete func(*model.Narrative)
 }

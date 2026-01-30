@@ -22,6 +22,10 @@ func (m *mockBorderNarrator) PlayBorder(ctx context.Context, from, to string, te
 	return true
 }
 
+func (m *mockBorderNarrator) Heartbeat(ctx context.Context, tel *sim.Telemetry) {
+	// no-op
+}
+
 func (m *mockBorderNarrator) ReorderFeatures(lat, lon float64) {
 	// no-op
 }
