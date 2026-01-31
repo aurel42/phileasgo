@@ -17,6 +17,7 @@ const (
 	StageParked   = "PARKED"
 	StageTaxiing  = "TAXIING"
 	StageHolding  = "HOLDING"
+	StageTakeoff  = "TAKEOFF"
 	StageAirborne = "AIRBORNE"
 
 	// Physics constants
@@ -214,6 +215,24 @@ func (m *MockClient) update() {
 		m.tel.IsOnGround = true
 		m.tel.GroundSpeed = 0
 		if stateDuration >= m.config.DurationHold {
+			m.state = StageTakeoff
+			m.stateStart = now
+		}
+
+	case StageTakeoff:
+		m.tel.IsOnGround = true
+		// Accelerate at a reasonable rate (~5 kts per second)
+		m.tel.GroundSpeed += 5.0 * dt
+
+		// Move straight along ground
+		distNm := m.tel.GroundSpeed * (dt / 3600.0)
+		distDeg := distNm / 60.0
+		radHeading := m.tel.Heading * (math.Pi / 180.0)
+		m.tel.Latitude += distDeg * math.Cos(radHeading)
+		m.tel.Longitude += distDeg * math.Sin(radHeading)
+
+		// Rotate and take off at 80 kts
+		if m.tel.GroundSpeed >= 80.0 {
 			m.state = StageAirborne
 			m.stateStart = now
 			m.initScenario()

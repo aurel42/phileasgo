@@ -1,4 +1,11 @@
-﻿## v0.3.71 (2026-01-30)
+﻿Release History
+
+## v0.3.72 (2026-01-31)
+- **Fix**: **Autopilot Status Visibility**. Resolved a memory alignment regression in the telemetry data stream that caused the autopilot status line to become hidden.
+- **Improved**: **Multi-Engine Telemetry**. Stabilized data structures for multi-engine aircraft to prevent future telemetry regressions.
+
+
+## v0.3.71 (2026-01-30)
 - **Dynamic Template Context**: Refactored the core AI prompt system to use flexible, map-based data injection, enabling faster template iteration without Go code changes.
 - **Improved Geographical Precision**: Standardized top-level template variables for City, Region, and Country across all narration types.
 - **Architectural Refinement**: Decoupled environmental data gathering into specialized "injectors" for telemetry, persona, and units.

@@ -87,6 +87,17 @@ func TestStageMachine(t *testing.T) {
 			},
 			expected: StageLanded,
 		},
+		{
+			name: "Sticky Taxi: High Speed",
+			sequence: []Telemetry{
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 15}, // Init -> OnGround
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 15}, // Candidate -> Taxi
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 15}, // Confirm -> Taxi
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 35}, // Too fast for taxi, too slow for takeoff
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 39}, // Still below takeoff (40)
+			},
+			expected: StageTaxi,
+		},
 	}
 
 	for _, tt := range tests {

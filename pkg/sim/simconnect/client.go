@@ -323,6 +323,7 @@ func (c *Client) setupDataDefinitions() error {
 		{"SIM DISABLED", "Bool", DATATYPE_INT32},
 		{"TRANSPONDER CODE:1", "Number", DATATYPE_INT32},
 		{"TRANSPONDER IDENT:1", "Bool", DATATYPE_INT32},
+		{"IS SLEW ACTIVE", "Bool", DATATYPE_INT32}, // Dummy variable for 8-byte alignment
 		// Autopilot Master/FD/YD
 		{"AUTOPILOT MASTER", "Bool", DATATYPE_FLOAT64},
 		{"AUTOPILOT FLIGHT DIRECTOR ACTIVE", "Bool", DATATYPE_FLOAT64},

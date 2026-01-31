@@ -54,6 +54,11 @@ func NewDynamicConfigJob(
 }
 
 func (j *DynamicConfigJob) ShouldFire(t *sim.Telemetry) bool {
+	// 0. Disable if no provider supports dynamic_config
+	if !j.llm.HasProfile("dynamic_config") {
+		return false
+	}
+
 	if j.TryLock() {
 		j.Unlock() // We check lock in ShouldFire to avoid overlapping triggers
 	} else {

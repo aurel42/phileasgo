@@ -26,6 +26,8 @@ func (m *mockProvider) EnqueueAnnouncement(ctx context.Context, a Announcement, 
 	}()
 }
 
+func (m *mockProvider) Play(n *model.Narrative) {}
+
 func TestBaseAnnouncement(t *testing.T) {
 	b := NewBaseAnnouncement("test", model.NarrativeTypePOI, false)
 	if b.ID() != "test" {

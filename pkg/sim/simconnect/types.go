@@ -94,6 +94,7 @@ type TelemetryData struct {
 	SimDisabled int32 // Added to maintain 8-byte alignment (SIM DISABLED)
 	Squawk      int32 // TRANSPONDER CODE:1
 	Ident       int32 // TRANSPONDER IDENT:1
+	Padding     int32 // Added to maintain 8-byte alignment before float64s
 
 	// Autopilot State (all float64 for SimConnect Bool compatibility)
 	APMaster      float64 // AUTOPILOT MASTER

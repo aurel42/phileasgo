@@ -39,6 +39,12 @@ func (s *AIService) enqueuePlayback(n *model.Narrative, priority bool) {
 	s.playbackQ.Enqueue(n, priority)
 }
 
+// Play enqueues a narrative for playback and triggers the playback queue processing.
+func (s *AIService) Play(n *model.Narrative) {
+	s.enqueuePlayback(n, true)
+	go s.ProcessPlaybackQueue(context.Background())
+}
+
 // popPlaybackQueue retrieves and removes the next narrative from the queue.
 func (s *AIService) popPlaybackQueue() *model.Narrative {
 	return s.playbackQ.Pop()

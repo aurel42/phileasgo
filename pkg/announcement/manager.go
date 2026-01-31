@@ -12,6 +12,7 @@ import (
 // GenerationProvider defines the dependency on the AI service for creating narratives.
 type GenerationProvider interface {
 	EnqueueAnnouncement(ctx context.Context, a Announcement, t *sim.Telemetry, onComplete func(*model.Narrative))
+	Play(n *model.Narrative)
 }
 
 // Manager orchestrates the lifecycle of multiple flight announcements.
@@ -41,7 +42,8 @@ func (m *Manager) Tick(ctx context.Context, t *sim.Telemetry) {
 
 	for id, a := range m.registry {
 		status := a.Status()
-		slog.Debug("Announcement: Checking item", "id", id, "status", status)
+		// Only log on status change is handled by the Announcement implementations if needed,
+		// or we can remove this periodic log entirely as requested.
 
 		switch status {
 		case StatusIdle:
@@ -116,8 +118,7 @@ func (m *Manager) onResult(id string, n *model.Narrative, t *sim.Telemetry) {
 
 func (m *Manager) triggerPlayback(a Announcement) {
 	slog.Info("Announcement: Triggering playback", "id", a.ID(), "title", a.Title())
-	// Infrastructure handles the actual playback call via the narrator's queue.
-	// This will be wired up during the Narrator integration phase.
+	m.narrator.Play(a.GetHeldNarrative())
 	a.SetStatus(StatusTriggered)
 }
 

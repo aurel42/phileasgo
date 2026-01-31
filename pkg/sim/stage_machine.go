@@ -122,6 +122,12 @@ func (m *StageMachine) detectGroundCandidate(t *Telemetry) string {
 		return StageLanded
 	}
 
+	// Fallback: Maintain current state if it's already a ground state
+	switch m.current {
+	case StageParked, StageTaxi, StageHold, StageTakeOff, StageLanded:
+		return m.current
+	}
+
 	return StageOnGround
 }
 
@@ -140,6 +146,12 @@ func (m *StageMachine) detectAirborneCandidate(t *Telemetry) string {
 	// 2. Initial Takeoff (Airborne but was just on ground and no performance trend yet)
 	if m.wasOnGround {
 		return StageTakeOff
+	}
+
+	// Fallback: Maintain current state if it's already an airborne state
+	switch m.current {
+	case StageAirborne, StageClimb, StageCruise, StageDescend, StageTakeOff:
+		return m.current
 	}
 
 	return StageAirborne

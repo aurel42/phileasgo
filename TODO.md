@@ -32,6 +32,10 @@ X regression: restore telemetry loop to 1Hz
 - overlay info panel: allow adaptive font size for the title if it's too long to fit
 - POI script: tell the LLM how far away we are and weather the POI is ahead or to the side?
 - debug "patient" mode, and rework urgent/patient/deferral logic
+- regression: AP status line no longer visible
+- Flight Stage state machine needs tuning: take-off triggers after landing; take-off only when accelerating, landing only when decelerating?
+
+
 X flight stage state machine:
 
 # Announcement infrastructure:
