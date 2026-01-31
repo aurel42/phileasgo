@@ -15,6 +15,9 @@ func (s *AIService) handleGenerationState(req *GenerationRequest) error {
 	if req.SkipBusyCheck {
 		// Caller already claimed the lock (e.g. from the queue worker or detached worker)
 		s.generating = true
+		s.generatingPOI = req.POI
+		s.generatingTitle = req.Title
+		s.generatingThumbnail = req.ThumbnailURL
 		return nil
 	}
 
@@ -22,6 +25,9 @@ func (s *AIService) handleGenerationState(req *GenerationRequest) error {
 		return fmt.Errorf("narrator already generating")
 	}
 	s.generating = true
+	s.generatingPOI = req.POI
+	s.generatingTitle = req.Title
+	s.generatingThumbnail = req.ThumbnailURL
 	return nil
 }
 
@@ -44,6 +50,8 @@ func (s *AIService) releaseGeneration() {
 	defer s.mu.Unlock()
 	s.generating = false
 	s.generatingPOI = nil
+	s.generatingTitle = ""
+	s.generatingThumbnail = ""
 }
 
 // IsActive returns true if narrator is currently active (generating or playing).
@@ -100,23 +108,14 @@ func (s *AIService) CurrentPOI() *model.POI {
 		return s.currentPOI
 	}
 
-	// 2. Pseudo POI for Screenshots
-	if s.currentType == model.NarrativeTypeScreenshot && s.currentImagePath != "" {
-		return &model.POI{
-			WikidataID:   "screenshot-" + s.currentImagePath, // Unique-ish ID
-			NameEn:       "Visual Analysis",
-			NameUser:     "Visual Analysis",
-			Category:     "Photograph",
-			ThumbnailURL: "/api/images/serve?path=" + s.currentImagePath, // Use the serve endpoint as thumbnail
-			Icon:         "camera",                                       // Hypothetical icon
-			Score:        50.0,                                           // Max score for visibility
-			Lat:          s.currentLat,
-			Lon:          s.currentLon,
-			IsVisible:    true,
-		}
-	}
-
 	return nil
+}
+
+// CurrentThumbnailURL returns the thumbnail URL for the current narration.
+func (s *AIService) CurrentThumbnailURL() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentThumbnailURL
 }
 
 // CurrentImagePath returns the file path of the message for the current narration.
@@ -180,16 +179,23 @@ func (s *AIService) CurrentTitle() string {
 	if s.currentPOI != nil {
 		return s.currentPOI.DisplayName()
 	}
-	// Check for pseudo-POI logic (though CurrentPOI handles it, sometimes we just want the string)
-	if s.currentType == model.NarrativeTypeScreenshot {
-		return "Visual Analysis"
+	if s.active {
+		if s.currentType == model.NarrativeTypeScreenshot {
+			return "Visual Analysis"
+		}
+		if s.currentEssayTitle != "" {
+			return s.currentEssayTitle
+		}
+		if s.currentTopic != nil {
+			return "Essay about " + s.currentTopic.Name
+		}
 	}
-	if s.currentEssayTitle != "" {
-		return s.currentEssayTitle
+
+	// Fallback to generating title if active
+	if s.generating && s.generatingTitle != "" {
+		return s.generatingTitle
 	}
-	if s.currentTopic != nil {
-		return "Essay about " + s.currentTopic.Name
-	}
+
 	return ""
 }
 
@@ -256,6 +262,7 @@ func (s *AIService) finalizePlayback() {
 	s.currentEssayTitle = ""
 	s.currentImagePath = ""
 	s.currentType = ""
+	s.currentThumbnailURL = ""
 	s.mu.Unlock()
 
 	// 2. Beacon Check (Switch to next target)

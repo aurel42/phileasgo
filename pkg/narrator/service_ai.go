@@ -43,6 +43,9 @@ type GenerationRequest struct {
 	MaxWords      int
 	Manual        bool
 	SkipBusyCheck bool // If true, handleGenerationState will skip the busy check (assumes caller claimed it)
+
+	ThumbnailURL string // Presentation metadata
+	Summary      string // User-visible summary
 }
 
 // ScriptEntry represents a previously generated narration script.
@@ -80,15 +83,18 @@ type AIService struct {
 	latencies     []time.Duration
 
 	// Playback State
-	currentPOI        *model.POI
-	currentTopic      *EssayTopic
-	currentEssayTitle string
-	currentType       model.NarrativeType // The type of the currently playing narrative
-	currentImagePath  string              // Added field
-	currentLat        float64             // Location snapshot
-	currentLon        float64             // Location snapshot
+	currentPOI          *model.POI
+	currentTopic        *EssayTopic
+	currentEssayTitle   string
+	currentType         model.NarrativeType // The type of the currently playing narrative
+	currentImagePath    string              // Added field
+	currentThumbnailURL string              // Primary UI driver
+	currentLat          float64             // Location snapshot
+	currentLon          float64             // Location snapshot
 
 	// Generation State
+	generatingTitle     string
+	generatingThumbnail string
 
 	// Pending Manual Override (Queued)
 	pendingManualID       string

@@ -271,6 +271,7 @@ func (s *AIService) setPlaybackState(n *model.Narrative) string {
 	s.currentType = n.Type
 	s.currentLat = n.Lat
 	s.currentLon = n.Lon
+	s.currentThumbnailURL = n.ThumbnailURL
 	s.currentEssayTitle = ""
 
 	if n.Type == "essay" || n.Type == "debrief" {

@@ -283,6 +283,7 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 		MaxWords:      promptData["MaxWords"].(int),
 		Manual:        job.Manual,
 		SkipBusyCheck: true,
+		ThumbnailURL:  p.ThumbnailURL,
 	}
 
 	// Update state so IsPOIBusy(p.WikidataID) is true during generation
@@ -321,6 +322,7 @@ func (s *AIService) handleScreenshotJob(ctx context.Context, job *generation.Job
 		MaxWords:      s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
 		Manual:        true,
 		SkipBusyCheck: true,
+		ThumbnailURL:  "/api/images/serve?path=" + job.ImagePath,
 	}
 }
 
@@ -370,9 +372,12 @@ func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.J
 		Type:          job.Type,
 		Prompt:        prompt,
 		Title:         job.Announcement.Title(),
+		Summary:       job.Announcement.Summary(),
 		SafeID:        job.Announcement.ID(),
 		MaxWords:      300,
 		Manual:        true, // Announcements are treated with same priority as manual
 		SkipBusyCheck: true,
+		ThumbnailURL:  job.Announcement.ImagePath(),
+		POI:           job.Announcement.POI(),
 	}
 }

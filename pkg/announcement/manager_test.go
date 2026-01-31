@@ -66,6 +66,7 @@ type testAnnouncement struct {
 func (a *testAnnouncement) ShouldGenerate(t *sim.Telemetry) bool        { return a.gen }
 func (a *testAnnouncement) ShouldPlay(t *sim.Telemetry) bool            { return a.play }
 func (a *testAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) { return nil, nil }
+func (a *testAnnouncement) POI() *model.POI                             { return a.BaseAnnouncement.POI() }
 
 func TestManager_Lifecycle(t *testing.T) {
 	provider := &mockProvider{

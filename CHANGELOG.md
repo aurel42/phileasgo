@@ -1,12 +1,16 @@
 ﻿Release History
 
+## v0.3.74 (2026-01-31)
+- **New Feature**: **Presentation-Driven Architecture**. Decoupled architectural layers by introducing dedicated UI metadata fields (`Summary`, `ThumbnailURL`) in the AI pipeline, ensuring the dashboard always shows relevant context regardless of the narrative source.
+- **UI Improvement**: **Generation Signaling**. The dashboard now displays the upcoming POI title and thumbnail *during* the AI generation phase, providing immediate visual feedback.
+- **Prompt Refinement**: Standardized the "Style" macro inclusion across all announcement templates (including take-off reactions) for more consistent and engaging tour guide delivery.
+
 ## v0.3.73 (2026-01-31)
 - **New Feature**: **Briefing Announcement**. Added an intelligent pre-departure briefing that introduces "Phileas" and provides descriptive airport context using Wikipedia and real-time research (sonar), with adaptive length based on visit history.
 - **Flight Stage Robustness**: Improved the `StageMachine` with acceleration tracking to reliably differentiate between takeoff rolls and high-speed landing roll-outs, preventing false "Take-off" triggers.
 
 ## v0.3.72 (2026-01-31)
 - **Fix**: **Autopilot Status Visibility**. Resolved a memory alignment regression in the telemetry data stream that caused the autopilot status line to become hidden.
-
 
 ## v0.3.71 (2026-01-30)
 - **Dynamic Template Context**: Refactored the core AI prompt system to use flexible, map-based data injection, enabling faster template iteration without Go code changes.

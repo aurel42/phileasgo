@@ -57,6 +57,7 @@ func (m *MockNarratorService) PlayPOI(ctx context.Context, id string, manual, en
 func (m *MockNarratorService) CurrentPOI() *model.POI           { return m.currentPOI }
 func (m *MockNarratorService) GetPreparedPOI() *model.POI       { return nil }
 func (m *MockNarratorService) CurrentTitle() string             { return m.currentTitle }
+func (m *MockNarratorService) CurrentThumbnailURL() string      { return "" }
 func (m *MockNarratorService) CurrentImagePath() string         { return "" }
 func (m *MockNarratorService) ClearCurrentImage()               {} // Added
 func (m *MockNarratorService) NarratedCount() int               { return m.narrated }

@@ -19,6 +19,7 @@ type BaseAnnouncement struct {
 	title     string
 	summary   string
 	imagePath string
+	poi       *model.POI
 }
 
 func NewBaseAnnouncement(id string, nType model.NarrativeType, repeatable bool) *BaseAnnouncement {
@@ -69,6 +70,13 @@ func (a *BaseAnnouncement) Reset() {
 func (b *BaseAnnouncement) Title() string     { return b.title }
 func (b *BaseAnnouncement) Summary() string   { return b.summary }
 func (b *BaseAnnouncement) ImagePath() string { return b.imagePath }
+func (b *BaseAnnouncement) POI() *model.POI   { return b.poi }
+
+func (b *BaseAnnouncement) SetPOI(p *model.POI) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.poi = p
+}
 
 // SetUIMetadata allows manual setup if not dynamic
 func (b *BaseAnnouncement) SetUIMetadata(title, summary, imagePath string) {

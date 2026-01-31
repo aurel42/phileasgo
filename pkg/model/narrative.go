@@ -30,6 +30,10 @@ type Narrative struct {
 	PredictedLatency  time.Duration `json:"predicted_latency"`
 	RequestedWords    int           `json:"requested_words"`
 
+	// Presentation Data (Primary UI drivers)
+	Summary      string `json:"summary,omitempty"`
+	ThumbnailURL string `json:"thumbnail_url,omitempty"`
+
 	// Context Fields (Nullable/Optional)
 	POI        *POI   `json:"poi,omitempty"`        // nil for non-POI narratives
 	ImagePath  string `json:"image_path,omitempty"` // For screenshots

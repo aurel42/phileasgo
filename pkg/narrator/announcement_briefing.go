@@ -52,6 +52,10 @@ func (a *BriefingAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) {
 	pd := a.provider.buildPromptData(context.Background(), airport, t, strategy)
 	pd["IsBriefing"] = true
 
+	// Set POI and Metadata for UI signaling
+	a.SetPOI(airport)
+	a.SetUIMetadata("Briefing: "+airport.DisplayName(), airport.Category, airport.ThumbnailURL)
+
 	return pd, nil
 }
 

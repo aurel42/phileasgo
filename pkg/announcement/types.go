@@ -35,6 +35,7 @@ type Announcement interface {
 	Title() string
 	Summary() string
 	ImagePath() string
+	POI() *model.POI
 
 	// Pipeline Data (Managed by the infrastructure)
 	GetHeldNarrative() *model.Narrative
