@@ -134,6 +134,7 @@ type MockPOIProvider struct {
 	GetFilteredCandidatesFunc func(filterMode string, targetCount int, minScore float64, isOnGround bool) ([]*model.POI, float64)
 
 	GetNarrationCandidatesFunc func(limit int, minScore *float64) []*model.POI
+	GetPOIsNearFunc            func(lat, lon, radiusMeters float64) []*model.POI
 }
 
 func (m *MockPOIProvider) GetPOI(ctx context.Context, qid string) (*model.POI, error) {
@@ -157,6 +158,13 @@ func (m *MockPOIProvider) LastScoredPosition() (lat, lon float64) {
 func (m *MockPOIProvider) GetNarrationCandidates(limit int, minScore *float64) []*model.POI {
 	if m.GetNarrationCandidatesFunc != nil {
 		return m.GetNarrationCandidatesFunc(limit, minScore)
+	}
+	return []*model.POI{}
+}
+
+func (m *MockPOIProvider) GetPOIsNear(lat, lon, radiusMeters float64) []*model.POI {
+	if m.GetPOIsNearFunc != nil {
+		return m.GetPOIsNearFunc(lat, lon, radiusMeters)
 	}
 	return []*model.POI{}
 }

@@ -1,8 +1,11 @@
 ﻿Release History
 
+## v0.3.73 (2026-01-31)
+- **New Feature**: **Briefing Announcement**. Added an intelligent pre-departure briefing that introduces "Phileas" and provides descriptive airport context using Wikipedia and real-time research (sonar), with adaptive length based on visit history.
+- **Flight Stage Robustness**: Improved the `StageMachine` with acceleration tracking to reliably differentiate between takeoff rolls and high-speed landing roll-outs, preventing false "Take-off" triggers.
+
 ## v0.3.72 (2026-01-31)
 - **Fix**: **Autopilot Status Visibility**. Resolved a memory alignment regression in the telemetry data stream that caused the autopilot status line to become hidden.
-- **Improved**: **Multi-Engine Telemetry**. Stabilized data structures for multi-engine aircraft to prevent future telemetry regressions.
 
 
 ## v0.3.71 (2026-01-30)

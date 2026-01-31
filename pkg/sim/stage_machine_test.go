@@ -79,24 +79,45 @@ func TestStageMachine(t *testing.T) {
 			expected: StageCruise,
 		},
 		{
-			name: "Landed Detection",
+			name: "Landed Detection: High Speed Roll",
 			sequence: []Telemetry{
 				{IsOnGround: false, AltitudeAGL: 5000, VerticalSpeed: 0}, // Start airborne
-				{IsOnGround: true, GroundSpeed: 40},                      // Touchdown
-				{IsOnGround: true, GroundSpeed: 20},                      // Slowing down
+				{IsOnGround: true, GroundSpeed: 80},                      // Touchdown at high speed
+				{IsOnGround: true, GroundSpeed: 75},                      // Decelerating (detected as Landed)
+				{IsOnGround: true, GroundSpeed: 60},                      // Still decelerating (confirmed Landed)
 			},
 			expected: StageLanded,
 		},
 		{
-			name: "Sticky Taxi: High Speed",
+			name: "TakeOff: Must be Accelerating",
 			sequence: []Telemetry{
-				{IsOnGround: true, EngineOn: true, GroundSpeed: 15}, // Init -> OnGround
-				{IsOnGround: true, EngineOn: true, GroundSpeed: 15}, // Candidate -> Taxi
-				{IsOnGround: true, EngineOn: true, GroundSpeed: 15}, // Confirm -> Taxi
-				{IsOnGround: true, EngineOn: true, GroundSpeed: 35}, // Too fast for taxi, too slow for takeoff
-				{IsOnGround: true, EngineOn: true, GroundSpeed: 39}, // Still below takeoff (40)
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 0},  // Hold
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 20}, // Taxi
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 45}, // Above 40, accelerating
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 55}, // TakeOff confirmed
 			},
-			expected: StageTaxi,
+			expected: StageTakeOff,
+		},
+		{
+			name: "Abort TakeOff: Decelerating",
+			sequence: []Telemetry{
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 50}, // TakeOff Roll (was accelerating)
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 60}, // TakeOff Confirmed
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 55}, // Abort! Decelerating
+				{IsOnGround: true, EngineOn: true, GroundSpeed: 40}, // Decelerating further -> Landed/Taxi fallback
+			},
+			expected: StageOnGround, // Since we were "TakeOff" and now decelerating on ground, but never was airborne
+		},
+		{
+			name: "Touch and Go",
+			sequence: []Telemetry{
+				{IsOnGround: false, AltitudeAGL: 100, VerticalSpeed: -500}, // Approach
+				{IsOnGround: true, GroundSpeed: 70},                        // Touchdown (Decelerating) -> Landed
+				{IsOnGround: true, GroundSpeed: 65},                        // Landed Confirmed
+				{IsOnGround: true, GroundSpeed: 75},                        // Power up! Accelerating -> Take-off roll
+				{IsOnGround: true, GroundSpeed: 85},                        // Take-off Confirmed
+			},
+			expected: StageTakeOff,
 		},
 	}
 

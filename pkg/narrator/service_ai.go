@@ -177,6 +177,7 @@ func NewAIService(
 
 	// Register Announcements
 	s.announcementMgr.Register(NewLetsgooAnnouncement(s))
+	s.announcementMgr.Register(NewBriefingAnnouncement(s))
 
 	return s
 }

@@ -19,11 +19,14 @@ const (
 
 // StageMachine tracks the flight phase state across telemetry ticks.
 type StageMachine struct {
-	current       string
-	candidate     string
-	confirmations int
-	wasOnGround   bool
-	wasAirborne   bool
+	current         string
+	candidate       string
+	confirmations   int
+	wasOnGround     bool
+	wasAirborne     bool
+	lastGroundSpeed float64
+	isAccelerating  bool
+	isDecelerating  bool
 }
 
 // NewStageMachine creates a stage machine in an uninitialized state.
@@ -35,6 +38,13 @@ func NewStageMachine() *StageMachine {
 
 // Update evaluates telemetry and returns the current refined stage.
 func (m *StageMachine) Update(t *Telemetry) string {
+	// Trend Tracking
+	if m.current != "" {
+		m.isAccelerating = t.GroundSpeed > m.lastGroundSpeed+1
+		m.isDecelerating = t.GroundSpeed < m.lastGroundSpeed-1
+	}
+	m.lastGroundSpeed = t.GroundSpeed
+
 	// First-tick Initialization: determine fallback from actual ground status
 	if m.current == "" {
 		if t.IsOnGround {
@@ -98,14 +108,22 @@ func (m *StageMachine) detectCandidate(t *Telemetry) string {
 }
 
 func (m *StageMachine) detectGroundCandidate(t *Telemetry) string {
-	// Ground Sub-States
-	if !t.EngineOn && t.GroundSpeed < 1 {
-		return StageParked
+	// 1. Landed (Priority: Airborne -> Ground + Decelerating or stable after touchdown)
+	// We check wasAirborne to ensure we don't trigger Landed while already on ground.
+	if m.wasAirborne {
+		if m.isDecelerating || t.GroundSpeed < 40 {
+			return StageLanded
+		}
 	}
 
-	// Takeoff Roll
-	if t.GroundSpeed > 40 {
+	// 2. Takeoff Roll (Priority: Needs to be accelerating)
+	if t.GroundSpeed > 40 && m.isAccelerating {
 		return StageTakeOff
+	}
+
+	// 3. Ground Sub-States
+	if !t.EngineOn && t.GroundSpeed < 1 {
+		return StageParked
 	}
 
 	if t.EngineOn {
@@ -115,11 +133,6 @@ func (m *StageMachine) detectGroundCandidate(t *Telemetry) string {
 		if t.GroundSpeed < 1 {
 			return StageHold
 		}
-	}
-
-	// Landmark: Landed (if was airborne and haven't hit other states yet)
-	if m.wasAirborne {
-		return StageLanded
 	}
 
 	// Fallback: Maintain current state if it's already a ground state
