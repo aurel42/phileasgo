@@ -180,12 +180,9 @@ func (s *AIService) handleManualQueueAndOverride(poiID, strategy string, manual,
 	return false
 }
 
-// updateTripSummary updates the running summary of the flight based on the last narration.
 func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript string) {
 	s.initAssembler()
-	s.mu.Lock()
-	currentSummary := s.tripSummary
-	s.mu.Unlock()
+	currentSummary := s.session().GetState().TripSummary
 
 	// Build update prompt data
 	data := s.promptAssembler.NewPromptData(s.getSessionState())
@@ -206,54 +203,42 @@ func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript
 		return
 	}
 
-	s.mu.Lock()
-	s.tripSummary = strings.TrimSpace(newSummary)
-	s.mu.Unlock()
+	s.session().SetTripSummary(strings.TrimSpace(newSummary))
 
-	slog.Debug("Narrator: Trip summary updated", "length", len(s.tripSummary))
+	s.mu.RLock()
+	lat, lon := s.lastLat, s.lastLon
+	s.mu.RUnlock()
+	go s.persistSession(lat, lon)
+
+	slog.Debug("Narrator: Trip summary updated", "length", len(s.session().GetState().TripSummary))
 }
 
 func (s *AIService) getTripSummary() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.tripSummary
+	return s.session().GetState().TripSummary
 }
 
 func (s *AIService) addScriptToHistory(qid, title, script string) {
-	// Extract the last sentence for flow continuity
-	sentences := strings.Split(script, ".")
-	var lastSentence string
-	for i := len(sentences) - 1; i >= 0; i-- {
-		trimmed := strings.TrimSpace(sentences[i])
-		if len(trimmed) > 10 { // Ignore tiny fragments
-			lastSentence = trimmed
-			break
-		}
-	}
-
-	s.mu.Lock()
-	if lastSentence != "" {
-		s.lastScriptEnd = lastSentence
-	}
-	s.mu.Unlock()
-
+	s.session().AddNarration(qid, title, script)
 	go s.updateTripSummary(context.Background(), title, script)
 }
 
-// ResetSession clears the session history (trip summary, counters, replay memory).
 func (s *AIService) ResetSession(ctx context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.tripSummary = ""
-	s.narratedCount = 0
+	// Reset session state
+	s.session().Reset()
 	s.currentPOI = nil
 	s.currentTopic = nil
 	s.currentEssayTitle = ""
 	s.lastPOI = nil
 	s.lastEssayTopic = nil
 	s.lastEssayTitle = ""
-	s.lastScriptEnd = ""
+
+	// Clear persistence
+	if err := s.st.SetState(ctx, "session_context", ""); err != nil {
+		slog.Error("Narrator: Failed to clear session persistence", "error", err)
+	}
 
 	// Clear active beacons
 	if s.beaconSvc != nil {

@@ -46,9 +46,7 @@ func TestAIService_PlayBorder(t *testing.T) {
 	}
 
 	svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil)
-	svc.mu.Lock()
-	svc.tripSummary = "Recent history"
-	svc.mu.Unlock()
+	svc.session().SetTripSummary("Recent history")
 	svc.Start()
 
 	// 1. Success Case

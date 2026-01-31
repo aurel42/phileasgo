@@ -5,13 +5,6 @@ import (
 	"time"
 )
 
-// NarratedCount returns the number of narrated POIs.
-func (s *AIService) NarratedCount() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.narratedCount
-}
-
 // Stats returns narrator statistics.
 func (s *AIService) Stats() map[string]any {
 	s.mu.RLock()

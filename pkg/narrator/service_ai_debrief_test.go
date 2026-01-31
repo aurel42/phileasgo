@@ -161,7 +161,7 @@ func TestPlayDebrief_PendingGeneration(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.Debrief.Enabled = true
 	svc := NewAIService(cfg, nil, nil, nil, nil, nil, nil, nil, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil)
-	svc.tripSummary = "This is a long enough summary for the debrief to be considered."
+	svc.session().SetTripSummary("This is a long enough summary for the debrief to be considered.")
 
 	// Mock pending generation
 	svc.enqueueGeneration(&generation.Job{Type: model.NarrativeTypePOI})

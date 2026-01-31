@@ -14,6 +14,7 @@ import (
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
+	"phileasgo/pkg/session"
 	"phileasgo/pkg/sim"
 )
 
@@ -485,11 +486,12 @@ func TestAIService_UpdateTripSummary(t *testing.T) {
 			}
 			mockLLM := &MockLLM{Response: tt.llmResponse}
 			svc := &AIService{
-				cfg:         cfg,
-				llm:         mockLLM,
-				prompts:     pm,
-				tripSummary: tt.currentSummary,
+				cfg:        cfg,
+				llm:        mockLLM,
+				prompts:    pm,
+				sessionMgr: session.NewManager(),
 			}
+			svc.session().SetTripSummary(tt.currentSummary)
 
 			svc.updateTripSummary(context.Background(), tt.lastTitle, tt.lastScript)
 

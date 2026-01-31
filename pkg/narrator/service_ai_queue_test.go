@@ -12,6 +12,7 @@ func TestAIService_QueueManagement(t *testing.T) {
 	svc := &AIService{
 		playbackQ: playback.NewManager(),
 		genQ:      generation.NewManager(),
+		st:        &MockStore{},
 	}
 
 	// 1. Enqueue Auto POI

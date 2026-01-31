@@ -11,6 +11,7 @@ import (
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
+	"phileasgo/pkg/session"
 )
 
 func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
@@ -87,13 +88,14 @@ func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
 			}
 
 			svc := &AIService{
-				cfg:     cfg,
-				llm:     mockLLM,
-				tts:     mockTTS,
-				st:      &MockStore{},
-				sim:     &MockSim{},
-				prompts: &prompts.Manager{},
-				running: true,
+				cfg:        cfg,
+				llm:        mockLLM,
+				tts:        mockTTS,
+				st:         &MockStore{},
+				sim:        &MockSim{},
+				prompts:    &prompts.Manager{},
+				sessionMgr: session.NewManager(),
+				running:    true,
 			}
 			svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil)
 

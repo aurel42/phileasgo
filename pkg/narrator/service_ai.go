@@ -15,6 +15,7 @@ import (
 	"phileasgo/pkg/narrator/generation"
 	"phileasgo/pkg/narrator/playback"
 	"phileasgo/pkg/prompt"
+	"phileasgo/pkg/session"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/tracker"
@@ -71,17 +72,17 @@ type AIService struct {
 	wikipedia     WikipediaProvider
 	langRes       LanguageResolver
 	categoriesCfg *config.CategoriesConfig // For pregrounding checks
-	tripSummary   string                   // Added tripSummary field
-	lastScriptEnd string                   // The last sentence of the previous narration for flow continuity
+	sessionMgr    *session.Manager
+	sessionOnce   sync.Once
+	persistOnce   sync.Once // For one-time session restoration check
 
-	mu            sync.RWMutex
-	running       bool
-	active        bool
-	generating    bool
-	skipCooldown  bool
-	narratedCount int
-	stats         map[string]any
-	latencies     []time.Duration
+	mu           sync.RWMutex
+	running      bool
+	active       bool
+	generating   bool
+	skipCooldown bool
+	stats        map[string]any
+	latencies    []time.Duration
 
 	// Playback State
 	currentPOI          *model.POI
@@ -172,7 +173,7 @@ func NewAIService(
 		interests:       interests,
 		avoid:           avoid,
 		fallbackTracker: tr,
-		tripSummary:     "",                    // Initialize tripSummary
+		sessionMgr:      session.NewManager(),
 		playbackQ:       playback.NewManager(), // Initialize playback queue
 		genQ:            generation.NewManager(),
 	}
@@ -225,6 +226,11 @@ func (s *AIService) Pause() {
 	s.audio.Pause()
 }
 
+// NarratedCount returns the number of narratives generated in the current session.
+func (s *AIService) NarratedCount() int {
+	return s.session().NarratedCount()
+}
+
 // Resume resumes the narration playback.
 func (s *AIService) Resume() {
 	s.audio.ResetUserPause()
@@ -268,8 +274,35 @@ func (s *AIService) POIManager() POIProvider {
 	return s.poiMgr
 }
 
+func (s *AIService) session() *session.Manager {
+	s.sessionOnce.Do(func() {
+		if s.sessionMgr == nil {
+			s.sessionMgr = session.NewManager()
+		}
+	})
+	return s.sessionMgr
+}
+
+func (s *AIService) persistSession(lat, lon float64) {
+	if s.st == nil {
+		return
+	}
+
+	data, err := s.session().GetPersistentState(lat, lon)
+	if err != nil {
+		slog.Error("Narrator: Failed to serialize session state", "error", err)
+		return
+	}
+
+	if err := s.st.SetState(context.Background(), "session_context", string(data)); err != nil {
+		slog.Error("Narrator: Failed to persist session state", "error", err)
+	}
+}
+
 // Heartbeat drives periodic tasks like announcements.
 func (s *AIService) Heartbeat(ctx context.Context, tel *sim.Telemetry) {
+	s.checkSessionPersistence(ctx, tel)
+
 	s.mu.RLock()
 	ann := s.announcements
 	s.mu.RUnlock()
@@ -298,10 +331,7 @@ func (s *AIService) AudioService() audio.Service {
 }
 
 func (s *AIService) getSessionState() prompt.SessionState {
-	return prompt.SessionState{
-		TripSummary:  s.tripSummary,
-		LastSentence: s.lastScriptEnd,
-	}
+	return s.session().GetState()
 }
 
 func (s *AIService) initAssembler() {

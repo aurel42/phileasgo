@@ -12,10 +12,8 @@ import (
 // PlayDebrief triggers a post-landing debrief narration.
 func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 	s.initAssembler()
-	s.mu.RLock()
 	enabled := s.cfg.Narrator.Debrief.Enabled
-	summary := s.tripSummary
-	s.mu.RUnlock()
+	summary := s.session().GetState().TripSummary
 
 	if !enabled {
 		return false

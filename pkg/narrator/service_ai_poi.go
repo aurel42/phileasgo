@@ -239,11 +239,15 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error
 	}
 
 	// Update stats
-	s.mu.Lock()
-	s.narratedCount++
-	s.mu.Unlock()
+	// Update stats
+	s.session().IncrementCount()
 
-	// Non-blocking: Playback completion is handled by s.finalizePlayback callback passed to audio.Play
+	s.mu.RLock()
+	lat, lon := s.lastLat, s.lastLon
+	s.mu.RUnlock()
+	go s.persistSession(lat, lon)
+
+	// Playback completion is handled by s.finalizePlayback callback passed to audio.Play
 
 	return nil
 }

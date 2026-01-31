@@ -1,6 +1,7 @@
 package narrator
 
 import (
+	"phileasgo/pkg/session"
 	"testing"
 	"time"
 )
@@ -48,7 +49,12 @@ func TestAIService_StatsAndLatency(t *testing.T) {
 }
 
 func TestAIService_NarratedCount(t *testing.T) {
-	svc := &AIService{narratedCount: 5}
+	sessionMgr := session.NewManager()
+	for i := 0; i < 5; i++ {
+		sessionMgr.IncrementCount()
+		sessionMgr.AddNarration("id", "title", "script")
+	}
+	svc := &AIService{sessionMgr: sessionMgr}
 	if svc.NarratedCount() != 5 {
 		t.Error("mismatch narrated count")
 	}
