@@ -205,10 +205,10 @@ func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript
 
 	s.session().SetTripSummary(strings.TrimSpace(newSummary))
 
-	s.mu.RLock()
-	lat, lon := s.lastLat, s.lastLon
-	s.mu.RUnlock()
-	go s.persistSession(lat, lon)
+	// Use current aircraft position for session persistence
+	if tel, err := s.sim.GetTelemetry(context.Background()); err == nil {
+		go s.persistSession(tel.Latitude, tel.Longitude)
+	}
 
 	slog.Debug("Narrator: Trip summary updated", "length", len(s.session().GetState().TripSummary))
 }

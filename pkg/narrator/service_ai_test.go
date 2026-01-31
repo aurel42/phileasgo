@@ -490,6 +490,7 @@ func TestAIService_UpdateTripSummary(t *testing.T) {
 				llm:        mockLLM,
 				prompts:    pm,
 				sessionMgr: session.NewManager(),
+				sim:        &MockSim{},
 			}
 			svc.session().SetTripSummary(tt.currentSummary)
 
@@ -567,6 +568,7 @@ func TestAIService_PipelineFlow(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
 	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
+	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "summary_update.tmpl"), []byte("Summary Update"), 0o644)
 	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
 	pm, _ := prompts.NewManager(tempDir)
 

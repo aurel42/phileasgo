@@ -107,6 +107,11 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 		return err
 	}
 
+	// DeepSeek (and others) require "json" in the prompt for json_object mode
+	if !strings.Contains(strings.ToLower(prompt), "json") {
+		prompt += " Respond in JSON."
+	}
+
 	req := openaiRequest{
 		Model: model,
 		Messages: []openaiMessage{

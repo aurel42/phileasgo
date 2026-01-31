@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.78 (2026-01-31)
+- **DeepSeek Integration Fix**: Resolved API compatibility issues (`400 Bad Request`) by automatically injecting JSON-mode instructions into prompts when required.
+- **Session Persistence Fix**: Fixed a critical bug where Trip Summary restoration failed due to invalid coordinates (0,0); session state is now persisted using live aircraft telemetry.
+- **Test Stability**: Resolved nil pointer panic in narrator service unit tests.
+
 ## v0.3.77 (2026-01-31)
 - **DeepSeek Integration**: Added support for DeepSeek as a first-class LLM provider (`type: deepseek`), utilizing the `DEEPSEEK_API_KEY` environment variable.
 - **Robustness**: Config loader now supports `deepseek` logic natively, and the narrator factory registers it correctly in the failover chain.
@@ -7,7 +12,6 @@
 ## v0.3.76 (2026-01-31)
 - **Session Persistence**: Trip summaries and statistics are now saved and restored upon app restart (if airborne).
 - **Auto-Wait**: Narrator now waits for initial airborne telemetry before restoring session.
-- **Bug Fix**: Fixed potential panic in queue management during session reset.
 
 ## v0.3.75 (2026-01-31)
 - **Architectural Refinement**: **Prompt Assembly Decoupling**. Extracted prompt data gathering and assembly logic from the monolithic `AIService` into a dedicated `pkg/prompt` package. This enables cleaner dependency management and improves testability of the AI pipeline.
