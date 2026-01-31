@@ -224,7 +224,7 @@ func TestPhase2_PreparePOI(t *testing.T) {
 	simC := &mockJobSimClient{state: sim.StateActive}
 	store := NewMockStore()
 
-	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil, nil)
+	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil)
 
 	tel := &sim.Telemetry{
 		AltitudeAGL: 3000,

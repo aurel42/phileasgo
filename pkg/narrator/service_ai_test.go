@@ -496,8 +496,8 @@ func TestAIService_UpdateTripSummary(t *testing.T) {
 
 			svc.updateTripSummary(context.Background(), tt.lastTitle, tt.lastScript)
 
-			if svc.getTripSummary() != tt.expectSummary {
-				t.Errorf("Expected summary '%s', got '%s'", tt.expectSummary, svc.getTripSummary())
+			if svc.GetTripSummary() != tt.expectSummary {
+				t.Errorf("Expected summary '%s', got '%s'", tt.expectSummary, svc.GetTripSummary())
 			}
 		})
 	}

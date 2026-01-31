@@ -177,7 +177,7 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 			simC := &mockJobSimClient{state: sim.StateActive}
 
 			// Note: We pass nil for store, so it falls back to cfg.Frequency
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 
 			// Force cooldown ready for non-playing case
 			job.lastTime = time.Now().Add(-10 * time.Minute)

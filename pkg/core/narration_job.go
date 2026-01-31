@@ -15,7 +15,6 @@ import (
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/terrain"
-	"phileasgo/pkg/watcher"
 )
 
 // POIProvider matches the GetBestCandidate method used by NarrationJob.
@@ -33,7 +32,6 @@ type NarrationJob struct {
 	sim        sim.Client
 	store      store.Store
 	losChecker *terrain.LOSChecker
-	watcher    *watcher.Service
 	lastTime   time.Time
 
 	wasBusy          bool
@@ -44,7 +42,7 @@ type NarrationJob struct {
 	lastAGL float64 // Last known AGL for visibility boost check
 }
 
-func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker, w *watcher.Service) *NarrationJob {
+func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker) *NarrationJob {
 	j := &NarrationJob{
 		BaseJob:    NewBaseJob("Narration"),
 		cfg:        cfg,
@@ -53,7 +51,6 @@ func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, sim
 		sim:        simC,
 		store:      st,
 		losChecker: los,
-		watcher:    w,
 		lastTime:   time.Now(),
 	}
 
@@ -136,16 +133,6 @@ func (j *NarrationJob) CanPrepareEssay(t *sim.Telemetry) bool {
 	}
 	// 3. Essay Logic
 	return j.checkEssayEligible(t)
-}
-
-// CheckScreenshots polls the watcher for new screenshots and triggers playback.
-func (j *NarrationJob) CheckScreenshots(ctx context.Context, t *sim.Telemetry) {
-	if j.watcher != nil && j.cfg.Narrator.Screenshot.Enabled {
-		if path, ok := j.watcher.CheckNew(); ok {
-			slog.Info("NarrationJob: New screenshot detected", "path", path)
-			j.narrator.PlayImage(ctx, path, t)
-		}
-	}
 }
 
 // PreparePOI triggers the finding and playing of a POI.

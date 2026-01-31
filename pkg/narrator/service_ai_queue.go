@@ -118,8 +118,7 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 		switch job.Type {
 		case model.NarrativeTypePOI:
 			req = s.handlePOIJob(genCtx, job)
-		case model.NarrativeTypeScreenshot:
-			req = s.handleScreenshotJob(genCtx, job)
+
 		case model.NarrativeTypeBorder:
 			req = s.handleBorderJob(genCtx, job)
 		default:
@@ -213,10 +212,6 @@ func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript
 	slog.Debug("Narrator: Trip summary updated", "length", len(s.session().GetState().TripSummary))
 }
 
-func (s *AIService) getTripSummary() string {
-	return s.session().GetState().TripSummary
-}
-
 func (s *AIService) addScriptToHistory(qid, title, script string) {
 	s.session().AddNarration(qid, title, script)
 	go s.updateTripSummary(context.Background(), title, script)
@@ -280,39 +275,6 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 	s.mu.Unlock()
 
 	return req
-}
-
-func (s *AIService) handleScreenshotJob(ctx context.Context, job *generation.Job) *GenerationRequest {
-	s.initAssembler()
-	loc := s.geoSvc.GetLocation(job.Telemetry.Latitude, job.Telemetry.Longitude)
-	data := s.promptAssembler.NewPromptData(s.getSessionState())
-	data["City"] = loc.CityName
-	data["Region"] = loc.Admin1Name
-	data["Country"] = loc.CountryCode
-	data["MaxWords"] = s.promptAssembler.ApplyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords)
-	data["TripSummary"] = s.getTripSummary()
-	data["Lat"] = fmt.Sprintf("%.3f", job.Telemetry.Latitude)
-	data["Lon"] = fmt.Sprintf("%.3f", job.Telemetry.Longitude)
-	data["Alt"] = fmt.Sprintf("%.0f", job.Telemetry.AltitudeAGL)
-	prompt, err := s.prompts.Render("narrator/screenshot.tmpl", data)
-	if err != nil {
-		slog.Error("Narrator: Failed to render screenshot prompt", "error", err)
-		return nil
-	}
-
-	return &GenerationRequest{
-		Type:          model.NarrativeTypeScreenshot,
-		Prompt:        prompt,
-		Title:         "Screenshot Analysis",
-		SafeID:        "screenshot_" + time.Now().Format("150405"),
-		ImagePath:     job.ImagePath,
-		Lat:           job.Telemetry.Latitude,
-		Lon:           job.Telemetry.Longitude,
-		MaxWords:      s.promptAssembler.ApplyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
-		Manual:        true,
-		SkipBusyCheck: true,
-		ThumbnailURL:  "/api/images/serve?path=" + job.ImagePath,
-	}
 }
 
 func (s *AIService) handleBorderJob(ctx context.Context, job *generation.Job) *GenerationRequest {

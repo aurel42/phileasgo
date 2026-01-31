@@ -1,6 +1,7 @@
 ﻿Release History
 
 ## v0.3.82 (2026-01-31)
+- **Architectural Refinement**: **Screenshot Migration**. Migrated screenshot logic ("Visual Analysis") to the unified `pkg/announcement` system, simplifying the core narrator service and decoupling it from the file watcher.
 - **Architectural Refinement**: **Border Announcement Migration**. Migrated border crossing logic from the core scheduler to the unified `pkg/announcement` system, removing legacy polling jobs.
 - **Cleanup**: Removed deprecated `PlayBorder` interfaces and legacy simulation hook code.
 

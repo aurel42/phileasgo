@@ -403,16 +403,15 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 			slog.Warn("Failed to initialize screenshot watcher", "error", err)
 		} else {
 			slog.Info("Screenshot watcher started", "paths", cfg.Narrator.Screenshot.Paths)
+			// Register Screenshot Announcement
+			annMgr.Register(announcement.NewScreenshot(cfg, screenWatcher, narratorSvc))
 		}
 	}
 
 	// Hook NarrationJob into POI Manager's scoring loop (every 5s) instead of Scheduler
-	narrationJob := core.NewNarrationJob(cfg, narratorSvc, narratorSvc.POIManager(), simClient, st, los, screenWatcher)
+	narrationJob := core.NewNarrationJob(cfg, narratorSvc, narratorSvc.POIManager(), simClient, st, los)
 	svcs.PoiMgr.SetScoringCallback(func(c context.Context, t *sim.Telemetry) {
-		// 1. Check for Screenshots (Polling)
-		narrationJob.CheckScreenshots(c, t)
-
-		// 2. Process Sync Priority Queue (Manual Overrides)
+		// 1. Process Sync Priority Queue (Manual Overrides)
 		if narratorSvc.HasPendingGeneration() {
 			narratorSvc.ProcessGenerationQueue(c)
 			return

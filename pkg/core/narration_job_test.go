@@ -2,14 +2,11 @@ package core
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
-	"phileasgo/pkg/watcher"
 	"testing"
 	"time"
 )
@@ -216,7 +213,7 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 			}
 			pm := &mockPOIManager{best: tt.bestPOI, lat: lat, lon: lon}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: tt.altitudeAGL,
@@ -351,7 +348,7 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 			mockN := &mockNarratorService{}
 			pm := &mockPOIManager{best: tt.bestPOI, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 
 			// Set State
 			job.lastTime = time.Now().Add(-tt.lastNarrationAgo)
@@ -551,7 +548,7 @@ func TestNarrationJob_AdaptiveMode(t *testing.T) {
 	// POI has score 5.0, which is BELOW strict threshold (10.0)
 	pm := &mockPOIManager{best: &model.POI{Score: 5.0, WikidataID: "Q_LOW"}, lat: 48.0, lon: -123.0}
 	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil, nil)
+	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil)
 
 	tel := &sim.Telemetry{
 		AltitudeAGL: 3000,
@@ -587,7 +584,7 @@ func TestNarrationJob_DynamicMinScore(t *testing.T) {
 	mockN := &mockNarratorService{}
 	pm := &mockPOIManager{best: &model.POI{Score: 5.0, WikidataID: "Q5"}, lat: 48.0, lon: -123.0}
 	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil, nil)
+	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil)
 
 	tel := &sim.Telemetry{
 		AltitudeAGL: 3000,
@@ -709,7 +706,7 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 
 			pm := &mockPOIManager{best: &model.POI{Score: 10.0, WikidataID: "Q_NEXT"}, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 
 			// Force cooldown ready for non-playing case
 			job.lastTime = time.Time{}
@@ -789,7 +786,7 @@ func TestNarrationJob_FlightStageRestrictions(t *testing.T) {
 			poi := &model.POI{Score: 10.0, WikidataID: "Q1", Lat: 48.0, Lon: -123.0, Category: "Aerodrome"}
 			pm := &mockPOIManager{best: poi, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
+			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 
 			tel := &sim.Telemetry{
 				Latitude:    48.0,
@@ -876,7 +873,7 @@ func TestNarrationJob_StartAirborne_NoDelay(t *testing.T) {
 	mockN := &mockNarratorService{}
 	pm := &mockPOIManager{best: &model.POI{Score: 10.0, WikidataID: "Q_AIR"}, lat: 48.0, lon: -123.0}
 	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, nil)
+	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
 	// Important: We do NOT set job.takeoffTime manually. We test the startup logic.
 	job.lastTime = time.Time{} // Force ready for narration (silence wise)
 
@@ -892,59 +889,5 @@ func TestNarrationJob_StartAirborne_NoDelay(t *testing.T) {
 	// Should fire IMMEDIATELY (no grace period) because we started in the air
 	if !job.CanPreparePOI(tel) {
 		t.Error("Started airborne but CanPreparePOI returned false (Grace period incorrectly applied?)")
-	}
-}
-
-func TestNarrationJob_ScreenshotDetection(t *testing.T) {
-	// Create temp dir for watcher
-	tmpDir := t.TempDir()
-
-	cfg := config.DefaultConfig()
-	cfg.Narrator.AutoNarrate = true
-	cfg.Narrator.Screenshot.Enabled = true
-	cfg.Narrator.Essay.Enabled = false // Prevent essay fallback from firing
-
-	mockN := &mockNarratorService{}
-	pm := &mockPOIManager{best: nil, lat: 48.0, lon: -123.0} // Valid location for consistency check
-	simC := &mockJobSimClient{state: sim.StateActive}
-
-	// Create real watcher pointing to temp dir
-	w, err := watcher.NewService([]string{tmpDir})
-	if err != nil {
-		t.Fatalf("Failed to create watcher: %v", err)
-	}
-	// We don't start the watcher loop, we just use CheckNew manually via NarrationJob logic
-
-	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil, w)
-
-	job.lastTime = time.Time{} // Force ready
-
-	tel := &sim.Telemetry{
-		AltitudeAGL: 3000,
-		Latitude:    48.0,
-		Longitude:   -123.0,
-	}
-
-	// 1. Initial State: No screenshot
-	// CheckScreenshots should NOT trigger PlayImage
-	job.CheckScreenshots(context.Background(), tel)
-	if mockN.playImageCalled {
-		t.Error("PlayImage call unexpectedly")
-	}
-
-	// 2. Create Dummy Screenshot
-	time.Sleep(1100 * time.Millisecond) // Ensure FS modtime > watcher creation time (Windows resolution safety)
-	imagePath := filepath.Join(tmpDir, "screen_test.png")
-	if err := os.WriteFile(imagePath, []byte("fake png"), 0644); err != nil {
-		t.Fatalf("Failed to write temp file: %v", err)
-	}
-
-	// 3. CheckScreenshots should found it and Play
-	// Note: CheckNew depends on file mod time vs lastChecked.
-	// Since watcher was created BEFORE file write, modTime > lastChecked.
-	job.CheckScreenshots(context.Background(), tel)
-
-	if !mockN.playImageCalled {
-		t.Error("PlayImage was NOT called after detecting screenshot")
 	}
 }
