@@ -632,6 +632,10 @@ func loadSecretsFromEnv(cfg *Config) {
 			if key := os.Getenv("PERPLEXITY_API_KEY"); key != "" {
 				p.Key = key
 			}
+		case "deepseek":
+			if key := os.Getenv("DEEPSEEK_API_KEY"); key != "" {
+				p.Key = key
+			}
 		}
 		// Update the map because p is a copy
 		cfg.LLM.Providers[name] = p

@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.77 (2026-01-31)
+- **DeepSeek Integration**: Added support for DeepSeek as a first-class LLM provider (`type: deepseek`), utilizing the `DEEPSEEK_API_KEY` environment variable.
+- **Robustness**: Config loader now supports `deepseek` logic natively, and the narrator factory registers it correctly in the failover chain.
+
 ## v0.3.76 (2026-01-31)
 - **Session Persistence**: Trip summaries and statistics are now saved and restored upon app restart (if airborne).
 - **Auto-Wait**: Narrator now waits for initial airborne telemetry before restoring session.

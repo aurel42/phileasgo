@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm"
+	"phileasgo/pkg/llm/deepseek"
 	"phileasgo/pkg/llm/failover"
 	"phileasgo/pkg/llm/gemini"
 	"phileasgo/pkg/llm/groq"
@@ -50,6 +51,8 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 			sub, err = openai.NewClient(pCfg, url, rc)
 		case "perplexity", "sonar":
 			sub, err = perplexity.NewClient(pCfg, rc)
+		case "deepseek":
+			sub, err = deepseek.NewClient(pCfg, rc)
 		default:
 			return nil, fmt.Errorf("unknown llm provider type: %s", pCfg.Type)
 		}
