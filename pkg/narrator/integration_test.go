@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"phileasgo/pkg/llm/prompts"
-	"phileasgo/pkg/narrator"
+	"phileasgo/pkg/prompt"
 )
 
 // TestNarrator_Integration verifies that the actual production templates
@@ -23,7 +23,7 @@ func TestNarrator_Integration(t *testing.T) {
 		t.Fatalf("Failed to load production templates from %s: %v", promptsDir, err)
 	}
 
-	data := narrator.NarrationPromptData{
+	data := prompt.Data{
 		"TourGuideName":        "Ava",
 		"Persona":              "Intelligent, fascinating",
 		"Accent":               "Neutral",

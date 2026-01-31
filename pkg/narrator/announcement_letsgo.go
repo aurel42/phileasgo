@@ -3,6 +3,7 @@ package narrator
 import (
 	"phileasgo/pkg/announcement"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 )
 
@@ -27,7 +28,7 @@ func (a *LetsgooAnnouncement) ShouldPlay(t *sim.Telemetry) bool {
 }
 
 func (a *LetsgooAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) {
-	pd := a.provider.getCommonPromptData()
+	pd := a.provider.promptAssembler.NewPromptData(a.provider.getSessionState())
 
 	// Aircraft situation
 	loc := a.provider.geoSvc.GetLocation(t.Latitude, t.Longitude)
@@ -40,7 +41,7 @@ func (a *LetsgooAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) {
 	pd["AltitudeAGL"] = t.AltitudeAGL
 	pd["GroundSpeed"] = t.GroundSpeed
 	pd["FlightStage"] = sim.FormatStage(t.FlightStage)
-	pd["FlightStatusSentence"] = generateFlightStatusSentence(t)
+	pd["FlightStatusSentence"] = prompt.GenerateFlightStatusSentence(t)
 
 	return pd, nil
 }

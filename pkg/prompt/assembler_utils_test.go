@@ -1,4 +1,4 @@
-package narrator
+package prompt
 
 import (
 	"strings"
@@ -70,10 +70,10 @@ func TestGenerateFlightStatusSentence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := generateFlightStatusSentence(tt.tel)
+			got := GenerateFlightStatusSentence(tt.tel)
 			for _, w := range tt.want {
 				if !strings.Contains(got, w) {
-					t.Errorf("generateFlightStatusSentence() = %q, want substring %q", got, w)
+					t.Errorf("GenerateFlightStatusSentence() = %q, want substring %q", got, w)
 				}
 			}
 		})

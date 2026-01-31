@@ -14,6 +14,7 @@ import (
 
 // PlayPOI triggers narration for a specific POI.
 func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
+	s.initAssembler()
 	if manual {
 		slog.Info("Narrator: Manual play requested", "poi_id", poiID, "enqueue_if_busy", enqueueIfBusy)
 	} else {
@@ -94,7 +95,7 @@ func (s *AIService) playPOIAutomated(ctx context.Context, p *model.POI, tel *sim
 		}()
 
 		// Build Prompt (This phase takes ~15s and was previously unprotected)
-		promptData := s.buildPromptData(genCtx, p, tel, strategy)
+		promptData := s.promptAssembler.ForPOI(genCtx, p, tel, strategy, s.getSessionState())
 		prompt, err := s.prompts.Render("narrator/script.tmpl", promptData)
 		if err != nil {
 			slog.Error("Narrator: Failed to render prompt", "error", err)
@@ -138,8 +139,8 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 		return fmt.Errorf("POI not found")
 	}
 
-	promptData := s.buildPromptData(ctx, p, tel, strategy)
-	prompt, err := s.prompts.Render("narrator/script.tmpl", promptData)
+	pd := s.promptAssembler.ForPOI(ctx, p, tel, strategy, s.getSessionState())
+	prompt, err := s.prompts.Render("narrator/script.tmpl", pd)
 	if err != nil {
 		return err
 	}
@@ -150,7 +151,7 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 		Title:    p.DisplayName(),
 		SafeID:   strings.ReplaceAll(p.WikidataID, "/", "_"),
 		POI:      p,
-		MaxWords: promptData["MaxWords"].(int),
+		MaxWords: pd["MaxWords"].(int),
 		Manual:   false,
 	}
 

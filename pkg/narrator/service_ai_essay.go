@@ -51,6 +51,7 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 }
 
 func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *sim.Telemetry) {
+	s.initAssembler()
 	s.mu.Lock()
 	s.currentTopic = topic
 	s.currentEssayTitle = "" // Reset title until generated
@@ -85,13 +86,10 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		region = "Near " + loc.CityName
 	}
 
-	pd := s.getCommonPromptData()
-	s.injectTelemetry(pd, tel)
-	s.injectUnits(pd)
+	pd := s.promptAssembler.ForGeneric(ctx, tel, s.getSessionState())
 
 	pd["TargetCountry"] = loc.CountryCode
 	pd["TargetRegion"] = region
-	pd["TTSInstructions"] = s.fetchTTSInstructions(pd)
 
 	prompt, err := s.essayH.BuildPrompt(ctx, topic, &pd)
 	if err != nil {
@@ -105,7 +103,7 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		// Title unknown until parsing
 		SafeID:     "essay_" + topic.ID,
 		EssayTopic: topic,
-		MaxWords:   s.applyWordLengthMultiplier(topic.MaxWords),
+		MaxWords:   s.promptAssembler.ApplyWordLengthMultiplier(topic.MaxWords),
 		Manual:     false,
 	}
 

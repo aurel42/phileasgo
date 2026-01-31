@@ -78,6 +78,7 @@ func (s *AIService) EnqueueAnnouncement(ctx context.Context, a announcement.Anno
 }
 
 func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
+	s.initAssembler()
 	s.mu.Lock()
 	// Serialization: Only one generation at a time.
 	if s.generating || s.genQ.Count() == 0 {
@@ -181,12 +182,13 @@ func (s *AIService) handleManualQueueAndOverride(poiID, strategy string, manual,
 
 // updateTripSummary updates the running summary of the flight based on the last narration.
 func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript string) {
+	s.initAssembler()
 	s.mu.Lock()
 	currentSummary := s.tripSummary
 	s.mu.Unlock()
 
 	// Build update prompt data
-	data := s.getCommonPromptData()
+	data := s.promptAssembler.NewPromptData(s.getSessionState())
 	data["CurrentSummary"] = currentSummary
 	data["LastTitle"] = lastTitle
 	data["LastScript"] = lastScript
@@ -265,13 +267,14 @@ func (s *AIService) ResetSession(ctx context.Context) {
 }
 
 func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *GenerationRequest {
+	s.initAssembler()
 	p, err := s.poiMgr.GetPOI(ctx, job.POIID)
 	if err != nil {
 		slog.Error("Narrator: Priority job failed - POI not found", "poi_id", job.POIID)
 		return nil
 	}
 
-	promptData := s.buildPromptData(ctx, p, job.Telemetry, job.Strategy)
+	promptData := s.promptAssembler.ForPOI(ctx, p, job.Telemetry, job.Strategy, s.getSessionState())
 	prompt, _ := s.prompts.Render("narrator/script.tmpl", promptData)
 
 	req := &GenerationRequest{
@@ -295,12 +298,13 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 }
 
 func (s *AIService) handleScreenshotJob(ctx context.Context, job *generation.Job) *GenerationRequest {
+	s.initAssembler()
 	loc := s.geoSvc.GetLocation(job.Telemetry.Latitude, job.Telemetry.Longitude)
-	data := s.getCommonPromptData()
+	data := s.promptAssembler.NewPromptData(s.getSessionState())
 	data["City"] = loc.CityName
 	data["Region"] = loc.Admin1Name
 	data["Country"] = loc.CountryCode
-	data["MaxWords"] = s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords)
+	data["MaxWords"] = s.promptAssembler.ApplyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords)
 	data["TripSummary"] = s.getTripSummary()
 	data["Lat"] = fmt.Sprintf("%.3f", job.Telemetry.Latitude)
 	data["Lon"] = fmt.Sprintf("%.3f", job.Telemetry.Longitude)
@@ -319,7 +323,7 @@ func (s *AIService) handleScreenshotJob(ctx context.Context, job *generation.Job
 		ImagePath:     job.ImagePath,
 		Lat:           job.Telemetry.Latitude,
 		Lon:           job.Telemetry.Longitude,
-		MaxWords:      s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
+		MaxWords:      s.promptAssembler.ApplyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthShortWords),
 		Manual:        true,
 		SkipBusyCheck: true,
 		ThumbnailURL:  "/api/images/serve?path=" + job.ImagePath,
@@ -327,11 +331,12 @@ func (s *AIService) handleScreenshotJob(ctx context.Context, job *generation.Job
 }
 
 func (s *AIService) handleBorderJob(ctx context.Context, job *generation.Job) *GenerationRequest {
-	data := s.getCommonPromptData()
+	s.initAssembler()
+	data := s.promptAssembler.NewPromptData(s.getSessionState())
 	data["From"] = job.From
 	data["To"] = job.To
-	data["MaxWords"] = 30 // Short statement
-	data["TTSInstructions"] = s.fetchTTSInstructions(data)
+	data["MaxWords"] = 30                                                                                                   // Short statement
+	data["TTSInstructions"] = s.promptAssembler.ForPOI(ctx, nil, job.Telemetry, "", s.getSessionState())["TTSInstructions"] // Hacky but works to get TTS instructions
 	prompt, err := s.prompts.Render("narrator/border.tmpl", data)
 	if err != nil {
 		slog.Error("Narrator: Failed to render border prompt", "error", err)

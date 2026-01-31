@@ -5,6 +5,7 @@ import (
 	"phileasgo/pkg/announcement"
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 	"time"
 )
@@ -43,13 +44,13 @@ func (a *BriefingAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) {
 	}
 
 	// Determine strategy based on LastPlayed
-	strategy := StrategyMaxSkew
+	strategy := prompt.StrategyMaxSkew
 	if !airport.LastPlayed.IsZero() && time.Since(airport.LastPlayed) < time.Duration(a.provider.cfg.Narrator.RepeatTTL) {
-		strategy = StrategyMinSkew
+		strategy = prompt.StrategyMinSkew
 	}
 
 	// Use unified data builder for full POI context
-	pd := a.provider.buildPromptData(context.Background(), airport, t, strategy)
+	pd := a.provider.promptAssembler.ForPOI(context.Background(), airport, t, strategy, a.provider.getSessionState())
 	pd["IsBriefing"] = true
 
 	// Set POI and Metadata for UI signaling

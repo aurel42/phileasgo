@@ -4,7 +4,7 @@ import (
 	"context"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
-	"phileasgo/pkg/narrator"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 	"testing"
 	"time"
@@ -49,14 +49,14 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 			name:             "Rarely: Not Playing, Lone Wolf -> Fire",
 			freq:             1,
 			isPlaying:        false,
-			poiStrategy:      narrator.StrategyMaxSkew,
+			poiStrategy:      prompt.StrategyMaxSkew,
 			expectShouldFire: true,
 		},
 		{
 			name:             "Rarely: Not Playing, NOT Lone Wolf -> No Fire",
 			freq:             1,
 			isPlaying:        false,
-			poiStrategy:      narrator.StrategyUniform, // Not MaxSkew
+			poiStrategy:      prompt.StrategyUniform, // Not MaxSkew
 			expectShouldFire: false,
 		},
 
@@ -155,7 +155,7 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 			// `POIAnalyzer` has `CountScoredAbove`.
 
 			// Check if mock implements interface
-			var _ narrator.POIAnalyzer = &mockFrequencyPOIManager{}
+			var _ prompt.POIAnalyzer = &mockFrequencyPOIManager{}
 
 			pm := &mockFrequencyPOIManager{
 				best: &model.POI{Score: 20.0, WikidataID: "Q1"},
@@ -163,10 +163,10 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 			} // Control Strategy via `CountScoredAbove`:
 			// StrategyMaxSkew requires NO neighbors with score >= (best * 0.8).
 			// StrategyUniform (default fallback) occurs if there are rivals.
-			if tt.poiStrategy == narrator.StrategyMaxSkew {
+			if tt.poiStrategy == prompt.StrategyMaxSkew {
 				// Lone Wolf: No rivals
 				pm.countAboveFunc = func(threshold float64, limit int) int { return 0 }
-			} else if tt.poiStrategy == narrator.StrategyUniform {
+			} else if tt.poiStrategy == prompt.StrategyUniform {
 				// Rivals exist
 				pm.countAboveFunc = func(threshold float64, limit int) int { return 2 }
 			} else {

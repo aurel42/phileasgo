@@ -14,6 +14,7 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator/generation"
 	"phileasgo/pkg/narrator/playback"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/tracker"
@@ -103,6 +104,7 @@ type AIService struct {
 	// Infrastructure
 	announcements   *AnnouncementManager // Legacy
 	announcementMgr *announcement.Manager
+	promptAssembler *prompt.Assembler
 
 	// Replay State
 	lastPOI        *model.POI
@@ -184,6 +186,18 @@ func NewAIService(
 	// Register Announcements
 	s.announcementMgr.Register(NewLetsgooAnnouncement(s))
 	s.announcementMgr.Register(NewBriefingAnnouncement(s))
+
+	s.promptAssembler = prompt.NewAssembler(
+		cfg,
+		st,
+		prompts,
+		geoSvc,
+		wikipediaClient,
+		poiMgr,
+		llm,
+		categoriesCfg,
+		langRes,
+	)
 
 	return s
 }
@@ -281,4 +295,17 @@ func (s *AIService) LLMProvider() llm.Provider {
 // AudioService returns the internal audio service.
 func (s *AIService) AudioService() audio.Service {
 	return s.audio
+}
+
+func (s *AIService) getSessionState() prompt.SessionState {
+	return prompt.SessionState{
+		TripSummary:  s.tripSummary,
+		LastSentence: s.lastScriptEnd,
+	}
+}
+
+func (s *AIService) initAssembler() {
+	if s.promptAssembler == nil {
+		s.promptAssembler = prompt.NewAssembler(s.cfg, s.st, s.prompts, s.geoSvc, s.wikipedia, s.poiMgr, s.llm, s.categoriesCfg, nil)
+	}
 }

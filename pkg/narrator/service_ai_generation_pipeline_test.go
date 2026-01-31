@@ -10,6 +10,7 @@ import (
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/prompt"
 )
 
 func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
@@ -91,8 +92,10 @@ func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
 				tts:     mockTTS,
 				st:      &MockStore{},
 				sim:     &MockSim{},
+				prompts: &prompts.Manager{},
 				running: true,
 			}
+			svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil)
 
 			narrative, err := svc.GenerateNarrative(context.Background(), &tt.req)
 			if err != nil {
@@ -142,6 +145,7 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 			sim:     &MockSim{},
 			running: true,
 		}
+		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil)
 
 		req := &GenerationRequest{
 			Type:     model.NarrativeTypePOI,
@@ -180,6 +184,7 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 			sim:     &MockSim{},
 			running: true,
 		}
+		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil)
 
 		req := &GenerationRequest{
 			Type:     model.NarrativeTypePOI,

@@ -13,6 +13,7 @@ import (
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 )
 
@@ -745,7 +746,7 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{}, nil, &MockGeo{}, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil)
 
 	// Create a dummy but complete data set
-	data := svc.getCommonPromptData()
+	data := svc.promptAssembler.NewPromptData(svc.getSessionState())
 	data["FlightStage"] = "Cruise"
 	data["NameNative"] = "Test POI"
 	data["POINameNative"] = "Test POI"
@@ -771,10 +772,9 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 	data["LastTitle"] = "Last title"
 	data["LastScript"] = "Last script"
 
-	// New fields for all templates
 	data["Name"] = "Test POI Name"
 	data["ArticleURL"] = "https://en.wikipedia.org/wiki/Test"
-	data["Images"] = []ImageResult{{Title: "Img1", URL: "url1"}}
+	data["Images"] = []prompt.ImageResult{{Title: "Img1", URL: "url1"}}
 	data["CategoryList"] = "Airport, Cathedral, Castle"
 	data["TopicName"] = "Local History"
 	data["TopicDescription"] = "A brief history of the local area."

@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"phileasgo/pkg/llm/prompts"
+	"phileasgo/pkg/prompt"
 )
 
 // EssayTopic represents a single essay topic definition.
@@ -92,7 +93,7 @@ func (h *EssayHandler) SelectTopic() (*EssayTopic, error) {
 	return nil, fmt.Errorf("topic %s not found in rotation", selectedID)
 }
 
-func (h *EssayHandler) BuildPrompt(ctx context.Context, topic *EssayTopic, pd *NarrationPromptData) (string, error) {
+func (h *EssayHandler) BuildPrompt(ctx context.Context, topic *EssayTopic, pd *prompt.Data) (string, error) {
 	// Prepare template data
 	// We merge the Topic specific fields into the prompt data
 	(*pd)["TopicName"] = topic.Name

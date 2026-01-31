@@ -11,6 +11,7 @@ import (
 
 // PlayDebrief triggers a post-landing debrief narration.
 func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
+	s.initAssembler()
 	s.mu.RLock()
 	enabled := s.cfg.Narrator.Debrief.Enabled
 	summary := s.tripSummary
@@ -43,8 +44,8 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 	slog.Info("Narrator: Generating Landing Debrief...")
 
 	// 2. Build Prompt
-	data := s.getCommonPromptData()
-	data["MaxWords"] = s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords)
+	data := s.promptAssembler.NewPromptData(s.getSessionState())
+	data["MaxWords"] = s.promptAssembler.ApplyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords)
 	data["TripSummary"] = summary // Use the local copy we took with RLock
 
 	prompt, err := s.prompts.Render("narrator/debrief.tmpl", data)
@@ -63,7 +64,7 @@ func (s *AIService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
 			Prompt:   prompt,
 			Title:    "Debrief",
 			SafeID:   "debrief_" + time.Now().Format("20060102_150405"),
-			MaxWords: s.applyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords),
+			MaxWords: s.promptAssembler.ApplyWordLengthMultiplier(s.cfg.Narrator.NarrationLengthLongWords),
 			Manual:   true, // Debriefs are treated as high priority / manual-like
 		}
 

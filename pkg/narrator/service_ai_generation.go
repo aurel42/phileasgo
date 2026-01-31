@@ -12,6 +12,7 @@ import (
 
 // GenerateNarrative creates a narrative from a standardized request.
 func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationRequest) (*model.Narrative, error) {
+	s.initAssembler()
 	// 1. Sync State Check
 	if err := s.handleGenerationState(req); err != nil {
 		return nil, err
@@ -205,9 +206,10 @@ func (s *AIService) extractTitleFromScript(script string) (title, cleanScript st
 
 // rescueScript attempts to extract a clean script from contaminated LLM output.
 func (s *AIService) rescueScript(ctx context.Context, script string, maxWords int) (string, error) {
+	s.initAssembler()
 	// Fetch TTS instructions for consistent formatting during rescue
-	pd := s.getCommonPromptData()
-	ttsInstr := s.fetchTTSInstructions(pd)
+	pd := s.promptAssembler.NewPromptData(s.getSessionState())
+	ttsInstr, _ := pd["TTSInstructions"].(string)
 
 	prompt, err := s.prompts.Render("context/rescue_script.tmpl", map[string]any{
 		"Script":          script,

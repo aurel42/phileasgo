@@ -11,6 +11,7 @@ import (
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/terrain"
@@ -173,7 +174,7 @@ func (j *NarrationJob) PreparePOI(ctx context.Context, t *sim.Telemetry) bool {
 		return false
 	}
 
-	strategy := narrator.DetermineSkewStrategy(best, j.poiMgr.(narrator.POIAnalyzer), t.IsOnGround)
+	strategy := prompt.DetermineSkewStrategy(best, j.poiMgr.(prompt.POIAnalyzer), t.IsOnGround)
 
 	// Logging
 	slog.Info("NarrationJob: Triggering POI", "name", best.DisplayName())
@@ -517,11 +518,11 @@ func (j *NarrationJob) isRarelyEligible(poi *model.POI, t *sim.Telemetry) bool {
 	if j.getNarrationFrequency() != 1 {
 		return true
 	}
-	analyzer, ok := j.poiMgr.(narrator.POIAnalyzer)
+	analyzer, ok := j.poiMgr.(prompt.POIAnalyzer)
 	if !ok {
 		return true
 	}
-	return narrator.DetermineSkewStrategy(poi, analyzer, t.IsOnGround) == narrator.StrategyMaxSkew
+	return prompt.DetermineSkewStrategy(poi, analyzer, t.IsOnGround) == prompt.StrategyMaxSkew
 }
 
 func (j *NarrationJob) checkPOIInLOS(poi *model.POI, aircraftPos geo.Point, aircraftAltFt float64, index int) bool {

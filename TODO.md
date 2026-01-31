@@ -25,7 +25,6 @@ X feature: notification when crossing state or country borders, entering interna
 X control the config using transponder codes and ident
 X build an frontend app that wraps the browser UI
 X marker badges for interesting states (e.g. deferred)
-- preplan a whole trip? trip themes?
 - new IDENT/Playback control function: "expand on this"
 X change wp prose in prompt from truncated to wrapped
 X regression: restore telemetry loop to 1Hz
@@ -34,16 +33,9 @@ X regression: restore telemetry loop to 1Hz
 - debug "patient" mode, and rework urgent/patient/deferral logic
 X regression: AP status line no longer visible
 X Flight Stage state machine needs tuning: take-off triggers after landing; take-off only when accelerating, landing only when decelerating?
-- Flight Stage: refine conditions for stages based on previos stages (e.g. hold only after taxi)
-
-X flight stage state machine:
-
-# Announcement infrastructure:
-- Hook into ticker loop, shouldfire once per second
-
-# changes to existing infrastructure
-- currently everything that is done generating is immediately queued in playbackQ
-- for announcements, we need to be able to generate, hold the generated narration until it triggers, and then start the playback
+- Flight Stage: refine conditions for stages based on previos stages (e.g. hold only after taxi), remember timestamps for flight stages?!
+- rich history: clean up templates for clarity; shorter, more precise language, NO examples
+- the label of the range rings sometimes blinks (probably hard to reproduce)
 
 # Announcements:
 - can either fire once per flight (welcome, debrief) or multiple times (border crossing), this is a fixed behavior of the specific announcement
@@ -61,3 +53,8 @@ Example: screenshot announcement triggers generation and playback when a new scr
 Phase 1) infrastructure
 Phase 2) Welcome Announcement
 Phase 3) Migration of screenshot, border, debrief
+
+# Trip Themes
+
+# Trip Planning
+- can we pre-plan a whole trip? Generate a flight plan?

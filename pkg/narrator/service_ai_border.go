@@ -12,6 +12,7 @@ import (
 
 // PlayBorder triggers a border crossing announcement.
 func (s *AIService) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
+	s.initAssembler()
 	s.mu.RLock()
 	// enabled := s.cfg.Narrator.Border.Enabled // TODO: Add to config if needed, default true for now
 	enabled := true

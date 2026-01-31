@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"phileasgo/pkg/llm/prompts"
+	"phileasgo/pkg/prompt"
 )
 
 func TestEssayHandler_SelectTopic(t *testing.T) {
@@ -129,7 +130,7 @@ Words: {{.MaxWords}}`
 		MaxWords: 50,
 	}
 
-	pd := NarrationPromptData{
+	pd := prompt.Data{
 		"TargetCountry": "France",
 		"Lat":           48.85,
 		"Lon":           2.35,
@@ -180,7 +181,7 @@ func TestEssayHandler_BuildPrompt_CoordinatesPassthrough(t *testing.T) {
 	}
 
 	topic := &EssayTopic{ID: "t1", Name: "Test", MaxWords: 50}
-	pd := NarrationPromptData{
+	pd := prompt.Data{
 		"Lat": 48.8566,
 		"Lon": 2.3522,
 	}

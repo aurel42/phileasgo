@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.75 (2026-01-31)
+- **Architectural Refinement**: **Prompt Assembly Decoupling**. Extracted prompt data gathering and assembly logic from the monolithic `AIService` into a dedicated `pkg/prompt` package. This enables cleaner dependency management and improves testability of the AI pipeline.
+- **Improved Type Safety**: Standardized announcement data structures within the new prompt package to resolve circular dependency issues between the AI service and announcement types.
+
 ## v0.3.74 (2026-01-31)
 - **New Feature**: **Presentation-Driven Architecture**. Decoupled architectural layers by introducing dedicated UI metadata fields (`Summary`, `ThumbnailURL`) in the AI pipeline, ensuring the dashboard always shows relevant context regardless of the narrative source.
 - **UI Improvement**: **Generation Signaling**. The dashboard now displays the upcoming POI title and thumbnail *during* the AI generation phase, providing immediate visual feedback.
