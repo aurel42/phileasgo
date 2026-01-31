@@ -252,7 +252,7 @@ func (s *AIService) ReplayLast(ctx context.Context) bool {
 // finalizePlayback handles state cleanup and queue processing when audio finishes.
 func (s *AIService) finalizePlayback() {
 	// Pacing: Wait before clearing active state to prevent back-to-back narration bombardment
-	time.Sleep(3 * time.Second)
+	time.Sleep(s.pacingDuration)
 
 	// 1. Cleanup State
 	s.mu.Lock()

@@ -122,7 +122,7 @@ func (m *Manager) triggerPlayback(a Item) {
 	a.SetStatus(StatusTriggered)
 }
 
-func (m *Manager) ResetSession() {
+func (m *Manager) ResetSession(ctx context.Context) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, a := range m.registry {

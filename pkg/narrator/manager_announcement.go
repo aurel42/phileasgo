@@ -128,7 +128,7 @@ func (m *AnnouncementManager) triggerPlayback(a Announcement) {
 	a.SetStatus(StatusTriggered)
 }
 
-func (m *AnnouncementManager) ResetSession() {
+func (m *AnnouncementManager) ResetSession(ctx context.Context) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for id, a := range m.registry {

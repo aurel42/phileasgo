@@ -52,14 +52,6 @@ func (j *BorderJob) Run(ctx context.Context, t *sim.Telemetry) {
 	// 1. Get current location
 	curr := j.geo.GetLocation(t.Latitude, t.Longitude)
 
-	// Refinement: skip announcements for intermediary maritime zones (EEZ/Territorial)
-	// We do not treat entering these zones as a "border crossing" themselves, and we
-	// don't update lastLocation to ensure we trigger correctly when finally hitting
-	// Land or International Waters.
-	if curr.Zone == "territorial" || curr.Zone == "eez" {
-		return
-	}
-
 	// Detect Change
 	if j.lastLocation.CountryCode == "" {
 		// Initial setup, no change detected
@@ -79,6 +71,15 @@ func (j *BorderJob) Run(ctx context.Context, t *sim.Telemetry) {
 	if curr.Admin1Name != j.lastLocation.Admin1Name {
 		from := j.lastLocation.Admin1Name
 		to := curr.Admin1Name
+
+		// Suppress region transit if either side is over water (EEZ/Territorial)
+		// We only care about Admin1 changes on LAND.
+		if curr.Zone == "territorial" || curr.Zone == "eez" {
+			slog.Debug("BorderJob: Admin1 change suppressed (over water)", "from", from, "to", to, "zone", curr.Zone)
+			// Update lastLocation so we don't re-check or get stuck in a "changed" state
+			j.lastLocation = curr
+			return
+		}
 
 		// Suppress region transit if either side has no city nearby OR if names are blank.
 		// This avoids noise when moving between "Unknown" regions in wilderness.

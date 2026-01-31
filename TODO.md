@@ -37,6 +37,7 @@ X Flight Stage state machine needs tuning: take-off triggers after landing; take
 - rich history: clean up templates for clarity; shorter, more precise language, NO examples
 - improve situational/positional awareness of the LLM, describe distance and direction better.
 - the label of the range rings sometimes periodically jumps between two range rings, needs hysteresis? Depends on window size, ofc.
+- move session persistence to a better place than in a "heartbeat"
 
 # Announcements:
 - can either fire once per flight (welcome, debrief) or multiple times (border crossing), this is a fixed behavior of the specific announcement

@@ -619,6 +619,7 @@ func TestAIService_PipelineFlow(t *testing.T) {
 				mockPOI,
 				&MockBeacon{},
 				&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil)
+			svc.pacingDuration = 200 * time.Millisecond
 
 			ctx := context.Background()
 

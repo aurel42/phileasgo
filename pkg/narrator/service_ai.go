@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"phileasgo/pkg/announcement"
 	"phileasgo/pkg/audio"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm"
@@ -84,6 +83,9 @@ type AIService struct {
 	stats        map[string]any
 	latencies    []time.Duration
 
+	// Configuration
+	pacingDuration time.Duration
+
 	// Playback State
 	currentPOI          *model.POI
 	currentTopic        *EssayTopic
@@ -103,9 +105,7 @@ type AIService struct {
 	pendingManualStrategy string
 
 	// Infrastructure
-	legacyAnnouncements *AnnouncementManager // Legacy
-	announcements       *announcement.Manager
-	promptAssembler     *prompt.Assembler
+	promptAssembler *prompt.Assembler
 
 	// Replay State
 	lastPOI        *model.POI
@@ -176,18 +176,10 @@ func NewAIService(
 		sessionMgr:      session.NewManager(),
 		playbackQ:       playback.NewManager(), // Initialize playback queue
 		genQ:            generation.NewManager(),
+		pacingDuration:  3 * time.Second,
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)
-
-	// Initialize Announcement Manager
-	s.legacyAnnouncements = NewAnnouncementManager(s)
-	s.announcements = announcement.NewManager(s)
-
-	// Register Announcements
-	s.announcements.Register(announcement.NewLetsgo(s))
-	s.announcements.Register(announcement.NewBriefing(s))
-	s.announcements.Register(announcement.NewDebriefing(s))
 
 	s.promptAssembler = prompt.NewAssembler(
 		cfg,
@@ -316,22 +308,6 @@ func (s *AIService) persistSession(lat, lon float64) {
 // Heartbeat drives periodic tasks like announcements.
 func (s *AIService) Heartbeat(ctx context.Context, tel *sim.Telemetry) {
 	s.checkSessionPersistence(ctx, tel)
-
-	s.mu.RLock()
-	ann := s.legacyAnnouncements
-	s.mu.RUnlock()
-
-	if ann != nil {
-		ann.Tick(ctx, tel)
-	}
-
-	s.mu.RLock()
-	ann2 := s.announcements
-	s.mu.RUnlock()
-
-	if ann2 != nil {
-		ann2.Tick(ctx, tel)
-	}
 }
 
 // LLMProvider returns the internal LLM provider.

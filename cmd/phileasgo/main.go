@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"phileasgo/internal/api"
+	"phileasgo/pkg/announcement"
 	"phileasgo/pkg/audio"
 	"phileasgo/pkg/beacon"
 	"phileasgo/pkg/classifier"
@@ -117,7 +118,7 @@ func run(ctx context.Context, configPath string) error {
 	verifyStartup(ctx, catCfg, wdValidator)
 
 	// Narrator & TTS
-	narratorSvc, promptMgr, err := initNarrator(ctx, appCfg, svcs, tr, simClient, st, catCfg)
+	narratorSvc, annMgr, legacyAnnMgr, promptMgr, err := initNarrator(ctx, appCfg, svcs, tr, simClient, st, catCfg)
 	if err != nil {
 		return err
 	}
@@ -143,7 +144,7 @@ func run(ctx context.Context, configPath string) error {
 	visCalc := initVisibility(st)
 
 	// Scheduler
-	sched := setupScheduler(appCfg, simClient, st, narratorSvc, promptMgr, wdValidator, svcs, telH, losChecker, visCalc)
+	sched := setupScheduler(appCfg, simClient, st, narratorSvc, annMgr, legacyAnnMgr, promptMgr, wdValidator, svcs, telH, losChecker, visCalc)
 	go sched.Start(ctx)
 
 	// Scorer
@@ -242,10 +243,10 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 	}, nil
 }
 
-func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store, catCfg *config.CategoriesConfig) (*narrator.AIService, *prompts.Manager, error) {
+func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store, catCfg *config.CategoriesConfig) (outAi *narrator.AIService, outAnn *announcement.Manager, outLeg *narrator.AnnouncementManager, outPm *prompts.Manager, outErr error) {
 	llmProv, err := narrator.NewLLMProvider(cfg.LLM, cfg.History.LLM, svcs.ReqClient, tr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize LLM provider: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize LLM provider: %w", err)
 	}
 
 	// Configure temperature for narration prompts (bell curve distribution)
@@ -256,11 +257,11 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 
 	ttsProv, err := narrator.NewTTSProvider(&cfg.TTS, cfg.Narrator.TargetLanguage, tr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize TTS provider: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize TTS provider: %w", err)
 	}
 	promptMgr, err := prompts.NewManager("configs/prompts")
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize prompt manager: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize prompt manager: %w", err)
 	}
 
 	var beaconSvc *beacon.Service
@@ -284,7 +285,15 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 		}
 	}
 
-	return narratorSvc, promptMgr, nil
+	// Initialize Announcement Managers (Decoupled from AIService)
+	annMgr := announcement.NewManager(narratorSvc)
+	annMgr.Register(announcement.NewLetsgo(narratorSvc))
+	annMgr.Register(announcement.NewBriefing(narratorSvc))
+	annMgr.Register(announcement.NewDebriefing(narratorSvc))
+
+	legacyAnnMgr := narrator.NewAnnouncementManager(narratorSvc)
+
+	return narratorSvc, annMgr, legacyAnnMgr, promptMgr, nil
 }
 
 func verifyStartup(ctx context.Context, catCfg *config.CategoriesConfig, v *wikidata.Validator) {
@@ -352,7 +361,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 	return runServerLifecycle(ctx, srv, quit)
 }
 
-func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc *narrator.AIService, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker, vis *visibility.Calculator) *core.Scheduler {
+func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc *narrator.AIService, annMgr *announcement.Manager, legacyAnnMgr *narrator.AnnouncementManager, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker, vis *visibility.Calculator) *core.Scheduler {
 	sched := core.NewScheduler(cfg, simClient, apiHandler, narratorSvc, svcs.WikiSvc.GeoService())
 	sched.AddJob(core.NewDistanceJob("DistanceSync", 5000, func(c context.Context, t sim.Telemetry) {
 		_ = st.MarkEntitiesSeen(c, map[string][]string{})
@@ -361,16 +370,26 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 	// Register Resettables for Teleport Detection
 	sched.AddResettable(narratorSvc)
 	sched.AddResettable(svcs.PoiMgr)
+	sched.AddResettable(annMgr)
+	sched.AddResettable(legacyAnnMgr)
 
 	// Register Cleanup Job (runs every 10s)
 	sched.AddJob(core.NewTimeJob("CacheCleanup", 10*time.Second, func(c context.Context, t sim.Telemetry) {
 		// Clean up old cache entries if needed
 	}))
 
+	// Register Announcement Jobs (Standard) - 1Hz
+	sched.AddJob(core.NewTimeJob("Announcements", 1*time.Second, func(c context.Context, t sim.Telemetry) {
+		annMgr.Tick(c, &t)
+	}))
+
+	// Register Announcement Jobs (Legacy) - 1Hz
+	sched.AddJob(core.NewTimeJob("AnnouncementsLegacy", 1*time.Second, func(c context.Context, t sim.Telemetry) {
+		legacyAnnMgr.Tick(c, &t)
+	}))
+
 	// Register River Job (runs every 15s, detects nearby rivers)
 	sched.AddJob(core.NewRiverJob(svcs.PoiMgr))
-
-	// Register Debrief Job (implicitly added by NewScheduler via debriefer arg)
 
 	// Register Debrief Job (implicitly added by NewScheduler via debriefer arg)
 
