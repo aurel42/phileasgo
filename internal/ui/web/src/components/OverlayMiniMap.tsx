@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -85,6 +85,7 @@ const MiniMapRangeRings = ({ lat, lon, units }: { lat: number; lon: number; unit
 const RingLabels = ({ lat, lon, heading, units }: { lat: number; lon: number; heading: number; units: 'km' | 'nm' }) => {
     const map = useMap();
     const [visibleLabel, setVisibleLabel] = useState<{ dist: number; top: number; left: number } | null>(null);
+    const activeDistRef = useRef<number | null>(null);
 
     useEffect(() => {
         const updatePositions = () => {
@@ -98,7 +99,13 @@ const RingLabels = ({ lat, lon, heading, units }: { lat: number; lon: number; he
 
             const centerPoint = map.latLngToContainerPoint([lat, lon]);
             const mapSize = map.getSize();
-            const buffer = 30; // pixels to considering "visible" (avoid edge clipping)
+
+            // Hysteresis buffers
+            const BUFFER_LOOSE = 10;
+            const BUFFER_STRICT = 50;
+
+            const checkVis = (x: number, y: number, b: number) =>
+                x >= b && x <= (mapSize.x - b) && y >= b && y <= (mapSize.y - b);
 
             // Candidates including 5nm
             const candidates = [5, 10, 20, 50, 100].map(dist => {
@@ -124,22 +131,52 @@ const RingLabels = ({ lat, lon, heading, units }: { lat: number; lon: number; he
                 const labelX = ringPoint.x + dx * ratio;
                 const labelY = ringPoint.y + dy * ratio;
 
-                // Check visibility
-                const isVisible =
-                    labelX >= buffer &&
-                    labelX <= (mapSize.x - buffer) &&
-                    labelY >= buffer &&
-                    labelY <= (mapSize.y - buffer);
-
-                return { dist, top: labelY, left: labelX, isVisible };
+                return {
+                    dist,
+                    top: labelY,
+                    left: labelX,
+                    isLoose: checkVis(labelX, labelY, BUFFER_LOOSE),
+                    isStrict: checkVis(labelX, labelY, BUFFER_STRICT)
+                };
             });
 
-            // Select the largest distance that is visible
-            const selected = candidates
-                .filter(c => c.isVisible)
-                .sort((a, b) => b.dist - a.dist)[0];
+            // Hysteresis Selection Logic
+            let selected = null;
+            const currentDist = activeDistRef.current;
 
-            setVisibleLabel(selected || null);
+            // 1. Try to maintain current active ring
+            const currentCandidate = currentDist ? candidates.find(c => c.dist === currentDist) : null;
+
+            if (currentCandidate && currentCandidate.isLoose) {
+                // Current is still loosely visible. 
+                // Only upgrade if a LARGER ring is STRICTLY visible.
+                const better = candidates
+                    .filter(c => c.dist > currentDist! && c.isStrict)
+                    .sort((a, b) => b.dist - a.dist)[0];
+
+                selected = better || currentCandidate;
+            } else {
+                // Current is invalid OR invisible. Pick best available.
+                // Prefer Strict visibility to avoid immediate flip-back
+                const strictBest = candidates
+                    .filter(c => c.isStrict)
+                    .sort((a, b) => b.dist - a.dist)[0];
+
+                // Fallback to Loose if no strict option exists
+                const looseBest = candidates
+                    .filter(c => c.isLoose)
+                    .sort((a, b) => b.dist - a.dist)[0];
+
+                selected = strictBest || looseBest;
+            }
+
+            if (selected) {
+                activeDistRef.current = selected.dist;
+                setVisibleLabel({ dist: selected.dist, top: selected.top, left: selected.left });
+            } else {
+                activeDistRef.current = null;
+                setVisibleLabel(null);
+            }
         };
 
         updatePositions();
@@ -251,10 +288,10 @@ export const OverlayMiniMap = ({ lat, lon, heading, pois, currentNarratedId, pre
             const mapSize = map.getSize();
             if (mapSize.y > mapSize.x) {
                 // Portrait: Keep lon enough for active POI
-                lonBuffer = activePoiLonDiff;
+                lonBuffer = Math.max(lonBuffer, activePoiLonDiff);
             } else if (mapSize.x > mapSize.y) {
                 // Landscape: Keep lat enough for active POI
-                latBuffer = activePoiLatDiff;
+                latBuffer = Math.max(latBuffer, activePoiLatDiff);
             }
 
             const symmetricBounds = L.latLngBounds(

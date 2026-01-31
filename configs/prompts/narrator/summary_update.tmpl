@@ -9,21 +9,19 @@ Topic: {{.LastTitle}}
 Script: "{{.LastScript}}"
 
 **INSTRUCTIONS**:
-1. **Consolidate and Evolve**: Merge the latest narration into the trip summary.
-2. **MAINTAIN CHRONOLOGICAL ORDER**: 
-   - Keep the timeline intact, but weave the facts into a **unified story**.
-   - **AVOID FORMULAIC LISTS**: Do not start every paragraph or sentence with "Then we saw...", "Next was...", or "Subsequently...". 
-   - Bridge stories naturally (e.g., "Continuing along the coast...", "Moving inland towards...").
-3. **Place over Perspective**: 
-   - **OMIT** directional cues like "at your 12 o'clock" or "10 kilometers away". 
-   - Focus on the **geographic and historical significance** of the place itself.
-4. **Active Consolidation & Pruning**: 
-   - As you add new information, **aggressively prune filler facts** that are common to the whole region (e.g., "distance from Ottawa", generic climate averages if already mentioned) to make room for unique specifics.
-   - Condense older parts of the summary to keep the total length manageable while preserving the "narrative arc".
-5. **STRICT FORMATTING**:
-   - **NO HEADERS**: Do not include headers like "**CURRENT TRIP SUMMARY**" or "**NEW INSIGHTS**" in your response.
-   - **NO INTROS**: If a summary already exists, do not start with "The tour has just begun."
-   - **PLAIN TEXT ONLY**: Do not use markdown bold/italic headers inside the summary.
-6. **Length**: Keep the final summary concise but rich (max {{.MaxWords}} words).
+1. **Goal**: Maintain a **technical log** of covered topics and POIs. This is NOT a story; it is a context database for future content generation.
+2. **Format**:
+   - Use a **structured list** or concise paragraphs.
+   - **Chronological Order**: Keep entries sorted by time.
+   - **Conciseness**: prioritizing keywords, proper nouns, and unique facts.
+3. **Content to Keep**:
+   - **POIs**: Name, key category (e.g., "Castle", "River"), and the *single most unique fact* mentioned.
+   - **Topics**: Brief note of any essays or deep dives (e.g., "Essay: Aviation History").
+4. **Content to Discard**:
+   - **No Fluff**: Remove transition phrases ("Then we saw...", "Moving on...").
+   - **No Filler**: Delete generic descriptions (distances, directions, weather, standard history).
+   - **No Prose**: Use telegraphic style where possible.
+5. **Length**: Enforce the {{.MaxWords}} word limit by **condensing** entries. Simplify older entries to just their names/categories if necessary to save space (e.g. "Previous: Paris (Capital), Lyon (Conf. of rivers)").
+6. **Output**: Return *only* the updated summary text. No intro/outro.
 
 Updated summary (raw text only):

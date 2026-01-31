@@ -1,9 +1,13 @@
 ﻿Release History
 
+## v0.3.79 (2026-01-31)
+- **Map Zoom Logic**: Fixed a bug where the map would zoom out to global view during active narration due to incorrect bounding box calculation.
+- **UI Stability**: Implemented hysteresis for range ring labels to prevent flickering when near the viewport edge.
+- **Narrator Context**: Refined the Trip Summary prompt to produce a concise technical log instead of a narrative story, improving long-term context retention.
+
 ## v0.3.78 (2026-01-31)
 - **DeepSeek Integration Fix**: Resolved API compatibility issues (`400 Bad Request`) by automatically injecting JSON-mode instructions into prompts when required.
 - **Session Persistence Fix**: Fixed a critical bug where Trip Summary restoration failed due to invalid coordinates (0,0); session state is now persisted using live aircraft telemetry.
-- **Test Stability**: Resolved nil pointer panic in narrator service unit tests.
 
 ## v0.3.77 (2026-01-31)
 - **DeepSeek Integration**: Added support for DeepSeek as a first-class LLM provider (`type: deepseek`), utilizing the `DEEPSEEK_API_KEY` environment variable.
