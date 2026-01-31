@@ -41,10 +41,7 @@ func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink, 
 	}
 
 	// Register Core Jobs
-	// Border Job
-	borderJob := NewBorderJob(cfg, n, g)
-	s.AddJob(borderJob)
-	s.AddResettable(borderJob)
+	// Register Core Jobs
 
 	return s
 }

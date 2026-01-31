@@ -290,6 +290,7 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 	annMgr.Register(announcement.NewLetsgo(narratorSvc))
 	annMgr.Register(announcement.NewBriefing(narratorSvc))
 	annMgr.Register(announcement.NewDebriefing(narratorSvc))
+	annMgr.Register(announcement.NewBorder(cfg, svcs.WikiSvc.GeoService()))
 
 	legacyAnnMgr := narrator.NewAnnouncementManager(narratorSvc)
 

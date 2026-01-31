@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.82 (2026-01-31)
+- **Architectural Refinement**: **Border Announcement Migration**. Migrated border crossing logic from the core scheduler to the unified `pkg/announcement` system, removing legacy polling jobs.
+- **Cleanup**: Removed deprecated `PlayBorder` interfaces and legacy simulation hook code.
+
 ## v0.3.81 (2026-01-31)
 - **Architectural Refinement**: **Announcement Decoupling**. The announcement system is now fully decoupled from the core `AIService`, moving internal scheduled loops to the central Scheduler for better observability and testability.
 - **Improved**: **Maritime Border Logic**. Updated border detection to allow country-change announcements over water (e.g., entering International Waters) while selectively suppressing administrative region changes in maritime zones to reduce noise.

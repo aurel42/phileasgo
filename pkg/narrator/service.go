@@ -48,8 +48,6 @@ type Service interface {
 	PlayNarrative(ctx context.Context, n *model.Narrative) error
 	// PlayEssay triggers a regional essay narration.
 	PlayEssay(ctx context.Context, tel *sim.Telemetry) bool
-	// PlayBorder triggers a border crossing announcement.
-	PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool
 	// SkipCooldown forces the cooldown to expire immediately.
 	SkipCooldown()
 	// ShouldSkipCooldown returns true if the cooldown should be skipped.
@@ -234,14 +232,6 @@ func (s *StubService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	slog.Info("Narrator stub: essay play requested")
-	return true
-}
-
-// PlayBorder triggers a border crossing announcement (stub).
-func (s *StubService) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	slog.Info("Narrator stub: border announcement requested", "from", from, "to", to)
 	return true
 }
 
