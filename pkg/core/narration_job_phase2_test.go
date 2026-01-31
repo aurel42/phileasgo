@@ -12,14 +12,13 @@ import (
 
 // Mock Service for Phase 2 Tests (Renamed to avoid conflict with narration_job_test.go)
 type mockPhase2NarratorService struct {
-	isActive          bool
-	isPlaying         bool
-	isGeneratingVal   bool
-	hasStagedAuto     bool
-	playPOICalled     bool
-	playDebriefCalled bool
-	RemainingFunc     func() time.Duration
-	AvgLatencyFunc    func() time.Duration
+	isActive        bool
+	isPlaying       bool
+	isGeneratingVal bool
+	hasStagedAuto   bool
+	playPOICalled   bool
+	RemainingFunc   func() time.Duration
+	AvgLatencyFunc  func() time.Duration
 }
 
 func (m *mockPhase2NarratorService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
@@ -27,11 +26,6 @@ func (m *mockPhase2NarratorService) PlayPOI(ctx context.Context, poiID string, m
 }
 
 func (m *mockPhase2NarratorService) ProcessPlaybackQueue(ctx context.Context) {}
-
-func (m *mockPhase2NarratorService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
-	m.playDebriefCalled = true
-	return true
-}
 
 func (m *mockPhase2NarratorService) IsActive() bool {
 	return m.isActive
@@ -260,87 +254,6 @@ func TestPhase2_PreparePOI(t *testing.T) {
 	val, _ := store.GetState(context.Background(), "visibility_boost")
 	if val != "1.1" {
 		t.Errorf("Expected visibility_boost 1.1, got %s", val)
-	}
-}
-
-// TestPhase2_CanPrepareDebrief tests debrief eligibility.
-func TestPhase2_CanPrepareDebrief(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Narrator.Debrief.Enabled = true
-
-	job := &NarrationJob{
-		cfg:      cfg,
-		narrator: &mockNarratorService{},
-		poiMgr:   &mockPOIManager{lat: 48.0, lon: -123.0},
-		sim:      &mockJobSimClient{state: sim.StateActive},
-		lastTime: time.Now().Add(-30 * time.Second), // Not recently active
-		// Just Landed state is now inferred via FlightStage in telemetry
-	}
-
-	// 1. Valid (Just Landed - requires tracking previous state, but CanPrepareDebrief
-	// usually just checks if we show it now. State transition logic is in job loop usually,
-	// but here we might check "IsOnGround" and "WasAirborne".
-	// Since NarrationJob tracks takeoffTime, we can infer flight phase.
-
-	// Assuming CanPrepareDebrief logic:
-	// - Enabled
-	// - On Ground
-	// - Recent Takeoff (implies we just finished a flight)
-	// - Not yet debriefed for this flight (Need a flag for this?)
-
-	// For this test, we assume the method checks basic eligibility:
-	// OnGround && Enabled && !Debriefed
-
-	// 1. Valid (Just Landed - triggered via FlightStage)
-	tel := &sim.Telemetry{IsOnGround: true, Latitude: 48.0, Longitude: -123.0, FlightStage: sim.StageLanded}
-
-	// We need a flag in NarrationJob to say "Flight Active" vs "Flight Ended"?
-	// Or we rely on the trigger being edge-based in the Main Loop?
-	// If CanPrepareDebrief is POLL based, it needs state.
-	// Let's assume we add `hasDebriefed` to NarrationJob.
-
-	job.hasDebriefed = false
-	if !job.CanPrepareDebrief(tel) {
-		t.Error("Expected CanPrepareDebrief to be true (Landed, Not Debriefed)")
-	}
-
-	// 2. Already Debriefed
-	job.hasDebriefed = true
-	if job.CanPrepareDebrief(tel) {
-		t.Error("Expected CanPrepareDebrief to be false (Already Debriefed)")
-	}
-
-	// 3. Not Flown (e.g. taxiing - should return false if not in landed stage)
-	job.hasDebriefed = false
-	tel.FlightStage = sim.StageTaxi
-	if job.CanPrepareDebrief(tel) {
-		t.Error("Expected CanPrepareDebrief to be false (Taxiing, Not Landed)")
-	}
-}
-
-// TestPhase2_PrepareDebrief verifies PrepareDebrief triggering.
-func TestPhase2_PrepareDebrief(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Narrator.Debrief.Enabled = true
-	mockN := &mockPhase2NarratorService{}
-
-	job := &NarrationJob{
-		cfg:      cfg,
-		narrator: mockN,
-		poiMgr:   &mockPOIManager{lat: 48.0, lon: -123.0},
-		sim:      &mockJobSimClient{state: sim.StateActive},
-	}
-
-	tel := &sim.Telemetry{Latitude: 48.0, Longitude: -123.0}
-
-	// Success
-	job.PrepareDebrief(context.Background(), tel)
-
-	if !mockN.playDebriefCalled {
-		t.Error("PlayDebrief not called")
-	}
-	if !job.hasDebriefed {
-		t.Error("Expected hasDebriefed to be true after PrepareDebrief")
 	}
 }
 

@@ -13,11 +13,6 @@ type SessionResettable interface {
 	ResetSession(ctx context.Context)
 }
 
-// Debriefer interface for triggering the debrief.
-type Debriefer interface {
-	PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool
-}
-
 // Borderrer interface for triggering border announcements.
 type Borderrer interface {
 	PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool

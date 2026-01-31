@@ -645,6 +645,7 @@ func TestAIService_PipelineFlow(t *testing.T) {
 			svc.mu.Unlock()
 
 			svc.ProcessGenerationQueue(ctx)
+			svc.ProcessPlaybackQueue(ctx)
 
 			// Wait for async queue processing
 			time.Sleep(100 * time.Millisecond)

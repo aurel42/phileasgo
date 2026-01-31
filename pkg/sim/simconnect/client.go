@@ -145,6 +145,18 @@ func (c *Client) SetPredictionWindow(d time.Duration) {
 	c.predictionWindow = d
 }
 
+// GetLastTransition returns the timestamp of the last transition to the given stage.
+func (c *Client) GetLastTransition(stage string) time.Time {
+	c.telemetryMu.RLock()
+	defer c.telemetryMu.RUnlock()
+	if c.stageMachine == nil {
+		return time.Time{}
+	}
+	// We need to access StageMachine's lastTransition.
+	// Since StageMachine doesn't export it, I'll add an exporter to it.
+	return c.stageMachine.GetLastTransition(stage)
+}
+
 // Close disconnects and cleans up.
 func (c *Client) Close() error {
 	close(c.stopChan)

@@ -1,7 +1,11 @@
 package announcement
 
 import (
+	"context"
+	"time"
+
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 )
 
@@ -16,8 +20,8 @@ const (
 	StatusMissed     Status = "Missed"     // Play window passed before generation
 )
 
-// Announcement defines the generic interface for timed flight narrations.
-type Announcement interface {
+// Item defines the generic interface for timed flight narrations (previously Announcement).
+type Item interface {
 	ID() string
 	Type() model.NarrativeType
 	IsRepeatable() bool
@@ -43,4 +47,20 @@ type Announcement interface {
 
 	// Reset state (for session resets/teleports)
 	Reset()
+}
+
+// DataProvider defines the infrastructure services required by announcements.
+type DataProvider interface {
+	// Basic Context
+	GetLocation(lat, lon float64) model.LocationInfo
+
+	// Proximity & Knowledge (Future-proofing for Briefing)
+	GetPOIsNear(lat, lon, radius float64) []*model.POI
+	GetRepeatTTL() time.Duration
+	GetTripSummary() string
+	GetLastTransition(stage string) time.Time
+
+	// Prompt Data Assembly
+	AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data
+	AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data
 }

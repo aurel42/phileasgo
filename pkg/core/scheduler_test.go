@@ -27,7 +27,6 @@ func (m *mockSchedGeoProvider) ReorderFeatures(lat, lon float64) {
 
 type mockSchedNarrator struct{}
 
-func (m *mockSchedNarrator) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool { return true }
 func (m *mockSchedNarrator) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
 	return true
 }
@@ -35,19 +34,26 @@ func (m *mockSchedNarrator) Heartbeat(ctx context.Context, tel *sim.Telemetry) {
 
 // mockSimClient implements sim.Client
 type mockSimClient struct {
-	telemetry sim.Telemetry
-	mu        sync.Mutex
+	tel   sim.Telemetry
+	err   error
+	state sim.State
+	mu    sync.Mutex
 }
 
 func (m *mockSimClient) GetTelemetry(ctx context.Context) (sim.Telemetry, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.telemetry, nil
+	return m.tel, m.err
 }
 
 func (m *mockSimClient) GetState() sim.State {
-	return sim.StateActive
+	if m.state == "" {
+		return sim.StateActive
+	}
+	return m.state
 }
+
+func (m *mockSimClient) GetLastTransition(stage string) time.Time { return time.Time{} }
 
 func (m *mockSimClient) SetPredictionWindow(d time.Duration) {}
 
@@ -56,7 +62,7 @@ func (m *mockSimClient) Close() error { return nil }
 func (m *mockSimClient) SetTelemetry(t *sim.Telemetry) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.telemetry = *t
+	m.tel = *t
 }
 
 func TestScheduler_JobExecution(t *testing.T) {
@@ -64,7 +70,7 @@ func TestScheduler_JobExecution(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Ticker.TelemetryLoop = config.Duration(10 * time.Millisecond) // Fast loop
 
-	mockSim := &mockSimClient{}
+	mockSim := &mockSimClient{state: sim.StateActive}
 	sched := NewScheduler(cfg, mockSim, nil, &mockSchedNarrator{}, &mockSchedGeoProvider{})
 
 	// job fired latch

@@ -41,8 +41,7 @@ type NarrationJob struct {
 	lastCheckedCount int
 
 	// Flight tracking
-	lastAGL      float64 // Last known AGL for visibility boost check
-	hasDebriefed bool    // Flag to ensure debrief runs only once per flight
+	lastAGL float64 // Last known AGL for visibility boost check
 }
 
 func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker, w *watcher.Service) *NarrationJob {
@@ -207,50 +206,10 @@ func (j *NarrationJob) PrepareEssay(ctx context.Context, t *sim.Telemetry) {
 	}
 }
 
-// CanPrepareDebrief checks if the system is ready for a debrief.
-func (j *NarrationJob) CanPrepareDebrief(t *sim.Telemetry) bool {
-	// 1. Config Check
-	if !j.cfg.Narrator.Debrief.Enabled {
-		return false
-	}
-
-	// 2. State Check
-	if j.narrator.IsPaused() || j.narrator.IsGenerating() {
-		return false
-	}
-
-	// 3. Already Debriefed?
-	if j.hasDebriefed {
-		return false
-	}
-
-	// 3. Stage Trigger
-	// Trigger only when we reach the "landed" stage
-	if t.FlightStage != sim.StageLanded {
-		return false
-	}
-
-	return true
-}
-
-// PrepareDebrief triggers a debrief narration.
-func (j *NarrationJob) PrepareDebrief(ctx context.Context, t *sim.Telemetry) {
-	if !j.TryLock() {
-		return
-	}
-	defer j.Unlock()
-
-	if j.narrator.PlayDebrief(ctx, t) {
-		j.hasDebriefed = true
-	}
-}
-
 // checkFlightStagePOI enforces flight stage restrictions for POI auto-narration.
 func (j *NarrationJob) checkFlightStagePOI(t *sim.Telemetry) bool {
 	switch t.FlightStage {
 	case sim.StageAirborne, sim.StageClimb, sim.StageCruise, sim.StageDescend:
-		// Reset debrief flag when we are airborne/climbing so we can debrief again on next landing
-		j.hasDebriefed = false
 		return true
 	case sim.StageLanded:
 		// Also allowed on ground for airport narration, but NOT once landed (until debriefed)

@@ -45,6 +45,8 @@ type MockSimState struct {
 
 func (m *MockSimState) GetState() sim.State                                     { return m.State }
 func (m *MockSimState) GetTelemetry(ctx context.Context) (sim.Telemetry, error) { return m.Tel, nil }
+func (m *MockSimState) GetLastTransition(stage string) time.Time                { return time.Time{} }
+func (m *MockSimState) SetPredictionWindow(d time.Duration)                     {}
 
 func TestService_Lifecycle(t *testing.T) {
 	// 1. Setup

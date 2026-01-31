@@ -41,8 +41,6 @@ func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink, 
 	}
 
 	// Register Core Jobs
-	// Landing Job
-	s.AddJob(NewLandingJob(n.(Debriefer)))
 	// Border Job
 	borderJob := NewBorderJob(cfg, n, g)
 	s.AddJob(borderJob)

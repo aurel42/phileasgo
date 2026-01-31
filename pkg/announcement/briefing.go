@@ -1,8 +1,7 @@
-package narrator
+package announcement
 
 import (
 	"context"
-	"phileasgo/pkg/announcement"
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
@@ -10,19 +9,19 @@ import (
 	"time"
 )
 
-type BriefingAnnouncement struct {
-	*announcement.BaseAnnouncement
-	provider *AIService
+type Briefing struct {
+	*Base
+	provider DataProvider
 }
 
-func NewBriefingAnnouncement(s *AIService) *BriefingAnnouncement {
-	return &BriefingAnnouncement{
-		BaseAnnouncement: announcement.NewBaseAnnouncement("briefing", model.NarrativeType("briefing"), false),
-		provider:         s,
+func NewBriefing(provider DataProvider) *Briefing {
+	return &Briefing{
+		Base:     NewBase("briefing", model.NarrativeType("briefing"), false),
+		provider: provider,
 	}
 }
 
-func (a *BriefingAnnouncement) ShouldGenerate(t *sim.Telemetry) bool {
+func (a *Briefing) ShouldGenerate(t *sim.Telemetry) bool {
 	// Generate during Parked, Taxi, or Hold if we have an airport nearby
 	if t.FlightStage != sim.StageParked && t.FlightStage != sim.StageTaxi && t.FlightStage != sim.StageHold {
 		return false
@@ -33,11 +32,11 @@ func (a *BriefingAnnouncement) ShouldGenerate(t *sim.Telemetry) bool {
 	return airport != nil
 }
 
-func (a *BriefingAnnouncement) ShouldPlay(t *sim.Telemetry) bool {
+func (a *Briefing) ShouldPlay(t *sim.Telemetry) bool {
 	return t.FlightStage == sim.StageTaxi || t.FlightStage == sim.StageHold
 }
 
-func (a *BriefingAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) {
+func (a *Briefing) GetPromptData(t *sim.Telemetry) (any, error) {
 	airport := a.findNearestAirport(t)
 	if airport == nil {
 		return nil, nil
@@ -45,12 +44,12 @@ func (a *BriefingAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) {
 
 	// Determine strategy based on LastPlayed
 	strategy := prompt.StrategyMaxSkew
-	if !airport.LastPlayed.IsZero() && time.Since(airport.LastPlayed) < time.Duration(a.provider.cfg.Narrator.RepeatTTL) {
+	if !airport.LastPlayed.IsZero() && time.Since(airport.LastPlayed) < a.provider.GetRepeatTTL() {
 		strategy = prompt.StrategyMinSkew
 	}
 
 	// Use unified data builder for full POI context
-	pd := a.provider.promptAssembler.ForPOI(context.Background(), airport, t, strategy, a.provider.getSessionState())
+	pd := a.provider.AssemblePOI(context.Background(), airport, t, strategy)
 	pd["IsBriefing"] = true
 
 	// Set POI and Metadata for UI signaling
@@ -60,8 +59,8 @@ func (a *BriefingAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) {
 	return pd, nil
 }
 
-func (a *BriefingAnnouncement) findNearestAirport(t *sim.Telemetry) *model.POI {
-	pois := a.provider.poiMgr.GetPOIsNear(t.Latitude, t.Longitude, 5000)
+func (a *Briefing) findNearestAirport(t *sim.Telemetry) *model.POI {
+	pois := a.provider.GetPOIsNear(t.Latitude, t.Longitude, 5000)
 	var best *model.POI
 	minDist := 5001.0
 

@@ -21,7 +21,6 @@ func (m *mockTeleportGeoProvider) ReorderFeatures(lat, lon float64) {
 
 type mockTeleportNarrator struct{}
 
-func (m *mockTeleportNarrator) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool { return true }
 func (m *mockTeleportNarrator) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
 	return true
 }

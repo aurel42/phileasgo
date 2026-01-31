@@ -19,6 +19,8 @@ type Client interface {
 	GetTelemetry(ctx context.Context) (Telemetry, error)
 	// GetState returns the current simulator connection/activity state.
 	GetState() State
+	// GetLastTransition returns the timestamp of the last transition to the given stage.
+	GetLastTransition(stage string) time.Time
 	// SetPredictionWindow sets the time duration for future position prediction.
 	SetPredictionWindow(d time.Duration)
 	// Close cleans up resources associated with the client.

@@ -6,8 +6,8 @@ import (
 	"phileasgo/pkg/model"
 )
 
-// BaseAnnouncement provides a thread-safe foundation for implementing Announcements.
-type BaseAnnouncement struct {
+// Base provides a thread-safe foundation for implementing Announcements.
+type Base struct {
 	mu            sync.RWMutex
 	id            string
 	narrativeType model.NarrativeType
@@ -22,8 +22,8 @@ type BaseAnnouncement struct {
 	poi       *model.POI
 }
 
-func NewBaseAnnouncement(id string, nType model.NarrativeType, repeatable bool) *BaseAnnouncement {
-	return &BaseAnnouncement{
+func NewBase(id string, nType model.NarrativeType, repeatable bool) *Base {
+	return &Base{
 		id:            id,
 		narrativeType: nType,
 		repeatable:    repeatable,
@@ -31,35 +31,35 @@ func NewBaseAnnouncement(id string, nType model.NarrativeType, repeatable bool) 
 	}
 }
 
-func (b *BaseAnnouncement) ID() string                { return b.id }
-func (b *BaseAnnouncement) Type() model.NarrativeType { return b.narrativeType }
-func (b *BaseAnnouncement) IsRepeatable() bool        { return b.repeatable }
+func (b *Base) ID() string                { return b.id }
+func (b *Base) Type() model.NarrativeType { return b.narrativeType }
+func (b *Base) IsRepeatable() bool        { return b.repeatable }
 
-func (b *BaseAnnouncement) Status() Status {
+func (b *Base) Status() Status {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.status
 }
 
-func (b *BaseAnnouncement) SetStatus(s Status) {
+func (b *Base) SetStatus(s Status) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.status = s
 }
 
-func (b *BaseAnnouncement) GetHeldNarrative() *model.Narrative {
+func (b *Base) GetHeldNarrative() *model.Narrative {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.held
 }
 
-func (a *BaseAnnouncement) SetHeldNarrative(n *model.Narrative) {
+func (a *Base) SetHeldNarrative(n *model.Narrative) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.held = n
 }
 
-func (a *BaseAnnouncement) Reset() {
+func (a *Base) Reset() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.status = StatusIdle
@@ -67,19 +67,19 @@ func (a *BaseAnnouncement) Reset() {
 }
 
 // UI Metadata defaults (can be overridden by embedding struct)
-func (b *BaseAnnouncement) Title() string     { return b.title }
-func (b *BaseAnnouncement) Summary() string   { return b.summary }
-func (b *BaseAnnouncement) ImagePath() string { return b.imagePath }
-func (b *BaseAnnouncement) POI() *model.POI   { return b.poi }
+func (b *Base) Title() string     { return b.title }
+func (b *Base) Summary() string   { return b.summary }
+func (b *Base) ImagePath() string { return b.imagePath }
+func (b *Base) POI() *model.POI   { return b.poi }
 
-func (b *BaseAnnouncement) SetPOI(p *model.POI) {
+func (b *Base) SetPOI(p *model.POI) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.poi = p
 }
 
 // SetUIMetadata allows manual setup if not dynamic
-func (b *BaseAnnouncement) SetUIMetadata(title, summary, imagePath string) {
+func (b *Base) SetUIMetadata(title, summary, imagePath string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.title = title

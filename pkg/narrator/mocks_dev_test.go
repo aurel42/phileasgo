@@ -226,9 +226,10 @@ func (m *MockBeacon) Clear() {
 }
 
 type MockSim struct {
-	Telemetry  sim.Telemetry
-	Err        error
-	PredWindow time.Duration
+	Telemetry   sim.Telemetry
+	Err         error
+	PredWindow  time.Duration
+	Transitions map[string]time.Time
 }
 
 func (m *MockSim) GetTelemetry(ctx context.Context) (sim.Telemetry, error) {
@@ -237,6 +238,12 @@ func (m *MockSim) GetTelemetry(ctx context.Context) (sim.Telemetry, error) {
 func (m *MockSim) GetState() sim.State { return sim.StateActive }
 func (m *MockSim) SetPredictionWindow(d time.Duration) {
 	m.PredWindow = d
+}
+func (m *MockSim) GetLastTransition(stage string) time.Time {
+	if m.Transitions == nil {
+		return time.Time{}
+	}
+	return m.Transitions[stage]
 }
 func (m *MockSim) SetObjectPosition(id uint32, lat, lon, alt, pitch, bank, heading float64) error {
 	return nil

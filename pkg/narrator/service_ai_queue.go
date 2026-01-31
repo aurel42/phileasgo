@@ -64,7 +64,7 @@ func (s *AIService) HasPendingGeneration() bool {
 	return s.genQ.HasPending()
 }
 
-func (s *AIService) EnqueueAnnouncement(ctx context.Context, a announcement.Announcement, t *sim.Telemetry, onComplete func(*model.Narrative)) {
+func (s *AIService) EnqueueAnnouncement(ctx context.Context, a announcement.Item, t *sim.Telemetry, onComplete func(*model.Narrative)) {
 	s.enqueueGeneration(&generation.Job{
 		Type:         a.Type(),
 		Telemetry:    t,

@@ -103,9 +103,9 @@ type AIService struct {
 	pendingManualStrategy string
 
 	// Infrastructure
-	announcements   *AnnouncementManager // Legacy
-	announcementMgr *announcement.Manager
-	promptAssembler *prompt.Assembler
+	legacyAnnouncements *AnnouncementManager // Legacy
+	announcements       *announcement.Manager
+	promptAssembler     *prompt.Assembler
 
 	// Replay State
 	lastPOI        *model.POI
@@ -181,12 +181,13 @@ func NewAIService(
 	s.sim.SetPredictionWindow(60 * time.Second)
 
 	// Initialize Announcement Manager
-	s.announcements = NewAnnouncementManager(s)
-	s.announcementMgr = announcement.NewManager(s)
+	s.legacyAnnouncements = NewAnnouncementManager(s)
+	s.announcements = announcement.NewManager(s)
 
 	// Register Announcements
-	s.announcementMgr.Register(NewLetsgooAnnouncement(s))
-	s.announcementMgr.Register(NewBriefingAnnouncement(s))
+	s.announcements.Register(announcement.NewLetsgo(s))
+	s.announcements.Register(announcement.NewBriefing(s))
+	s.announcements.Register(announcement.NewDebriefing(s))
 
 	s.promptAssembler = prompt.NewAssembler(
 		cfg,
@@ -229,6 +230,19 @@ func (s *AIService) Pause() {
 // NarratedCount returns the number of narratives generated in the current session.
 func (s *AIService) NarratedCount() int {
 	return s.session().NarratedCount()
+}
+
+// GetTripSummary returns the combined summary of all POIs visited in the current session.
+func (s *AIService) GetTripSummary() string {
+	return s.session().GetState().TripSummary
+}
+
+// GetLastTransition returns the timestamp of the last transition to the given stage.
+func (s *AIService) GetLastTransition(stage string) time.Time {
+	if s.sim == nil {
+		return time.Time{}
+	}
+	return s.sim.GetLastTransition(stage)
 }
 
 // Resume resumes the narration playback.
@@ -304,7 +318,7 @@ func (s *AIService) Heartbeat(ctx context.Context, tel *sim.Telemetry) {
 	s.checkSessionPersistence(ctx, tel)
 
 	s.mu.RLock()
-	ann := s.announcements
+	ann := s.legacyAnnouncements
 	s.mu.RUnlock()
 
 	if ann != nil {
@@ -312,7 +326,7 @@ func (s *AIService) Heartbeat(ctx context.Context, tel *sim.Telemetry) {
 	}
 
 	s.mu.RLock()
-	ann2 := s.announcementMgr
+	ann2 := s.announcements
 	s.mu.RUnlock()
 
 	if ann2 != nil {
@@ -330,12 +344,41 @@ func (s *AIService) AudioService() audio.Service {
 	return s.audio
 }
 
-func (s *AIService) getSessionState() prompt.SessionState {
-	return s.session().GetState()
-}
-
 func (s *AIService) initAssembler() {
 	if s.promptAssembler == nil {
 		s.promptAssembler = prompt.NewAssembler(s.cfg, s.st, s.prompts, s.geoSvc, s.wikipedia, s.poiMgr, s.llm, s.categoriesCfg, nil)
 	}
+}
+
+// DataProvider Implementation
+
+func (s *AIService) GetLocation(lat, lon float64) model.LocationInfo {
+	return s.geoSvc.GetLocation(lat, lon)
+}
+
+func (s *AIService) GetPOIsNear(lat, lon, radius float64) []*model.POI {
+	return s.poiMgr.GetPOIsNear(lat, lon, radius)
+}
+
+func (s *AIService) GetRepeatTTL() time.Duration {
+	return time.Duration(s.cfg.Narrator.RepeatTTL)
+}
+
+func (s *AIService) AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data {
+	s.initAssembler()
+	return s.promptAssembler.ForPOI(ctx, p, t, strategy, s.getSessionState())
+}
+
+func (s *AIService) AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data {
+	s.initAssembler()
+	return s.promptAssembler.ForGeneric(ctx, t, s.getSessionState())
+}
+
+func (s *AIService) NewContext() map[string]any {
+	s.initAssembler()
+	return map[string]any(s.promptAssembler.NewPromptData(s.getSessionState()))
+}
+
+func (s *AIService) getSessionState() prompt.SessionState {
+	return s.session().GetState()
 }

@@ -46,6 +46,8 @@ func (m *MockClient) GetState() sim.State {
 	return sim.StateActive
 }
 
+func (m *MockClient) GetLastTransition(stage string) time.Time { return time.Time{} }
+
 func (m *MockClient) SetPredictionWindow(d time.Duration) {}
 
 func (m *MockClient) Close() error {
@@ -364,9 +366,9 @@ func TestSetTarget_OnGround(t *testing.T) {
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:           true,
-		FormationEnabled:  true,
-		MinSpawnAltitude:  config.Distance(304.8),
+		Enabled:          true,
+		FormationEnabled: true,
+		MinSpawnAltitude: config.Distance(304.8),
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 

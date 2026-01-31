@@ -208,7 +208,9 @@ type mockSim struct{}
 func (m *mockSim) GetTelemetry(ctx context.Context) (sim.Telemetry, error) {
 	return sim.Telemetry{}, nil
 }
-func (m *mockSim) GetState() sim.State { return sim.StateActive } // Important for service.Start/Tick
+func (m *mockSim) GetState() sim.State                      { return sim.StateActive } // Important for service.Start/Tick
+func (m *mockSim) GetLastTransition(stage string) time.Time { return time.Time{} }
+func (m *mockSim) SetPredictionWindow(d time.Duration)      {}
 
 func TestFetchTile_CacheOptimization(t *testing.T) {
 	// Setup Store with Cached Data

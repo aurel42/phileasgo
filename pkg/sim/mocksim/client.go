@@ -146,6 +146,16 @@ func (m *MockClient) SetPredictionWindow(d time.Duration) {
 	m.predictionWindow = d
 }
 
+// GetLastTransition returns the timestamp of the last transition to the given stage.
+func (m *MockClient) GetLastTransition(stage string) time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.stageMachine == nil {
+		return time.Time{}
+	}
+	return m.stageMachine.GetLastTransition(stage)
+}
+
 // SetTransponder updates the transponder state in the mock.
 func (m *MockClient) SetTransponder(squawk int, ident bool) {
 	m.mu.Lock()

@@ -113,8 +113,9 @@ func (m *MockSimClient) GetTelemetry(ctx context.Context) (sim.Telemetry, error)
 	}
 	return sim.Telemetry{}, nil
 }
-func (m *MockSimClient) Close() error                        { return nil }
-func (m *MockSimClient) SetPredictionWindow(d time.Duration) {}
+func (m *MockSimClient) Close() error                             { return nil }
+func (m *MockSimClient) GetLastTransition(stage string) time.Time { return time.Time{} }
+func (m *MockSimClient) SetPredictionWindow(d time.Duration)      {}
 
 // MockElevation stub
 type MockElevation struct{}

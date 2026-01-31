@@ -409,10 +409,6 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 			narrationJob.PrepareEssay(c, t)
 			return
 		}
-		if narrationJob.CanPrepareDebrief(t) {
-			narrationJob.PrepareDebrief(c, t)
-			return
-		}
 	})
 	svcs.PoiMgr.SetValleyAltitudeCallback(func(altMeters float64) {
 		apiHandler.SetValleyAltitude(altMeters)

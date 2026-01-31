@@ -53,13 +53,6 @@ func (m *mockNarratorService) PlayImage(ctx context.Context, imagePath string, t
 	m.playImageCalled = true
 }
 
-func (m *mockNarratorService) PlayDebrief(ctx context.Context, tel *sim.Telemetry) bool {
-	return true
-}
-
-// Wait, I messed up the signature in thought. It should be:
-// func (m *mockNarratorService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
-
 func (m *mockNarratorService) PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error {
 	m.prepareNextCalled = true
 	return nil
@@ -129,8 +122,9 @@ func (m *mockJobSimClient) GetState() sim.State {
 func (m *mockJobSimClient) GetTelemetry(ctx context.Context) (sim.Telemetry, error) {
 	return sim.Telemetry{}, nil
 }
-func (m *mockJobSimClient) SetPredictionWindow(d time.Duration) {}
-func (m *mockJobSimClient) Close() error                        { return nil }
+func (m *mockJobSimClient) GetLastTransition(stage string) time.Time { return time.Time{} }
+func (m *mockJobSimClient) SetPredictionWindow(d time.Duration)      {}
+func (m *mockJobSimClient) Close() error                             { return nil }
 
 func TestNarrationJob_GroundSuppression(t *testing.T) {
 	cfg := config.DefaultConfig()

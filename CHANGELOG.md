@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.80 (2026-01-31)
+- **Feature**: **Automated Debriefing Announcements**. Replaced the legacy polling-based landing job with a reactive announcement that triggers intelligently based on flight duration and rollout state.
+- **Improved**: **Flight Phase Timing**. Telemetry providers now track exact transition timestamps for all flight stages, enabling precise timing for post-flight and in-flight events.
+
 ## v0.3.79 (2026-01-31)
 - **Map Zoom Logic**: Fixed a bug where the map would zoom out to global view during active narration due to incorrect bounding box calculation.
 - **UI Stability**: Implemented hysteresis for range ring labels to prevent flickering when near the viewport edge.

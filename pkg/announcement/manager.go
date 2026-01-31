@@ -11,7 +11,7 @@ import (
 
 // GenerationProvider defines the dependency on the AI service for creating narratives.
 type GenerationProvider interface {
-	EnqueueAnnouncement(ctx context.Context, a Announcement, t *sim.Telemetry, onComplete func(*model.Narrative))
+	EnqueueAnnouncement(ctx context.Context, a Item, t *sim.Telemetry, onComplete func(*model.Narrative))
 	Play(n *model.Narrative)
 }
 
@@ -19,17 +19,17 @@ type GenerationProvider interface {
 type Manager struct {
 	mu       sync.RWMutex
 	narrator GenerationProvider
-	registry map[string]Announcement
+	registry map[string]Item
 }
 
 func NewManager(n GenerationProvider) *Manager {
 	return &Manager{
 		narrator: n,
-		registry: make(map[string]Announcement),
+		registry: make(map[string]Item),
 	}
 }
 
-func (m *Manager) Register(a Announcement) {
+func (m *Manager) Register(a Item) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.registry[a.ID()] = a
@@ -38,7 +38,7 @@ func (m *Manager) Register(a Announcement) {
 // Tick evaluates all registered announcements against current telemetry.
 func (m *Manager) Tick(ctx context.Context, t *sim.Telemetry) {
 	m.mu.Lock()
-	var toGenerate []Announcement
+	var toGenerate []Item
 
 	for id, a := range m.registry {
 		status := a.Status()
@@ -90,7 +90,7 @@ func (m *Manager) Tick(ctx context.Context, t *sim.Telemetry) {
 		m.enqueueGeneration(ctx, a, t)
 	}
 }
-func (m *Manager) enqueueGeneration(ctx context.Context, a Announcement, t *sim.Telemetry) {
+func (m *Manager) enqueueGeneration(ctx context.Context, a Item, t *sim.Telemetry) {
 	id := a.ID()
 	m.narrator.EnqueueAnnouncement(ctx, a, t, func(n *model.Narrative) {
 		m.onResult(id, n, t)
@@ -116,7 +116,7 @@ func (m *Manager) onResult(id string, n *model.Narrative, t *sim.Telemetry) {
 	}
 }
 
-func (m *Manager) triggerPlayback(a Announcement) {
+func (m *Manager) triggerPlayback(a Item) {
 	slog.Info("Announcement: Triggering playback", "id", a.ID(), "title", a.Title())
 	m.narrator.Play(a.GetHeldNarrative())
 	a.SetStatus(StatusTriggered)

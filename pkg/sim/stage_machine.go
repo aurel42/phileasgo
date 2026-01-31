@@ -2,6 +2,7 @@ package sim
 
 import (
 	"strings"
+	"time"
 )
 
 const (
@@ -27,12 +28,14 @@ type StageMachine struct {
 	lastGroundSpeed float64
 	isAccelerating  bool
 	isDecelerating  bool
+	lastTransition  map[string]time.Time
 }
 
 // NewStageMachine creates a stage machine in an uninitialized state.
 func NewStageMachine() *StageMachine {
 	return &StageMachine{
-		current: "",
+		current:        "",
+		lastTransition: make(map[string]time.Time),
 	}
 }
 
@@ -69,6 +72,7 @@ func (m *StageMachine) Update(t *Telemetry) string {
 		m.confirmations++
 		if m.confirmations >= 1 { // 0+1 = 2 ticks total (first detect + 1 confirmation)
 			m.current = candidate
+			m.lastTransition[m.current] = time.Now()
 			m.candidate = ""
 			m.confirmations = 0
 		}
@@ -100,6 +104,14 @@ func (m *StageMachine) Current() string {
 	return m.current
 }
 
+// GetLastTransition returns the timestamp of the last transition to the given stage.
+func (m *StageMachine) GetLastTransition(stage string) time.Time {
+	if m.lastTransition == nil {
+		return time.Time{}
+	}
+	return m.lastTransition[stage]
+}
+
 func (m *StageMachine) detectCandidate(t *Telemetry) string {
 	if t.IsOnGround {
 		return m.detectGroundCandidate(t)
@@ -117,8 +129,13 @@ func (m *StageMachine) detectGroundCandidate(t *Telemetry) string {
 	}
 
 	// 2. Takeoff Roll (Priority: Needs to be accelerating)
+	// User Requirement: trigger take-off only if we were taxiing or holding in the past 10 mins
 	if t.GroundSpeed > 40 && m.isAccelerating {
-		return StageTakeOff
+		lastTaxi := m.lastTransition[StageTaxi]
+		lastHold := m.lastTransition[StageHold]
+		if time.Since(lastTaxi) < 10*time.Minute || time.Since(lastHold) < 10*time.Minute {
+			return StageTakeOff
+		}
 	}
 
 	// 3. Ground Sub-States
@@ -157,8 +174,13 @@ func (m *StageMachine) detectAirborneCandidate(t *Telemetry) string {
 	}
 
 	// 2. Initial Takeoff (Airborne but was just on ground and no performance trend yet)
+	// User Requirement: trigger take-off only if we were taxiing or holding in the past 10 mins
 	if m.wasOnGround {
-		return StageTakeOff
+		lastTaxi := m.lastTransition[StageTaxi]
+		lastHold := m.lastTransition[StageHold]
+		if time.Since(lastTaxi) < 10*time.Minute || time.Since(lastHold) < 10*time.Minute {
+			return StageTakeOff
+		}
 	}
 
 	// Fallback: Maintain current state if it's already an airborne state
@@ -197,4 +219,14 @@ func FormatStage(s string) string {
 	}
 
 	return res
+}
+
+// FlightDuration returns the duration of the flight in seconds since take-off,
+// or 0 if a take-off timestamp is not available.
+func (m *StageMachine) FlightDuration() float64 {
+	takeOffTime, ok := m.lastTransition[StageTakeOff]
+	if !ok || takeOffTime.IsZero() {
+		return 0
+	}
+	return time.Since(takeOffTime).Seconds()
 }

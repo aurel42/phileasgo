@@ -23,7 +23,7 @@ type Job struct {
 	To   string
 
 	// For Announcements (Phases 2 & 3)
-	Announcement announcement.Announcement
+	Announcement announcement.Item
 
 	// Callback handles the generated narrative.
 	// If nil, the dispatcher must decide on a default (e.g. playback).

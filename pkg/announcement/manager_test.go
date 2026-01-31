@@ -13,7 +13,7 @@ type mockProvider struct {
 	done     chan bool
 }
 
-func (m *mockProvider) EnqueueAnnouncement(ctx context.Context, a Announcement, t *sim.Telemetry, onComplete func(*model.Narrative)) {
+func (m *mockProvider) EnqueueAnnouncement(ctx context.Context, a Item, t *sim.Telemetry, onComplete func(*model.Narrative)) {
 	m.enqueued <- true
 	// Simulate async result
 	go func() {
@@ -28,8 +28,8 @@ func (m *mockProvider) EnqueueAnnouncement(ctx context.Context, a Announcement, 
 
 func (m *mockProvider) Play(n *model.Narrative) {}
 
-func TestBaseAnnouncement(t *testing.T) {
-	b := NewBaseAnnouncement("test", model.NarrativeTypePOI, false)
+func TestBase(t *testing.T) {
+	b := NewBase("test", model.NarrativeTypePOI, false)
 	if b.ID() != "test" {
 		t.Errorf("expected ID test, got %s", b.ID())
 	}
@@ -58,7 +58,7 @@ func TestBaseAnnouncement(t *testing.T) {
 }
 
 type testAnnouncement struct {
-	*BaseAnnouncement
+	*Base
 	gen  bool
 	play bool
 }
@@ -66,7 +66,7 @@ type testAnnouncement struct {
 func (a *testAnnouncement) ShouldGenerate(t *sim.Telemetry) bool        { return a.gen }
 func (a *testAnnouncement) ShouldPlay(t *sim.Telemetry) bool            { return a.play }
 func (a *testAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) { return nil, nil }
-func (a *testAnnouncement) POI() *model.POI                             { return a.BaseAnnouncement.POI() }
+func (a *testAnnouncement) POI() *model.POI                             { return a.Base.POI() }
 
 func TestManager_Lifecycle(t *testing.T) {
 	provider := &mockProvider{
@@ -76,7 +76,7 @@ func TestManager_Lifecycle(t *testing.T) {
 	mgr := NewManager(provider)
 
 	a := &testAnnouncement{
-		BaseAnnouncement: NewBaseAnnouncement("a1", model.NarrativeTypePOI, false),
+		Base: NewBase("a1", model.NarrativeTypePOI, false),
 	}
 	mgr.Register(a)
 
@@ -127,9 +127,9 @@ func TestManager_ImmediatePlay(t *testing.T) {
 	mgr := NewManager(provider)
 
 	a := &testAnnouncement{
-		BaseAnnouncement: NewBaseAnnouncement("a2", model.NarrativeTypePOI, false),
-		gen:              true,
-		play:             true,
+		Base: NewBase("a2", model.NarrativeTypePOI, false),
+		gen:  true,
+		play: true,
 	}
 	mgr.Register(a)
 
