@@ -461,6 +461,10 @@ func DetermineSkewStrategy(p *model.POI, poiMgr POIProvider, isOnGround bool) st
 }
 
 func (a *Assembler) calculateNavInstruction(p *model.POI, tel *sim.Telemetry) string {
+	if tel == nil {
+		return ""
+	}
+
 	latSrc, lonSrc := tel.Latitude, tel.Longitude
 	if tel.PredictedLatitude != 0 || tel.PredictedLongitude != 0 {
 		latSrc, lonSrc = tel.PredictedLatitude, tel.PredictedLongitude

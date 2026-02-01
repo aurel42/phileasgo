@@ -16,6 +16,14 @@ import (
 func (s *AIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
 	s.initAssembler()
 
+	if tel == nil && s.sim != nil {
+		if t, err := s.sim.GetTelemetry(ctx); err == nil {
+			tel = &t
+		} else {
+			slog.Warn("Narrator: Failed to fetch telemetry for PlayPOI", "error", err)
+		}
+	}
+
 	if manual {
 		slog.Info("Narrator: Manual generation requested", "poi_id", poiID)
 		s.playPOIManual(poiID, strategy, tel)

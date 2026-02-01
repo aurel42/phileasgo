@@ -107,3 +107,38 @@ func TestAssembler_DetermineSkewStrategy(t *testing.T) {
 		t.Errorf("Expected %s, got %s", StrategyMaxSkew, strat)
 	}
 }
+
+func TestAssembler_ForPOI_NilTelemetry(t *testing.T) {
+	a := &Assembler{
+		cfg: &config.Config{
+			Narrator: config.NarratorConfig{
+				TargetLanguage: "en-US",
+			},
+		},
+		geoSvc:    &MockGeo{Country: "Test", City: "TestCity"},
+		st:        &MockStore{State: map[string]string{}},
+		prompts:   &MockRenderer{},
+		wikipedia: &MockWikipedia{},
+		poiMgr:    &MockPOIProvider{Rivals: 0},
+		llm:       &MockLLM{},
+	}
+
+	session := SessionState{
+		Events:       []model.TripEvent{},
+		LastSentence: "",
+	}
+	// Minimal POI
+	p := &model.POI{
+		Lat:        10,
+		Lon:        10,
+		WikidataID: "Q123",
+		Score:      1.0,
+	}
+
+	// Should not panic (handle nil telemetry)
+	pd := a.ForPOI(context.Background(), p, nil, "", session)
+
+	if pd["NavInstruction"] != "" {
+		t.Errorf("Expected empty nav instruction for nil telemetry, got %v", pd["NavInstruction"])
+	}
+}
