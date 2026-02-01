@@ -15,6 +15,10 @@ type Base struct {
 	status        Status
 	held          *model.Narrative
 
+	// Infrastructure
+	DataProvider DataProvider
+	Events       EventRecorder // Specialized interface for logging
+
 	// UI metadata
 	title     string
 	summary   string
@@ -22,12 +26,14 @@ type Base struct {
 	poi       *model.POI
 }
 
-func NewBase(id string, nType model.NarrativeType, repeatable bool) *Base {
+func NewBase(id string, nType model.NarrativeType, repeatable bool, dp DataProvider, events EventRecorder) *Base {
 	return &Base{
 		id:            id,
 		narrativeType: nType,
 		repeatable:    repeatable,
 		status:        StatusIdle,
+		DataProvider:  dp,
+		Events:        events,
 	}
 }
 

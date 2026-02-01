@@ -179,42 +179,59 @@ func (s *AIService) handleManualQueueAndOverride(poiID, strategy string, manual,
 	return false
 }
 
-func (s *AIService) updateTripSummary(ctx context.Context, lastTitle, lastScript string) {
+func (s *AIService) summarizeAndLogEvent(ctx context.Context, category model.NarrativeType, title, script string) {
 	s.initAssembler()
-	currentSummary := s.session().GetState().TripSummary
 
-	// Build update prompt data
+	// Borders log directly in announcement/border.go ShouldGenerate() - skip here to avoid double-logging
+	if category == model.NarrativeTypeBorder {
+		return
+	}
+
+	// Summarize the event via LLM
 	data := s.promptAssembler.NewPromptData(s.getSessionState())
-	data["CurrentSummary"] = currentSummary
-	data["LastTitle"] = lastTitle
-	data["LastScript"] = lastScript
-	data["MaxWords"] = s.cfg.Narrator.SummaryMaxWords
+	data["LastTitle"] = title
+	data["LastScript"] = script
 
-	prompt, err := s.prompts.Render("narrator/summary_update.tmpl", data)
+	prompt, err := s.prompts.Render("narrator/event_summary.tmpl", data)
 	if err != nil {
-		slog.Error("Narrator: Failed to render summary update template", "error", err)
+		slog.Error("Narrator: Failed to render event summary template", "error", err)
 		return
 	}
 
-	newSummary, err := s.llm.GenerateText(ctx, "summary", prompt)
+	summary, err := s.llm.GenerateText(ctx, "summary", prompt)
 	if err != nil {
-		slog.Error("Narrator: Failed to update trip summary", "error", err)
-		return
+		slog.Error("Narrator: Failed to summarize event", "error", err)
+		// Fallback: Use title if LLM fails
+		summary = title
 	}
 
-	s.session().SetTripSummary(strings.TrimSpace(newSummary))
+	// 2. Clean up summary (remove markup, collapse lines)
+	summary = strings.TrimSpace(summary)
+	summary = strings.ReplaceAll(summary, "\n", " ")
+	summary = strings.ReplaceAll(summary, "**", "")
+	summary = strings.ReplaceAll(summary, "* ", "")
 
-	// Use current aircraft position for session persistence
+	// 3. Log the event
+	event := model.TripEvent{
+		Timestamp: time.Now(),
+		Type:      "narration",
+		Category:  category,
+		Title:     title,
+		Summary:   summary,
+	}
+	s.session().AddEvent(&event)
+
+	// 4. Use current aircraft position for session persistence
 	if tel, err := s.sim.GetTelemetry(context.Background()); err == nil {
 		go s.persistSession(tel.Latitude, tel.Longitude)
 	}
 
-	slog.Debug("Narrator: Trip summary updated", "length", len(s.session().GetState().TripSummary))
+	slog.Debug("Narrator: Trip event logged", "type", category, "title", title)
 }
 
-func (s *AIService) addScriptToHistory(qid, title, script string) {
+func (s *AIService) addScriptToHistory(qid string, nType model.NarrativeType, title, script string) {
 	s.session().AddNarration(qid, title, script)
-	go s.updateTripSummary(context.Background(), title, script)
+	go s.summarizeAndLogEvent(context.Background(), nType, title, script)
 }
 
 func (s *AIService) ResetSession(ctx context.Context) {

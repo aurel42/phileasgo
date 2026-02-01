@@ -1,6 +1,7 @@
 package announcement
 
 import (
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 	"time"
@@ -8,12 +9,14 @@ import (
 
 type Debriefing struct {
 	*Base
-	dp DataProvider
+	cfg *config.Config
+	dp  DataProvider
 }
 
-func NewDebriefing(dp DataProvider) *Debriefing {
+func NewDebriefing(cfg *config.Config, dp DataProvider, events EventRecorder) *Debriefing {
 	return &Debriefing{
-		Base: NewBase("debriefing", model.NarrativeTypeDebriefing, false),
+		Base: NewBase("debriefing", model.NarrativeTypeDebriefing, false, dp, events),
+		cfg:  cfg,
 		dp:   dp,
 	}
 }

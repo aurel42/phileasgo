@@ -19,12 +19,12 @@ type Screenshot struct {
 	currentPath string
 }
 
-func NewScreenshot(cfg *config.Config, watcher *watcher.Service, provider DataProvider) *Screenshot {
+func NewScreenshot(cfg *config.Config, watcher *watcher.Service, dp DataProvider, events EventRecorder) *Screenshot {
 	return &Screenshot{
-		Base:     NewBase("screenshot", model.NarrativeTypeScreenshot, false),
+		Base:     NewBase("screenshot", model.NarrativeTypePOI, false, dp, events),
 		cfg:      cfg,
 		watcher:  watcher,
-		provider: provider,
+		provider: dp,
 	}
 }
 

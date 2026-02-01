@@ -329,6 +329,10 @@ func (s *AIService) GetRepeatTTL() time.Duration {
 	return time.Duration(s.cfg.Narrator.RepeatTTL)
 }
 
+func (s *AIService) AddEvent(event *model.TripEvent) {
+	s.session().AddEvent(event)
+}
+
 func (s *AIService) AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data {
 	s.initAssembler()
 	return s.promptAssembler.ForPOI(ctx, p, t, strategy, s.getSessionState())

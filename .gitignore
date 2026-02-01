@@ -12,6 +12,7 @@
 *.out
 
 # Project specific
+CLAUDE.md
 bin/
 logs/
 configs/phileas.yaml

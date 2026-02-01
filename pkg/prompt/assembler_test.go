@@ -4,6 +4,7 @@ import (
 	"context"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
+	"strings"
 	"testing"
 	"time"
 )
@@ -66,11 +67,22 @@ func TestAssembler_NewPromptData(t *testing.T) {
 			},
 		},
 	}
-	session := SessionState{TripSummary: "Summary", LastSentence: "Last"}
+	session := SessionState{
+		Events: []model.TripEvent{
+			{
+				Timestamp: time.Now(),
+				Type:      "narration",
+				Title:     "Test POI",
+				Summary:   "Interesting summary",
+			},
+		},
+		LastSentence: "Last",
+	}
 	pd := a.NewPromptData(session)
 
-	if pd["TripSummary"] != "Summary" {
-		t.Errorf("Expected Summary, got %v", pd["TripSummary"])
+	summary := pd["TripSummary"].(string)
+	if !strings.Contains(summary, "Test POI") || !strings.Contains(summary, "Interesting summary") {
+		t.Errorf("Expected summary to contain event info, got %v", summary)
 	}
 	if pd["LastSentence"] != "Last" {
 		t.Errorf("Expected Last, got %v", pd["LastSentence"])

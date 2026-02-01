@@ -151,3 +151,13 @@ type ClassificationResult struct {
 	Size     string `json:"size"`
 	Ignored  bool   `json:"ignored"` // True = article should be dropped (in ignored_categories)
 }
+
+// TripEvent represents a structured event in the flight log.
+type TripEvent struct {
+	Timestamp time.Time         `json:"timestamp"`
+	Type      string            `json:"type"`               // "transition", "narration", "activity"
+	Category  NarrativeType     `json:"category,omitempty"` // for narrations
+	Title     string            `json:"title,omitempty"`
+	Summary   string            `json:"summary,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+}

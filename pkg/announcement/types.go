@@ -48,12 +48,17 @@ type Item interface {
 	Reset()
 }
 
+// EventRecorder defines the interface for logging trip events.
+type EventRecorder interface {
+	AddEvent(event *model.TripEvent)
+}
+
 // DataProvider defines the infrastructure services required by announcements.
 type DataProvider interface {
 	// Basic Context
 	GetLocation(lat, lon float64) model.LocationInfo
 
-	// Proximity & Knowledge (Future-proofing for Briefing)
+	// Proximity & Knowledge
 	GetPOIsNear(lat, lon, radius float64) []*model.POI
 	GetRepeatTTL() time.Duration
 	GetTripSummary() string

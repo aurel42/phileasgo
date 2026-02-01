@@ -29,7 +29,7 @@ func (m *mockProvider) EnqueueAnnouncement(ctx context.Context, a Item, t *sim.T
 func (m *mockProvider) Play(n *model.Narrative) {}
 
 func TestBase(t *testing.T) {
-	b := NewBase("test", model.NarrativeTypePOI, false)
+	b := NewBase("test", model.NarrativeTypePOI, false, &mockDP{}, &mockDP{})
 	if b.ID() != "test" {
 		t.Errorf("expected ID test, got %s", b.ID())
 	}
@@ -76,7 +76,7 @@ func TestManager_Lifecycle(t *testing.T) {
 	mgr := NewManager(provider)
 
 	a := &testAnnouncement{
-		Base: NewBase("a1", model.NarrativeTypePOI, false),
+		Base: NewBase("a1", model.NarrativeTypePOI, false, &mockDP{}, &mockDP{}),
 	}
 	mgr.Register(a)
 
@@ -127,7 +127,7 @@ func TestManager_ImmediatePlay(t *testing.T) {
 	mgr := NewManager(provider)
 
 	a := &testAnnouncement{
-		Base: NewBase("a2", model.NarrativeTypePOI, false),
+		Base: NewBase("a2", model.NarrativeTypePOI, false, &mockDP{}, &mockDP{}),
 		gen:  true,
 		play: true,
 	}

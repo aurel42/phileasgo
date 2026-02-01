@@ -19,7 +19,8 @@ func (m *mockBorderGeo) GetLocation(lat, lon float64) model.LocationInfo {
 
 func TestBorder_MaritimeRestrictions(t *testing.T) {
 	geo := &mockBorderGeo{}
-	b := NewBorder(config.DefaultConfig(), geo)
+	dp := &mockDP{}
+	b := NewBorder(config.DefaultConfig(), geo, dp, dp)
 	// Override cooldown for testing
 	b.checkCooldown = 0
 
@@ -68,7 +69,8 @@ func TestBorder_Cooldowns(t *testing.T) {
 	cfg.Narrator.Border.CooldownRepeat = config.Duration(5 * time.Minute)
 
 	geo := &mockBorderGeo{}
-	b := NewBorder(cfg, geo)
+	dp := &mockDP{}
+	b := NewBorder(cfg, geo, dp, dp)
 	b.checkCooldown = 0
 
 	ctx := context.Background()

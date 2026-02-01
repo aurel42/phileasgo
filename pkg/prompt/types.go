@@ -18,6 +18,7 @@ type ImageResult struct {
 // SessionState holds transient flight session context.
 type SessionState struct {
 	TripSummary  string
+	Events       []model.TripEvent
 	LastSentence string
 }
 

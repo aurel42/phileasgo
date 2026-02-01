@@ -302,10 +302,10 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 
 	// Initialize Announcement Managers (Decoupled from AIService)
 	annMgr := announcement.NewManager(narratorSvc)
-	annMgr.Register(announcement.NewLetsgo(narratorSvc))
-	annMgr.Register(announcement.NewBriefing(narratorSvc))
-	annMgr.Register(announcement.NewDebriefing(narratorSvc))
-	annMgr.Register(announcement.NewBorder(cfg, svcs.WikiSvc.GeoService()))
+	annMgr.Register(announcement.NewLetsgo(cfg, narratorSvc, sessionMgr))
+	annMgr.Register(announcement.NewBriefing(cfg, narratorSvc, sessionMgr))
+	annMgr.Register(announcement.NewDebriefing(cfg, narratorSvc, sessionMgr))
+	annMgr.Register(announcement.NewBorder(cfg, svcs.WikiSvc.GeoService(), narratorSvc, sessionMgr))
 
 	return &NarratorComponents{
 		AIService:      narratorSvc,
@@ -417,7 +417,7 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 		} else {
 			slog.Info("Screenshot watcher started", "paths", cfg.Narrator.Screenshot.Paths)
 			// Register Screenshot Announcement
-			annMgr.Register(announcement.NewScreenshot(cfg, screenWatcher, narratorSvc))
+			annMgr.Register(announcement.NewScreenshot(cfg, screenWatcher, narratorSvc, sessionMgr))
 		}
 	}
 

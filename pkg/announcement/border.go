@@ -32,9 +32,9 @@ type Border struct {
 	pendingTo   string
 }
 
-func NewBorder(cfg *config.Config, geo LocationProvider) *Border {
+func NewBorder(cfg *config.Config, geo LocationProvider, dp DataProvider, events EventRecorder) *Border {
 	return &Border{
-		Base:            NewBase("border", model.NarrativeTypeBorder, false),
+		Base:            NewBase("border", model.NarrativeTypeBorder, false, dp, events),
 		geo:             geo,
 		cfg:             cfg,
 		checkCooldown:   10 * time.Second, // Check every 10s (similar to old 15s)
@@ -84,6 +84,16 @@ func (b *Border) ShouldGenerate(t *sim.Telemetry) bool {
 	b.pendingTo = to
 	b.lastAnnounce = time.Now()
 	b.repeatCooldowns[fmt.Sprintf("%s->%s", from, to)] = time.Now()
+
+	// Direct log to event history (Phase 3)
+	if b.Events != nil {
+		b.Events.AddEvent(&model.TripEvent{
+			Timestamp: time.Now(),
+			Type:      "activity",
+			Title:     "Border Crossing",
+			Summary:   fmt.Sprintf("Moved from %s to %s", from, to),
+		})
+	}
 
 	b.lastLocation = curr // Update location only after success or handled logic
 

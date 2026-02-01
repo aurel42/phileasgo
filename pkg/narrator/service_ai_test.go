@@ -440,66 +440,38 @@ func TestAIService_GeneratePlay(t *testing.T) {
 		t.Errorf("Expected narrated count 1, got %d", svc.NarratedCount())
 	}
 }
-func TestAIService_UpdateTripSummary(t *testing.T) {
+func TestAIService_SummarizeAndLogEvent(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
-	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "summary_update.tmpl"), []byte("Summary: {{.CurrentSummary}} New: {{.LastScript}} Limit: {{.MaxWords}}"), 0o644)
+	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "event_summary.tmpl"), []byte("Summary: {{.LastScript}}"), 0o644)
 	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
 
 	pm, _ := prompts.NewManager(tempDir)
 
-	tests := []struct {
-		name           string
-		currentSummary string
-		lastTitle      string
-		lastScript     string
-		maxWords       int
-		llmResponse    string
-		expectSummary  string
-	}{
-		{
-			name:           "First Summary",
-			currentSummary: "",
-			lastTitle:      "Initial Stop",
-			lastScript:     "Hello world",
-			maxWords:       100,
-			llmResponse:    "New Summary",
-			expectSummary:  "New Summary",
-		},
-		{
-			name:           "Summary Update",
-			currentSummary: "Old info",
-			lastTitle:      "Second Stop",
-			lastScript:     "More info",
-			maxWords:       200,
-			llmResponse:    "Consolidated info",
-			expectSummary:  "Consolidated info",
-		},
+	cfg := &config.Config{
+		Narrator: config.NarratorConfig{},
+	}
+	mockLLM := &MockLLM{Response: "Clean Summary"}
+	svc := &AIService{
+		cfg:        cfg,
+		llm:        mockLLM,
+		prompts:    pm,
+		sessionMgr: session.NewManager(),
+		sim:        &MockSim{},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{
-				Narrator: config.NarratorConfig{
-					SummaryMaxWords: tt.maxWords,
-				},
-			}
-			mockLLM := &MockLLM{Response: tt.llmResponse}
-			svc := &AIService{
-				cfg:        cfg,
-				llm:        mockLLM,
-				prompts:    pm,
-				sessionMgr: session.NewManager(),
-				sim:        &MockSim{},
-			}
-			svc.session().SetTripSummary(tt.currentSummary)
+	svc.summarizeAndLogEvent(context.Background(), model.NarrativeTypePOI, "Test POI", "Script Content")
 
-			svc.updateTripSummary(context.Background(), tt.lastTitle, tt.lastScript)
+	events := svc.session().GetState().Events
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
 
-			if svc.GetTripSummary() != tt.expectSummary {
-				t.Errorf("Expected summary '%s', got '%s'", tt.expectSummary, svc.GetTripSummary())
-			}
-		})
+	if events[0].Summary != "Clean Summary" {
+		t.Errorf("Expected summary 'Clean Summary', got '%s'", events[0].Summary)
+	}
+	if events[0].Type != "narration" {
+		t.Errorf("Expected type 'narration', got '%s'", events[0].Type)
 	}
 }
 

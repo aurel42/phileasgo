@@ -178,9 +178,8 @@ func (a *Assembler) injectPersona(pd Data, session SessionState) {
 	pd["FemalePersona"] = "Intelligent, fascinating"
 	pd["FemaleAccent"] = "Neutral"
 	pd["PassengerMale"] = "Andrew"
-	pd["MalePersona"] = "Curious traveler"
 	pd["MaleAccent"] = "Neutral"
-	pd["TripSummary"] = session.TripSummary
+	pd["TripSummary"] = a.formatTripLog(session.Events)
 	pd["LastSentence"] = session.LastSentence
 	pd["TargetLanguage"] = a.cfg.Narrator.TargetLanguage
 	pd["MaxWords"] = a.cfg.Narrator.NarrationLengthLongWords
@@ -202,6 +201,26 @@ func (a *Assembler) injectPersona(pd Data, session SessionState) {
 	pd["Language_code"] = langCode
 	pd["Language_name"] = langName
 	pd["Language_region_code"] = targetLang
+}
+
+func (a *Assembler) formatTripLog(events []model.TripEvent) string {
+	if len(events) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	for _, e := range events {
+		timeStr := e.Timestamp.Format("15:04")
+		if e.Type == "narration" {
+			category := string(e.Category)
+			if category == "" {
+				category = "POI"
+			}
+			sb.WriteString(fmt.Sprintf("* [%s] %s: %s - %s\n", timeStr, strings.ToUpper(category), e.Title, e.Summary))
+		} else {
+			sb.WriteString(fmt.Sprintf("* [%s] %s: %s\n", timeStr, strings.ToUpper(e.Type), e.Title))
+		}
+	}
+	return sb.String()
 }
 
 func (a *Assembler) injectPOI(ctx context.Context, pd Data, p *model.POI) {

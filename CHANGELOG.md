@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.90 (2026-02-01)
+- **Architectural Refinement**: **Event-Based Trip History**. Replaced the rolling trip summary with a structured event log, providing cleaner context for LLM prompts and enabling future trip log export.
+- **Architectural Refinement**: **Decoupled Event Ownership**. Moved trip event storage from `AIService` to `session.Manager`, reducing god-object coupling.
+
 ## v0.3.89 (2026-02-01)
 - **Fix**: **Location Context Ambiguity**. Replaced 2-letter country codes with full country names (e.g., "Mongolia" instead of "MN") in LLM prompts to prevent hallucinations like "Minnesota" when flying in other regions.
 

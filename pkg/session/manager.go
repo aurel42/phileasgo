@@ -2,16 +2,17 @@ package session
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
+	"time"
 
+	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
 )
 
 // Manager handles transient flight session context.
 type Manager struct {
 	mu            sync.RWMutex
-	tripSummary   string
+	events        []model.TripEvent
 	lastSentence  string
 	narratedCount int
 }
@@ -27,14 +28,18 @@ func (m *Manager) AddNarration(id, title, script string) {
 	defer m.mu.Unlock()
 
 	m.lastSentence = script
+	// Note: We'll migrate this to AddEvent in a later step when we have summaries
+}
 
-	// Append to trip summary
-	if m.tripSummary != "" {
-		m.tripSummary += " "
+// AddEvent adds a structured event to the session history.
+func (m *Manager) AddEvent(event *model.TripEvent) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
 	}
-	m.tripSummary += fmt.Sprintf("[%s]: %s", title, script)
-
-	// Keep summary manageable? (Maybe later)
+	m.events = append(m.events, *event)
 }
 
 // IncrementCount increases the total narration count.
@@ -44,20 +49,13 @@ func (m *Manager) IncrementCount() {
 	m.narratedCount++
 }
 
-// SetTripSummary overwrites the current trip summary (e.g. from an LLM).
-func (m *Manager) SetTripSummary(s string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.tripSummary = s
-}
-
 // GetState returns the current session state for prompt assembly.
 func (m *Manager) GetState() prompt.SessionState {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	return prompt.SessionState{
-		TripSummary:  m.tripSummary,
+		Events:       m.events,
 		LastSentence: m.lastSentence,
 	}
 }
@@ -74,18 +72,18 @@ func (m *Manager) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.tripSummary = ""
+	m.events = nil
 	m.lastSentence = ""
 	m.narratedCount = 0
 }
 
 // PersistentState represents the serializable part of the session.
 type PersistentState struct {
-	TripSummary   string  `json:"trip_summary"`
-	LastSentence  string  `json:"last_sentence"`
-	NarratedCount int     `json:"narrated_count"`
-	Lat           float64 `json:"lat"`
-	Lon           float64 `json:"lon"`
+	Events        []model.TripEvent `json:"events"`
+	LastSentence  string            `json:"last_sentence"`
+	NarratedCount int               `json:"narrated_count"`
+	Lat           float64           `json:"lat"`
+	Lon           float64           `json:"lon"`
 }
 
 // GetPersistentState returns a JSON-encoded representation of the current session state.
@@ -94,7 +92,7 @@ func (m *Manager) GetPersistentState(lat, lon float64) ([]byte, error) {
 	defer m.mu.RUnlock()
 
 	ps := PersistentState{
-		TripSummary:   m.tripSummary,
+		Events:        m.events,
 		LastSentence:  m.lastSentence,
 		NarratedCount: m.narratedCount,
 		Lat:           lat,
@@ -114,7 +112,7 @@ func (m *Manager) Restore(data []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.tripSummary = ps.TripSummary
+	m.events = ps.Events
 	m.lastSentence = ps.LastSentence
 	m.narratedCount = ps.NarratedCount
 	// Lat/Lon are stored for distance check, not needed in active state for now

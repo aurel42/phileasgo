@@ -1,13 +1,14 @@
 package announcement
 
 import (
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/sim"
 	"testing"
 )
 
 func TestLetsgo_Triggers(t *testing.T) {
 	dp := &mockDP{}
-	a := NewLetsgo(dp)
+	a := NewLetsgo(config.DefaultConfig(), dp, dp)
 
 	tests := []struct {
 		name         string

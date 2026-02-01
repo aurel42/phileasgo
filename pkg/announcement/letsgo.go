@@ -2,6 +2,7 @@ package announcement
 
 import (
 	"context"
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
@@ -9,13 +10,15 @@ import (
 
 type Letsgo struct {
 	*Base
+	cfg      *config.Config
 	provider DataProvider
 }
 
-func NewLetsgo(provider DataProvider) *Letsgo {
+func NewLetsgo(cfg *config.Config, dp DataProvider, events EventRecorder) *Letsgo {
 	return &Letsgo{
-		Base:     NewBase("letsgo", model.NarrativeType("letsgo"), false),
-		provider: provider,
+		Base:     NewBase("letsgo", model.NarrativeTypePOI, false, dp, events),
+		cfg:      cfg,
+		provider: dp,
 	}
 }
 

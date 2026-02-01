@@ -2,6 +2,7 @@ package announcement
 
 import (
 	"context"
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
@@ -11,13 +12,15 @@ import (
 
 type Briefing struct {
 	*Base
+	cfg      *config.Config
 	provider DataProvider
 }
 
-func NewBriefing(provider DataProvider) *Briefing {
+func NewBriefing(cfg *config.Config, dp DataProvider, events EventRecorder) *Briefing {
 	return &Briefing{
-		Base:     NewBase("briefing", model.NarrativeType("briefing"), false),
-		provider: provider,
+		Base:     NewBase("briefing", model.NarrativeTypeBriefing, false, dp, events),
+		cfg:      cfg,
+		provider: dp,
 	}
 }
 
