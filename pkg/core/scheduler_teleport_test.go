@@ -19,13 +19,6 @@ func (m *mockTeleportGeoProvider) ReorderFeatures(lat, lon float64) {
 	// no-op
 }
 
-type mockTeleportNarrator struct{}
-
-func (m *mockTeleportNarrator) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
-	return true
-}
-func (m *mockTeleportNarrator) Heartbeat(ctx context.Context, tel *sim.Telemetry) {}
-
 type mockResettable struct {
 	resetCalled bool
 }
@@ -43,7 +36,7 @@ func TestScheduler_TeleportDetection(t *testing.T) {
 	// It has SetTelemetry helper
 	mockSim := &mockSimClient{}
 
-	sched := NewScheduler(cfg, mockSim, nil, &mockTeleportNarrator{}, &mockTeleportGeoProvider{})
+	sched := NewScheduler(cfg, mockSim, nil, &mockTeleportGeoProvider{})
 
 	mr1 := &mockResettable{}
 	mr2 := &mockResettable{}

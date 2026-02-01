@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"phileasgo/pkg/model"
-	"phileasgo/pkg/sim"
 )
 
 // SessionResettable is an interface for components that maintain session-specific state
@@ -11,11 +10,6 @@ import (
 // aircraft "teleports" (starts a new flight).
 type SessionResettable interface {
 	ResetSession(ctx context.Context)
-}
-
-// Borderrer interface for triggering border announcements.
-type Borderrer interface {
-	Heartbeat(ctx context.Context, tel *sim.Telemetry)
 }
 
 // LocationProvider interface for reverse geocoding.

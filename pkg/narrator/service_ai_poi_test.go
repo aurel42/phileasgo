@@ -6,6 +6,7 @@ import (
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/session"
 	"phileasgo/pkg/sim"
 	"strings"
 	"testing"
@@ -32,6 +33,7 @@ func TestAIService_RescueScript(t *testing.T) {
 				TargetLanguage: "en-US",
 			},
 		},
+		sessionMgr: session.NewManager(),
 	}
 
 	// Pre-create the template in the manager's root
@@ -59,11 +61,12 @@ func TestAIService_PlayPOI_Constraints(t *testing.T) {
 	mockSim := &MockSim{}
 
 	svc := &AIService{
-		poiMgr:    mockPOIProv,
-		sim:       mockSim,
-		st:        &MockStore{},
-		playbackQ: playback.NewManager(),
-		genQ:      generation.NewManager(),
+		poiMgr:     mockPOIProv,
+		sim:        mockSim,
+		st:         &MockStore{},
+		playbackQ:  playback.NewManager(),
+		genQ:       generation.NewManager(),
+		sessionMgr: session.NewManager(),
 	}
 
 	// 1. Manual PlayPOI - should enqueue generation

@@ -72,8 +72,6 @@ type AIService struct {
 	langRes       LanguageResolver
 	categoriesCfg *config.CategoriesConfig // For pregrounding checks
 	sessionMgr    *session.Manager
-	sessionOnce   sync.Once
-	persistOnce   sync.Once // For one-time session restoration check
 
 	mu           sync.RWMutex
 	running      bool
@@ -151,6 +149,7 @@ func NewAIService(
 	interests []string,
 	avoid []string,
 	tr *tracker.Tracker,
+	sessMgr *session.Manager,
 ) *AIService {
 	s := &AIService{
 		cfg:             cfg,
@@ -173,7 +172,7 @@ func NewAIService(
 		interests:       interests,
 		avoid:           avoid,
 		fallbackTracker: tr,
-		sessionMgr:      session.NewManager(),
+		sessionMgr:      sessMgr,
 		playbackQ:       playback.NewManager(), // Initialize playback queue
 		genQ:            generation.NewManager(),
 		pacingDuration:  3 * time.Second,
@@ -281,11 +280,6 @@ func (s *AIService) POIManager() POIProvider {
 }
 
 func (s *AIService) session() *session.Manager {
-	s.sessionOnce.Do(func() {
-		if s.sessionMgr == nil {
-			s.sessionMgr = session.NewManager()
-		}
-	})
 	return s.sessionMgr
 }
 
@@ -303,11 +297,6 @@ func (s *AIService) persistSession(lat, lon float64) {
 	if err := s.st.SetState(context.Background(), "session_context", string(data)); err != nil {
 		slog.Error("Narrator: Failed to persist session state", "error", err)
 	}
-}
-
-// Heartbeat drives periodic tasks like announcements.
-func (s *AIService) Heartbeat(ctx context.Context, tel *sim.Telemetry) {
-	s.checkSessionPersistence(ctx, tel)
 }
 
 // LLMProvider returns the internal LLM provider.

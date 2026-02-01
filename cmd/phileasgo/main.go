@@ -30,6 +30,7 @@ import (
 	"phileasgo/pkg/probe"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/scorer"
+	"phileasgo/pkg/session"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/sim/mocksim"
 	"phileasgo/pkg/store"
@@ -118,10 +119,14 @@ func run(ctx context.Context, configPath string) error {
 	verifyStartup(ctx, catCfg, wdValidator)
 
 	// Narrator & TTS
-	narratorSvc, annMgr, legacyAnnMgr, promptMgr, err := initNarrator(ctx, appCfg, svcs, tr, simClient, st, catCfg)
+	comps, err := initNarrator(ctx, appCfg, svcs, tr, simClient, st, catCfg)
 	if err != nil {
 		return err
 	}
+	narratorSvc := comps.AIService
+	annMgr := comps.AnnManager
+	promptMgr := comps.PromptManager
+	sessionMgr := comps.SessionManager
 	narratorSvc.Start()
 	defer narratorSvc.Stop()
 
@@ -144,8 +149,7 @@ func run(ctx context.Context, configPath string) error {
 	visCalc := initVisibility(st)
 
 	// Scheduler
-	sched := setupScheduler(appCfg, simClient, st, narratorSvc, annMgr, legacyAnnMgr, promptMgr, wdValidator, svcs, telH, losChecker, visCalc)
-	go sched.Start(ctx)
+	sched := setupScheduler(appCfg, simClient, st, narratorSvc, annMgr, promptMgr, wdValidator, svcs, telH, losChecker, visCalc, sessionMgr)
 
 	// Scorer
 	// Use elProv, or if nil (missing file), use a nil interface (Scorer must handle or we wrap)
@@ -243,10 +247,17 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 	}, nil
 }
 
-func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store, catCfg *config.CategoriesConfig) (outAi *narrator.AIService, outAnn *announcement.Manager, outLeg *narrator.AnnouncementManager, outPm *prompts.Manager, outErr error) {
+type NarratorComponents struct {
+	AIService      *narrator.AIService
+	AnnManager     *announcement.Manager
+	PromptManager  *prompts.Manager
+	SessionManager *session.Manager
+}
+
+func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store, catCfg *config.CategoriesConfig) (*NarratorComponents, error) {
 	llmProv, err := narrator.NewLLMProvider(cfg.LLM, cfg.History.LLM, svcs.ReqClient, tr)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to initialize LLM provider: %w", err)
+		return nil, fmt.Errorf("failed to initialize LLM provider: %w", err)
 	}
 
 	// Configure temperature for narration prompts (bell curve distribution)
@@ -257,12 +268,15 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 
 	ttsProv, err := narrator.NewTTSProvider(&cfg.TTS, cfg.Narrator.TargetLanguage, tr)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to initialize TTS provider: %w", err)
+		return nil, fmt.Errorf("failed to initialize TTS provider: %w", err)
 	}
+
 	promptMgr, err := prompts.NewManager("configs/prompts")
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to initialize prompt manager: %w", err)
+		return nil, fmt.Errorf("failed to initialize prompt manager: %w", err)
 	}
+
+	sessionMgr := session.NewManager()
 
 	var beaconSvc *beacon.Service
 	// Initialize Beacon Service if enabled in config
@@ -274,7 +288,7 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 		}
 	}
 
-	narratorSvc := createAIService(cfg, llmProv, ttsProv, promptMgr, audio.New(&cfg.Narrator), svcs.PoiMgr, beaconSvc, svcs.WikiSvc, simClient, st, tr, catCfg)
+	narratorSvc := createAIService(cfg, llmProv, ttsProv, promptMgr, audio.New(&cfg.Narrator), svcs.PoiMgr, beaconSvc, svcs.WikiSvc, simClient, st, tr, catCfg, sessionMgr)
 
 	// Restore Volume
 	volStr, _ := st.GetState(ctx, "volume")
@@ -292,9 +306,12 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 	annMgr.Register(announcement.NewDebriefing(narratorSvc))
 	annMgr.Register(announcement.NewBorder(cfg, svcs.WikiSvc.GeoService()))
 
-	legacyAnnMgr := narrator.NewAnnouncementManager(narratorSvc)
-
-	return narratorSvc, annMgr, legacyAnnMgr, promptMgr, nil
+	return &NarratorComponents{
+		AIService:      narratorSvc,
+		AnnManager:     annMgr,
+		PromptManager:  promptMgr,
+		SessionManager: sessionMgr,
+	}, nil
 }
 
 func verifyStartup(ctx context.Context, catCfg *config.CategoriesConfig, v *wikidata.Validator) {
@@ -362,8 +379,9 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 	return runServerLifecycle(ctx, srv, quit)
 }
 
-func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc *narrator.AIService, annMgr *announcement.Manager, legacyAnnMgr *narrator.AnnouncementManager, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker, vis *visibility.Calculator) *core.Scheduler {
-	sched := core.NewScheduler(cfg, simClient, apiHandler, narratorSvc, svcs.WikiSvc.GeoService())
+func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc *narrator.AIService, annMgr *announcement.Manager, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker, vis *visibility.Calculator, sessionMgr *session.Manager) *core.Scheduler {
+	sched := core.NewScheduler(cfg, simClient, apiHandler, svcs.WikiSvc.GeoService())
+	sched.AddJob(core.NewSessionRestorationJob(st, sessionMgr))
 	sched.AddJob(core.NewDistanceJob("DistanceSync", 5000, func(c context.Context, t sim.Telemetry) {
 		_ = st.MarkEntitiesSeen(c, map[string][]string{})
 	}))
@@ -372,7 +390,6 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 	sched.AddResettable(narratorSvc)
 	sched.AddResettable(svcs.PoiMgr)
 	sched.AddResettable(annMgr)
-	sched.AddResettable(legacyAnnMgr)
 
 	// Register Cleanup Job (runs every 10s)
 	sched.AddJob(core.NewTimeJob("CacheCleanup", 10*time.Second, func(c context.Context, t sim.Telemetry) {
@@ -382,11 +399,6 @@ func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, na
 	// Register Announcement Jobs (Standard) - 1Hz
 	sched.AddJob(core.NewTimeJob("Announcements", 1*time.Second, func(c context.Context, t sim.Telemetry) {
 		annMgr.Tick(c, &t)
-	}))
-
-	// Register Announcement Jobs (Legacy) - 1Hz
-	sched.AddJob(core.NewTimeJob("AnnouncementsLegacy", 1*time.Second, func(c context.Context, t sim.Telemetry) {
-		legacyAnnMgr.Tick(c, &t)
 	}))
 
 	// Register River Job (runs every 15s, detects nearby rivers)
@@ -498,6 +510,7 @@ func createAIService(
 	st store.Store,
 	tr *tracker.Tracker,
 	catCfg *config.CategoriesConfig,
+	sessionMgr *session.Manager,
 ) *narrator.AIService {
 	var beaconProvider narrator.BeaconProvider
 	if beaconSvc != nil {
@@ -535,5 +548,6 @@ func createAIService(
 		interests,
 		avoid,
 		tr,
+		sessionMgr,
 	)
 }

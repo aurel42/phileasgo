@@ -139,13 +139,14 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 			Response: "TITLE: Title\n" + longResponse,
 		}
 		svc := &AIService{
-			cfg:     cfg,
-			llm:     mockLLM,
-			tts:     mockTTS,
-			prompts: pm,
-			st:      &MockStore{},
-			sim:     &MockSim{},
-			running: true,
+			cfg:        cfg,
+			llm:        mockLLM,
+			tts:        mockTTS,
+			prompts:    pm,
+			st:         &MockStore{},
+			sim:        &MockSim{},
+			sessionMgr: session.NewManager(),
+			running:    true,
 		}
 		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil)
 
@@ -178,13 +179,14 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 			},
 		}
 		svc := &AIService{
-			cfg:     cfg,
-			llm:     mockLLM,
-			tts:     mockTTS,
-			prompts: pm,
-			st:      &MockStore{},
-			sim:     &MockSim{},
-			running: true,
+			cfg:        cfg,
+			llm:        mockLLM,
+			tts:        mockTTS,
+			prompts:    pm,
+			st:         &MockStore{},
+			sim:        &MockSim{},
+			sessionMgr: session.NewManager(),
+			running:    true,
 		}
 		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil)
 

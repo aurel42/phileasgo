@@ -5,14 +5,16 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator/generation"
 	"phileasgo/pkg/narrator/playback"
+	"phileasgo/pkg/session"
 	"testing"
 )
 
 func TestAIService_QueueManagement(t *testing.T) {
 	svc := &AIService{
-		playbackQ: playback.NewManager(),
-		genQ:      generation.NewManager(),
-		st:        &MockStore{},
+		playbackQ:  playback.NewManager(),
+		genQ:       generation.NewManager(),
+		st:         &MockStore{},
+		sessionMgr: session.NewManager(),
 	}
 
 	// 1. Enqueue Auto POI

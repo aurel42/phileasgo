@@ -39,23 +39,6 @@ X Flight Stage state machine needs tuning: take-off triggers after landing; take
 - the label of the range rings sometimes periodically jumps between two range rings, needs hysteresis? Depends on window size, ofc.
 - move session persistence to a better place than in a "heartbeat"
 
-# Announcements:
-- can either fire once per flight (welcome, debrief) or multiple times (border crossing), this is a fixed behavior of the specific announcement
-- triggers for example on flight stage state transitions
-- can trigger generation in one stage and playback in another stage 
-- if the playback is triggered before the generation is started, the announcement is skipped
-- if the playback is triggered before the generation is finished, the announcement is queued immediately after generation is finished
-- can optionally request an info panel in the frontends, if they do: must provide a title, optionally text and/or image
-
-Example: welcome announcement triggers generation when parked, triggers playback on transition to taxi
-Example: debrief announcement triggers generation and playback when landed
-Example: border announcement triggers as it does now
-Example: screenshot announcement triggers generation and playback when a new screenshot is found
-
-Phase 1) infrastructure
-Phase 2) Welcome Announcement
-Phase 3) Migration of screenshot, border, debrief
-
 # Trip Themes
 
 # Trip Planning

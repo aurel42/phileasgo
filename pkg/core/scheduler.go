@@ -24,19 +24,17 @@ type Scheduler struct {
 	jobs             []Job
 	resettables      []SessionResettable
 	lastTickPos      geo.Point
-	narrator         Borderrer // Renamed from debriefer for generalized use
 	locationProvider LocationProvider
 }
 
 // NewScheduler creates a new Scheduler.
-func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink, n Borderrer, g LocationProvider) *Scheduler {
+func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink, g LocationProvider) *Scheduler {
 	s := &Scheduler{
 		cfg:              cfg,
 		sim:              simClient,
 		sink:             sink,
 		jobs:             []Job{},
 		resettables:      []SessionResettable{},
-		narrator:         n,
 		locationProvider: g,
 	}
 
@@ -106,11 +104,6 @@ func (s *Scheduler) tick(ctx context.Context) {
 	// 2. Broadcast to Sink (API)
 	if s.sink != nil {
 		s.sink.Update(&tel)
-	}
-
-	// 2.2 Announcements Heartbeat
-	if s.narrator != nil {
-		s.narrator.Heartbeat(ctx, &tel)
 	}
 
 	// 2.5 Teleport Detection
