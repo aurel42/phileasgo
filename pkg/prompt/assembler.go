@@ -129,7 +129,7 @@ func (a *Assembler) injectTelemetry(pd Data, t *sim.Telemetry) {
 	// Geographical context for aircraft position
 	loc := a.geoSvc.GetLocation(t.Latitude, t.Longitude)
 	pd["TargetRegion"] = fmt.Sprintf("Near %s", loc.CityName)
-	pd["TargetCountry"] = loc.CountryCode
+	pd["TargetCountry"] = loc.CountryName
 }
 
 func (a *Assembler) GenerateFlightStatusSentence(t *sim.Telemetry) string {
@@ -219,7 +219,7 @@ func (a *Assembler) injectPOI(ctx context.Context, pd Data, p *model.POI) {
 
 	// Location info
 	loc := a.geoSvc.GetLocation(p.Lat, p.Lon)
-	pd["Country"] = loc.CountryCode
+	pd["Country"] = loc.CountryName
 	pd["Region"] = loc.Admin1Name
 	pd["City"] = loc.CityName
 
@@ -335,7 +335,7 @@ func (a *Assembler) fetchPregroundContext(ctx context.Context, p *model.POI) str
 	}{
 		Name:     p.DisplayName(),
 		Category: p.Category,
-		Country:  a.geoSvc.GetLocation(p.Lat, p.Lon).CountryCode,
+		Country:  a.geoSvc.GetLocation(p.Lat, p.Lon).CountryName,
 		Lat:      p.Lat,
 		Lon:      p.Lon,
 	}

@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.89 (2026-02-01)
+- **Fix**: **Location Context Ambiguity**. Replaced 2-letter country codes with full country names (e.g., "Mongolia" instead of "MN") in LLM prompts to prevent hallucinations like "Minnesota" when flying in other regions.
+
 ## v0.3.88 (2026-02-01)
 - **Fix**: **Orphaned Fallback Indicators**. Resolved a UI bug in the API stats dashboard where orphaned arrows appeared when only one LLM provider was active.
 
