@@ -59,9 +59,17 @@ export const OverlayPOIPanel = ({ poi, title, currentType, playbackProgress, isP
         category = "Regional Essay";
     }
 
+    const getFontSize = (text: string) => {
+        const len = text.length;
+        if (len <= 15) return '30px'; // Base size
+        if (len <= 20) return '24px';
+        if (len <= 25) return '20px';
+        return '18px'; // Minimum size
+    };
+
     return (
         <div className={`overlay-poi-panel ${visible ? 'visible' : ''}`}>
-            <div className="poi-name">{primaryName}</div>
+            <div className="poi-name" style={{ fontSize: getFontSize(primaryName) }}>{primaryName}</div>
             <div className="poi-category">{category}</div>
 
             {thumbnailUrl && (

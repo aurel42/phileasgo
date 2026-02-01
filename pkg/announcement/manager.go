@@ -55,17 +55,6 @@ func (m *Manager) Tick(ctx context.Context, t *sim.Telemetry) {
 				continue
 			}
 
-			// 2. Check if we missed the play window before generation started
-			if a.ShouldPlay(t) {
-				slog.Debug("Announcement: Missed window (Play triggered while Idle)", "id", id)
-				if a.IsRepeatable() {
-					// Repeatable announcements just wait for the next cycle
-					continue
-				}
-				a.SetStatus(StatusMissed)
-				continue
-			}
-
 		case StatusGenerating:
 			// Just wait for completion. ShouldPlay will be checked in onResult.
 			continue

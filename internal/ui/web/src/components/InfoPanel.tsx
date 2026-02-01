@@ -200,11 +200,29 @@ export const InfoPanel = ({
                 </div>
             </div>
 
-            {/* Statistics Flex Layout (Now only API stats) */}
+            {/* Statistics Flex Layout (API stats) */}
             <div className="stats-grid">
-                {stats?.providers && Object.entries(stats.providers)
-                    .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-                    .map(([key, data]: [string, any]) => {
+                {(() => {
+                    if (!stats?.providers) return null;
+
+                    const fallbackOrder = stats.llm_fallback || [];
+                    const providerEntries = Object.entries(stats.providers) as [string, any][];
+
+                    // Identify LLM providers from fallback list
+                    const llmProviders = providerEntries
+                        .filter(([key]) => fallbackOrder.includes(key))
+                        .sort(([keyA], [keyB]) => {
+                            const idxA = fallbackOrder.indexOf(keyA);
+                            const idxB = fallbackOrder.indexOf(keyB);
+                            return idxA - idxB;
+                        });
+
+                    // Non-LLM providers (Data Services)
+                    const dataProviders = providerEntries
+                        .filter(([key]) => !fallbackOrder.includes(key))
+                        .sort(([keyA], [keyB]) => keyA.localeCompare(keyB));
+
+                    const renderProvider = (key: string, data: any, showIndicator: boolean = false) => {
                         if (data.api_success === 0 && data.api_errors === 0) return null;
 
                         const label = key.toUpperCase().replace('-', ' ');
@@ -212,26 +230,45 @@ export const InfoPanel = ({
                         const hitRate = hasCacheActivity && data.hit_rate !== undefined ? `${data.hit_rate}% Hit` : null;
 
                         return (
-                            <div className="flex-card stat-card" key={key}>
-                                <div className="role-header">
-                                    {label}
-                                    {data.free_tier === false && <span>💵</span>}
+                            <div className="stat-card-container" key={key}>
+                                <div className="flex-card stat-card">
+                                    <div className="role-header">
+                                        {label}
+                                        {data.free_tier === false && <span>£</span>}
+                                    </div>
+                                    <div className="role-num-lg">
+                                        <span style={{ color: 'var(--success)' }}>{data.api_success}</span>
+                                        <span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px' }}>◆</span>
+                                        {data.api_zero !== undefined && (
+                                            <>
+                                                <span>{data.api_zero}</span>
+                                                <span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px' }}>◆</span>
+                                            </>
+                                        )}
+                                        <span style={{ color: 'var(--error)' }}>{data.api_errors}</span>
+                                    </div>
+                                    {hitRate && <span className="role-label">{hitRate}</span>}
                                 </div>
-                                <div className="role-num-lg">  {/* Restored to Large Role per request */}
-                                    <span style={{ color: 'var(--success)' }}>{data.api_success}</span>
-                                    <span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px' }}>◆</span>
-                                    {data.api_zero !== undefined && (
-                                        <>
-                                            <span>{data.api_zero}</span>
-                                            <span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px' }}>◆</span>
-                                        </>
-                                    )}
-                                    <span style={{ color: 'var(--error)' }}>{data.api_errors}</span>
-                                </div>
-                                {hitRate && <span className="role-label">{hitRate}</span>}
+                                {showIndicator && (
+                                    <div className="fallback-flow-indicator">
+                                        <div className="fallback-triangle" />
+                                    </div>
+                                )}
                             </div>
                         );
-                    })}
+                    };
+
+                    return (
+                        <>
+                            {llmProviders.map(([key, data], idx) =>
+                                renderProvider(key, data, idx < llmProviders.length - 1)
+                            )}
+                            {dataProviders.map(([key, data]) =>
+                                renderProvider(key, data)
+                            )}
+                        </>
+                    );
+                })()}
             </div >
 
 

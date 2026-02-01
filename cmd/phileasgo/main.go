@@ -357,7 +357,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	shutdownFunc := func() { quit <- syscall.SIGTERM }
 
-	statsH := api.NewStatsHandler(tr, svcs.PoiMgr)
+	statsH := api.NewStatsHandler(tr, svcs.PoiMgr, cfg.LLM.Fallback)
 	configH := api.NewConfigHandler(st, cfg)
 	geoH := api.NewGeographyHandler(svcs.WikiSvc.GeoService())
 

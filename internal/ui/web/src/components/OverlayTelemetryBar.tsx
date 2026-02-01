@@ -181,34 +181,87 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                     )}
                 </div>
 
-                {/* 3. API Counter Card */}
-                <div className="stat-box" style={{ minWidth: '160px', alignItems: 'flex-start' }}>
+                {/* 3. LLM Pipeline Card */}
+                <div className="stat-box" style={{ minWidth: '180px', alignItems: 'flex-start' }}>
+                    <div className="role-label-overlay" style={{ marginBottom: '6px', color: 'var(--accent)', fontSize: '12px', borderBottom: '1px solid rgba(212,175,55,0.2)', width: '100%' }}>LLM PIPELINE</div>
                     <div className="stat-value" style={{
                         display: 'grid',
-                        gridTemplateColumns: 'max-content 1fr 24px',
-                        columnGap: '12px',
+                        gridTemplateColumns: 'max-content 1fr max-content',
+                        columnGap: '8px',
                         rowGap: '2px',
                         textAlign: 'left',
-                        alignItems: 'baseline'
+                        alignItems: 'baseline',
+                        width: '100%'
                     }}>
-                        {stats?.providers && Object.entries(stats.providers)
-                            .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-                            .map(([key, data]) => {
-                                if (!data) return null;
-                                if (data.api_success === 0 && data.api_errors === 0) return null;
+                        {(() => {
+                            if (!stats?.providers) return null;
+                            const fallbackOrder = (stats as any).llm_fallback || [];
+                            const toRoman = (num: number) => ["I", "II", "III", "IV", "V"][num] || (num + 1).toString();
 
-                                const label = key.toUpperCase().replace('-', ' ');
-                                return (
-                                    <div key={key} style={{ display: 'contents' }}>
-                                        <div className="role-header" style={{ fontSize: '16px', whiteSpace: 'nowrap' }}>
-                                            {label}
-                                            {data.free_tier === false && <span style={{ marginLeft: '4px' }}>💵</span>}
+                            return Object.entries(stats.providers)
+                                .filter(([key]) => fallbackOrder.includes(key))
+                                .sort(([keyA], [keyB]) => fallbackOrder.indexOf(keyA) - fallbackOrder.indexOf(keyB))
+                                .map(([key, data], idx) => {
+                                    if (!data) return null;
+                                    if (data.api_success === 0 && data.api_errors === 0) return null;
+                                    const label = key.toUpperCase().replace('-', ' ');
+                                    return (
+                                        <div key={key} style={{ display: 'contents' }}>
+                                            <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                                                <span className="roman-numeral">{toRoman(idx)}</span>
+                                                <div className="role-header" style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>
+                                                    {label}
+                                                </div>
+                                            </div>
+                                            <div className="role-num-sm" style={{ textAlign: 'right', paddingRight: '4px' }}>
+                                                <span style={{ color: 'var(--success)' }}>{data.api_success}</span>
+                                                <span style={{ color: 'var(--muted)', margin: '0 4px', fontSize: '10px' }}>◆</span>
+                                                <span style={{ color: 'var(--error)' }}>{data.api_errors}</span>
+                                            </div>
+                                            <div style={{ width: '12px', fontSize: '14px' }}>{data.free_tier === false ? '£' : ''}</div>
                                         </div>
-                                        <div className="role-num-sm" style={{ textAlign: 'right', paddingRight: '4px' }}>{data.api_success}</div>
-                                        <div style={{ width: '24px' }}></div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                });
+                        })()}
+                    </div>
+                </div>
+
+                {/* 3b. Data Services Card */}
+                <div className="stat-box" style={{ minWidth: '160px', alignItems: 'flex-start' }}>
+                    <div className="role-label-overlay" style={{ marginBottom: '6px', color: 'var(--accent)', fontSize: '12px', borderBottom: '1px solid rgba(212,175,55,0.2)', width: '100%' }}>DATA SERVICES</div>
+                    <div className="stat-value" style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'max-content 1fr max-content',
+                        columnGap: '8px',
+                        rowGap: '2px',
+                        textAlign: 'left',
+                        alignItems: 'baseline',
+                        width: '100%'
+                    }}>
+                        {(() => {
+                            if (!stats?.providers) return null;
+                            const fallbackOrder = (stats as any).llm_fallback || [];
+
+                            return Object.entries(stats.providers)
+                                .filter(([key]) => !fallbackOrder.includes(key))
+                                .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+                                .map(([key, data]) => {
+                                    if (!data) return null;
+                                    if (data.api_success === 0 && data.api_errors === 0) return null;
+                                    const label = key.toUpperCase().replace('-', ' ');
+                                    return (
+                                        <div key={key} style={{ display: 'contents' }}>
+                                            <div className="role-header" style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>{label}</div>
+                                            <div className="role-num-sm" style={{ textAlign: 'right', paddingRight: '4px' }}>
+                                                <span style={{ color: 'var(--success)' }}>{data.api_success}</span>
+                                                <span style={{ color: 'var(--muted)', margin: '0 4px', fontSize: '10px' }}>◆</span>
+                                                <span style={{ color: 'var(--error)' }}>{data.api_errors}</span>
+                                            </div>
+                                            <div style={{ width: '12px', fontSize: '14px' }}>{data.free_tier === false ? '£' : ''}</div>
+                                        </div>
+                                    );
+                                });
+                        })()}
                     </div>
                 </div>
 

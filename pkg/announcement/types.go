@@ -17,7 +17,6 @@ const (
 	StatusHeld       Status = "Held"       // Narrative ready, waiting for play window
 	StatusTriggered  Status = "Triggered"  // Sent to playback queue
 	StatusDone       Status = "Done"       // Completed (only for non-repeatable)
-	StatusMissed     Status = "Missed"     // Play window passed before generation
 )
 
 // Item defines the generic interface for timed flight narrations (previously Announcement).

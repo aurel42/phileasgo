@@ -1,5 +1,12 @@
 ﻿Release History
 
+## v0.3.86 (2026-02-01)
+- **Feature**: **Victorian API Stats Reordering**. LLM statistics are now sorted according to the failover fallback order, featuring Victorian-style flow indicators (brass triangles) to visualize the pipeline.
+- **Feature**: **Title Font Autoshrink**. Implemented dynamic font sizing in the overlay POI panel to prevent overflow of long POI names (e.g., German compound words), automatically scaling from 30px down to 18px.
+- **Refinement**: **Victorian Iconography**. Replaced contemporary cash bill icons with the Pound sterling symbol (£) across all API stats for a more consistent 19th-century aesthetic.
+- **Architectural Refinement**: **Simplified Announcement Lifecycle**. Removed the `StatusMissed` state from the announcement manager, ensuring playback conditions are only evaluated once content is successfully generated.
+- **Improved**: **Overlay Observability**. Split the API stats into dedicated "LLM Pipeline" and "Data Services" cards, featuring Roman numeral indexing for LLM providers and explicit failure counts.
+
 ## v0.3.85 (2026-02-01)
 - **Feature**: **Flight Stage Visibility**. Added `DEBUG` level logging for flight stage transitions in the `StageMachine`, providing better observability into phase detection.
 

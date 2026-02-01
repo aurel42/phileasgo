@@ -10,16 +10,18 @@ import (
 )
 
 type StatsHandler struct {
-	tracker *tracker.Tracker
-	poiMgr  *poi.Manager
-	mu      sync.Mutex
-	maxMem  uint64
+	tracker     *tracker.Tracker
+	poiMgr      *poi.Manager
+	llmFallback []string
+	mu          sync.Mutex
+	maxMem      uint64
 }
 
-func NewStatsHandler(t *tracker.Tracker, pm *poi.Manager) *StatsHandler {
+func NewStatsHandler(t *tracker.Tracker, pm *poi.Manager, fallback []string) *StatsHandler {
 	return &StatsHandler{
-		tracker: t,
-		poiMgr:  pm,
+		tracker:     t,
+		poiMgr:      pm,
+		llmFallback: fallback,
 	}
 }
 
@@ -44,9 +46,10 @@ type TrackingStats struct {
 }
 
 type StatsResponse struct {
-	System    SystemStats                 `json:"system"`
-	Tracking  TrackingStats               `json:"tracking"`
-	Providers map[string]ProviderStatsDTO `json:"providers"`
+	System      SystemStats                 `json:"system"`
+	Tracking    TrackingStats               `json:"tracking"`
+	Providers   map[string]ProviderStatsDTO `json:"providers"`
+	LLMFallback []string                    `json:"llm_fallback"`
 }
 
 func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +77,8 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Tracking: TrackingStats{
 			ActivePOIs: h.poiMgr.ActiveCount(),
 		},
-		Providers: make(map[string]ProviderStatsDTO),
+		Providers:   make(map[string]ProviderStatsDTO),
+		LLMFallback: h.llmFallback,
 	}
 
 	for provider, stats := range snapshot {
