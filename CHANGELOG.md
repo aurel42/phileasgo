@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.91 (2026-02-01)
+- **Feature**: **Robust Flight Stage Detection**. Implemented a validation-based state machine that reliably filters out bounces, touch-and-goes, and aborted take-offs using 4s/15s confirmation windows.
+- **Robustness**: **Mid-Air Start Handling**. The system now immediately initializes to an airborne state if flight telemetry is detected at startup, preventing false "Take-off" events.
+- **Feature**: **Structured Event Log**. Introduced `events.log` for a dedicated, structured audit trail of flight events, separating machine-readable data from human-readable logs.
+
 ## v0.3.90 (2026-02-01)
 - **Architectural Refinement**: **Event-Based Trip History**. Replaced the rolling trip summary with a structured event log, providing cleaner context for LLM prompts and enabling future trip log export.
 - **Architectural Refinement**: **Decoupled Event Ownership**. Moved trip event storage from `AIService` to `session.Manager`, reducing god-object coupling.

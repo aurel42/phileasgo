@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
 )
@@ -40,6 +41,9 @@ func (m *Manager) AddEvent(event *model.TripEvent) {
 		event.Timestamp = time.Now()
 	}
 	m.events = append(m.events, *event)
+
+	// Log to events.log
+	logging.LogEvent(event)
 }
 
 // IncrementCount increases the total narration count.

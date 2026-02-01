@@ -8,18 +8,30 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/model"
 )
 
 // RequestLogger is the logger instance for HTTP requests.
 var RequestLogger *slog.Logger
 
+// eventLogPath is the path to the event log file.
+var eventLogPath string
+
+// eventLogMu protects concurrent writes to the event log.
+var eventLogMu sync.Mutex
+
 // Init initializes the logging system based on configuration.
 // It returns a cleanup function to close log files.
 func Init(cfg *config.LogConfig, hCfg *config.HistoryConfig) (func(), error) {
 	// Rotate standard log files at startup
-	rotatePaths(cfg.Server.Path, cfg.Requests.Path)
+	rotatePaths(cfg.Server.Path, cfg.Requests.Path, cfg.Events.Path)
+
+	// Set up event log path
+	SetEventLogPath(cfg.Events.Path)
 
 	// Rotate history files only if enabled
 	if hCfg != nil {
@@ -188,5 +200,51 @@ func rotatePaths(paths ...string) {
 			// Rename current to .old
 			_ = os.Rename(p, oldPath)
 		}
+	}
+}
+
+// SetEventLogPath configures the path for the event log file.
+func SetEventLogPath(path string) {
+	eventLogMu.Lock()
+	defer eventLogMu.Unlock()
+	eventLogPath = path
+}
+
+// LogEvent writes a trip event to the event log file.
+func LogEvent(event *model.TripEvent) {
+	eventLogMu.Lock()
+	defer eventLogMu.Unlock()
+
+	if eventLogPath == "" {
+		return
+	}
+
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(eventLogPath), 0o755); err != nil {
+		slog.Error("failed to create event log directory", "error", err)
+		return
+	}
+
+	// Open file in append mode
+	f, err := os.OpenFile(eventLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		slog.Error("failed to open event log", "error", err)
+		return
+	}
+	defer f.Close()
+
+	// Format: [2006-01-02 15:04:05] [type] Title - Summary
+	ts := event.Timestamp
+	if ts.IsZero() {
+		ts = time.Now()
+	}
+	line := fmt.Sprintf("[%s] [%s] %s", ts.Format("2006-01-02 15:04:05"), event.Type, event.Title)
+	if event.Summary != "" {
+		line += " - " + event.Summary
+	}
+	line += "\n"
+
+	if _, err := f.WriteString(line); err != nil {
+		slog.Error("failed to write event log", "error", err)
 	}
 }

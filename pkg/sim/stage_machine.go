@@ -22,86 +22,206 @@ const (
 // StageMachine tracks the flight phase state across telemetry ticks.
 type StageMachine struct {
 	current         string
-	candidate       string
-	confirmations   int
-	wasOnGround     bool
-	wasAirborne     bool
 	lastGroundSpeed float64
 	isAccelerating  bool
 	isDecelerating  bool
 	lastTransition  map[string]time.Time
+
+	// Robustness fields
+	transitionStart time.Time // When the potential state change was first detected
+	lockedUntil     time.Time // Time until which the state is frozen (transition hold)
+
+	// Time source for testing
+	now func() time.Time
 }
 
 // NewStageMachine creates a stage machine in an uninitialized state.
-func NewStageMachine() *StageMachine {
+func NewStageMachine(timeSource ...func() time.Time) *StageMachine {
+	clock := time.Now
+	if len(timeSource) > 0 {
+		clock = timeSource[0]
+	}
 	return &StageMachine{
 		current:        "",
 		lastTransition: make(map[string]time.Time),
+		now:            clock,
 	}
 }
 
 // Update evaluates telemetry and returns the current refined stage.
 func (m *StageMachine) Update(t *Telemetry) string {
-	// Trend Tracking
-	if m.current != "" {
-		m.isAccelerating = t.GroundSpeed > m.lastGroundSpeed+1
-		m.isDecelerating = t.GroundSpeed < m.lastGroundSpeed-1
-	}
-	m.lastGroundSpeed = t.GroundSpeed
+	now := m.now()
 
-	// First-tick Initialization: determine fallback from actual ground status
+	// 1. Initial State (First Tick)
 	if m.current == "" {
-		if t.IsOnGround {
-			m.current = StageOnGround
-			m.wasOnGround = true
-		} else {
-			m.current = StageAirborne
-			m.wasAirborne = true
-		}
-		slog.Debug("StageMachine: Initialized", "stage", m.current)
-		// Skip hysteresis for initial state
+		return m.initializeState(t, now)
+	}
+
+	// 2. Event Hold (Lock)
+	if now.Before(m.lockedUntil) {
 		return m.current
 	}
 
-	candidate := m.detectCandidate(t)
+	// Trend Tracking
+	m.updateTrends(t)
 
-	// Hysteresis: Require 2 ticks to confirm state change
-	switch {
-	case candidate == m.current:
-		m.candidate = ""
-		m.confirmations = 0
-	case candidate == m.candidate:
-		m.confirmations++
-		if m.confirmations >= 1 { // 0+1 = 2 ticks total (first detect + 1 confirmation)
-			old := m.current
-			m.current = candidate
-			m.lastTransition[m.current] = time.Now()
-			slog.Debug("StageMachine: Transition confirmed", "from", old, "to", m.current)
-			m.candidate = ""
-			m.confirmations = 0
-		}
-	default:
-		m.candidate = candidate
-		m.confirmations = 0
+	// 3. Validation Logic (Frozen State)
+	if stage, handled := m.checkTransitions(t, now); handled {
+		return stage
 	}
 
-	// Persistent State Management
+	// 4. Normal Sub-state Logic
 	if t.IsOnGround {
-		m.wasOnGround = true
-	}
-	if !t.IsOnGround {
-		m.wasAirborne = true
-	}
-
-	// Resets
-	switch m.current {
-	case StageClimb, StageCruise:
-		m.wasOnGround = false
-	case StageTaxi, StageHold, StageParked:
-		m.wasAirborne = false
+		m.current = m.updateGroundState(t, m.current)
+	} else {
+		m.current = m.updateAirborneState(t, m.current)
 	}
 
 	return m.current
+}
+
+func (m *StageMachine) initializeState(t *Telemetry, now time.Time) string {
+	if t.IsOnGround {
+		m.current = StageOnGround
+	} else {
+		// Mid-air start: Trigger synthetic Take-off
+		m.current = StageTakeOff
+		m.recordTransition(StageTakeOff, now)
+		slog.Info("StageMachine: Mid-air start detected", "stage", m.current)
+	}
+	return m.current
+}
+
+func (m *StageMachine) updateTrends(t *Telemetry) {
+	m.isAccelerating = t.GroundSpeed > m.lastGroundSpeed+1
+	m.isDecelerating = t.GroundSpeed < m.lastGroundSpeed-1
+	m.lastGroundSpeed = t.GroundSpeed
+}
+
+func (m *StageMachine) checkTransitions(t *Telemetry, now time.Time) (string, bool) {
+	isAirborneState := isAirborne(m.current)
+	isGroundState := !isAirborneState
+
+	// Case A: Ground -> Air (Potential Take-off)
+	if isGroundState && !t.IsOnGround {
+		return m.handleTakeoffCandidate(t, now)
+	}
+
+	// Case B: Air -> Ground (Potential Landing)
+	if isAirborneState && t.IsOnGround {
+		return m.handleLandingCandidate(t, now)
+	}
+
+	// Reset validation if state matches physical reality
+	if (isGroundState && t.IsOnGround) || (isAirborneState && !t.IsOnGround) {
+		m.transitionStart = time.Time{}
+	}
+
+	return "", false
+}
+
+func (m *StageMachine) handleTakeoffCandidate(t *Telemetry, now time.Time) (string, bool) {
+	if m.transitionStart.IsZero() {
+		m.transitionStart = now
+	}
+
+	// Wait 4 seconds for valid take-off
+	if now.Sub(m.transitionStart) > 4*time.Second {
+		// Check One-Time Confirmation
+		if !t.IsOnGround {
+			// Confirmed Take-off
+			m.current = StageTakeOff
+			m.recordTransition(StageTakeOff, now)
+			m.lockedUntil = now.Add(4 * time.Second)
+			m.transitionStart = time.Time{} // Reset
+			slog.Info("StageMachine: Take-off Confirmed", "stage", m.current)
+			return m.current, true
+		}
+		// Failed Validation (Bounce/Glitch)
+		m.transitionStart = time.Time{}
+		return "", false // Fall through to ground state update
+	}
+	// FROZEN: Return current ground state while validating
+	return m.current, true
+}
+
+func (m *StageMachine) handleLandingCandidate(t *Telemetry, now time.Time) (string, bool) {
+	if m.transitionStart.IsZero() {
+		m.transitionStart = now
+	}
+
+	// Wait 15 seconds for valid landing (bridges TNGs)
+	if now.Sub(m.transitionStart) > 15*time.Second {
+		// Check One-Time Confirmation
+		if t.IsOnGround {
+			// Confirmed Landing
+			m.current = StageLanded
+			m.recordTransition(StageLanded, now)
+			m.lockedUntil = now.Add(4 * time.Second)
+			m.transitionStart = time.Time{} // Reset
+			slog.Info("StageMachine: Landing Confirmed", "stage", m.current)
+			return m.current, true
+		}
+		// Failed Validation (Touch and Go / Bounce)
+		m.transitionStart = time.Time{}
+		return "", false // Fall through to airborne state update
+	}
+	// FROZEN: Return current airborne state while validating
+	return m.current, true
+}
+
+func (m *StageMachine) recordTransition(stage string, t time.Time) {
+	m.lastTransition[stage] = t
+}
+
+func isAirborne(stage string) bool {
+	switch stage {
+	case StageTakeOff, StageAirborne, StageClimb, StageCruise, StageDescend:
+		return true
+	}
+	return false
+}
+
+func (m *StageMachine) updateGroundState(t *Telemetry, current string) string {
+	// If we just landed and lock expired, we might still be 'Landed'.
+	// Transition to Taxi/Hold/Parked based on speed/engine.
+
+	// Parked
+	if !t.EngineOn && t.GroundSpeed < 1 {
+		return StageParked
+	}
+
+	// Engine On
+	if t.EngineOn {
+		if t.GroundSpeed >= 5 {
+			return StageTaxi
+		}
+		// If very slow, Hold
+		if t.GroundSpeed < 1 {
+			return StageHold
+		}
+	}
+
+	// Fallback: If we are already in a valid ground state, keep it.
+	// E.g. Waiting between 1 and 5 knots.
+	switch current {
+	case StageParked, StageTaxi, StageHold, StageLanded, StageOnGround:
+		return current
+	}
+
+	return StageOnGround
+}
+
+func (m *StageMachine) updateAirborneState(t *Telemetry, current string) string {
+	// Simple performance-based states
+	if t.VerticalSpeed > 300 {
+		return StageClimb
+	}
+	if t.VerticalSpeed < -300 {
+		return StageDescend
+	}
+	// Stable
+	return StageCruise
 }
 
 func (m *StageMachine) Current() string {
@@ -114,86 +234,6 @@ func (m *StageMachine) GetLastTransition(stage string) time.Time {
 		return time.Time{}
 	}
 	return m.lastTransition[stage]
-}
-
-func (m *StageMachine) detectCandidate(t *Telemetry) string {
-	if t.IsOnGround {
-		return m.detectGroundCandidate(t)
-	}
-	return m.detectAirborneCandidate(t)
-}
-
-func (m *StageMachine) detectGroundCandidate(t *Telemetry) string {
-	// 1. Landed (Priority: Airborne -> Ground + Decelerating or stable after touchdown)
-	// We check wasAirborne to ensure we don't trigger Landed while already on ground.
-	if m.wasAirborne {
-		if m.isDecelerating || t.GroundSpeed < 40 {
-			return StageLanded
-		}
-	}
-
-	// 2. Takeoff Roll (Priority: Needs to be accelerating)
-	// User Requirement: trigger take-off only if we were taxiing or holding in the past 10 mins
-	if t.GroundSpeed > 40 && m.isAccelerating {
-		lastTaxi := m.lastTransition[StageTaxi]
-		lastHold := m.lastTransition[StageHold]
-		if time.Since(lastTaxi) < 10*time.Minute || time.Since(lastHold) < 10*time.Minute {
-			return StageTakeOff
-		}
-	}
-
-	// 3. Ground Sub-States
-	if !t.EngineOn && t.GroundSpeed < 1 {
-		return StageParked
-	}
-
-	if t.EngineOn {
-		if t.GroundSpeed >= 5 && t.GroundSpeed <= 25 {
-			return StageTaxi
-		}
-		if t.GroundSpeed < 1 {
-			return StageHold
-		}
-	}
-
-	// Fallback: Maintain current state if it's already a ground state
-	switch m.current {
-	case StageParked, StageTaxi, StageHold, StageTakeOff, StageLanded:
-		return m.current
-	}
-
-	return StageOnGround
-}
-
-func (m *StageMachine) detectAirborneCandidate(t *Telemetry) string {
-	// 1. Performance States (Trend established)
-	if t.VerticalSpeed > 300 {
-		return StageClimb
-	}
-	if t.VerticalSpeed < -300 {
-		return StageDescend
-	}
-	if t.VerticalSpeed > -200 && t.VerticalSpeed < 200 {
-		return StageCruise
-	}
-
-	// 2. Initial Takeoff (Airborne but was just on ground and no performance trend yet)
-	// User Requirement: trigger take-off only if we were taxiing or holding in the past 10 mins
-	if m.wasOnGround {
-		lastTaxi := m.lastTransition[StageTaxi]
-		lastHold := m.lastTransition[StageHold]
-		if time.Since(lastTaxi) < 10*time.Minute || time.Since(lastHold) < 10*time.Minute {
-			return StageTakeOff
-		}
-	}
-
-	// Fallback: Maintain current state if it's already an airborne state
-	switch m.current {
-	case StageAirborne, StageClimb, StageCruise, StageDescend, StageTakeOff:
-		return m.current
-	}
-
-	return StageAirborne
 }
 
 // FormatStage returns a human-readable title for the stage.

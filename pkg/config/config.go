@@ -203,6 +203,7 @@ type TransponderConfig struct {
 type LogConfig struct {
 	Server   LogSettings `yaml:"server"`
 	Requests LogSettings `yaml:"requests"`
+	Events   LogSettings `yaml:"events"`
 }
 
 // HistoryConfig holds interaction history settings.
@@ -345,6 +346,10 @@ func DefaultConfig() *Config {
 			},
 			Requests: LogSettings{
 				Path:  "./logs/requests.log",
+				Level: "INFO",
+			},
+			Events: LogSettings{
+				Path:  "./logs/events.log",
 				Level: "INFO",
 			},
 		},
@@ -667,6 +672,7 @@ func expandPaths(cfg *Config) {
 	cfg.DB.Path = expandEnv(cfg.DB.Path)
 	cfg.Log.Server.Path = expandEnv(cfg.Log.Server.Path)
 	cfg.Log.Requests.Path = expandEnv(cfg.Log.Requests.Path)
+	cfg.Log.Events.Path = expandEnv(cfg.Log.Events.Path)
 	cfg.History.LLM.Path = expandEnv(cfg.History.LLM.Path)
 	cfg.History.TTS.Path = expandEnv(cfg.History.TTS.Path)
 	for i, p := range cfg.Narrator.Screenshot.Paths {
