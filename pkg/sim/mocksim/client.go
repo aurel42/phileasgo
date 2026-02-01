@@ -171,6 +171,16 @@ func (m *MockClient) Close() error {
 	return nil
 }
 
+// GetStageState returns the current stage machine state (stub).
+func (c *MockClient) GetStageState() sim.StageState {
+	return sim.StageState{}
+}
+
+// RestoreStageState restores the stage machine state (stub).
+func (c *MockClient) RestoreStageState(s sim.StageState) {
+	// No-op for mock
+}
+
 func (m *MockClient) physicsLoop() {
 	defer m.wg.Done()
 	ticker := time.NewTicker(time.Duration(tickRateMs) * time.Millisecond)

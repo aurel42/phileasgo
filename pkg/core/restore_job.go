@@ -14,14 +14,16 @@ type SessionRestorationJob struct {
 	BaseJob
 	st      store.Store
 	sessMgr *session.Manager
+	sim     sim.Client
 	done    int32 // 1 if attempted
 }
 
-func NewSessionRestorationJob(st store.Store, sm *session.Manager) *SessionRestorationJob {
+func NewSessionRestorationJob(st store.Store, sm *session.Manager, s sim.Client) *SessionRestorationJob {
 	return &SessionRestorationJob{
 		BaseJob: NewBaseJob("SessionRestoration"),
 		st:      st,
 		sessMgr: sm,
+		sim:     s,
 	}
 }
 
@@ -53,6 +55,12 @@ func (j *SessionRestorationJob) Run(ctx context.Context, t *sim.Telemetry) {
 	// TryRestore returns true if it actually checked/restored/discarded.
 	// Returns false if conditions (like IsOnGround) weren't met (though we checked that in ShouldFire).
 	if session.TryRestore(ctx, j.st, j.sessMgr, t) {
+		// If restoration happened (or we decided to start fresh), we mark this as done.
 		atomic.StoreInt32(&j.done, 1)
+
+		// After restoration, apply stage data to sim client
+		if stageData := j.sessMgr.GetStageData(); stageData.Current != "" {
+			j.sim.RestoreStageState(stageData)
+		}
 	}
 }

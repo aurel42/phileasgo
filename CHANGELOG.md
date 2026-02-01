@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.92 (2026-02-01)
+- **Feature**: **Flight Stage Persistence**. Implemented robust session restoration that remembers the flight stage (e.g. "En Route", "Taxi") across restarts, preventing incorrect logic triggers.
+- **Documentation**: **Attribution**. Added credit for Natural Earth data sources.
+
 ## v0.3.91 (2026-02-01)
 - **Feature**: **Robust Flight Stage Detection**. Implemented a validation-based state machine that reliably filters out bounces, touch-and-goes, and aborted take-offs using 4s/15s confirmation windows.
 - **Robustness**: **Mid-Air Start Handling**. The system now immediately initializes to an airborne state if flight telemetry is detected at startup, preventing false "Take-off" events.

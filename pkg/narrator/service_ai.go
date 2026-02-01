@@ -283,22 +283,6 @@ func (s *AIService) session() *session.Manager {
 	return s.sessionMgr
 }
 
-func (s *AIService) persistSession(lat, lon float64) {
-	if s.st == nil {
-		return
-	}
-
-	data, err := s.session().GetPersistentState(lat, lon)
-	if err != nil {
-		slog.Error("Narrator: Failed to serialize session state", "error", err)
-		return
-	}
-
-	if err := s.st.SetState(context.Background(), "session_context", string(data)); err != nil {
-		slog.Error("Narrator: Failed to persist session state", "error", err)
-	}
-}
-
 // LLMProvider returns the internal LLM provider.
 func (s *AIService) LLMProvider() llm.Provider {
 	return s.llm

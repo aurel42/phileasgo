@@ -279,6 +279,16 @@ func (m *MockSim) SubscribeToData(defineID uint32, structType any) error { retur
 func (m *MockSim) RequestData(defineID, reqID uint32) error              { return nil }
 func (m *MockSim) Close() error                                          { return nil }
 
+func (m *MockSim) GetStageState() sim.StageState {
+	return sim.StageState{
+		Current:        "cruise",
+		LastTransition: m.Transitions,
+	}
+}
+func (m *MockSim) RestoreStageState(s sim.StageState) {
+	m.Transitions = s.LastTransition
+}
+
 type MockStore struct {
 	mu         sync.RWMutex
 	SavedPOIs  []*model.POI

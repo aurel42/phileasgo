@@ -8,6 +8,7 @@ import (
 	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
+	"phileasgo/pkg/sim"
 )
 
 // Manager handles transient flight session context.
@@ -16,11 +17,26 @@ type Manager struct {
 	events        []model.TripEvent
 	lastSentence  string
 	narratedCount int
+	stageData     sim.StageState
 }
 
 // NewManager creates a new session manager.
 func NewManager() *Manager {
 	return &Manager{}
+}
+
+// SetStageData updates the flight stage persistence data.
+func (m *Manager) SetStageData(s sim.StageState) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.stageData = s
+}
+
+// GetStageData returns the flight stage persistence data.
+func (m *Manager) GetStageData() sim.StageState {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.stageData
 }
 
 // AddNarration records a narration in the trip history.
@@ -79,6 +95,7 @@ func (m *Manager) Reset() {
 	m.events = nil
 	m.lastSentence = ""
 	m.narratedCount = 0
+	m.stageData = sim.StageState{}
 }
 
 // PersistentState represents the serializable part of the session.
@@ -88,6 +105,7 @@ type PersistentState struct {
 	NarratedCount int               `json:"narrated_count"`
 	Lat           float64           `json:"lat"`
 	Lon           float64           `json:"lon"`
+	StageData     sim.StageState    `json:"stage_data"`
 }
 
 // GetPersistentState returns a JSON-encoded representation of the current session state.
@@ -101,6 +119,7 @@ func (m *Manager) GetPersistentState(lat, lon float64) ([]byte, error) {
 		NarratedCount: m.narratedCount,
 		Lat:           lat,
 		Lon:           lon,
+		StageData:     m.stageData,
 	}
 
 	return json.Marshal(ps)
@@ -119,6 +138,7 @@ func (m *Manager) Restore(data []byte) error {
 	m.events = ps.Events
 	m.lastSentence = ps.LastSentence
 	m.narratedCount = ps.NarratedCount
+	m.stageData = ps.StageData
 	// Lat/Lon are stored for distance check, not needed in active state for now
 
 	return nil

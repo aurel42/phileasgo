@@ -122,6 +122,8 @@ func (m *mockJobSimClient) GetTelemetry(ctx context.Context) (sim.Telemetry, err
 func (m *mockJobSimClient) GetLastTransition(stage string) time.Time { return time.Time{} }
 func (m *mockJobSimClient) SetPredictionWindow(d time.Duration)      {}
 func (m *mockJobSimClient) Close() error                             { return nil }
+func (m *mockJobSimClient) GetStageState() sim.StageState            { return sim.StageState{} }
+func (m *mockJobSimClient) RestoreStageState(s sim.StageState)       {}
 
 func TestNarrationJob_GroundSuppression(t *testing.T) {
 	cfg := config.DefaultConfig()

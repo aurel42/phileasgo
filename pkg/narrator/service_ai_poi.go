@@ -237,11 +237,10 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error
 	// Update stats
 	s.session().IncrementCount()
 
-	// Use current aircraft position for session persistence
-	// This ensures we save the "where we are now" state, not the "last POI" state
-	if tel, err := s.sim.GetTelemetry(context.Background()); err == nil {
-		go s.persistSession(tel.Latitude, tel.Longitude)
-	}
+	// Use current aircraft position for session persistence: handled by main loop
+	// if tel, err := s.sim.GetTelemetry(context.Background()); err == nil {
+	// 	go s.persistSession(tel.Latitude, tel.Longitude)
+	// }
 
 	// Playback completion is handled by s.finalizePlayback callback passed to audio.Play
 

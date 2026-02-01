@@ -152,6 +152,10 @@ func run(ctx context.Context, configPath string) error {
 	sched := setupScheduler(appCfg, simClient, st, narratorSvc, annMgr, promptMgr, wdValidator, svcs, telH, losChecker, visCalc, sessionMgr)
 	go sched.Start(ctx)
 
+	// Session Persistence
+	persistenceJob := core.NewSessionPersistenceJob(st, sessionMgr, simClient)
+	persistenceJob.Start(ctx)
+
 	// Scorer
 	// Use elProv, or if nil (missing file), use a nil interface (Scorer must handle or we wrap)
 	// Ideally Scorer should handle nil, but for now we pass it.
@@ -382,7 +386,9 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 
 func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc *narrator.AIService, annMgr *announcement.Manager, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker, vis *visibility.Calculator, sessionMgr *session.Manager) *core.Scheduler {
 	sched := core.NewScheduler(cfg, simClient, apiHandler, svcs.WikiSvc.GeoService())
-	sched.AddJob(core.NewSessionRestorationJob(st, sessionMgr))
+	// Session Restoration (Restores session state on startup)
+	sched.AddJob(core.NewSessionRestorationJob(st, sessionMgr, simClient))
+
 	sched.AddJob(core.NewDistanceJob("DistanceSync", 5000, func(c context.Context, t sim.Telemetry) {
 		_ = st.MarkEntitiesSeen(c, map[string][]string{})
 	}))

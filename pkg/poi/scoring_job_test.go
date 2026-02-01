@@ -116,6 +116,8 @@ func (m *MockSimClient) GetTelemetry(ctx context.Context) (sim.Telemetry, error)
 func (m *MockSimClient) Close() error                             { return nil }
 func (m *MockSimClient) GetLastTransition(stage string) time.Time { return time.Time{} }
 func (m *MockSimClient) SetPredictionWindow(d time.Duration)      {}
+func (m *MockSimClient) GetStageState() sim.StageState            { return sim.StageState{} }
+func (m *MockSimClient) RestoreStageState(s sim.StageState)       {}
 
 // MockElevation stub
 type MockElevation struct{}

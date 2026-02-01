@@ -35,6 +35,12 @@ type StageMachine struct {
 	now func() time.Time
 }
 
+// StageState represents the persistent state of the machine.
+type StageState struct {
+	Current        string               `json:"current"`
+	LastTransition map[string]time.Time `json:"last_transition"`
+}
+
 // NewStageMachine creates a stage machine in an uninitialized state.
 func NewStageMachine(timeSource ...func() time.Time) *StageMachine {
 	clock := time.Now
@@ -172,6 +178,31 @@ func (m *StageMachine) handleLandingCandidate(t *Telemetry, now time.Time) (stri
 
 func (m *StageMachine) recordTransition(stage string, t time.Time) {
 	m.lastTransition[stage] = t
+}
+
+// GetState returns a snapshot of the current state.
+func (m *StageMachine) GetState() StageState {
+	// Deep copy the map
+	transitions := make(map[string]time.Time, len(m.lastTransition))
+	for k, v := range m.lastTransition {
+		transitions[k] = v
+	}
+
+	return StageState{
+		Current:        m.current,
+		LastTransition: transitions,
+	}
+}
+
+// RestoreState restores the machine state from a snapshot.
+func (m *StageMachine) RestoreState(s StageState) {
+	m.current = s.Current
+	// Deep copy the map
+	m.lastTransition = make(map[string]time.Time, len(s.LastTransition))
+	for k, v := range s.LastTransition {
+		m.lastTransition[k] = v
+	}
+	slog.Info("StageMachine: State restored", "stage", m.current)
 }
 
 func isAirborne(stage string) bool {

@@ -25,6 +25,10 @@ type Client interface {
 	SetPredictionWindow(d time.Duration)
 	// Close cleans up resources associated with the client.
 	Close() error
+
+	// Persistence
+	GetStageState() StageState
+	RestoreStageState(s StageState)
 }
 
 // ObjectClient defines the interface for creation and manipulating sim objects.

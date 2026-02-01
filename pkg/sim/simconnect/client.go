@@ -666,3 +666,22 @@ func formatVerticalMode(d *TelemetryData) string {
 		return "PIT"
 	}
 }
+
+// GetStageState returns the current stage machine state.
+func (c *Client) GetStageState() sim.StageState {
+	c.telemetryMu.RLock()
+	defer c.telemetryMu.RUnlock()
+	if c.stageMachine == nil {
+		return sim.StageState{}
+	}
+	return c.stageMachine.GetState()
+}
+
+// RestoreStageState restores the stage machine state.
+func (c *Client) RestoreStageState(s sim.StageState) {
+	c.telemetryMu.Lock()
+	defer c.telemetryMu.Unlock()
+	if c.stageMachine != nil {
+		c.stageMachine.RestoreState(s)
+	}
+}

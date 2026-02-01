@@ -202,6 +202,7 @@ PhileasGo uses data from:
 - [Wikipedia](https://www.wikipedia.org/) - Article content for narration
 - [GeoNames](https://www.geonames.org/) - City and geographic data
 - [LittleNavMap MSFS POIs](https://flightsim.to/file/81114/littlenavmap-msfs-poi-s) - MSFS-specific landmarks
+- [Natural Earth](https://www.naturalearthdata.com/) - Country boundaries and physical geography
 
 ## Project History
 
@@ -222,6 +223,8 @@ Elevation data provided by **[ETOPO1 Global Relief Model](https://www.ncei.noaa.
 Citation: Amante, C. and B.W. Eakins, 2009. ETOPO1 1 Arc-Minute Global Relief Model: Procedures, Data Sources and Analysis. NOAA Technical Memorandum NESDIS NGDC-24. National Geophysical Data Center, NOAA. doi:10.7289/V5C8276M
 
 Category icons provided by **[Mapbox Maki](https://github.com/mapbox/maki)** (CC0 1.0 Universal).
+
+Made with **[Natural Earth](https://www.naturalearthdata.com/)**. Free vector and raster map data @ naturalearthdata.com.
 
 
 ## License

@@ -58,6 +58,9 @@ func (m *mockSimClient) SetTelemetry(t *sim.Telemetry) {
 	m.tel = *t
 }
 
+func (m *mockSimClient) GetStageState() sim.StageState      { return sim.StageState{} }
+func (m *mockSimClient) RestoreStageState(s sim.StageState) {}
+
 func TestScheduler_JobExecution(t *testing.T) {
 	// Setup
 	cfg := config.DefaultConfig()

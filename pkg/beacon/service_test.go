@@ -54,6 +54,9 @@ func (m *MockClient) Close() error {
 	return nil
 }
 
+func (m *MockClient) GetStageState() sim.StageState      { return sim.StageState{} }
+func (m *MockClient) RestoreStageState(s sim.StageState) {}
+
 func (m *MockClient) SpawnAirTraffic(reqID uint32, title, tailNum string, lat, lon, alt, hdg float64) (uint32, error) {
 	m.nextID++
 	id := m.nextID
