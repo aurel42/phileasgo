@@ -94,7 +94,7 @@ func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
 				st:         &MockStore{},
 				sim:        &MockSim{},
 				prompts:    &prompts.Manager{},
-				sessionMgr: session.NewManager(),
+				sessionMgr: session.NewManager(nil),
 				running:    true,
 			}
 			svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil)
@@ -145,7 +145,7 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 			prompts:    pm,
 			st:         &MockStore{},
 			sim:        &MockSim{},
-			sessionMgr: session.NewManager(),
+			sessionMgr: session.NewManager(nil),
 			running:    true,
 		}
 		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil)
@@ -185,7 +185,7 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 			prompts:    pm,
 			st:         &MockStore{},
 			sim:        &MockSim{},
-			sessionMgr: session.NewManager(),
+			sessionMgr: session.NewManager(nil),
 			running:    true,
 		}
 		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil)

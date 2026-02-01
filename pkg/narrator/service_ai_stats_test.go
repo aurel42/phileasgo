@@ -49,7 +49,7 @@ func TestAIService_StatsAndLatency(t *testing.T) {
 }
 
 func TestAIService_NarratedCount(t *testing.T) {
-	sessionMgr := session.NewManager()
+	sessionMgr := session.NewManager(nil)
 	for i := 0; i < 5; i++ {
 		sessionMgr.IncrementCount()
 		sessionMgr.AddNarration("id", "title", "script")

@@ -221,11 +221,6 @@ func (s *AIService) summarizeAndLogEvent(ctx context.Context, category model.Nar
 	}
 	s.session().AddEvent(&event)
 
-	// 4. Use current aircraft position for session persistence: handled by main loop
-	// if tel, err := s.sim.GetTelemetry(context.Background()); err == nil {
-	// 	go s.persistSession(tel.Latitude, tel.Longitude)
-	// }
-
 	slog.Debug("Narrator: Trip event logged", "type", category, "title", title)
 }
 

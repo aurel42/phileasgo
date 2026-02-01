@@ -103,7 +103,7 @@ func (m *MockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) 
 }
 
 func TestTryRestore(t *testing.T) {
-	mgr := NewManager()
+	mgr := NewManager(nil)
 
 	tests := []struct {
 		name         string

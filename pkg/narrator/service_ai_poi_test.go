@@ -33,7 +33,7 @@ func TestAIService_RescueScript(t *testing.T) {
 				TargetLanguage: "en-US",
 			},
 		},
-		sessionMgr: session.NewManager(),
+		sessionMgr: session.NewManager(nil),
 	}
 
 	// Pre-create the template in the manager's root
@@ -66,7 +66,7 @@ func TestAIService_PlayPOI_Constraints(t *testing.T) {
 		st:         &MockStore{},
 		playbackQ:  playback.NewManager(),
 		genQ:       generation.NewManager(),
-		sessionMgr: session.NewManager(),
+		sessionMgr: session.NewManager(nil),
 	}
 
 	// 1. Manual PlayPOI - should enqueue generation

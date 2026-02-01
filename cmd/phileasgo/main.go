@@ -281,7 +281,7 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 		return nil, fmt.Errorf("failed to initialize prompt manager: %w", err)
 	}
 
-	sessionMgr := session.NewManager()
+	sessionMgr := session.NewManager(simClient)
 
 	var beaconSvc *beacon.Service
 	// Initialize Beacon Service if enabled in config

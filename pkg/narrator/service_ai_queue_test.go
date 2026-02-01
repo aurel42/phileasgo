@@ -14,7 +14,7 @@ func TestAIService_QueueManagement(t *testing.T) {
 		playbackQ:  playback.NewManager(),
 		genQ:       generation.NewManager(),
 		st:         &MockStore{},
-		sessionMgr: session.NewManager(),
+		sessionMgr: session.NewManager(nil),
 	}
 
 	// 1. Enqueue Auto POI

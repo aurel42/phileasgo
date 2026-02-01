@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"time"
@@ -18,11 +19,14 @@ type Manager struct {
 	lastSentence  string
 	narratedCount int
 	stageData     sim.StageState
+	sim           sim.Client
 }
 
 // NewManager creates a new session manager.
-func NewManager() *Manager {
-	return &Manager{}
+func NewManager(simClient sim.Client) *Manager {
+	return &Manager{
+		sim: simClient,
+	}
 }
 
 // SetStageData updates the flight stage persistence data.
@@ -44,12 +48,93 @@ func (m *Manager) AddNarration(id, title, script string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.lastSentence = script
+	// Parse last sentence (simple heuristic)
+	// We want the last non-empty segment ending with . ! or ?
+	m.lastSentence = extractLastSentence(script)
 	// Note: We'll migrate this to AddEvent in a later step when we have summaries
+}
+
+func extractLastSentence(text string) string {
+	// Simple implementation: split by punctuation
+	// This is not perfect (e.g. "Mr. Smith") but sufficient for continuity context
+	runes := []rune(text)
+	if len(runes) == 0 {
+		return ""
+	}
+
+	// Work backwards
+	end := len(runes) - 1
+	// Skip trailing whitespace
+	for end >= 0 && (runes[end] == ' ' || runes[end] == '\n' || runes[end] == '\t') {
+		end--
+	}
+	if end < 0 {
+		return ""
+	}
+
+	// 1. Find the end of the last sentence (punctuation)
+	// If the text doesn't end with punctuation, use the whole thing? Or assume implicit dot?
+	// Let's assume the text is well-formed.
+
+	start := end
+	// 2. Find the start of the last sentence
+	// Scan backwards until we hit a punctuation mark that IS NOT the one at 'end'
+	// punctuation: . ! ?
+	// Ignoring tricky cases like "e.g." for now, as this is for LLM context, slight errors are fine.
+
+	// Skip the punctuation at the end if present
+	if isPunctuation(runes[end]) {
+		start--
+	}
+
+	for start >= 0 {
+		if isPunctuation(runes[start]) {
+			// Found the end of the *previous* sentence
+			start++ // Move forward to the start of *our* sentence
+			break
+		}
+		start--
+	}
+
+	if start < 0 {
+		start = 0
+	}
+
+	// Trim leading whitespace from the result
+	res := string(runes[start : end+1])
+	// Cleanup quotes if they are unbalanced? No, too complex.
+	// Just trim spaces.
+	return trimWhitespace(res)
+}
+
+func isPunctuation(r rune) bool {
+	return r == '.' || r == '!' || r == '?'
+}
+
+func trimWhitespace(s string) string {
+	// Manual trim to avoid import "strings" if not already imported?
+	// But strings is standard. Let's use strings.TrimSpace if available, but I need to check imports.
+	// session/manager.go imports: encoding/json, sync, time, logging, model, prompt, sim.
+	// strings is NOT imported. I should add it or implemented simple trim.
+	// Simple trim:
+	start := 0
+	runes := []rune(s)
+	for start < len(runes) && (runes[start] == ' ' || runes[start] == '\n') {
+		start++
+	}
+	return string(runes[start:])
 }
 
 // AddEvent adds a structured event to the session history.
 func (m *Manager) AddEvent(event *model.TripEvent) {
+	// Always attach current aircraft coordinates relative to where we are NOW
+	if m.sim != nil {
+		if tel, err := m.sim.GetTelemetry(context.Background()); err == nil {
+			event.Lat = tel.Latitude
+			event.Lon = tel.Longitude
+		}
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

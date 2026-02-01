@@ -160,4 +160,6 @@ type TripEvent struct {
 	Title     string            `json:"title,omitempty"`
 	Summary   string            `json:"summary,omitempty"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
+	Lat       float64           `json:"lat,omitempty"`
+	Lon       float64           `json:"lon,omitempty"`
 }

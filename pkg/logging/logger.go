@@ -239,6 +239,7 @@ func LogEvent(event *model.TripEvent) {
 		ts = time.Now()
 	}
 	line := fmt.Sprintf("[%s] [%s] %s", ts.Format("2006-01-02 15:04:05"), event.Type, event.Title)
+
 	if event.Summary != "" {
 		line += " - " + event.Summary
 	}
