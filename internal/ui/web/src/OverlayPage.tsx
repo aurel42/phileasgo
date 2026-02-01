@@ -104,7 +104,8 @@ const OverlayPage = () => {
                 {showPOIInfo && (
                     <OverlayPOIPanel
                         poi={currentPoi || null}
-                        title={narratorStatus?.current_title}
+                        title={narratorStatus?.display_title || narratorStatus?.current_title}
+                        displayThumbnail={narratorStatus?.display_thumbnail}
                         currentType={narratorStatus?.current_type}
                         playbackProgress={playbackProgress}
                         isPlaying={isPlaying}

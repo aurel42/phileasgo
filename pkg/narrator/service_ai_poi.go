@@ -273,6 +273,7 @@ func (s *AIService) setPlaybackState(n *model.Narrative) string {
 	s.active = true
 	s.currentPOI = n.POI // May be nil for non-POI narratives
 	s.currentImagePath = n.ImagePath
+	s.currentTitle = n.Title
 	s.currentType = n.Type
 	s.currentLat = n.Lat
 	s.currentLon = n.Lon

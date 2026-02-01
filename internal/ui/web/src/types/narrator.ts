@@ -27,6 +27,8 @@ export interface NarratorStatusResponse {
     current_title?: string;
     current_type?: string;
     current_image_path?: string;
+    display_title?: string;
+    display_thumbnail?: string;
     narrated_count: number;
     stats: Record<string, unknown>;
     narration_frequency?: number;

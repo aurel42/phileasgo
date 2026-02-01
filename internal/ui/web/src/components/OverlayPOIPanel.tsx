@@ -4,6 +4,7 @@ import type { POI } from '../hooks/usePOIs';
 interface OverlayPOIPanelProps {
     poi: POI | null;
     title?: string;
+    displayThumbnail?: string;
     currentType?: string;
     playbackProgress: number; // 0-1
     isPlaying: boolean;
@@ -15,7 +16,7 @@ const getName = (poi: POI) => {
     return poi.name_local || 'Unknown';
 };
 
-export const OverlayPOIPanel = ({ poi, title, currentType, playbackProgress, isPlaying }: OverlayPOIPanelProps) => {
+export const OverlayPOIPanel = ({ poi, title, displayThumbnail, currentType, playbackProgress, isPlaying }: OverlayPOIPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const [visible, setVisible] = useState(false);
 
@@ -36,6 +37,8 @@ export const OverlayPOIPanel = ({ poi, title, currentType, playbackProgress, isP
                         })
                         .catch(() => { });
                 }
+            } else if (displayThumbnail) {
+                setThumbnailUrl(displayThumbnail);
             } else {
                 setThumbnailUrl(null);
             }
@@ -43,7 +46,7 @@ export const OverlayPOIPanel = ({ poi, title, currentType, playbackProgress, isP
             setVisible(false);
             setThumbnailUrl(null);
         }
-    }, [poi, title, isPlaying]);
+    }, [poi, title, isPlaying, displayThumbnail]);
 
     if (!poi && !title) return null;
 
@@ -57,6 +60,8 @@ export const OverlayPOIPanel = ({ poi, title, currentType, playbackProgress, isP
         category = "Flight Summary";
     } else if (currentType === 'essay') {
         category = "Regional Essay";
+    } else if (currentType === 'screenshot') {
+        category = "Photograph";
     }
 
     const getFontSize = (text: string) => {

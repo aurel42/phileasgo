@@ -88,6 +88,7 @@ type AIService struct {
 	currentPOI          *model.POI
 	currentTopic        *EssayTopic
 	currentEssayTitle   string
+	currentTitle        string              // Presentation title for UI
 	currentType         model.NarrativeType // The type of the currently playing narrative
 	currentImagePath    string              // Added field
 	currentThumbnailURL string              // Primary UI driver

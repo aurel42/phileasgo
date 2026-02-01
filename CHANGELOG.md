@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.97 (2026-02-01)
+- **Fix**: **Overlay Metadata**. Resolved issues where the overlay would show hardcoded "Visual Analysis" titles and fail to display screenshot images during narration.
+- **Improved**: **Dynamic Content Display**. The overlay now correctly renders titles and thumbnails provided by specialized announcement handlers (e.g., Photographs, Debriefs).
+
 ## v0.3.96 (2026-02-01)
 - **Fix**: **Border Crossing Announcements**. Resolved an issue where border crossings would fail to trigger or display correctly.
 - **Improved**: **Announcement Consistency**. Standardized length and behavior across all flight events, including take-offs and screenshots.

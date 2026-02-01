@@ -180,8 +180,11 @@ func (s *AIService) CurrentTitle() string {
 		return s.currentPOI.DisplayName()
 	}
 	if s.active {
+		if s.currentTitle != "" {
+			return s.currentTitle
+		}
 		if s.currentType == model.NarrativeTypeScreenshot {
-			return "Visual Analysis"
+			return "Photograph"
 		}
 		if s.currentEssayTitle != "" {
 			return s.currentEssayTitle
@@ -263,6 +266,7 @@ func (s *AIService) finalizePlayback() {
 	s.currentImagePath = ""
 	s.currentType = ""
 	s.currentThumbnailURL = ""
+	s.currentTitle = ""
 	s.mu.Unlock()
 
 	// 2. Beacon Check (Switch to next target)
