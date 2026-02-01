@@ -249,20 +249,7 @@ func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error
 
 // updateHistory records the narrative in the trip history for context in future prompts.
 func (s *AIService) updateHistory(n *model.Narrative) {
-	switch {
-	case n.Type == model.NarrativeTypeEssay || n.Type == model.NarrativeTypeDebriefing:
-		id := n.EssayTopic
-		if id == "" {
-			id = n.Title
-		}
-		s.addScriptToHistory(id, n.Type, n.Title, n.Script)
-	case n.POI != nil:
-		s.addScriptToHistory(n.POI.WikidataID, n.Type, n.POI.DisplayName(), n.Script)
-	case n.Type == model.NarrativeTypeScreenshot:
-		s.addScriptToHistory("screenshot", n.Type, n.Title, n.Script)
-	case n.Type == model.NarrativeTypeBorder:
-		s.addScriptToHistory("border", n.Type, n.Title, n.Script)
-	}
+	s.addScriptToHistory(context.Background(), n)
 }
 
 // setPlaybackState updates the narrator state for the given narrative.

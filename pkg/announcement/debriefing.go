@@ -1,6 +1,7 @@
 package announcement
 
 import (
+	"context"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
@@ -72,9 +73,8 @@ func (a *Debriefing) ShouldPlay(t *sim.Telemetry) bool {
 }
 
 func (a *Debriefing) GetPromptData(t *sim.Telemetry) (any, error) {
-	return struct {
-		TripSummary string
-	}{
-		TripSummary: a.dp.GetTripSummary(),
-	}, nil
+	// Use AssembleGeneric to get standard context (Language, User Name, etc.) for Style macro
+	data := a.dp.AssembleGeneric(context.Background(), t)
+	data["TripSummary"] = a.dp.GetTripSummary()
+	return data, nil
 }

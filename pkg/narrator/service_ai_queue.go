@@ -179,18 +179,18 @@ func (s *AIService) handleManualQueueAndOverride(poiID, strategy string, manual,
 	return false
 }
 
-func (s *AIService) summarizeAndLogEvent(ctx context.Context, category model.NarrativeType, title, script string) {
+func (s *AIService) summarizeAndLogEvent(ctx context.Context, n *model.Narrative) {
 	s.initAssembler()
 
 	// Borders log directly in announcement/border.go ShouldGenerate() - skip here to avoid double-logging
-	if category == model.NarrativeTypeBorder {
+	if n.Type == model.NarrativeTypeBorder {
 		return
 	}
 
 	// Summarize the event via LLM
 	data := s.promptAssembler.NewPromptData(s.getSessionState())
-	data["LastTitle"] = title
-	data["LastScript"] = script
+	data["LastTitle"] = n.Title
+	data["LastScript"] = n.Script
 
 	prompt, err := s.prompts.Render("narrator/event_summary.tmpl", data)
 	if err != nil {
@@ -202,7 +202,7 @@ func (s *AIService) summarizeAndLogEvent(ctx context.Context, category model.Nar
 	if err != nil {
 		slog.Error("Narrator: Failed to summarize event", "error", err)
 		// Fallback: Use title if LLM fails
-		summary = title
+		summary = n.Title
 	}
 
 	// 2. Clean up summary (remove markup, collapse lines)
@@ -215,18 +215,36 @@ func (s *AIService) summarizeAndLogEvent(ctx context.Context, category model.Nar
 	event := model.TripEvent{
 		Timestamp: time.Now(),
 		Type:      "narration",
-		Category:  category,
-		Title:     title,
+		Category:  n.Type,
+		Title:     n.Title,
 		Summary:   summary,
+		Metadata:  make(map[string]string),
 	}
+
+	// 4. Enrich Metadata
+	if n.POI != nil {
+		event.Metadata["qid"] = n.POI.WikidataID
+		event.Metadata["icon"] = n.POI.Icon
+		event.Metadata["poi_lat"] = fmt.Sprintf("%.6f", n.POI.Lat)
+		event.Metadata["poi_lon"] = fmt.Sprintf("%.6f", n.POI.Lon)
+	}
+
 	s.session().AddEvent(&event)
 
-	slog.Debug("Narrator: Trip event logged", "type", category, "title", title)
+	slog.Debug("Narrator: Trip event logged", "type", n.Type, "title", n.Title)
 }
 
-func (s *AIService) addScriptToHistory(qid string, nType model.NarrativeType, title, script string) {
-	s.session().AddNarration(qid, title, script)
-	go s.summarizeAndLogEvent(context.Background(), nType, title, script)
+func (s *AIService) addScriptToHistory(ctx context.Context, n *model.Narrative) {
+	// Determine ID for session tracking (LastSentence logic)
+	id := n.Title
+	if n.POI != nil {
+		id = n.POI.WikidataID
+	} else if n.EssayTopic != "" {
+		id = n.EssayTopic
+	}
+
+	s.session().AddNarration(id, n.Title, n.Script)
+	go s.summarizeAndLogEvent(ctx, n)
 }
 
 func (s *AIService) ResetSession(ctx context.Context) {

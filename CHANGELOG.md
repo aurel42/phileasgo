@@ -1,5 +1,11 @@
 ﻿Release History
 
+## v0.3.94 (2026-02-01)
+- **Fix**: **Briefing Triggers**. Briefing announcements now strictly prevent generation if the aircraft has already taken off in the current session, ensuring they only play at the true start of a trip.
+- **Fix**: **Stage Machine Logging**. Restored missing `DEBUG` logs for implicit flight stage transitions (e.g., Taxi -> Hold, Cruise -> Descend) to improve debugging observability.
+- **Fix**: **Debriefing Templates**. Resolved a template execution error in debriefings caused by missing language context data.
+- **Feature**: **Narration Metadata**. Added structured metadata (Wikidata ID, Icon, POI Coordinates) to the persistent event log for better audit trails.
+
 ## v0.3.92 (2026-02-01)
 - **Feature**: **Flight Stage Persistence**. Implemented robust session restoration that remembers the flight stage (e.g. "En Route", "Taxi") across restarts, preventing incorrect logic triggers.
 - **Documentation**: **Attribution**. Added credit for Natural Earth data sources.

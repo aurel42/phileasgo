@@ -32,7 +32,17 @@ func (a *Briefing) ShouldGenerate(t *sim.Telemetry) bool {
 
 	// Find nearest airport within 5km
 	airport := a.findNearestAirport(t)
-	return airport != nil
+	if airport == nil {
+		return false
+	}
+
+	// Prevent generating "Briefing" if we have already flown in this session (e.g. just landed).
+	// We check if a TakeOff transition has been recorded.
+	if !a.provider.GetLastTransition(sim.StageTakeOff).IsZero() {
+		return false
+	}
+
+	return true
 }
 
 func (a *Briefing) ShouldPlay(t *sim.Telemetry) bool {

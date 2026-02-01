@@ -57,6 +57,7 @@ func NewStageMachine(timeSource ...func() time.Time) *StageMachine {
 // Update evaluates telemetry and returns the current refined stage.
 func (m *StageMachine) Update(t *Telemetry) string {
 	now := m.now()
+	previous := m.current
 
 	// 1. Initial State (First Tick)
 	if m.current == "" {
@@ -81,6 +82,12 @@ func (m *StageMachine) Update(t *Telemetry) string {
 		m.current = m.updateGroundState(t, m.current)
 	} else {
 		m.current = m.updateAirborneState(t, m.current)
+	}
+
+	// Log silent transitions
+	if m.current != "" && m.current != previous {
+		m.recordTransition(m.current, now)
+		slog.Debug("StageMachine: State transition", "from", previous, "to", m.current)
 	}
 
 	return m.current

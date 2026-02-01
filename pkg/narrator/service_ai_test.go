@@ -460,7 +460,20 @@ func TestAIService_SummarizeAndLogEvent(t *testing.T) {
 		sim:        &MockSim{},
 	}
 
-	svc.summarizeAndLogEvent(context.Background(), model.NarrativeTypePOI, "Test POI", "Script Content")
+	// Create narrative with POI data to test metadata extraction
+	n := &model.Narrative{
+		Type:   model.NarrativeTypePOI,
+		Title:  "Test POI",
+		Script: "Script Content",
+		POI: &model.POI{
+			WikidataID: "Q123",
+			Icon:       "castle.png",
+			Lat:        48.85,
+			Lon:        2.35,
+		},
+	}
+
+	svc.summarizeAndLogEvent(context.Background(), n)
 
 	events := svc.session().GetState().Events
 	if len(events) != 1 {
@@ -472,6 +485,16 @@ func TestAIService_SummarizeAndLogEvent(t *testing.T) {
 	}
 	if events[0].Type != "narration" {
 		t.Errorf("Expected type 'narration', got '%s'", events[0].Type)
+	}
+	// Verify Metadata
+	if qid, ok := events[0].Metadata["qid"]; !ok || qid != "Q123" {
+		t.Errorf("Expected metadata qid 'Q123', got '%v'", qid)
+	}
+	if icon, ok := events[0].Metadata["icon"]; !ok || icon != "castle.png" {
+		t.Errorf("Expected metadata icon 'castle.png', got '%v'", icon)
+	}
+	if lat, ok := events[0].Metadata["poi_lat"]; !ok || lat != "48.850000" {
+		t.Errorf("Expected metadata poi_lat '48.850000', got '%v'", lat)
 	}
 }
 
