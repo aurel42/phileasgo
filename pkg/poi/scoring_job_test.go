@@ -118,6 +118,7 @@ func (m *MockSimClient) GetLastTransition(stage string) time.Time { return time.
 func (m *MockSimClient) SetPredictionWindow(d time.Duration)      {}
 func (m *MockSimClient) GetStageState() sim.StageState            { return sim.StageState{} }
 func (m *MockSimClient) RestoreStageState(s sim.StageState)       {}
+func (m *MockSimClient) SetEventRecorder(r sim.EventRecorder)     {}
 
 // MockElevation stub
 type MockElevation struct{}

@@ -29,6 +29,12 @@ type Client interface {
 	// Persistence
 	GetStageState() StageState
 	RestoreStageState(s StageState)
+	SetEventRecorder(r EventRecorder)
+}
+
+// EventRecorder defines an interface for logging system events (like flight stages).
+type EventRecorder interface {
+	RecordSystemEvent(title, eventType string, lat, lon float64, metadata map[string]string)
 }
 
 // ObjectClient defines the interface for creation and manipulating sim objects.

@@ -289,6 +289,10 @@ func (m *MockSim) RestoreStageState(s sim.StageState) {
 	m.Transitions = s.LastTransition
 }
 
+func (m *MockSim) SetEventRecorder(r sim.EventRecorder) {
+	// No-op for mock
+}
+
 type MockStore struct {
 	mu         sync.RWMutex
 	SavedPOIs  []*model.POI

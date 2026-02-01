@@ -130,6 +130,9 @@ func run(ctx context.Context, configPath string) error {
 	narratorSvc.Start()
 	defer narratorSvc.Stop()
 
+	// Connect Session Logic to Sim Logic (Event Recording)
+	simClient.SetEventRecorder(sessionMgr)
+
 	// Telemetry Handler (must be created before scheduler to receive updates)
 	telH := api.NewTelemetryHandler()
 

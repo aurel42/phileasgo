@@ -677,11 +677,19 @@ func (c *Client) GetStageState() sim.StageState {
 	return c.stageMachine.GetState()
 }
 
-// RestoreStageState restores the stage machine state.
 func (c *Client) RestoreStageState(s sim.StageState) {
 	c.telemetryMu.Lock()
 	defer c.telemetryMu.Unlock()
 	if c.stageMachine != nil {
 		c.stageMachine.RestoreState(s)
+	}
+}
+
+// SetEventRecorder delegates to the stage machine.
+func (c *Client) SetEventRecorder(r sim.EventRecorder) {
+	c.telemetryMu.Lock()
+	defer c.telemetryMu.Unlock()
+	if c.stageMachine != nil {
+		c.stageMachine.SetRecorder(r)
 	}
 }

@@ -181,6 +181,15 @@ func (c *MockClient) RestoreStageState(s sim.StageState) {
 	// No-op for mock
 }
 
+// SetEventRecorder delegates to the stage machine.
+func (c *MockClient) SetEventRecorder(r sim.EventRecorder) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stageMachine != nil {
+		c.stageMachine.SetRecorder(r)
+	}
+}
+
 func (m *MockClient) physicsLoop() {
 	defer m.wg.Done()
 	ticker := time.NewTicker(time.Duration(tickRateMs) * time.Millisecond)

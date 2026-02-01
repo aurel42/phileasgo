@@ -147,6 +147,25 @@ func (m *Manager) AddEvent(event *model.TripEvent) {
 	logging.LogEvent(event)
 }
 
+// RecordSystemEvent adds a system-triggered event to the log.
+// It accepts lat/lon directly to avoid calling back into sim.Client (preventing deadlocks).
+func (m *Manager) RecordSystemEvent(title, eventType string, lat, lon float64, metadata map[string]string) {
+	event := &model.TripEvent{
+		Timestamp: time.Now(),
+		Type:      eventType,
+		Title:     title,
+		Metadata:  metadata,
+		Lat:       lat,
+		Lon:       lon,
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.events = append(m.events, *event)
+	logging.LogEvent(event)
+}
+
 // IncrementCount increases the total narration count.
 func (m *Manager) IncrementCount() {
 	m.mu.Lock()

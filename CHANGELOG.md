@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.95 (2026-02-01)
+- **Feature**: **Flight Stage Events**. "Take-off" and "Landed" events are now automatically logged to the trip history with precise coordinates, enriching the session timeline for LLM context.
+
 ## v0.3.94 (2026-02-01)
 - **Fix**: **Briefing Triggers**. Briefing announcements now strictly prevent generation if the aircraft has already taken off in the current session, ensuring they only play at the true start of a trip.
 - **Fix**: **Stage Machine Logging**. Restored missing `DEBUG` logs for implicit flight stage transitions (e.g., Taxi -> Hold, Cruise -> Descend) to improve debugging observability.

@@ -33,6 +33,14 @@ type StageMachine struct {
 
 	// Time source for testing
 	now func() time.Time
+
+	// Event Recording
+	recorder EventRecorder
+}
+
+// SetRecorder injects an event recorder.
+func (m *StageMachine) SetRecorder(r EventRecorder) {
+	m.recorder = r
 }
 
 // StageState represents the persistent state of the machine.
@@ -86,7 +94,7 @@ func (m *StageMachine) Update(t *Telemetry) string {
 
 	// Log silent transitions
 	if m.current != "" && m.current != previous {
-		m.recordTransition(m.current, now)
+		m.recordTransition(m.current, now, t.Latitude, t.Longitude)
 		slog.Debug("StageMachine: State transition", "from", previous, "to", m.current)
 	}
 
@@ -99,7 +107,7 @@ func (m *StageMachine) initializeState(t *Telemetry, now time.Time) string {
 	} else {
 		// Mid-air start: Trigger synthetic Take-off
 		m.current = StageTakeOff
-		m.recordTransition(StageTakeOff, now)
+		m.recordTransition(StageTakeOff, now, t.Latitude, t.Longitude)
 		slog.Info("StageMachine: Mid-air start detected", "stage", m.current)
 	}
 	return m.current
@@ -144,7 +152,7 @@ func (m *StageMachine) handleTakeoffCandidate(t *Telemetry, now time.Time) (stri
 		if !t.IsOnGround {
 			// Confirmed Take-off
 			m.current = StageTakeOff
-			m.recordTransition(StageTakeOff, now)
+			m.recordTransition(StageTakeOff, now, t.Latitude, t.Longitude)
 			m.lockedUntil = now.Add(4 * time.Second)
 			m.transitionStart = time.Time{} // Reset
 			slog.Info("StageMachine: Take-off Confirmed", "stage", m.current)
@@ -169,7 +177,7 @@ func (m *StageMachine) handleLandingCandidate(t *Telemetry, now time.Time) (stri
 		if t.IsOnGround {
 			// Confirmed Landing
 			m.current = StageLanded
-			m.recordTransition(StageLanded, now)
+			m.recordTransition(StageLanded, now, t.Latitude, t.Longitude)
 			m.lockedUntil = now.Add(4 * time.Second)
 			m.transitionStart = time.Time{} // Reset
 			slog.Info("StageMachine: Landing Confirmed", "stage", m.current)
@@ -183,8 +191,21 @@ func (m *StageMachine) handleLandingCandidate(t *Telemetry, now time.Time) (stri
 	return m.current, true
 }
 
-func (m *StageMachine) recordTransition(stage string, t time.Time) {
+func (m *StageMachine) recordTransition(stage string, t time.Time, lat, lon float64) {
 	m.lastTransition[stage] = t
+
+	// Trigger System Event
+	if m.recorder != nil {
+		if stage == StageTakeOff {
+			m.recorder.RecordSystemEvent("Take-off", "flight_stage", lat, lon, map[string]string{
+				"flight_stage": stage,
+			})
+		} else if stage == StageLanded {
+			m.recorder.RecordSystemEvent("Landed", "flight_stage", lat, lon, map[string]string{
+				"flight_stage": stage,
+			})
+		}
+	}
 }
 
 // GetState returns a snapshot of the current state.
