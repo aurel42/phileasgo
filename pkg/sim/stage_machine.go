@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -57,6 +58,7 @@ func (m *StageMachine) Update(t *Telemetry) string {
 			m.current = StageAirborne
 			m.wasAirborne = true
 		}
+		slog.Debug("StageMachine: Initialized", "stage", m.current)
 		// Skip hysteresis for initial state
 		return m.current
 	}
@@ -71,8 +73,10 @@ func (m *StageMachine) Update(t *Telemetry) string {
 	case candidate == m.candidate:
 		m.confirmations++
 		if m.confirmations >= 1 { // 0+1 = 2 ticks total (first detect + 1 confirmation)
+			old := m.current
 			m.current = candidate
 			m.lastTransition[m.current] = time.Now()
+			slog.Debug("StageMachine: Transition confirmed", "from", old, "to", m.current)
 			m.candidate = ""
 			m.confirmations = 0
 		}

@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.85 (2026-02-01)
+- **Feature**: **Flight Stage Visibility**. Added `DEBUG` level logging for flight stage transitions in the `StageMachine`, providing better observability into phase detection.
+
 ## v0.3.84 (2026-02-01)
 - **Feature**: **Finalized Debriefing Rename**. Unified the transition from "debrief" to "debriefing" across the backend, configuration, and frontend UI.
 - **Refinement**: Removed the minimum trip summary length requirement for debriefings, ensuring they trigger based on flight duration alone.
