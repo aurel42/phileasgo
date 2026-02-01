@@ -25,6 +25,7 @@ import (
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/logging"
 	"phileasgo/pkg/narrator"
+	"phileasgo/pkg/playback"
 	"phileasgo/pkg/poi"
 	"phileasgo/pkg/poi/rivers"
 	"phileasgo/pkg/probe"
@@ -123,7 +124,7 @@ func run(ctx context.Context, configPath string) error {
 	if err != nil {
 		return err
 	}
-	narratorSvc := comps.AIService
+	narratorSvc := comps.Orchestrator
 	annMgr := comps.AnnManager
 	promptMgr := comps.PromptManager
 	sessionMgr := comps.SessionManager
@@ -256,7 +257,7 @@ func initCoreServices(st store.Store, cfg *config.Config, tr *tracker.Tracker, s
 }
 
 type NarratorComponents struct {
-	AIService      *narrator.AIService
+	Orchestrator   *narrator.Orchestrator
 	AnnManager     *announcement.Manager
 	PromptManager  *prompts.Manager
 	SessionManager *session.Manager
@@ -296,26 +297,35 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 		}
 	}
 
-	narratorSvc := createAIService(cfg, llmProv, ttsProv, promptMgr, audio.New(&cfg.Narrator), svcs.PoiMgr, beaconSvc, svcs.WikiSvc, simClient, st, tr, catCfg, sessionMgr)
+	var beaconProvider narrator.BeaconProvider
+	if beaconSvc != nil {
+		beaconProvider = beaconSvc
+	}
+
+	pbQ := playback.NewManager()
+	gen := createAIService(cfg, llmProv, ttsProv, promptMgr, svcs.PoiMgr, svcs.WikiSvc, simClient, st, tr, catCfg, sessionMgr)
+
+	orch := narrator.NewOrchestrator(gen, audio.New(&cfg.Narrator), pbQ, sessionMgr, beaconProvider, simClient)
+	gen.SetOnPlayback(orch.EnqueuePlayback)
 
 	// Restore Volume
 	volStr, _ := st.GetState(ctx, "volume")
 	if volStr != "" {
 		var val float64
 		if _, err := fmt.Sscanf(volStr, "%f", &val); err == nil {
-			narratorSvc.AudioService().SetVolume(val)
+			orch.AudioService().SetVolume(val)
 		}
 	}
 
 	// Initialize Announcement Managers (Decoupled from AIService)
-	annMgr := announcement.NewManager(narratorSvc)
-	annMgr.Register(announcement.NewLetsgo(cfg, narratorSvc, sessionMgr))
-	annMgr.Register(announcement.NewBriefing(cfg, narratorSvc, sessionMgr))
-	annMgr.Register(announcement.NewDebriefing(cfg, narratorSvc, sessionMgr))
-	annMgr.Register(announcement.NewBorder(cfg, svcs.WikiSvc.GeoService(), narratorSvc, sessionMgr))
+	annMgr := announcement.NewManager(orch)
+	annMgr.Register(announcement.NewLetsgo(cfg, orch, sessionMgr))
+	annMgr.Register(announcement.NewBriefing(cfg, orch, sessionMgr))
+	annMgr.Register(announcement.NewDebriefing(cfg, orch, sessionMgr))
+	annMgr.Register(announcement.NewBorder(cfg, svcs.WikiSvc.GeoService(), orch, sessionMgr))
 
 	return &NarratorComponents{
-		AIService:      narratorSvc,
+		Orchestrator:   orch,
 		AnnManager:     annMgr,
 		PromptManager:  promptMgr,
 		SessionManager: sessionMgr,
@@ -360,7 +370,7 @@ func initLOS(cfg *config.Config) (*terrain.ElevationProvider, *terrain.LOSChecke
 	return provider, terrain.NewLOSChecker(provider)
 }
 
-func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *narrator.AIService, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler, elevGetter terrain.ElevationGetter, promptMgr *prompts.Manager) error {
+func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns narrator.Service, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler, elevGetter terrain.ElevationGetter, promptMgr *prompts.Manager) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	shutdownFunc := func() { quit <- syscall.SIGTERM }
@@ -387,7 +397,7 @@ func runServer(ctx context.Context, cfg *config.Config, svcs *CoreServices, ns *
 	return runServerLifecycle(ctx, srv, quit)
 }
 
-func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc *narrator.AIService, annMgr *announcement.Manager, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker, vis *visibility.Calculator, sessionMgr *session.Manager) *core.Scheduler {
+func setupScheduler(cfg *config.Config, simClient sim.Client, st store.Store, narratorSvc narrator.Service, annMgr *announcement.Manager, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker, vis *visibility.Calculator, sessionMgr *session.Manager) *core.Scheduler {
 	sched := core.NewScheduler(cfg, simClient, apiHandler, svcs.WikiSvc.GeoService())
 	// Session Restoration (Restores session state on startup)
 	sched.AddJob(core.NewSessionRestorationJob(st, sessionMgr, simClient))
@@ -507,25 +517,7 @@ type CoreServices struct {
 	WikipediaClient *wikipedia.Client
 }
 
-func createAIService(
-	appCfg *config.Config,
-	llmProv llm.Provider,
-	ttsProv tts.Provider,
-	promptMgr *prompts.Manager,
-	audioMgr audio.Service,
-	poiMgr narrator.POIProvider,
-	beaconSvc *beacon.Service,
-	wikiSvc *wikidata.Service,
-	simClient sim.Client,
-	st store.Store,
-	tr *tracker.Tracker,
-	catCfg *config.CategoriesConfig,
-	sessionMgr *session.Manager,
-) *narrator.AIService {
-	var beaconProvider narrator.BeaconProvider
-	if beaconSvc != nil {
-		beaconProvider = beaconSvc
-	}
+func createAIService(appCfg *config.Config, llmProv llm.Provider, ttsProv tts.Provider, promptMgr *prompts.Manager, poiMgr narrator.POIProvider, wikiSvc *wikidata.Service, simClient sim.Client, st store.Store, tr *tracker.Tracker, catCfg *config.CategoriesConfig, sessionMgr *session.Manager) *narrator.AIService {
 	essayConfig := "configs/essays.yaml"
 	essayH, _ := narrator.NewEssayHandler(essayConfig, promptMgr)
 
@@ -545,9 +537,7 @@ func createAIService(
 		llmProv,
 		ttsProv,
 		promptMgr,
-		audioMgr,
 		poiMgr,
-		beaconProvider,
 		wikiSvc.GeoService(),
 		simClient,
 		st,

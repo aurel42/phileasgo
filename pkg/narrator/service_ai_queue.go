@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"phileasgo/pkg/announcement"
+	"phileasgo/pkg/generation"
 	"phileasgo/pkg/model"
-	"phileasgo/pkg/narrator/generation"
 	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 )
@@ -35,34 +35,21 @@ func (s *AIService) GetPendingManualOverride() (poiID, strategy string, ok bool)
 	return "", "", false
 }
 
-// enqueuePlayback adds a narrative to the playback queue.
+// enqueuePlayback adds a narrative to the playback queue via the registered callback.
 func (s *AIService) enqueuePlayback(n *model.Narrative, priority bool) {
-	s.playbackQ.Enqueue(n, priority)
+	if s.onPlayback != nil {
+		s.onPlayback(n, priority)
+	}
 }
 
-// Play enqueues a narrative for playback and triggers the playback queue processing.
+// Play enqueues a narrative for playback.
 func (s *AIService) Play(n *model.Narrative) {
 	s.enqueuePlayback(n, true)
-	go s.ProcessPlaybackQueue(context.Background())
-}
-
-// popPlaybackQueue retrieves and removes the next narrative from the queue.
-func (s *AIService) popPlaybackQueue() *model.Narrative {
-	return s.playbackQ.Pop()
-}
-
-func (s *AIService) canEnqueuePlayback(nType model.NarrativeType, manual bool) bool {
-	return s.playbackQ.CanEnqueue(nType, manual)
 }
 
 // enqueueGeneration adds a generation job to the priority queue.
 func (s *AIService) enqueueGeneration(job *generation.Job) {
 	s.genQ.Enqueue(job)
-}
-
-// HasPendingGeneration returns true if there are items in the priority generation queue.
-func (s *AIService) HasPendingGeneration() bool {
-	return s.genQ.HasPending()
 }
 
 func (s *AIService) EnqueueAnnouncement(ctx context.Context, a announcement.Item, t *sim.Telemetry, onComplete func(*model.Narrative)) {
@@ -81,16 +68,12 @@ func (s *AIService) EnqueueAnnouncement(ctx context.Context, a announcement.Item
 func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 	s.initAssembler()
 	s.mu.Lock()
-	// Serialization: Only one generation at a time.
 	if s.generating || s.genQ.Count() == 0 {
 		s.mu.Unlock()
 		return
 	}
 
-	// 1. Claim state EARLY to prevent other triggers from starting pregrounding
 	s.generating = true
-
-	// 2. Pop the job
 	job := s.genQ.Pop()
 	if job == nil {
 		s.generating = false
@@ -99,17 +82,11 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 	}
 	s.mu.Unlock()
 
-	// Process Job
 	go func() {
-		// Safety: ensure we always release the lock if anything in this goroutine fails
-		// before GenerateNarrative (which has its own defer).
 		done := false
 		defer func() {
 			if !done {
-				s.mu.Lock()
-				s.generating = false
-				s.generatingPOI = nil
-				s.mu.Unlock()
+				s.releaseGeneration()
 			}
 		}()
 
@@ -119,7 +96,6 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 		switch job.Type {
 		case model.NarrativeTypePOI:
 			req = s.handlePOIJob(genCtx, job)
-
 		default:
 			req = s.handleAnnouncementJob(genCtx, job)
 		}
@@ -132,85 +108,48 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 		narrative, err := s.GenerateNarrative(genCtx, req)
 		if err != nil {
 			slog.Error("Narrator: Priority generation failed", "type", job.Type, "error", err)
-			// Trigger next even on failure
 			s.ProcessGenerationQueue(genCtx)
 			return
 		}
 
-		// Handle Result
 		if job.OnComplete != nil {
 			job.OnComplete(narrative)
 		} else {
-			// Fallback: Default Playback
 			s.enqueuePlayback(narrative, true)
-			go s.ProcessPlaybackQueue(genCtx)
 		}
 
-		// Self-perpetuation: Trigger next queued item
 		s.ProcessGenerationQueue(genCtx)
 	}()
-}
-
-// handleManualQueueAndOverride handles busy states for manual requests.
-func (s *AIService) handleManualQueueAndOverride(poiID, strategy string, manual, enqueueIfBusy bool) bool {
-	if !manual {
-		return false
-	}
-
-	s.mu.RLock()
-	isGenerating := s.generating
-	s.mu.RUnlock()
-
-	if isGenerating {
-		if enqueueIfBusy {
-			s.enqueueGeneration(&generation.Job{
-				Type:      model.NarrativeTypePOI,
-				POIID:     poiID,
-				Manual:    true,
-				Strategy:  strategy,
-				CreatedAt: time.Now(),
-			})
-			return true
-		}
-		// If NOT enqueueing, we fall through and handleGenerationState will cancel the old job
-	}
-
-	return false
 }
 
 func (s *AIService) summarizeAndLogEvent(ctx context.Context, n *model.Narrative) {
 	s.initAssembler()
 
-	// Borders log directly in announcement/border.go ShouldGenerate() - skip here to avoid double-logging
 	if n.Type == model.NarrativeTypeBorder {
 		return
 	}
 
-	// Summarize the event via LLM
 	data := s.promptAssembler.NewPromptData(s.getSessionState())
 	data["LastTitle"] = n.Title
 	data["LastScript"] = n.Script
 
-	prompt, err := s.prompts.Render("narrator/event_summary.tmpl", data)
+	promptBody, err := s.prompts.Render("narrator/event_summary.tmpl", data)
 	if err != nil {
 		slog.Error("Narrator: Failed to render event summary template", "error", err)
 		return
 	}
 
-	summary, err := s.llm.GenerateText(ctx, "summary", prompt)
+	summary, err := s.llm.GenerateText(ctx, "summary", promptBody)
 	if err != nil {
 		slog.Error("Narrator: Failed to summarize event", "error", err)
-		// Fallback: Use title if LLM fails
 		summary = n.Title
 	}
 
-	// 2. Clean up summary (remove markup, collapse lines)
 	summary = strings.TrimSpace(summary)
 	summary = strings.ReplaceAll(summary, "\n", " ")
 	summary = strings.ReplaceAll(summary, "**", "")
 	summary = strings.ReplaceAll(summary, "* ", "")
 
-	// 3. Log the event
 	event := model.TripEvent{
 		Timestamp: time.Now(),
 		Type:      "narration",
@@ -220,7 +159,6 @@ func (s *AIService) summarizeAndLogEvent(ctx context.Context, n *model.Narrative
 		Metadata:  make(map[string]string),
 	}
 
-	// 4. Enrich Metadata
 	if n.POI != nil {
 		event.Metadata["qid"] = n.POI.WikidataID
 		event.Metadata["icon"] = n.POI.Icon
@@ -229,12 +167,11 @@ func (s *AIService) summarizeAndLogEvent(ctx context.Context, n *model.Narrative
 	}
 
 	s.session().AddEvent(&event)
-
 	slog.Debug("Narrator: Trip event logged", "type", n.Type, "title", n.Title)
 }
 
-func (s *AIService) addScriptToHistory(ctx context.Context, n *model.Narrative) {
-	// Determine ID for session tracking (LastSentence logic)
+func (s *AIService) RecordNarration(ctx context.Context, n *model.Narrative) {
+	s.initAssembler()
 	id := n.Title
 	if n.POI != nil {
 		id = n.POI.WikidataID
@@ -246,35 +183,6 @@ func (s *AIService) addScriptToHistory(ctx context.Context, n *model.Narrative) 
 	go s.summarizeAndLogEvent(ctx, n)
 }
 
-func (s *AIService) ResetSession(ctx context.Context) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Reset session state
-	s.session().Reset()
-	s.currentPOI = nil
-	s.currentTopic = nil
-	s.currentEssayTitle = ""
-	s.lastPOI = nil
-	s.lastEssayTopic = nil
-	s.lastEssayTitle = ""
-
-	// Clear persistence
-	if err := s.st.SetState(ctx, "session_context", ""); err != nil {
-		slog.Error("Narrator: Failed to clear session persistence", "error", err)
-	}
-
-	// Clear active beacons
-	if s.beaconSvc != nil {
-		s.beaconSvc.Clear()
-	}
-
-	// Clear Queue
-	s.playbackQ.Clear()
-
-	slog.Info("Narrator: Session reset (teleport/new flight detected)")
-}
-
 func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *GenerationRequest {
 	s.initAssembler()
 	p, err := s.poiMgr.GetPOI(ctx, job.POIID)
@@ -284,11 +192,11 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 	}
 
 	promptData := s.promptAssembler.ForPOI(ctx, p, job.Telemetry, job.Strategy, s.getSessionState())
-	prompt, _ := s.prompts.Render("narrator/script.tmpl", promptData)
+	promptStr, _ := s.prompts.Render("narrator/script.tmpl", promptData)
 
 	req := &GenerationRequest{
 		Type:          model.NarrativeTypePOI,
-		Prompt:        prompt,
+		Prompt:        promptStr,
 		Title:         p.DisplayName(),
 		SafeID:        strings.ReplaceAll(p.WikidataID, "/", "_"),
 		POI:           p,
@@ -298,15 +206,12 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 		ThumbnailURL:  p.ThumbnailURL,
 	}
 
-	// Update state so IsPOIBusy(p.WikidataID) is true during generation
 	s.mu.Lock()
 	s.generatingPOI = p
 	s.mu.Unlock()
 
 	return req
 }
-
-// DELETED handleBorderJob as it's now handled by the generic announcement path
 
 func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.Job) *GenerationRequest {
 	if job.Announcement == nil {
@@ -320,34 +225,33 @@ func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.J
 		return nil
 	}
 
-	// Find prompt template based on narrative type
 	tmpl := fmt.Sprintf("announcement/%s.tmpl", strings.ToLower(string(job.Type)))
-	promptData, err := s.prompts.Render(tmpl, data)
+	promptBody, err := s.prompts.Render(tmpl, data)
 	if err != nil {
 		slog.Error("Narrator: Failed to render announcement prompt", "error", err, "tmpl", tmpl)
 		return nil
 	}
 
 	maxWords := 300
-	switch m := data.(type) {
+	switch v := data.(type) {
 	case prompt.Data:
-		if mw, ok := m["MaxWords"].(int); ok {
+		if mw, ok := v["MaxWords"].(int); ok {
 			maxWords = mw
 		}
 	case map[string]any:
-		if mw, ok := m["MaxWords"].(int); ok {
+		if mw, ok := v["MaxWords"].(int); ok {
 			maxWords = mw
 		}
 	}
 
 	return &GenerationRequest{
 		Type:          job.Type,
-		Prompt:        promptData,
+		Prompt:        promptBody,
 		Title:         job.Announcement.Title(),
 		Summary:       job.Announcement.Summary(),
 		SafeID:        job.Announcement.ID(),
 		MaxWords:      maxWords,
-		Manual:        true, // Announcements are treated with same priority as manual
+		Manual:        true,
 		SkipBusyCheck: true,
 		ThumbnailURL:  job.Announcement.ImagePath(),
 		POI:           job.Announcement.POI(),

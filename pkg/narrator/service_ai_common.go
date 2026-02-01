@@ -47,8 +47,5 @@ func (s *AIService) handleTTSError(err error) {
 		slog.Warn("Narrator: Skipping current POI (script incompatible with fallback TTS). Will retry with next POI.")
 	}
 
-	if s.beaconSvc != nil {
-		s.beaconSvc.Clear()
-	}
 	// Do NOT set LastPlayed - POI can be retried
 }

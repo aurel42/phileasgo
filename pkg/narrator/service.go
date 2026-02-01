@@ -4,7 +4,10 @@ package narrator
 import (
 	"context"
 	"log/slog"
+	"phileasgo/pkg/audio"
+	"phileasgo/pkg/llm"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 	"sync"
 	"time"
@@ -69,6 +72,10 @@ type Service interface {
 	AverageLatency() time.Duration
 	// CurrentImagePath returns the file path of the message for the current narration.
 	CurrentImagePath() string
+	// CurrentThumbnailURL returns the thumbnail URL for the current narration.
+	CurrentThumbnailURL() string
+	// ClearCurrentImage clears the current image path.
+	ClearCurrentImage()
 	// IsPOIBusy returns true if the POI is currently generating, queued, or playing.
 	IsPOIBusy(poiID string) bool
 	// Pause pauses the narration playback.
@@ -79,6 +86,27 @@ type Service interface {
 	Skip()
 	// TriggerIdentAction triggers the action configured for the transponder Ident button.
 	TriggerIdentAction()
+	// POIManager returns the internal POI manager.
+	POIManager() POIProvider
+	// LLMProvider returns the internal LLM provider.
+	LLMProvider() llm.Provider
+	// AudioService returns the internal audio service.
+	AudioService() audio.Service
+	// ProcessGenerationQueue triggers the generation queue processing.
+	ProcessGenerationQueue(ctx context.Context)
+	// HasPendingGeneration returns true if any generation is in progress.
+	HasPendingGeneration() bool
+	// ResetSession clears all state for a new session.
+	ResetSession(ctx context.Context)
+
+	// DataProvider methods (for compatibility with announcement system)
+	GetLocation(lat, lon float64) model.LocationInfo
+	GetPOIsNear(lat, lon, radius float64) []*model.POI
+	GetRepeatTTL() time.Duration
+	GetTripSummary() string
+	GetLastTransition(stage string) time.Time
+	AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data
+	AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data
 }
 
 // StubService is a stub implementation of the narrator service.
@@ -317,3 +345,42 @@ func (s *StubService) Skip() {
 func (s *StubService) TriggerIdentAction() {
 	slog.Info("Narrator stub: Ident action triggered")
 }
+
+func (s *StubService) AudioService() audio.Service {
+	return nil
+}
+
+func (s *StubService) POIManager() POIProvider {
+	return nil
+}
+
+func (s *StubService) LLMProvider() llm.Provider {
+	return nil
+}
+
+func (s *StubService) ProcessGenerationQueue(ctx context.Context) {}
+
+func (s *StubService) HasPendingGeneration() bool {
+	return false
+}
+
+func (s *StubService) ResetSession(ctx context.Context) {}
+
+func (s *StubService) CurrentThumbnailURL() string { return "" }
+func (s *StubService) ClearCurrentImage() {
+	slog.Info("Narrator stub: ClearCurrentImage requested")
+}
+
+// DataProvider methods
+func (s *StubService) GetLocation(lat, lon float64) model.LocationInfo   { return model.LocationInfo{} }
+func (s *StubService) GetPOIsNear(lat, lon, radius float64) []*model.POI { return nil }
+func (s *StubService) GetRepeatTTL() time.Duration                       { return 0 }
+func (s *StubService) GetTripSummary() string                            { return "" }
+func (s *StubService) GetLastTransition(stage string) time.Time          { return time.Time{} }
+func (s *StubService) AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data {
+	return nil
+}
+func (s *StubService) AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data {
+	return nil
+}
+func (s *StubService) RecordNarration(ctx context.Context, n *model.Narrative) {}

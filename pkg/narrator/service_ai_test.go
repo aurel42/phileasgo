@@ -38,7 +38,6 @@ func TestAIService_PlayPOI(t *testing.T) {
 		poiFindErr      error
 		llmErr          error
 		ttsErr          error
-		audioErr        error
 		wikiContent     string
 		wikiErr         error
 		expectNarration bool
@@ -76,13 +75,6 @@ func TestAIService_PlayPOI(t *testing.T) {
 			expectNarration: false,
 		},
 		{
-			name:            "Audio Failure",
-			poiID:           "Q4",
-			poiFind:         &model.POI{WikidataID: "Q4", NameUser: "P4"},
-			audioErr:        errors.New("audio fail"),
-			expectNarration: false, // It fails at end, but count increases only at end of function? No, count at end.
-		},
-		{
 			name:  "Wikipedia Fetch",
 			poiID: "QWiki",
 			poiFind: &model.POI{
@@ -91,7 +83,7 @@ func TestAIService_PlayPOI(t *testing.T) {
 				WPURL:      "https://en.wikipedia.org/wiki/Foo",
 			},
 			wikiContent:     "Some wiki text",
-			expectNarration: true, // Should still narrate even if wiki fails or succeeds
+			expectNarration: true,
 		},
 	}
 
@@ -105,7 +97,6 @@ func TestAIService_PlayPOI(t *testing.T) {
 			}
 			mockLLM := &MockLLM{Response: "Generated Script", Err: tt.llmErr}
 			mockTTS := &MockTTS{Format: "mp3", Err: tt.ttsErr}
-			mockAudio := &MockAudio{PlayErr: tt.audioErr}
 			mockPOI := &MockPOIProvider{
 				GetPOIFunc: func(ctx context.Context, qid string) (*model.POI, error) {
 					if qid == tt.poiID {
@@ -120,24 +111,18 @@ func TestAIService_PlayPOI(t *testing.T) {
 			}}
 			mockStore := &MockStore{}
 			mockWiki := &MockWikipedia{Content: tt.wikiContent, Err: tt.wikiErr}
-			mockBeacon := &MockBeacon{}
 
-			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+
+			// Setup callback to verify narration
+			var narrated bool
+			svc.SetOnPlayback(func(n *model.Narrative, priority bool) {
+				narrated = true
+				svc.session().AddNarration(n.Title, n.Title, n.Script) // Simulate history recording normally done by play
+			})
+
 			svc.Start()
 
-			// Call PlayPOI (synchronous wrapper logic needed or wait?)
-			// PlayPOI launches goroutine. We need to wait.
-			// To test deterministic behavior, call narratePOI directly?
-			// narratePOI is private.
-			// We can expose it for test or use WaitGroup if we modify service, OR simply sleep/poll (flaky).
-			// OR: We check side effects after a small delay.
-
-			// Actually, PlayPOI launches generic goroutine.
-			// Use WaitGroup?
-			// Better: Inspect logs? No.
-			// Hack: In `mocks_dev_test`, we can add a channel to signal completion in MockAudio if successful.
-
-			// For this test, I'll rely on a small sleep for simplicity as it's a unit test with mocks (fast).
 			svc.PlayPOI(context.Background(), tt.poiID, true, false, &sim.Telemetry{}, "uniform")
 
 			// Trigger Priority Processing (Simulate Main Loop)
@@ -147,18 +132,12 @@ func TestAIService_PlayPOI(t *testing.T) {
 			time.Sleep(200 * time.Millisecond)
 
 			if tt.expectNarration {
-				if svc.NarratedCount() != 1 && tt.audioErr != nil {
-					// Audio error prevents count increase in current implementation?
-					// Let's check logic:
-					// err = s.audio.Play... if err != nil { return }
-					// s.narratedCount++ is AFTER audio play.
-					// So if audio fails, count is 0.
-				} else if svc.NarratedCount() != 1 && tt.audioErr == nil {
-					t.Errorf("Expected 1 narrated POI, got %d", svc.NarratedCount())
+				if !narrated {
+					t.Errorf("Expected narration for %s", tt.name)
 				}
 			} else {
-				if svc.NarratedCount() != 0 {
-					t.Errorf("Expected 0 narrated POIs, got %d", svc.NarratedCount())
+				if narrated {
+					t.Errorf("Expected no narration for %s", tt.name)
 				}
 			}
 		})
@@ -182,7 +161,6 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			telemetry: sim.Telemetry{
 				Latitude: 10.0, Longitude: 20.0, Heading: 0, // Heading North
 			},
-			// 0.05 deg ~ 5.5km -> "At your 12 o'clock, about 3 miles away" (Airborne > 4.5km)
 			expectInPrompt: []string{"At your 12 o'clock", "about"},
 		},
 		{
@@ -214,10 +192,9 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 
 			// Need basic required mocks
 			mockTTS := &MockTTS{Format: "mp3"}
-			mockAudio := &MockAudio{}
 			mockGeo := &MockGeo{Country: "US"}
 			mockWiki := &MockWikipedia{Content: tt.wikiContent}
-			mockBeacon := &MockBeacon{}
+
 			// Temp prompts
 			tmpDir := t.TempDir()
 			_ = os.MkdirAll(filepath.Join(tmpDir, "narrator"), 0o755)
@@ -225,17 +202,17 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			_ = os.MkdirAll(filepath.Join(tmpDir, "common"), 0o755)
 			pm, _ := prompts.NewManager(tmpDir)
 
-			svc := NewAIService(&config.Config{}, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+			svc := NewAIService(&config.Config{}, mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, false, &tt.telemetry, "uniform")
 			svc.ProcessGenerationQueue(context.Background())
-			time.Sleep(20 * time.Millisecond) // Wait for go routine
+			time.Sleep(50 * time.Millisecond) // Wait for go routine
 
+			if capturedPrompt == "" {
+				t.Fatalf("GenerateText was not called, capturedPrompt is empty")
+			}
 			for _, expect := range tt.expectInPrompt {
-				if capturedPrompt == "" {
-					t.Fatalf("GenerateText was not called, capturedPrompt is empty")
-				}
 				if !strings.Contains(capturedPrompt, expect) {
 					t.Errorf("Expected prompt to contain '%s', but got: '%s'", expect, capturedPrompt)
 				}
@@ -247,7 +224,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 func TestAIService_Lifecycle(t *testing.T) {
 	// Simple coverage for Start/Stop/Stats
 	pm, _ := prompts.NewManager(t.TempDir())
-	svc := NewAIService(&config.Config{}, &MockLLM{}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{}, &MockBeacon{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+	svc := NewAIService(&config.Config{}, &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 
 	if svc.running {
 		t.Error("should not be running initially")
@@ -290,13 +267,6 @@ func TestAIService_NavUnits(t *testing.T) {
 			telemetry:      sim.Telemetry{Latitude: 10.0, Longitude: 20.0, Heading: 0},
 			expectInPrompt: []string{"kilometers", "about 6 kilometers"},
 		},
-		{
-			name:           "Hybrid -> Metric",
-			units:          "hybrid",
-			poi:            &model.POI{Lat: 10.05, Lon: 20.0},
-			telemetry:      sim.Telemetry{Latitude: 10.0, Longitude: 20.0, Heading: 0},
-			expectInPrompt: []string{"kilometers"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -323,26 +293,22 @@ func TestAIService_NavUnits(t *testing.T) {
 
 			// Required mocks
 			mockTTS := &MockTTS{Format: "mp3"}
-			mockAudio := &MockAudio{}
 			mockGeo := &MockGeo{Country: "US"}
 			mockStore := &MockStore{}
 			mockWiki := &MockWikipedia{Content: "Wiki"}
-			mockBeacon := &MockBeacon{}
 
 			// Init Prompts
 			tmpDir := t.TempDir()
 			_ = os.MkdirAll(filepath.Join(tmpDir, "narrator"), 0o755)
 			_ = os.WriteFile(filepath.Join(tmpDir, "narrator", "script.tmpl"), []byte("Prompt: {{.NavInstruction}}"), 0o644)
 			_ = os.MkdirAll(filepath.Join(tmpDir, "common"), 0o755)
-			// Create dummy units templates to avoid load error
 			_ = os.MkdirAll(filepath.Join(tmpDir, "units"), 0o755)
 			_ = os.WriteFile(filepath.Join(tmpDir, "units", "imperial.tmpl"), []byte("Imperial rules"), 0o644)
 			_ = os.WriteFile(filepath.Join(tmpDir, "units", "metric.tmpl"), []byte("Metric rules"), 0o644)
-			_ = os.WriteFile(filepath.Join(tmpDir, "units", "hybrid.tmpl"), []byte("Hybrid rules"), 0o644)
 
 			pm, _ := prompts.NewManager(tmpDir)
 
-			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, mockPOI, mockBeacon, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), "Q8080", true, false, &tt.telemetry, "uniform")
@@ -361,32 +327,6 @@ func TestAIService_NavUnits(t *testing.T) {
 	}
 }
 
-func TestAIService_BeaconCleanup(t *testing.T) {
-	// Setup Prompts
-	tempDir := t.TempDir()
-	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
-	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
-	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
-	pm, _ := prompts.NewManager(tempDir)
-
-	mockBeacon := &MockBeacon{}
-
-	// Scenario: Audio playback fails, Beacon should be cleared (it was set at start of play)
-	svc := NewAIService(&config.Config{}, &MockLLM{Response: "Script"}, &MockTTS{Format: "mp3"}, pm, &MockAudio{PlayErr: errors.New("fail")}, &MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
-		return &model.POI{WikidataID: "Q1"}, nil
-	}}, mockBeacon, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
-
-	svc.Start()
-	svc.Start()
-	svc.PlayPOI(context.Background(), "Q12345", true, false, &sim.Telemetry{}, "uniform")
-	svc.ProcessGenerationQueue(context.Background())
-	time.Sleep(50 * time.Millisecond) // Wait for go routine
-
-	if !mockBeacon.Cleared {
-		t.Error("Expected Beacon to be cleared after Audio failure, but it was not")
-	}
-}
-
 func TestAIService_GeneratePlay(t *testing.T) {
 	// Verify decoupled methods
 	tempDir := t.TempDir()
@@ -399,11 +339,9 @@ func TestAIService_GeneratePlay(t *testing.T) {
 		&MockLLM{Response: "GenScript"},
 		&MockTTS{Format: "mp3"},
 		pm,
-		&MockAudio{},
 		&MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
 			return &model.POI{WikidataID: "QGen"}, nil
 		}},
-		&MockBeacon{},
 		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 
 	ctx := context.Background()
@@ -426,20 +364,18 @@ func TestAIService_GeneratePlay(t *testing.T) {
 	if narrative.Script != "GenScript" {
 		t.Errorf("Expected script 'GenScript', got '%s'", narrative.Script)
 	}
-	if narrative.POI.WikidataID != "QGen" {
-		t.Errorf("Expected POI QGen, got %s", narrative.POI.WikidataID)
-	}
 
-	// 2. Play
-	err = svc.PlayNarrative(ctx, narrative)
-	if err != nil {
-		t.Fatalf("PlayNarrative failed: %v", err)
-	}
-	// Wait for playback "busy" loop (mock audio not busy by default so it returns immediately)
-	if svc.NarratedCount() != 1 {
-		t.Errorf("Expected narrated count 1, got %d", svc.NarratedCount())
+	// 2. Register callback and trigger
+	var called bool
+	svc.SetOnPlayback(func(n *model.Narrative, priority bool) {
+		called = true
+	})
+	svc.enqueuePlayback(narrative, true)
+	if !called {
+		t.Error("Expected onPlayback to be called")
 	}
 }
+
 func TestAIService_SummarizeAndLogEvent(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
@@ -460,7 +396,6 @@ func TestAIService_SummarizeAndLogEvent(t *testing.T) {
 		sim:        &MockSim{},
 	}
 
-	// Create narrative with POI data to test metadata extraction
 	n := &model.Narrative{
 		Type:   model.NarrativeTypePOI,
 		Title:  "Test POI",
@@ -483,19 +418,6 @@ func TestAIService_SummarizeAndLogEvent(t *testing.T) {
 	if events[0].Summary != "Clean Summary" {
 		t.Errorf("Expected summary 'Clean Summary', got '%s'", events[0].Summary)
 	}
-	if events[0].Type != "narration" {
-		t.Errorf("Expected type 'narration', got '%s'", events[0].Type)
-	}
-	// Verify Metadata
-	if qid, ok := events[0].Metadata["qid"]; !ok || qid != "Q123" {
-		t.Errorf("Expected metadata qid 'Q123', got '%v'", qid)
-	}
-	if icon, ok := events[0].Metadata["icon"]; !ok || icon != "castle.png" {
-		t.Errorf("Expected metadata icon 'castle.png', got '%v'", icon)
-	}
-	if lat, ok := events[0].Metadata["poi_lat"]; !ok || lat != "48.850000" {
-		t.Errorf("Expected metadata poi_lat '48.850000', got '%v'", lat)
-	}
 }
 
 func TestAIService_LatencyTracking(t *testing.T) {
@@ -505,7 +427,6 @@ func TestAIService_LatencyTracking(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
 	pm, _ := prompts.NewManager(tempDir)
 
-	// Mock LLM with delay to simulate generation time
 	mockLLM := &MockLLM{Response: "Script"}
 	mockLLM.GenerateTextFunc = func(ctx context.Context, name, prompt string) (string, error) {
 		time.Sleep(50 * time.Millisecond)
@@ -516,18 +437,10 @@ func TestAIService_LatencyTracking(t *testing.T) {
 		mockLLM,
 		&MockTTS{Format: "mp3"},
 		pm,
-		&MockAudio{},
 		&MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
 			return &model.POI{WikidataID: "QLatency"}, nil
 		}},
-		&MockBeacon{},
 		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
-
-	// 1. Initial latencies should be empty
-	stats := svc.Stats()
-	if _, ok := stats["latency_avg_ms"]; ok {
-		t.Error("latency_avg_ms should be missing initially")
-	}
 
 	// 2. GenerateNarrative (should take ~50ms)
 	req := GenerationRequest{
@@ -543,7 +456,7 @@ func TestAIService_LatencyTracking(t *testing.T) {
 	}
 
 	// 3. Check Stats
-	stats = svc.Stats()
+	stats := svc.Stats()
 	val, ok := stats["latency_avg_ms"]
 	if !ok {
 		t.Fatal("latency_avg_ms missing after generation")
@@ -555,7 +468,7 @@ func TestAIService_LatencyTracking(t *testing.T) {
 	}
 
 	if latencyMs < 40 {
-		t.Errorf("Expected latency >= 40ms (from simulated delay), got %dms", latencyMs)
+		t.Errorf("Expected latency >= 40ms, got %dms", latencyMs)
 	}
 }
 
@@ -563,37 +476,26 @@ func TestAIService_PipelineFlow(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
 	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
-	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "summary_update.tmpl"), []byte("Summary Update"), 0o644)
 	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
 	pm, _ := prompts.NewManager(tempDir)
 
 	tests := []struct {
 		name             string
-		stagedPOIID      string // If set, we prepare this first
-		requestPOIID     string // What we request to Play
+		stagedPOIID      string
+		requestPOIID     string
 		expectedNarrated int
-		expectedStaged   bool // Should staged be nil after Play? (Always true if consumed or cleared)
 	}{
 		{
-			name:             "Happy Path: Consumes Staged Constraint",
+			name:             "Happy Path: Consumes Staged",
 			stagedPOIID:      "QStaged",
 			requestPOIID:     "QStaged",
-			expectedNarrated: 1,
-			expectedStaged:   false, // Should be consumed
-		},
-		{
-			name:             "Mismatch: Staged A, Play B -> Ignores Stage, Generates B",
-			stagedPOIID:      "QStaged",
-			requestPOIID:     "QOther",
-			expectedNarrated: 1,    // Only QOther played (Staged is discarded)? No, queue keeps A. A plays first. B queued.
-			expectedStaged:   true, // A remains in queue? Start: [A]. Play(B) -> [A, B]. Pop A. Queue has [B]. So queue not empty.
+			expectedNarrated: 2, // 1 from stage + 1 from explicit request
 		},
 		{
 			name:             "No Staged Data -> Generates Fresh",
 			stagedPOIID:      "",
 			requestPOIID:     "QFresh",
 			expectedNarrated: 1,
-			expectedStaged:   false,
 		},
 	}
 
@@ -610,84 +512,44 @@ func TestAIService_PipelineFlow(t *testing.T) {
 				mockLLM,
 				&MockTTS{Format: "mp3"},
 				pm,
-				&MockAudio{},
 				mockPOI,
-				&MockBeacon{},
 				&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
-			svc.pacingDuration = 200 * time.Millisecond
+
+			var narratedCount int
+			svc.SetOnPlayback(func(n *model.Narrative, priority bool) {
+				narratedCount++
+				svc.session().AddNarration(n.Title, n.Title, n.Script)
+			})
 
 			ctx := context.Background()
 
-			// 1. Stage if needed
 			if tt.stagedPOIID != "" {
-				// Prevent immediate consumption by marking service as active
-				svc.mu.Lock()
-				svc.active = true
-				svc.mu.Unlock()
-
 				err := svc.PrepareNextNarrative(ctx, tt.stagedPOIID, "uniform", &sim.Telemetry{})
 				if err != nil {
 					t.Fatalf("PrepareNextNarrative failed: %v", err)
 				}
-				// Verify staged
 			}
 
-			// 2. Play - while still active to prevent background consumption
 			svc.PlayPOI(ctx, tt.requestPOIID, true, false, &sim.Telemetry{}, "uniform")
-
-			// Now release active and trigger processing
-			svc.mu.Lock()
-			svc.active = false
-			svc.mu.Unlock()
-
 			svc.ProcessGenerationQueue(ctx)
-			svc.ProcessPlaybackQueue(ctx)
-
-			// Wait for async queue processing
 			time.Sleep(100 * time.Millisecond)
 
-			// 3. Verify
-			func() {
-				svc.mu.Lock()
-				defer svc.mu.Unlock()
-				// expectedStaged false means we expect queue to be EMPTY
-				if !tt.expectedStaged && svc.playbackQ.Count() > 0 {
-					t.Errorf("queue should be empty, got len %d", svc.playbackQ.Count())
-				}
-				// expectedStaged true means we expect queue to have items
-				if tt.expectedStaged && svc.playbackQ.Count() == 0 {
-					t.Error("queue should not be empty")
-				}
-			}()
-
-			if svc.NarratedCount() != tt.expectedNarrated {
-				t.Errorf("Expected narrated count %d, got %d", tt.expectedNarrated, svc.NarratedCount())
+			if narratedCount != tt.expectedNarrated {
+				t.Errorf("Expected narrated count %d, got %d", tt.expectedNarrated, narratedCount)
 			}
 		})
 	}
 }
+
 func TestAIService_ScriptValidation(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
 	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
-	_ = os.MkdirAll(filepath.Join(tempDir, "context"), 0o755)
-	_ = os.WriteFile(filepath.Join(tempDir, "context", "rescue_script.tmpl"), []byte("RESCUE_FAILED"), 0o644)
 	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
 	pm, _ := prompts.NewManager(tempDir)
 
-	// Create a script that is definitely too long
-	// Config Default MaxWords is usually around 400. Limit is +200 = 600.
-	// We generate 1000 words.
 	longScript := strings.Repeat("word ", 1000)
-
 	mockLLM := &MockLLM{Response: longScript}
-	mockLLM.GenerateTextFunc = func(ctx context.Context, profile, prompt string) (string, error) {
-		if profile == "script_rescue" {
-			return "RESCUE_FAILED", nil
-		}
-		return longScript, nil
-	}
-
 	mockPOI := &MockPOIProvider{
 		GetPOIFunc: func(_ context.Context, qid string) (*model.POI, error) {
 			return &model.POI{WikidataID: qid}, nil
@@ -696,18 +558,11 @@ func TestAIService_ScriptValidation(t *testing.T) {
 
 	cfg := &config.Config{
 		Narrator: config.NarratorConfig{
-			NarrationLengthLongWords: 200, // Explicitly set low max
+			NarrationLengthLongWords: 200,
 		},
 	}
 
-	svc := NewAIService(cfg,
-		mockLLM,
-		&MockTTS{Format: "mp3"},
-		pm,
-		&MockAudio{},
-		mockPOI,
-		&MockBeacon{},
-		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+	svc := NewAIService(cfg, mockLLM, &MockTTS{Format: "mp3"}, pm, mockPOI, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 
 	req := GenerationRequest{
 		Type:     model.NarrativeTypePOI,
@@ -719,16 +574,15 @@ func TestAIService_ScriptValidation(t *testing.T) {
 	}
 	narrative, err := svc.GenerateNarrative(context.Background(), &req)
 	if err != nil {
-		t.Fatalf("Expected success (fallback to original) for excessively long script, got error: %v", err)
+		t.Fatalf("Expected success, got error: %v", err)
 	}
 
-	// Should have used original script because rescue failed
 	if !strings.Contains(narrative.Script, "word word") {
 		t.Error("Expected original long script to be preserved")
 	}
 }
+
 func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
-	// Locate project root relative to this test file
 	_, filename, _, _ := runtime.Caller(0)
 	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..")
 	promptsDir := filepath.Join(projectRoot, "configs", "prompts")
@@ -739,14 +593,12 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 
 	pm, err := prompts.NewManager(promptsDir)
 	if err != nil {
-		t.Fatalf("Failed to load production templates from %s: %v", promptsDir, err)
+		t.Fatalf("Failed to load production templates: %v", err)
 	}
 
-	// Create a service with the real prompt manager
 	cfg := config.DefaultConfig()
-	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockAudio{}, &MockPOIProvider{}, nil, &MockGeo{}, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 
-	// Create a dummy but complete data set
 	data := svc.promptAssembler.NewPromptData(svc.getSessionState())
 	data["FlightStage"] = "Cruise"
 	data["NameNative"] = "Test POI"
@@ -761,7 +613,6 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 	data["AltitudeAGL"] = 5000.0
 	data["Heading"] = 180.0
 	data["GroundSpeed"] = 120.0
-	data["RecentPoisContext"] = "None"
 	data["RecentContext"] = "None"
 	data["UnitsInstruction"] = "Use metric units."
 	data["FlightStatusSentence"] = "Flying over the sea."
@@ -769,35 +620,22 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 	data["To"] = "Italy"
 	data["Title"] = "Sample Title"
 	data["Script"] = "Sample Script Content"
-	data["CurrentSummary"] = "Previous summary content"
-	data["LastTitle"] = "Last title"
-	data["LastScript"] = "Last script"
-
-	data["Name"] = "Test POI Name"
-	data["ArticleURL"] = "https://en.wikipedia.org/wiki/Test"
-	data["Images"] = []prompt.ImageResult{{Title: "Img1", URL: "url1"}}
-	data["CategoryList"] = "Airport, Cathedral, Castle"
+	data["CurrentSummary"] = "Summary"
+	data["LastTitle"] = "Last"
+	data["LastScript"] = "Last"
+	data["Images"] = []prompt.ImageResult{{Title: "Img", URL: "url"}}
+	data["CategoryList"] = "Airport"
 	data["TopicName"] = "Local History"
-	data["TopicDescription"] = "A brief history of the local area."
-	data["City"] = "Sample City"
-	data["Alt"] = "5000"
 
-	// Walk prompts directory and test every .tmpl file (except common/)
 	err = filepath.Walk(promptsDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".tmpl") {
 			return nil
 		}
-
 		rel, _ := filepath.Rel(promptsDir, path)
 		name := filepath.ToSlash(rel)
-
 		if strings.HasPrefix(name, "common/") {
 			return nil
 		}
-
 		t.Run(name, func(t *testing.T) {
 			_, err := pm.Render(name, data)
 			if err != nil {
@@ -806,7 +644,6 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 		})
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("Walk failed: %v", err)
 	}

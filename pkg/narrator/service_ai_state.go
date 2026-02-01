@@ -3,7 +3,7 @@ package narrator
 import (
 	"context"
 	"fmt"
-	"log/slog"
+	"phileasgo/pkg/llm"
 	"phileasgo/pkg/model"
 	"time"
 )
@@ -13,7 +13,6 @@ func (s *AIService) handleGenerationState(req *GenerationRequest) error {
 	defer s.mu.Unlock()
 
 	if req.SkipBusyCheck {
-		// Caller already claimed the lock (e.g. from the queue worker or detached worker)
 		s.generating = true
 		s.generatingPOI = req.POI
 		s.generatingTitle = req.Title
@@ -31,8 +30,6 @@ func (s *AIService) handleGenerationState(req *GenerationRequest) error {
 	return nil
 }
 
-// claimGeneration synchronously claims the busy state for the narrator.
-// Returns true if claimed, false if already busy.
 func (s *AIService) claimGeneration(p *model.POI) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -44,7 +41,6 @@ func (s *AIService) claimGeneration(p *model.POI) bool {
 	return true
 }
 
-// releaseGeneration releases the busy state for the narrator.
 func (s *AIService) releaseGeneration() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -54,106 +50,28 @@ func (s *AIService) releaseGeneration() {
 	s.generatingThumbnail = ""
 }
 
-// IsActive returns true if narrator is currently active (generating or playing).
-func (s *AIService) IsActive() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.active || s.generating || s.playbackQ.Count() > 0 || s.genQ.Count() > 0
-}
-
-// IsGenerating returns true if narrator is currently generating script/audio.
 func (s *AIService) IsGenerating() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.generating || s.genQ.Count() > 0
 }
 
-// HasStagedAuto returns true if an automatic POI or Essay is currently generating or in the playback queue.
-func (s *AIService) HasStagedAuto() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// 1. Is actively generating an auto-job?
-	// Note: s.generatingPOI tracks the current POI being generated, but we rely on queue checks below.
-
-	// Simplest check: if we are generating OR have items in generation queue OR have auto items in playback queue.
-	if s.generating || s.genQ.Count() > 0 {
-		return true
-	}
-
-	if s.playbackQ.HasAuto() {
-		return true
-	}
-
-	return false
+func (s *AIService) IsActive() bool {
+	return s.IsGenerating()
 }
 
-// IsPlaying returns true if narrator is currently playing audio (or checking busy state).
-func (s *AIService) IsPlaying() bool {
-	return s.audio.IsBusy()
+func (s *AIService) HasPendingGeneration() bool {
+	return s.genQ.HasPending()
 }
 
-// IsPaused returns true if the narrator is globally paused by the user.
-func (s *AIService) IsPaused() bool {
-	return s.audio.IsUserPaused()
-}
-
-// CurrentPOI returns the POI currently being narrated, if any.
-func (s *AIService) CurrentPOI() *model.POI {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// 1. Regular POI
-	if s.currentPOI != nil {
-		return s.currentPOI
-	}
-
-	return nil
-}
-
-// CurrentThumbnailURL returns the thumbnail URL for the current narration.
-func (s *AIService) CurrentThumbnailURL() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.currentThumbnailURL
-}
-
-// CurrentImagePath returns the file path of the message for the current narration.
-func (s *AIService) CurrentImagePath() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.currentImagePath
-}
-
-// ClearCurrentImage clears the current image path from state.
-func (s *AIService) ClearCurrentImage() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.currentImagePath = ""
-}
-
-// IsPOIBusy returns true if the POI is currently generating, queued, or playing.
 func (s *AIService) IsPOIBusy(poiID string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// 1. Check Generating
 	if s.generatingPOI != nil && s.generatingPOI.WikidataID == poiID {
 		return true
 	}
 
-	// 2. Check Playing
-	if s.currentPOI != nil && s.currentPOI.WikidataID == poiID {
-		return true
-	}
-
-	// 3. Check Playback Queue
-	if s.playbackQ.HasPOI(poiID) {
-		return true
-	}
-
-	// 4. Check Generation Queue
-	// 4. Check Generation Queue
 	if s.genQ.HasPOI(poiID) {
 		return true
 	}
@@ -161,153 +79,110 @@ func (s *AIService) IsPOIBusy(poiID string) bool {
 	return false
 }
 
-// GetPreparedPOI returns the POI being prepared for pipeline playback, if any.
 func (s *AIService) GetPreparedPOI() *model.POI {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// Check playbackQueue[0] or actively generating POI
-	if next := s.playbackQ.Peek(); next != nil && next.POI != nil {
-		return next.POI
-	}
 	return s.generatingPOI
 }
 
-// CurrentTitle returns the title of the current narration.
-func (s *AIService) CurrentTitle() string {
+func (s *AIService) Stats() map[string]any {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.currentPOI != nil {
-		return s.currentPOI.DisplayName()
+	res := make(map[string]any, len(s.stats))
+	for k, v := range s.stats {
+		res[k] = v
 	}
-	if s.active {
-		if s.currentTitle != "" {
-			return s.currentTitle
+	if len(s.latencies) > 0 {
+		var sum time.Duration
+		for _, d := range s.latencies {
+			sum += d
 		}
-		if s.currentType == model.NarrativeTypeScreenshot {
-			return "Photograph"
-		}
-		if s.currentEssayTitle != "" {
-			return s.currentEssayTitle
-		}
-		if s.currentTopic != nil {
-			return "Essay about " + s.currentTopic.Name
-		}
+		avg := sum / time.Duration(len(s.latencies))
+		res["latency_avg_ms"] = avg.Milliseconds()
 	}
-
-	// Fallback to generating title if active
-	if s.generating && s.generatingTitle != "" {
-		return s.generatingTitle
-	}
-
-	return ""
+	return res
 }
 
-// CurrentType returns the type of the current narration.
-func (s *AIService) CurrentType() model.NarrativeType {
+func (s *AIService) AverageLatency() time.Duration {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.currentType
+	if len(s.latencies) == 0 {
+		return 60 * time.Second
+	}
+	var sum time.Duration
+	for _, d := range s.latencies {
+		sum += d
+	}
+	return sum / time.Duration(len(s.latencies))
 }
 
-// Remaining returns the remaining duration of the current narration.
-func (s *AIService) Remaining() time.Duration {
-	return s.audio.Remaining()
-}
-
-func (s *AIService) ReplayLast(ctx context.Context) bool {
-	// 1. Check Audio Replay Capability
-	// Pass finalizePlayback as callback
-	if !s.audio.ReplayLastNarration(s.finalizePlayback) {
-		return false
+func (s *AIService) updateLatency(d time.Duration) {
+	s.mu.Lock()
+	s.latencies = append(s.latencies, d)
+	if len(s.latencies) > 10 {
+		s.latencies = s.latencies[1:]
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// 2. Restore State for UI
-	switch {
-	case s.lastPOI != nil:
-		slog.Info("Narrator: Replaying last POI", "title", s.lastPOI.NameEn)
-		s.currentPOI = s.lastPOI
-		s.active = true // Mark active so UI shows "PLAYING"
-	case s.lastImagePath != "":
-		slog.Info("Narrator: Replaying last Screenshot", "image", s.lastImagePath)
-		s.currentImagePath = s.lastImagePath
-		s.currentType = model.NarrativeTypeScreenshot
-		s.currentLat = s.lastLat
-		s.currentLon = s.lastLon
-		s.active = true
-	case s.lastEssayTopic != nil:
-		slog.Info("Narrator: Replaying last Essay", "title", s.lastEssayTitle)
-		s.currentTopic = s.lastEssayTopic
-		s.currentEssayTitle = s.lastEssayTitle
-		s.active = true
-	default:
-		// Audio replayed but we have no state?
-		slog.Warn("Narrator: Replaying audio but no state to restore")
-		return true
+	var sum time.Duration
+	for _, lat := range s.latencies {
+		sum += lat
 	}
-
-	// 3. No manual monitoring needed, callback handles cleanup
-	return true
-}
-
-// finalizePlayback handles state cleanup and queue processing when audio finishes.
-func (s *AIService) finalizePlayback() {
-	// Pacing: Wait before clearing active state to prevent back-to-back narration bombardment
-	time.Sleep(s.pacingDuration)
-
-	// 1. Cleanup State
-	s.mu.Lock()
-	s.active = false
-	s.currentPOI = nil
-	s.currentTopic = nil
-	s.currentEssayTitle = ""
-	s.currentImagePath = ""
-	s.currentType = ""
-	s.currentThumbnailURL = ""
-	s.currentTitle = ""
+	avg := sum / time.Duration(len(s.latencies))
 	s.mu.Unlock()
 
-	// 2. Beacon Check (Switch to next target)
-	if s.beaconSvc != nil {
-		next := s.playbackQ.Peek()
-		s.mu.RLock()
-		generating := s.generatingPOI
-		s.mu.RUnlock()
-
-		if next != nil && next.POI != nil {
-			slog.Info("Narrator: Switching marker to next queued POI", "qid", next.POI.WikidataID)
-			_ = s.beaconSvc.SetTarget(context.Background(), next.POI.Lat, next.POI.Lon)
-		} else if generating != nil {
-			slog.Info("Narrator: Switching marker to currently generating POI", "qid", generating.WikidataID)
-			_ = s.beaconSvc.SetTarget(context.Background(), generating.Lat, generating.Lon)
-		}
-	}
-
-	// 3. Trigger Next
-	slog.Info("Narrator: Playback finalized, checking queue")
-	go s.ProcessPlaybackQueue(context.Background())
+	predWindow := max(avg*2, 60*time.Second)
+	s.sim.SetPredictionWindow(predWindow)
 }
 
-// SkipCooldown forces the cooldown to expire (not strictly needed by AIService itself, but by the job).
+func (s *AIService) POIManager() POIProvider {
+	return s.poiMgr
+}
+
+func (s *AIService) LLMProvider() llm.Provider {
+	return s.llm
+}
+
+func (s *AIService) Reset(ctx context.Context) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.generatingPOI = nil
+	s.generating = false
+	s.genQ.Clear()
+}
+
+func (s *AIService) ResetSession(ctx context.Context) {
+	s.Reset(ctx)
+}
+
+func (s *AIService) IsPlaying() bool                                             { return false }
+func (s *AIService) ProcessPlaybackQueue(ctx context.Context)                    {}
+func (s *AIService) PlayNarrative(ctx context.Context, n *model.Narrative) error { return nil }
 func (s *AIService) SkipCooldown() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.skipCooldown = true
-	slog.Info("Narrator: Skip cooldown requested")
 }
-
-// ShouldSkipCooldown returns true if the cooldown should be skipped.
 func (s *AIService) ShouldSkipCooldown() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.skipCooldown
 }
-
-// ResetSkipCooldown resets the skip cooldown flag.
 func (s *AIService) ResetSkipCooldown() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.skipCooldown = false
 }
+func (s *AIService) IsPaused() bool                      { return false }
+func (s *AIService) CurrentPOI() *model.POI              { return nil }
+func (s *AIService) CurrentTitle() string                { return "" }
+func (s *AIService) CurrentType() model.NarrativeType    { return "" }
+func (s *AIService) Remaining() time.Duration            { return 0 }
+func (s *AIService) ReplayLast(ctx context.Context) bool { return false }
+func (s *AIService) CurrentImagePath() string            { return "" }
+func (s *AIService) CurrentThumbnailURL() string         { return "" }
+func (s *AIService) ClearCurrentImage()                  {}
+func (s *AIService) Pause()                              {}
+func (s *AIService) Resume()                             {}
+func (s *AIService) Skip()                               {}
+func (s *AIService) TriggerIdentAction()                 {}
+func (s *AIService) HasStagedAuto() bool                 { return false }

@@ -14,17 +14,8 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 		return false
 	}
 
-	// 0. Pause Respect
-	if s.audio != nil && s.audio.IsUserPaused() {
-		return false
-	}
-
-	// 1. Constraints
+	// Constraints
 	if s.HasPendingGeneration() {
-
-		return false
-	}
-	if !s.canEnqueuePlayback("essay", false) {
 		return false
 	}
 
@@ -40,9 +31,6 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 	topic, err := s.essayH.SelectTopic()
 	if err != nil {
 		slog.Error("Narrator: Failed to select essay topic", "error", err)
-		s.mu.Lock()
-		s.generating = false
-		s.mu.Unlock()
 		return false
 	}
 
@@ -52,27 +40,13 @@ func (s *AIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
 
 func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *sim.Telemetry) {
 	s.initAssembler()
-	s.mu.Lock()
-	s.currentTopic = topic
-	s.currentEssayTitle = "" // Reset title until generated
-	s.lastPOI = nil          // Clear last POI since this is new
-	s.lastEssayTopic = topic // Set for replay
-	s.lastEssayTitle = ""    // Will update if generated
-	s.mu.Unlock()
-
-	defer func() {
-		s.mu.Lock()
-		s.generating = false
-		s.currentTopic = nil
-		s.currentEssayTitle = ""
-		s.mu.Unlock()
-	}()
-
-	if s.beaconSvc != nil {
-		s.beaconSvc.Clear()
-	}
 
 	slog.Info("Narrator: Narrating Essay", "topic", topic.Name)
+
+	if !s.claimGeneration(nil) {
+		return
+	}
+	defer s.releaseGeneration()
 
 	// Gather Context
 	if tel == nil {
@@ -87,7 +61,6 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	}
 
 	pd := s.promptAssembler.ForGeneric(ctx, tel, s.getSessionState())
-
 	pd["TargetCountry"] = loc.CountryCode
 	pd["TargetRegion"] = region
 
@@ -98,13 +71,13 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	}
 
 	req := GenerationRequest{
-		Type:   model.NarrativeTypeEssay,
-		Prompt: prompt,
-		// Title unknown until parsing
-		SafeID:     "essay_" + topic.ID,
-		EssayTopic: topic,
-		MaxWords:   s.promptAssembler.ApplyWordLengthMultiplier(topic.MaxWords),
-		Manual:     false,
+		Type:          model.NarrativeTypeEssay,
+		Prompt:        prompt,
+		SafeID:        "essay_" + topic.ID,
+		EssayTopic:    topic,
+		MaxWords:      s.promptAssembler.ApplyWordLengthMultiplier(topic.MaxWords),
+		Manual:        false,
+		SkipBusyCheck: true,
 	}
 
 	narrative, err := s.GenerateNarrative(ctx, &req)
@@ -113,13 +86,5 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		return
 	}
 
-	// Capture parsed title for UI state
-	s.mu.Lock()
-	s.currentEssayTitle = narrative.Title
-	s.lastEssayTitle = narrative.Title
-	s.mu.Unlock()
-
-	// Enqueue (Automated, Low Priority)
 	s.enqueuePlayback(narrative, false)
-	go s.ProcessPlaybackQueue(context.Background())
 }

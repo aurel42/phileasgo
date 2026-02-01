@@ -5,8 +5,12 @@ import (
 	"sync"
 	"time"
 
+	"phileasgo/pkg/announcement"
+	"phileasgo/pkg/audio"
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/llm"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/tts"
@@ -87,6 +91,7 @@ type MockAudio struct {
 	IsUserPausedVal bool
 	CanReplay       bool
 	Replayed        bool
+	PlaySync        bool
 }
 
 func (m *MockAudio) Play(filepath string, startPaused bool, onComplete func()) error {
@@ -99,10 +104,14 @@ func (m *MockAudio) Play(filepath string, startPaused bool, onComplete func()) e
 
 	// Simulate async completion if callback provided
 	if onComplete != nil {
-		go func() {
-			time.Sleep(10 * time.Millisecond)
+		if m.PlaySync {
 			onComplete()
-		}()
+		} else {
+			go func() {
+				time.Sleep(10 * time.Millisecond)
+				onComplete()
+			}()
+		}
 	}
 	return err
 }
@@ -409,3 +418,79 @@ func (m *MockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]
 }
 
 func (m *MockStore) Close() error { return nil }
+
+type MockAIService struct {
+	GeneratingVal bool
+	ManualVal     bool
+	OnPlayback    func(n *model.Narrative, priority bool)
+	PreparedPOI   *model.POI
+}
+
+func (m *MockAIService) Start()                                                      {}
+func (m *MockAIService) Stop()                                                       {}
+func (m *MockAIService) IsActive() bool                                              { return m.GeneratingVal }
+func (m *MockAIService) IsGenerating() bool                                          { return m.GeneratingVal }
+func (m *MockAIService) IsPlaying() bool                                             { return false }
+func (m *MockAIService) ProcessPlaybackQueue(ctx context.Context)                    {}
+func (m *MockAIService) PlayNarrative(ctx context.Context, n *model.Narrative) error { return nil }
+func (m *MockAIService) SkipCooldown()                                               {}
+func (m *MockAIService) ShouldSkipCooldown() bool                                    { return false }
+func (m *MockAIService) ResetSkipCooldown()                                          {}
+func (m *MockAIService) IsPaused() bool                                              { return false }
+func (m *MockAIService) CurrentPOI() *model.POI                                      { return nil }
+func (m *MockAIService) CurrentTitle() string                                        { return "" }
+func (m *MockAIService) CurrentType() model.NarrativeType                            { return "" }
+func (m *MockAIService) Remaining() time.Duration                                    { return 0 }
+func (m *MockAIService) ReplayLast(ctx context.Context) bool                         { return false }
+func (m *MockAIService) CurrentImagePath() string                                    { return "" }
+func (m *MockAIService) CurrentThumbnailURL() string                                 { return "" }
+func (m *MockAIService) ClearCurrentImage()                                          {}
+func (m *MockAIService) Pause()                                                      {}
+func (m *MockAIService) Resume()                                                     {}
+func (m *MockAIService) Skip()                                                       {}
+func (m *MockAIService) TriggerIdentAction()                                         {}
+func (m *MockAIService) HasStagedAuto() bool                                         { return false }
+func (m *MockAIService) HasPendingManualOverride() bool                              { return false }
+func (m *MockAIService) GetPendingManualOverride() (string, string, bool)            { return "", "", false }
+func (m *MockAIService) POIManager() POIProvider                                     { return nil }
+func (m *MockAIService) LLMProvider() llm.Provider                                   { return nil }
+func (m *MockAIService) AudioService() audio.Service                                 { return nil }
+func (m *MockAIService) ProcessGenerationQueue(ctx context.Context)                  {}
+func (m *MockAIService) HasPendingGeneration() bool                                  { return false }
+func (m *MockAIService) ResetSession(ctx context.Context)                            {}
+
+func (m *MockAIService) HasProfile(name string) bool   { return false }
+func (m *MockAIService) NarratedCount() int            { return 0 }
+func (m *MockAIService) Stats() map[string]any         { return nil }
+func (m *MockAIService) AverageLatency() time.Duration { return 0 }
+
+func (m *MockAIService) SetOnPlayback(cb func(n *model.Narrative, priority bool)) {
+	m.OnPlayback = cb
+}
+func (m *MockAIService) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
+}
+func (m *MockAIService) PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error {
+	return nil
+}
+func (m *MockAIService) GetPreparedPOI() *model.POI {
+	return m.PreparedPOI
+}
+func (m *MockAIService) AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data {
+	return nil
+}
+func (m *MockAIService) RecordNarration(ctx context.Context, n *model.Narrative) {}
+
+func (m *MockAIService) PlayEssay(ctx context.Context, tel *sim.Telemetry) bool {
+	return false
+}
+func (m *MockAIService) IsPOIBusy(poiID string) bool {
+	return false
+}
+func (m *MockAIService) GenerateNarrative(ctx context.Context, req *GenerationRequest) (*model.Narrative, error) {
+	return &model.Narrative{Type: req.Type, Title: req.Title}, nil
+}
+
+func (m *MockAIService) EnqueueAnnouncement(ctx context.Context, a announcement.Item, t *sim.Telemetry, onComplete func(*model.Narrative)) {
+}
+
+func (m *MockAIService) Reset(ctx context.Context) {}

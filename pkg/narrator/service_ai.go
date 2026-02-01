@@ -8,11 +8,10 @@ import (
 
 	"phileasgo/pkg/audio"
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/generation"
 	"phileasgo/pkg/llm"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
-	"phileasgo/pkg/narrator/generation"
-	"phileasgo/pkg/narrator/playback"
 	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/session"
 	"phileasgo/pkg/sim"
@@ -56,15 +55,13 @@ type ScriptEntry struct {
 	Script string
 }
 
-// AIService is the real implementation of the narrator service using LLM and TTS.
+// AIService is the real implementation of the narrator generator using LLM and TTS.
 type AIService struct {
 	cfg           *config.Config
 	llm           llm.Provider
 	tts           tts.Provider
 	prompts       *prompts.Manager
-	audio         audio.Service
 	poiMgr        POIProvider
-	beaconSvc     BeaconProvider
 	geoSvc        GeoProvider
 	sim           sim.Client
 	st            store.Store
@@ -75,25 +72,10 @@ type AIService struct {
 
 	mu           sync.RWMutex
 	running      bool
-	active       bool
 	generating   bool
-	skipCooldown bool
 	stats        map[string]any
 	latencies    []time.Duration
-
-	// Configuration
-	pacingDuration time.Duration
-
-	// Playback State
-	currentPOI          *model.POI
-	currentTopic        *EssayTopic
-	currentEssayTitle   string
-	currentTitle        string              // Presentation title for UI
-	currentType         model.NarrativeType // The type of the currently playing narrative
-	currentImagePath    string              // Added field
-	currentThumbnailURL string              // Primary UI driver
-	currentLat          float64             // Location snapshot
-	currentLon          float64             // Location snapshot
+	skipCooldown bool
 
 	// Generation State
 	generatingTitle     string
@@ -106,18 +88,11 @@ type AIService struct {
 	// Infrastructure
 	promptAssembler *prompt.Assembler
 
-	// Replay State
-	lastPOI        *model.POI
-	lastEssayTopic *EssayTopic
-	lastEssayTitle string
-	lastImagePath  string // Added field
-	lastLat        float64
-	lastLon        float64
-
 	// Staging State (Pipeline)
 	genQ          *generation.Manager // Generation queue manager
-	playbackQ     *playback.Manager   // Playback queue manager
 	generatingPOI *model.POI          // The POI currently being generated (for UI feedback)
+
+	onPlayback func(n *model.Narrative, priority bool)
 
 	essayH    *EssayHandler
 	interests []string
@@ -131,15 +106,13 @@ type AIService struct {
 	fallbackTracker *tracker.Tracker
 }
 
-// NewAIService creates a new AI-powered narrator service.
+// NewAIService creates a new AI-powered narrator generator.
 func NewAIService(
 	cfg *config.Config,
 	llm llm.Provider,
 	tts tts.Provider,
 	prompts *prompts.Manager,
-	audioMgr audio.Service,
 	poiMgr POIProvider,
-	beaconSvc BeaconProvider,
 	geoSvc GeoProvider,
 	simClient sim.Client,
 	st store.Store,
@@ -157,9 +130,7 @@ func NewAIService(
 		llm:             llm,
 		tts:             tts,
 		prompts:         prompts,
-		audio:           audioMgr,
 		poiMgr:          poiMgr,
-		beaconSvc:       beaconSvc,
 		geoSvc:          geoSvc,
 		sim:             simClient,
 		st:              st,
@@ -169,14 +140,11 @@ func NewAIService(
 		stats:           make(map[string]any),
 		latencies:       make([]time.Duration, 0, 10),
 		essayH:          essayH,
-		skipCooldown:    false,
 		interests:       interests,
 		avoid:           avoid,
 		fallbackTracker: tr,
 		sessionMgr:      sessMgr,
-		playbackQ:       playback.NewManager(), // Initialize playback queue
 		genQ:            generation.NewManager(),
-		pacingDuration:  3 * time.Second,
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)
@@ -196,6 +164,13 @@ func NewAIService(
 	return s
 }
 
+// SetOnPlayback sets the callback for when a narrative is ready for playback.
+func (s *AIService) SetOnPlayback(cb func(n *model.Narrative, priority bool)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onPlayback = cb
+}
+
 // Start starts the narrator service.
 func (s *AIService) Start() {
 	s.mu.Lock()
@@ -209,14 +184,7 @@ func (s *AIService) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.running = false
-	s.audio.Shutdown()
 	slog.Info("AI Narrator service stopped")
-}
-
-// Pause pauses the narration playback.
-func (s *AIService) Pause() {
-	s.audio.SetUserPaused(true)
-	s.audio.Pause()
 }
 
 // NarratedCount returns the number of narratives generated in the current session.
@@ -237,61 +205,13 @@ func (s *AIService) GetLastTransition(stage string) time.Time {
 	return s.sim.GetLastTransition(stage)
 }
 
-// Resume resumes the narration playback.
-func (s *AIService) Resume() {
-	s.audio.ResetUserPause()
-	s.audio.Resume()
-}
-
-// Skip skips the current narration.
-func (s *AIService) Skip() {
-	slog.Info("Narrator: skipping current narration")
-	s.audio.Stop()
-}
-
-// TriggerIdentAction triggers the action configured for the transponder Ident button.
-func (s *AIService) TriggerIdentAction() {
-	s.mu.RLock()
-	action := s.cfg.Transponder.IdentAction
-	s.mu.RUnlock()
-
-	slog.Info("Transponder: IDENT triggered", "action", action)
-
-	switch action {
-	case "pause_toggle":
-		if s.audio.IsPaused() {
-			s.Resume()
-		} else {
-			s.Pause()
-		}
-	case "stop":
-		s.audio.Stop()
-	case "skip":
-		s.Skip()
-	default:
-		slog.Warn("Transponder: unknown ident action", "action", action)
-	}
-}
-
-// IsActive returns true if narrator is currently active (generating or playing).
-
-// POIManager returns the internal POI manager.
-func (s *AIService) POIManager() POIProvider {
-	return s.poiMgr
-}
-
 func (s *AIService) session() *session.Manager {
 	return s.sessionMgr
 }
 
-// LLMProvider returns the internal LLM provider.
-func (s *AIService) LLMProvider() llm.Provider {
-	return s.llm
-}
-
 // AudioService returns the internal audio service.
 func (s *AIService) AudioService() audio.Service {
-	return s.audio
+	return nil
 }
 
 func (s *AIService) initAssembler() {

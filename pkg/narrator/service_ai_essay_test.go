@@ -75,12 +75,11 @@ topics:
 			}
 			mockLLM := &MockLLM{Response: "Essay Script", Err: tt.llmErr}
 			mockTTS := &MockTTS{Format: "mp3", Err: tt.ttsErr}
-			mockAudio := &MockAudio{PlayErr: tt.audioErr}
 			mockGeo := &MockGeo{Country: "France"}
 			mockSim := &MockSim{Telemetry: sim.Telemetry{Latitude: 48.0, Longitude: 2.0}}
 
 			// Inject Essay Handler
-			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockAudio, &MockPOIProvider{}, &MockBeacon{}, mockGeo, mockSim, &MockStore{}, &MockWikipedia{}, nil, nil, eh, nil, nil, nil, session.NewManager(nil))
+			svc := NewAIService(cfg, mockLLM, mockTTS, pm, &MockPOIProvider{}, mockGeo, mockSim, &MockStore{}, &MockWikipedia{}, nil, nil, eh, nil, nil, nil, session.NewManager(nil))
 			svc.Start()
 
 			// Action
@@ -105,21 +104,9 @@ topics:
 
 func TestAIService_PlayEssay_NoHandler(t *testing.T) {
 	// Setup minimalist service without essay handler
-	svc := NewAIService(&config.Config{}, &MockLLM{}, &MockTTS{}, nil, &MockAudio{}, &MockPOIProvider{}, &MockBeacon{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+	svc := NewAIService(&config.Config{}, &MockLLM{}, &MockTTS{}, nil, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 
 	if svc.PlayEssay(context.Background(), &sim.Telemetry{}) {
 		t.Error("Expected PlayEssay to return false when handler is nil")
-	}
-}
-func TestAIService_PlayEssay_UserPause(t *testing.T) {
-	mockAudio := &MockAudio{}
-	mockAudio.SetUserPaused(true)
-	svc := &AIService{
-		audio:  mockAudio,
-		essayH: &EssayHandler{},
-	}
-
-	if svc.PlayEssay(context.Background(), &sim.Telemetry{}) {
-		t.Error("Expected PlayEssay to return false when UserPause is active")
 	}
 }

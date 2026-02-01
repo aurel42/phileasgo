@@ -2,8 +2,12 @@ package narrator
 
 import (
 	"context"
+	"time"
 
+	"phileasgo/pkg/announcement"
+	"phileasgo/pkg/llm"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/sim"
 )
 
 // POIProvider defines the interface for POI management.
@@ -38,6 +42,25 @@ type LanguageResolver interface {
 type BeaconProvider interface {
 	SetTarget(ctx context.Context, lat, lon float64) error
 	Clear()
+}
+
+// Generator defines the interface for narration generation.
+type Generator interface {
+	GenerateNarrative(ctx context.Context, req *GenerationRequest) (*model.Narrative, error)
+	ProcessGenerationQueue(ctx context.Context)
+	HasPendingGeneration() bool
+	IsGenerating() bool
+	Stats() map[string]any
+	// PlayEssay triggers a regional essay narration.
+	PlayEssay(ctx context.Context, tel *sim.Telemetry) bool
+	// IsPOIBusy returns true if the POI is currently generating or queued.
+	IsPOIBusy(poiID string) bool
+	EnqueueAnnouncement(ctx context.Context, a announcement.Item, t *sim.Telemetry, onComplete func(*model.Narrative))
+	POIManager() POIProvider
+	LLMProvider() llm.Provider
+	AverageLatency() time.Duration
+	RecordNarration(ctx context.Context, n *model.Narrative)
+	Reset(ctx context.Context)
 }
 
 // AudioProvider alias for audio.Service to keep imports clean or use direct import.

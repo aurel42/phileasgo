@@ -1,119 +1,58 @@
 package narrator
 
 import (
-	"context"
 	"testing"
 
+	"phileasgo/pkg/generation"
 	"phileasgo/pkg/model"
-	"phileasgo/pkg/narrator/generation"
-	"phileasgo/pkg/narrator/playback"
 )
 
 func TestAIService_StateChecks(t *testing.T) {
 	svc := &AIService{
-		active:     true,
 		generating: true,
-		playbackQ:  playback.NewManager(),
 		genQ:       generation.NewManager(),
 	}
 
-	if !svc.IsActive() {
-		t.Error("expected active")
-	}
 	if !svc.IsGenerating() {
 		t.Error("expected generating")
 	}
+	if !svc.IsActive() {
+		t.Error("expected active (when generating)")
+	}
 
-	svc.active = false
+	svc.mu.Lock()
 	svc.generating = false
-	if svc.IsActive() {
-		t.Error("expected inactive")
+	svc.mu.Unlock()
+	if svc.IsGenerating() {
+		t.Error("expected not generating")
 	}
 }
 
-func TestAIService_Replay(t *testing.T) {
-	mockAudio := &MockAudio{IsPlayingVal: true, CanReplay: true}
+func TestAIService_POIBusy(t *testing.T) {
 	svc := &AIService{
-		audio:     mockAudio,
-		lastPOI:   &model.POI{NameEn: "Test POI"},
-		active:    false,
-		playbackQ: playback.NewManager(),
-		genQ:      generation.NewManager(),
+		genQ: generation.NewManager(),
 	}
 
-	// 1. POI Replay
-	if !svc.ReplayLast(context.Background()) {
-		t.Error("expected replay success")
-	}
-	if !svc.IsActive() || svc.currentPOI == nil {
-		t.Error("failed to restore POI state")
+	poiID := "Q123"
+
+	if svc.IsPOIBusy(poiID) {
+		t.Error("expected not busy")
 	}
 
-	// 2. Essay Replay
-	svc.lastPOI = nil
-	svc.currentPOI = nil
-	svc.lastEssayTopic = &EssayTopic{Name: "Flight"}
-	svc.lastEssayTitle = "" // Test "Essay about Flight" fallback
-	if !svc.ReplayLast(context.Background()) {
-		t.Error("expected essay replay success")
-	}
-	if svc.CurrentTitle() != "Essay about Flight" {
-		t.Errorf("expected Essay about Flight title, got %s", svc.CurrentTitle())
-	}
-}
+	svc.mu.Lock()
+	svc.generatingPOI = &model.POI{WikidataID: poiID}
+	svc.mu.Unlock()
 
-func TestAIService_Cooldown(t *testing.T) {
-	svc := &AIService{
-		playbackQ: playback.NewManager(),
-		genQ:      generation.NewManager(),
+	if !svc.IsPOIBusy(poiID) {
+		t.Error("expected busy (generating)")
 	}
 
-	// Skip cooldown
-	svc.SkipCooldown()
-	if !svc.ShouldSkipCooldown() {
-		t.Error("expected skip cooldown active")
-	}
+	svc.mu.Lock()
+	svc.generatingPOI = nil
+	svc.mu.Unlock()
 
-	svc.ResetSkipCooldown()
-	if svc.ShouldSkipCooldown() {
-		t.Error("expected skip cooldown reset")
-	}
-}
-
-func TestAIService_PlaybackDetails(t *testing.T) {
-	mockAudio := &MockAudio{IsPlayingVal: true}
-	svc := &AIService{
-		audio:      mockAudio,
-		playbackQ:  playback.NewManager(),
-		genQ:       generation.NewManager(),
-		currentPOI: &model.POI{NameEn: "Current POI"},
-	}
-	svc.playbackQ.Enqueue(&model.Narrative{POI: &model.POI{NameEn: "Queued POI"}}, false)
-
-	// 1. CurrentTitle
-	if svc.CurrentTitle() != "Current POI" {
-		t.Errorf("expected Current POI, got %s", svc.CurrentTitle())
-	}
-
-	// 2. IsPlaying
-	if !svc.IsPlaying() {
-		t.Error("expected playing")
-	}
-
-	// 3. Remaining (Delegates to audio)
-	_ = svc.Remaining()
-
-	// 3. GetPreparedPOI
-	p := svc.GetPreparedPOI()
-	if p == nil || p.NameEn != "Queued POI" {
-		t.Errorf("expected Queued POI, got %v", p)
-	}
-
-	// 4. Generating fallback
-	svc.playbackQ.Clear()
-	svc.generatingPOI = &model.POI{NameEn: "Gen POI"}
-	p = svc.GetPreparedPOI()
-	if p == nil || p.NameEn != "Gen POI" {
-		t.Errorf("expected Gen POI, got %v", p)
+	svc.genQ.Enqueue(&generation.Job{POIID: poiID})
+	if !svc.IsPOIBusy(poiID) {
+		t.Error("expected busy (queued)")
 	}
 }

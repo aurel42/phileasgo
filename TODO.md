@@ -39,6 +39,10 @@ X Flight Stage: refine conditions for stages based on previos stages (e.g. hold 
 X the label of the range rings sometimes periodically jumps between two range rings, needs hysteresis? Depends on window size, ofc.
 X move session persistence to a better place than in a "heartbeat"
 X turn trip summary into a log file
+- changes to beacon behavior:
+-- maintain a minimum altitude of 500 ft AGL, no matter the aircraft altitude
+-- spawn no matter the aircraft altitude
+-- target balloon: reduce altitude as we get closer to it to make it easier to spot objects on the ground
 
 # Trip Themes
 

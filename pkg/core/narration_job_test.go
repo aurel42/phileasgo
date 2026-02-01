@@ -2,9 +2,12 @@ package core
 
 import (
 	"context"
+	"phileasgo/pkg/audio"
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/llm"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"testing"
@@ -72,6 +75,31 @@ func (m *mockNarratorService) Pause()              {}
 func (m *mockNarratorService) Resume()             {}
 func (m *mockNarratorService) Skip()               {}
 func (m *mockNarratorService) TriggerIdentAction() {}
+
+func (m *mockNarratorService) ClearCurrentImage()                         {}
+func (m *mockNarratorService) CurrentThumbnailURL() string                { return "" }
+func (m *mockNarratorService) AudioService() audio.Service                { return nil }
+func (m *mockNarratorService) POIManager() narrator.POIProvider           { return nil }
+func (m *mockNarratorService) LLMProvider() llm.Provider                  { return nil }
+func (m *mockNarratorService) ProcessGenerationQueue(ctx context.Context) {}
+func (m *mockNarratorService) HasPendingGeneration() bool                 { return false }
+func (m *mockNarratorService) ResetSession(ctx context.Context)           {}
+
+// DataProvider
+func (m *mockNarratorService) GetLocation(lat, lon float64) model.LocationInfo {
+	return model.LocationInfo{}
+}
+func (m *mockNarratorService) GetPOIsNear(lat, lon, radius float64) []*model.POI { return nil }
+func (m *mockNarratorService) GetRepeatTTL() time.Duration                       { return 0 }
+func (m *mockNarratorService) GetTripSummary() string                            { return "" }
+func (m *mockNarratorService) GetLastTransition(stage string) time.Time          { return time.Time{} }
+func (m *mockNarratorService) AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data {
+	return nil
+}
+func (m *mockNarratorService) AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data {
+	return nil
+}
+func (m *mockNarratorService) RecordNarration(ctx context.Context, n *model.Narrative) {}
 
 type mockPOIManager struct {
 	best *model.POI

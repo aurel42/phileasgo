@@ -2,9 +2,12 @@ package core
 
 import (
 	"context"
+	"phileasgo/pkg/audio"
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/llm"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 	"testing"
 	"time"
@@ -57,6 +60,30 @@ func (m *mockPhase2NarratorService) Remaining() time.Duration {
 	}
 	return 0
 }
+
+func (m *mockPhase2NarratorService) ProcessGenerationQueue(ctx context.Context) {}
+
+func (m *mockPhase2NarratorService) AudioService() audio.Service      { return nil }
+func (m *mockPhase2NarratorService) POIManager() narrator.POIProvider { return nil }
+func (m *mockPhase2NarratorService) LLMProvider() llm.Provider        { return nil }
+func (m *mockPhase2NarratorService) HasPendingGeneration() bool       { return false }
+func (m *mockPhase2NarratorService) ResetSession(ctx context.Context) {}
+func (m *mockPhase2NarratorService) ClearCurrentImage()               {}
+func (m *mockPhase2NarratorService) CurrentThumbnailURL() string      { return "" }
+func (m *mockPhase2NarratorService) GetLocation(lat, lon float64) model.LocationInfo {
+	return model.LocationInfo{}
+}
+func (m *mockPhase2NarratorService) GetPOIsNear(lat, lon, radius float64) []*model.POI { return nil }
+func (m *mockPhase2NarratorService) GetRepeatTTL() time.Duration                       { return 0 }
+func (m *mockPhase2NarratorService) GetTripSummary() string                            { return "" }
+func (m *mockPhase2NarratorService) GetLastTransition(stage string) time.Time          { return time.Time{} }
+func (m *mockPhase2NarratorService) AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data {
+	return nil
+}
+func (m *mockPhase2NarratorService) AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data {
+	return nil
+}
+func (m *mockPhase2NarratorService) RecordNarration(ctx context.Context, n *model.Narrative) {}
 
 func (m *mockPhase2NarratorService) AverageLatency() time.Duration {
 	if m.AvgLatencyFunc != nil {

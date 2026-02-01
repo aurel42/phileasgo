@@ -6,63 +6,47 @@ import (
 	"time"
 
 	"phileasgo/pkg/model"
-	"phileasgo/pkg/narrator/playback"
+	"phileasgo/pkg/playback"
+	"phileasgo/pkg/session"
 )
 
-func TestAIService_ReplayLast(t *testing.T) {
+func TestOrchestrator_ReplayLast(t *testing.T) {
 	tests := []struct {
 		name           string
-		setup          func(s *AIService, m *MockAudioService)
+		setup          func(o *Orchestrator, m *MockAudioService)
 		wantActive     bool
 		wantCurrentPOI bool
-		wantEssay      bool
 		wantReplay     bool
 	}{
 		{
 			name: "Replay last POI success",
-			setup: func(s *AIService, m *MockAudioService) {
-				s.lastPOI = &model.POI{WikidataID: "Q1", NameEn: "Test POI"}
+			setup: func(o *Orchestrator, m *MockAudioService) {
+				o.lastPOI = &model.POI{WikidataID: "Q1", NameEn: "Test POI"}
 				m.ShouldReplay = true
 				m.IsBusyVal = true
 			},
 			wantActive:     true,
 			wantCurrentPOI: true,
-			wantEssay:      false,
-			wantReplay:     true,
-		},
-		{
-			name: "Replay last Essay success",
-			setup: func(s *AIService, m *MockAudioService) {
-				s.lastEssayTopic = &EssayTopic{Name: "History"}
-				s.lastEssayTitle = "Great History"
-				m.ShouldReplay = true
-				m.IsBusyVal = true
-			},
-			wantActive:     true,
-			wantCurrentPOI: false,
-			wantEssay:      true,
 			wantReplay:     true,
 		},
 		{
 			name: "Audio replay fails",
-			setup: func(s *AIService, m *MockAudioService) {
-				s.lastPOI = &model.POI{WikidataID: "Q1"}
+			setup: func(o *Orchestrator, m *MockAudioService) {
+				o.lastPOI = &model.POI{WikidataID: "Q1"}
 				m.ShouldReplay = false
 			},
 			wantActive:     false,
 			wantCurrentPOI: false,
-			wantEssay:      false,
 			wantReplay:     false,
 		},
 		{
 			name: "Replay with no state (fallback)",
-			setup: func(s *AIService, m *MockAudioService) {
-				// No last POI or Essay
+			setup: func(o *Orchestrator, m *MockAudioService) {
+				// No last POI
 				m.ShouldReplay = true
 			},
-			wantActive:     false, // Should not activate UI
+			wantActive:     false, // Should not activate UI if no POI/Image
 			wantCurrentPOI: false,
-			wantEssay:      false,
 			wantReplay:     true,
 		},
 	}
@@ -71,19 +55,20 @@ func TestAIService_ReplayLast(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup Mocks
 			mockAudio := &MockAudioService{}
-			s := &AIService{
-				audio:     mockAudio,
-				playbackQ: playback.NewManager(),
-			}
+			pbQ := playback.NewManager()
+			sess := session.NewManager(nil)
+
+			// Orchestrator needs a Generator, we can use nil or a dummy if it's not called
+			o := NewOrchestrator(nil, mockAudio, pbQ, sess, nil, nil)
 
 			// Run Setup
-			tt.setup(s, mockAudio)
+			tt.setup(o, mockAudio)
 
 			// Execute
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			got := s.ReplayLast(ctx)
+			got := o.ReplayLast(ctx)
 
 			// Verify Return
 			if got != tt.wantReplay {
@@ -91,25 +76,18 @@ func TestAIService_ReplayLast(t *testing.T) {
 			}
 
 			// Verify State
-			s.mu.RLock()
-			if s.active != tt.wantActive {
-				t.Errorf("active = %v, want %v", s.active, tt.wantActive)
+			o.mu.Lock()
+			if o.active != tt.wantActive {
+				t.Errorf("active = %v, want %v", o.active, tt.wantActive)
 			}
 
-			if tt.wantCurrentPOI && (s.currentPOI == nil || s.currentPOI != s.lastPOI) {
+			if tt.wantCurrentPOI && (o.currentPOI == nil || o.currentPOI != o.lastPOI) {
 				t.Errorf("currentPOI not restored correctly")
 			}
-			if !tt.wantCurrentPOI && s.currentPOI != nil {
+			if !tt.wantCurrentPOI && o.currentPOI != nil {
 				t.Errorf("currentPOI should be nil")
 			}
-
-			if tt.wantEssay && (s.currentTopic == nil || s.currentTopic != s.lastEssayTopic) {
-				t.Errorf("currentTopic not restored correctly")
-			}
-			if !tt.wantEssay && s.currentTopic != nil {
-				t.Errorf("currentTopic should be nil")
-			}
-			s.mu.RUnlock()
+			o.mu.Unlock()
 		})
 	}
 }
@@ -158,3 +136,4 @@ func (m *MockAudioService) Remaining() time.Duration {
 func (m *MockAudioService) AverageLatency() time.Duration {
 	return 0
 }
+func (m *MockAudioService) Process() {}
