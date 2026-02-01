@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"phileasgo/pkg/logging"
 	"phileasgo/pkg/session"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
@@ -77,6 +78,6 @@ func (j *SessionPersistenceJob) checkAndSave(ctx context.Context) {
 		slog.Error("Persistence: Failed to save session state", "error", err)
 	} else {
 		j.lastSavedState = data
-		slog.Debug("Persistence: Session saved", "size", len(data))
+		logging.Trace(slog.Default(), "Persistence: Session saved", "size", len(data))
 	}
 }

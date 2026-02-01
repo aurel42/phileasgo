@@ -110,6 +110,8 @@ categories:
       "Q759421": "Naturschutzgebiet"
       "Q35145263": "natural geographic object"
       "Q27096220": "natural geographic entity"
+      "Q23442": "island"
+      "Q184358": "reef"
     weight: 0.9
     icon: "natural"
     size: "XL"

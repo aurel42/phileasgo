@@ -14,6 +14,8 @@ import (
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/geojson"
 	"github.com/paulmach/orb/planar"
+
+	"phileasgo/pkg/logging"
 )
 
 //go:embed countries.geojson
@@ -114,7 +116,7 @@ func (s *CountryService) pruneCache() {
 		}
 	}
 	if count > 0 {
-		slog.Debug("CountryService: Pruned cache", "removed", count, "remaining", len(s.cache))
+		logging.Trace(slog.Default(), "CountryService: Pruned cache", "removed", count, "remaining", len(s.cache))
 	}
 }
 

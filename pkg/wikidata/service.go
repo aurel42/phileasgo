@@ -305,7 +305,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate, medians rescue.Med
 	processed, rawArticles, rescued, err := s.pipeline.ProcessTileData(ctx, []byte(rawJSON), centerLat, centerLon, false, medians)
 	if err == nil {
 		s.updateTileStats(key, centerLat, centerLon, rawArticles)
-		s.logger.Debug("Fetched and Saved new tile",
+		logging.Trace(s.logger, "Fetched and Saved new tile",
 			"tile", c.Tile.Key(),
 			"raw", len(articles),
 			"saved", len(processed),
