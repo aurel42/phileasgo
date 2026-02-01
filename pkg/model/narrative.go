@@ -11,7 +11,7 @@ const (
 	NarrativeTypePOI        NarrativeType = "poi"
 	NarrativeTypeEssay      NarrativeType = "essay"
 	NarrativeTypeScreenshot NarrativeType = "screenshot"
-	NarrativeTypeDebrief    NarrativeType = "debrief"
+	NarrativeTypeDebriefing NarrativeType = "debriefing"
 	NarrativeTypeBorder     NarrativeType = "border"
 	NarrativeTypeLetsgo     NarrativeType = "letsgo"
 	NarrativeTypeBriefing   NarrativeType = "briefing"
@@ -20,7 +20,7 @@ const (
 // Narrative represents a prepared narration ready for playback.
 type Narrative struct {
 	ID                string        `json:"id"`
-	Type              NarrativeType `json:"type"` // "poi", "screenshot", "essay", "debrief", "border"
+	Type              NarrativeType `json:"type"` // "poi", "screenshot", "essay", "debriefing", "border"
 	Title             string        `json:"title"`
 	Script            string        `json:"script"`
 	AudioPath         string        `json:"audio_path"`

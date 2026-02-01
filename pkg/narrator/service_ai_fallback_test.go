@@ -42,9 +42,9 @@ func TestAIService_AnnouncementFallback(t *testing.T) {
 		},
 		{
 			name:            "Debrief is NOT an announcement (no fallback)",
-			narrativeType:   model.NarrativeTypeDebrief,
+			narrativeType:   model.NarrativeTypeDebriefing,
 			definedProfiles: []string{"announcements"},
-			expectedProfile: "debrief",
+			expectedProfile: "debriefing",
 		},
 		{
 			name:            "Screenshot is NOT an announcement (no fallback)",

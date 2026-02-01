@@ -13,7 +13,7 @@ type Debriefing struct {
 
 func NewDebriefing(dp DataProvider) *Debriefing {
 	return &Debriefing{
-		Base: NewBase("debriefing", model.NarrativeTypeDebrief, false),
+		Base: NewBase("debriefing", model.NarrativeTypeDebriefing, false),
 		dp:   dp,
 	}
 }
@@ -58,8 +58,8 @@ func (a *Debriefing) ShouldGenerate(t *sim.Telemetry) bool {
 		return false
 	}
 
-	// 3. Must have a decent trip summary (at least 50 chars)
-	return len(a.dp.GetTripSummary()) >= 50
+	// 3. No longer check for trip summary length (per user request)
+	return true
 }
 
 // ShouldPlay returns true once we are settled (Taxi or Hold)

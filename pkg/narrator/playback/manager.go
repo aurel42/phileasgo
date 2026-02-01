@@ -101,7 +101,7 @@ func (m *Manager) checkLimits(nType model.NarrativeType, manual bool) bool {
 			if manual && n.Manual {
 				return false
 			}
-		case model.NarrativeTypeScreenshot, model.NarrativeTypeDebrief, model.NarrativeTypeEssay, model.NarrativeTypeBorder:
+		case model.NarrativeTypeScreenshot, model.NarrativeTypeDebriefing, model.NarrativeTypeEssay, model.NarrativeTypeBorder:
 			return false
 		}
 	}

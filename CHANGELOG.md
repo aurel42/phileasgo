@@ -1,9 +1,12 @@
 ﻿Release History
 
+## v0.3.84 (2026-02-01)
+- **Feature**: **Finalized Debriefing Rename**. Unified the transition from "debrief" to "debriefing" across the backend, configuration, and frontend UI.
+- **Refinement**: Removed the minimum trip summary length requirement for debriefings, ensuring they trigger based on flight duration alone.
+
 ## v0.3.83 (2026-02-01)
 - **Architectural Refinement**: **Session Persistence Logic**. Decoupled session restoration from `AIService`, implementing robust checks to discard old sessions on ground and restore only when airborne near the last known location.
 - **Cleanup**: **Legacy Announcement Removal**. Removed the deprecated `LegacyAnnouncementManager` and all associated files, streamlining the announcement pipeline.
-- **Code Hygiene**: **Linter Repairs**: Resolved multiple linter errors in `main.go`, including refactoring `initNarrator` to use a structured return type for better maintainability.
 
 ## v0.3.82 (2026-01-31)
 - **Architectural Refinement**: **Screenshot Migration**. Migrated screenshot logic ("Visual Analysis") to the unified `pkg/announcement` system, simplifying the core narrator service and decoupling it from the file watcher.

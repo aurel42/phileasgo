@@ -63,11 +63,11 @@ func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
 		{
 			name: "Flight Debrief - Uses debrief profile",
 			req: GenerationRequest{
-				Type:     model.NarrativeTypeDebrief,
+				Type:     model.NarrativeTypeDebriefing,
 				Prompt:   "Summarize the flight.",
 				MaxWords: 200,
 			},
-			wantProfile:  "debrief",
+			wantProfile:  "debriefing",
 			wantMaxWords: 200,
 		},
 	}

@@ -53,7 +53,7 @@ export const OverlayPOIPanel = ({ poi, title, currentType, playbackProgress, isP
     if (poi) {
         primaryName = getName(poi);
         category = poi.specific_category || poi.category || '';
-    } else if (currentType === 'debrief') {
+    } else if (currentType === 'debriefing') {
         category = "Flight Summary";
     } else if (currentType === 'essay') {
         category = "Regional Essay";

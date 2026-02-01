@@ -169,7 +169,7 @@ type NarratorConfig struct {
 	TemperatureJitter         float32            `yaml:"temperature_jitter"`           // Jitter range (bell curve distribution)
 	LengthScalingFactor       float64            `yaml:"length_scaling_factor"`        // Scaling factor for word count (default 0.5)
 	Essay                     EssayConfig        `yaml:"essay"`
-	Debrief                   DebriefConfig      `yaml:"debrief"`
+	Debriefing                DebriefingConfig   `yaml:"debriefing"`
 	Screenshot                ScreenshotConfig   `yaml:"screenshot"`
 	AudioEffects              AudioEffectsConfig `yaml:"audio_effects"`
 	Border                    BorderConfig       `yaml:"border"`
@@ -182,8 +182,8 @@ type BorderConfig struct {
 	CooldownRepeat Duration `yaml:"cooldown_repeat"`
 }
 
-// DebriefConfig holds settings for landing debriefs.
-type DebriefConfig struct {
+// DebriefingConfig holds settings for landing debriefs.
+type DebriefingConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
@@ -448,7 +448,7 @@ func DefaultConfig() *Config {
 				DelayBeforeEssay:   Duration(2 * time.Minute),
 				ScoreThreshold:     2.0,
 			},
-			Debrief: DebriefConfig{
+			Debriefing: DebriefingConfig{
 				Enabled: true,
 			},
 			Screenshot: ScreenshotConfig{

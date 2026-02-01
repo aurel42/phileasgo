@@ -82,10 +82,10 @@ function App() {
         autoOpenedRef.current = true;
         lastAutoOpenedIdRef.current = poiId;
       }
-    } else if (narratorStatus?.playback_status === 'playing' && (narratorStatus?.current_type === 'debrief' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot')) {
+    } else if (narratorStatus?.playback_status === 'playing' && (narratorStatus?.current_type === 'debriefing' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot')) {
       // Auto-open for non-POI narratives
       const title = narratorStatus.current_title ||
-        (narratorStatus.current_type === 'debrief' ? 'Debrief' :
+        (narratorStatus.current_type === 'debriefing' ? 'Debrief' :
           narratorStatus.current_type === 'screenshot' ? 'Photograph Analysis' : 'Essay');
       if (lastAutoOpenedIdRef.current !== title) {
         lastAutoOpenedIdRef.current = title;
@@ -100,7 +100,7 @@ function App() {
   useEffect(() => {
     const isIdle = narratorStatus?.playback_status === 'idle';
     const isPlayingNonPoi = narratorStatus?.playback_status === 'playing' && !narratorStatus?.current_poi;
-    const isSpecialType = narratorStatus?.current_type === 'debrief' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot';
+    const isSpecialType = narratorStatus?.current_type === 'debriefing' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot';
 
     if ((isIdle || (isPlayingNonPoi && !isSpecialType)) && autoOpenedRef.current) {
       setSelectedPOI(null);
@@ -330,7 +330,7 @@ function App() {
       </div>
       <div className="dashboard-container">
         <PlaybackControls />
-        {(selectedPOI || (narratorStatus?.playback_status === 'playing' && (narratorStatus?.current_type === 'debrief' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot'))) ? (
+        {(selectedPOI || (narratorStatus?.playback_status === 'playing' && (narratorStatus?.current_type === 'debriefing' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot'))) ? (
           <POIInfoPanel
             key={selectedPOI?.wikidata_id || (narratorStatus?.current_type + '-' + narratorStatus?.current_title)}
             poi={selectedPOI}

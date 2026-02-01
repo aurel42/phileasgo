@@ -260,13 +260,13 @@ func (s *AIService) setPlaybackState(n *model.Narrative) string {
 	defer s.mu.Unlock()
 
 	// Ensure Essays always have a title for UI visibility
-	if (n.Type == "essay" || n.Type == "debrief") && n.Title == "" {
+	if (n.Type == model.NarrativeTypeEssay || n.Type == model.NarrativeTypeDebriefing) && n.Title == "" {
 		if n.EssayTopic != "" {
 			n.Title = "Essay: " + n.EssayTopic
 		} else {
 			n.Title = "Regional Essay"
 		}
-		if n.Type == "debrief" {
+		if n.Type == model.NarrativeTypeDebriefing {
 			n.Title = "Debrief"
 		}
 	}
@@ -280,7 +280,7 @@ func (s *AIService) setPlaybackState(n *model.Narrative) string {
 	s.currentThumbnailURL = n.ThumbnailURL
 	s.currentEssayTitle = ""
 
-	if n.Type == "essay" || n.Type == "debrief" {
+	if n.Type == model.NarrativeTypeEssay || n.Type == model.NarrativeTypeDebriefing {
 		s.currentEssayTitle = n.Title
 	}
 

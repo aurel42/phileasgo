@@ -96,7 +96,7 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
         let displayCategory = 'Regional Essay';
         let defaultText = 'Enjoy this regional essay about your current surroundings.';
 
-        if (currentType === 'debrief') {
+        if (currentType === 'debriefing') {
             displayTitle = displayTitle || 'Flight Debrief';
             displayCategory = 'Flight Summary';
             defaultText = 'Your flight has concluded. Listen to the automated pilot debrief.';
