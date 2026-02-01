@@ -2,6 +2,8 @@ package announcement
 
 import (
 	"context"
+	"time"
+
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
@@ -25,7 +27,21 @@ func NewLetsgo(cfg *config.Config, dp DataProvider, events EventRecorder) *Letsg
 func (a *Letsgo) ShouldGenerate(t *sim.Telemetry) bool {
 	// Trigger when we move from ground to air (StageClimb or StageTakeOff Confirm/Airborne)
 	// Or simply if we were on ground and now GroundSpeed > 40 and we are confirm airborne
-	return (t.FlightStage == sim.StageTakeOff || t.FlightStage == sim.StageClimb) && t.GroundSpeed > 40
+	matchesState := (t.FlightStage == sim.StageTakeOff || t.FlightStage == sim.StageClimb) && t.GroundSpeed > 40
+	if !matchesState {
+		return false
+	}
+
+	// Suppression: If we have been flying for > 5 minutes, assume this is a session restore
+	// and we shouldn't welcome the pilot again.
+	takeOffTime := a.provider.GetLastTransition(sim.StageTakeOff)
+	if !takeOffTime.IsZero() && time.Since(takeOffTime) > 5*time.Minute {
+		// Log debug if strictly necessary, or just return false
+		// slog.Debug("LetsGo: Suppressed due to flight duration", "duration", time.Since(takeOffTime))
+		return false
+	}
+
+	return true
 }
 
 func (a *Letsgo) ShouldPlay(t *sim.Telemetry) bool {

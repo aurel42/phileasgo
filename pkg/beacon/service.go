@@ -436,9 +436,21 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 	// Calculate Formation Target Pos
 	formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, float64(s.config.FormationDistance)/1000.0)
 
+	// Pre-calc limit constants for sinking logic
+	distMeters := distKm * 1000.0
+
 	for _, b := range s.spawnedBeacons {
-		// Calculate final absolute altitude for this specific beacon
-		absAlt := s.targetAlt + b.AltOffset
+		var absAlt float64
+
+		if b.IsTarget {
+			// TARGET LOOP: Sinking Logic
+			absAlt = s.calculateTargetAltitude(tel, distMeters) + b.AltOffset
+		} else {
+			// FORMATION LOOP: Strict Altitude
+			// Formation stays at the "Base MSL" (s.targetAlt) + Offset
+			// It does NOT sink.
+			absAlt = s.targetAlt + b.AltOffset
+		}
 
 		var upd simconnect.MarkerUpdateData
 		if b.IsTarget {

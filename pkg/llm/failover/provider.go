@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"phileasgo/pkg/llm"
+	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
 )
 
@@ -186,6 +187,13 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		// 4. Execute with Timeout
 		timeout := f.timeouts[c.index]
 		callCtx, cancel := context.WithTimeout(ctx, timeout)
+
+		// Inject MaxRetries=1 context for all but the last candidate
+		// This forces the request client to fail immediately on error, relying on our loop for fallback.
+		// The last candidate gets standard behavior (retries allowed as configured in client).
+		if idx < len(candidates)-1 {
+			callCtx = context.WithValue(callCtx, request.CtxMaxRetries, 1)
+		}
 
 		res, err := fn(callCtx, c.p)
 		cancel()

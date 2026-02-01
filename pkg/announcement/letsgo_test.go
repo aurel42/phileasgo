@@ -1,9 +1,11 @@
 package announcement
 
 import (
+	"testing"
+	"time"
+
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/sim"
-	"testing"
 )
 
 func TestLetsgo_Triggers(t *testing.T) {
@@ -15,28 +17,43 @@ func TestLetsgo_Triggers(t *testing.T) {
 		stage        string
 		speed        float64
 		alt          float64
+		lastTakeoff  time.Time
 		expectedGen  bool
 		expectedPlay bool
 	}{
-		{"Ground Slow", sim.StageTaxi, 10, 0, false, false},
-		{"Takeoff Speed", sim.StageTakeOff, 45, 10, true, false},
-		{"Climb Low", sim.StageClimb, 100, 100, true, false},
-		{"Climb High", sim.StageClimb, 120, 600, true, true},
-		{"Cruise", sim.StageCruise, 200, 5000, false, false},
+		{"Ground Slow", sim.StageTaxi, 10, 0, time.Time{}, false, false},
+		{"Takeoff Speed", sim.StageTakeOff, 45, 10, time.Now(), true, false},
+		{"Climb Low", sim.StageClimb, 100, 100, time.Now(), true, false},
+		{"Climb High", sim.StageClimb, 120, 600, time.Now(), true, true},
+		{"Cruise", sim.StageCruise, 200, 5000, time.Now().Add(-1 * time.Hour), false, false},
+		// New Case: Mid-Air restart (Simulates flight stage 'Climb' but long duration)
+		{"Climb Long Duration", sim.StageClimb, 120, 5000, time.Now().Add(-10 * time.Minute), false, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Mock provider response
+			dp.GetLastTransitionFunc = func(s string) time.Time {
+				if s == sim.StageTakeOff {
+					return tt.lastTakeoff
+				}
+				return time.Time{}
+			}
+
 			tel := &sim.Telemetry{
 				FlightStage: tt.stage,
 				GroundSpeed: tt.speed,
 				AltitudeAGL: tt.alt,
 			}
-			if a.ShouldGenerate(tel) != tt.expectedGen {
-				t.Errorf("ShouldGenerate for %s: expected %v, got %v", tt.name, tt.expectedGen, !tt.expectedGen)
+			// Note: expectedPlay depends on expectedGen failing if logic was purely sequential in loop,
+			// but here we test methods independently.
+			// ShouldGenerate checks duration.
+			if got := a.ShouldGenerate(tel); got != tt.expectedGen {
+				t.Errorf("ShouldGenerate for %s: expected %v, got %v", tt.name, tt.expectedGen, got)
 			}
-			if a.ShouldPlay(tel) != tt.expectedPlay {
-				t.Errorf("ShouldPlay for %s: expected %v, got %v", tt.name, tt.expectedPlay, !tt.expectedPlay)
+			// ShouldPlay checks altitude > 500
+			if got := a.ShouldPlay(tel); got != tt.expectedPlay {
+				t.Errorf("ShouldPlay for %s: expected %v, got %v", tt.name, tt.expectedPlay, got)
 			}
 		})
 	}

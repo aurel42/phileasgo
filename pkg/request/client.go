@@ -22,6 +22,13 @@ var (
 	defaultUserAgent = fmt.Sprintf("Phileas Tour Guide for MSFS (Phileas/%s; aurel42@gmail.com)", version.Version)
 )
 
+// CtxKey is a type for context keys to avoid collisions.
+type CtxKey string
+
+// CtxMaxRetries is the context key for overriding the maximum number of retries.
+// Value should be an int.
+const CtxMaxRetries CtxKey = "max_retries"
+
 // Client handles HTTP requests with queuing, caching, and tracking.
 type Client struct {
 	httpClient *http.Client
@@ -343,7 +350,14 @@ func (c *Client) PostWithGeodataCache(ctx context.Context, u string, body []byte
 func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 	provider := normalizeProvider(req.URL.Host)
 
-	for attempt := 0; attempt < c.retries; attempt++ {
+	maxRetries := c.retries
+	if v := req.Context().Value(CtxMaxRetries); v != nil {
+		if val, ok := v.(int); ok {
+			maxRetries = val
+		}
+	}
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
 		// Wait for any provider-level backoff
 		c.backoff.Wait(provider)
 
@@ -401,5 +415,5 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 		return body, nil
 	}
 
-	return nil, fmt.Errorf("max retries (%d) exceeded for %s", c.retries, provider)
+	return nil, fmt.Errorf("max retries (%d) exceeded for %s", maxRetries, provider)
 }

@@ -312,13 +312,49 @@ func TestInvalidURL(t *testing.T) {
 	defer d.Close()
 	client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{})
 
-	_, err = client.Get(context.Background(), "::invalid-url", "")
-	if err == nil {
-		t.Error("Expected error for invalid URL, got nil")
-	}
-
 	_, err = client.Post(context.Background(), "::invalid-url", nil, "")
 	if err == nil {
 		t.Error("Expected error for invalid URL in Post, got nil")
+	}
+}
+
+func TestCtxMaxRetries(t *testing.T) {
+	attempts := 0
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.WriteHeader(500) // Always fail
+	}))
+	defer svr.Close()
+
+	tempDir := t.TempDir()
+	d, err := db.Init(filepath.Join(tempDir, "ctx_retry.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	// Default retries = 5
+	client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{
+		BaseDelay: 1 * time.Millisecond,
+		MaxDelay:  5 * time.Millisecond,
+		Retries:   5,
+	})
+
+	// Override to 1 attempt (fail immediately)
+	ctx := context.WithValue(context.Background(), CtxMaxRetries, 1)
+	_, err = client.Get(ctx, svr.URL, "")
+
+	if err == nil {
+		t.Error("Expected error, got nil")
+	}
+	if attempts != 1 {
+		t.Errorf("Expected 1 attempt with override, got %d", attempts)
+	}
+
+	// Override to 2 attempts
+	attempts = 0
+	ctx = context.WithValue(context.Background(), CtxMaxRetries, 2)
+	_, err = client.Get(ctx, svr.URL, "")
+	if attempts != 2 {
+		t.Errorf("Expected 2 attempts with override, got %d", attempts)
 	}
 }

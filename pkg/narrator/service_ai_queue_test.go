@@ -16,9 +16,14 @@ func TestOrchestrator_QueueManagement(t *testing.T) {
 	o := NewOrchestrator(mockGen, &MockAudio{}, pbQ, sess, nil, nil)
 
 	// 1. Enqueue via EnqueuePlayback
+	// Force active state to prevent auto-pop
+	o.mu.Lock()
+	o.active = true
+	o.mu.Unlock()
+
 	o.EnqueuePlayback(&model.Narrative{Title: "Auto", Manual: false, Type: model.NarrativeTypePOI}, false)
 	if pbQ.Count() != 1 {
-		t.Error("expected 1 item in queue")
+		t.Errorf("expected 1 item in queue, got %d", pbQ.Count())
 	}
 
 	// 2. Enqueue Priority Manual POI

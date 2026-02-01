@@ -1,13 +1,15 @@
 ﻿Release History
 
-## v0.3.99 (2026-02-01)
-- **Fixed**: **Narrative Logging**. Refined logging logic to correctly exclude operational announcements (e.g., LetsGo, Debriefing) from the trip log.
+## v0.3.100 (2026-02-01)
+- **Fix**: **Mid-Air Restart**. Prevented "Let's Go" announcement from re-triggering incorrectly after mid-air session restarts.
+- **Optimization**: **Request Latency**. Significantly reduced latency during LLM failover by disabling internal retries for non-terminal providers.
 
-## v0.3.98 (2026-02-01)
+## v0.3.99 (2026-02-01)
 - **Architecture**: **Orchestrator Pattern**. Introduced a dedicated Orchestrator to decouple narration generation from playback management, improving modularity and testability.
 - **Fixed**: **Narrative Logging**. Restored trip logging functionality for all narratives played via the new orchestrator.
 - **Fixed**: **Audio Race Conditions**. Resolved intermittent test failures in audio playback logic by implementing synchronous mock modes.
 - **Cleanup**: **Code Hygiene**. Removed deprecated logic from AIService and addressed unresolved linting issues.
+
 ## v0.3.97 (2026-02-01)
 - **Fix**: **Overlay Metadata**. Resolved issues where the overlay would show hardcoded "Visual Analysis" titles and fail to display screenshot images during narration.
 - **Improved**: **Dynamic Content Display**. The overlay now correctly renders titles and thumbnails provided by specialized announcement handlers (e.g., Photographs, Debriefs).

@@ -85,12 +85,15 @@ type MockSimConfig struct {
 
 // BeaconConfig holds settings for the beacon guidance system.
 type BeaconConfig struct {
-	Enabled           bool     `yaml:"enabled"`
-	FormationEnabled  bool     `yaml:"formation_enabled"`
-	FormationDistance Distance `yaml:"formation_distance"`
-	FormationCount    int      `yaml:"formation_count"`
-	MinSpawnAltitude  Distance `yaml:"min_spawn_altitude"`
-	AltitudeFloor     Distance `yaml:"altitude_floor"`
+	Enabled            bool     `yaml:"enabled"`
+	FormationEnabled   bool     `yaml:"formation_enabled"`
+	FormationDistance  Distance `yaml:"formation_distance"`
+	FormationCount     int      `yaml:"formation_count"`
+	MinSpawnAltitude   Distance `yaml:"min_spawn_altitude"`
+	AltitudeFloor      Distance `yaml:"altitude_floor"`
+	TargetSinkDistFar  Distance `yaml:"target_sink_dist_far"`
+	TargetSinkDistNear Distance `yaml:"target_sink_dist_near"`
+	TargetFloorAGL     Distance `yaml:"target_floor_agl"`
 }
 
 // LLMConfig holds settings for the Large Language Model providers.
@@ -485,12 +488,15 @@ func DefaultConfig() *Config {
 			},
 		},
 		Beacon: BeaconConfig{
-			Enabled:           true,
-			FormationEnabled:  true,
-			FormationDistance: Distance(2000), // 2km
-			FormationCount:    3,
-			MinSpawnAltitude:  Distance(304.8), // 1000ft
-			AltitudeFloor:     Distance(609.6), // 2000ft
+			Enabled:            true,
+			FormationEnabled:   true,
+			FormationDistance:  Distance(2000), // 2km
+			FormationCount:     3,
+			MinSpawnAltitude:   Distance(304.8), // 1000ft
+			AltitudeFloor:      Distance(609.6), // 2000ft
+			TargetSinkDistFar:  Distance(4000),  // 4km
+			TargetSinkDistNear: Distance(1000),  // 1km
+			TargetFloorAGL:     Distance(30.48), // 100ft
 		},
 		Transponder: TransponderConfig{
 			Enabled:     true,
