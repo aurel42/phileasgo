@@ -222,9 +222,11 @@ export const InfoPanel = ({
                         .filter(([key]) => !fallbackOrder.includes(key))
                         .sort(([keyA], [keyB]) => keyA.localeCompare(keyB));
 
-                    const renderProvider = (key: string, data: any, showIndicator: boolean = false) => {
-                        if (data.api_success === 0 && data.api_errors === 0) return null;
+                    // Pre-filter active providers
+                    const activeLLMProviders = llmProviders.filter(([_, data]) => data.api_success > 0 || data.api_errors > 0);
+                    const activeDataProviders = dataProviders.filter(([_, data]) => data.api_success > 0 || data.api_errors > 0);
 
+                    const renderProvider = (key: string, data: any, showIndicator: boolean = false) => {
                         const label = key.toUpperCase().replace('-', ' ');
                         const hasCacheActivity = (data.cache_hits || 0) + (data.cache_misses || 0) > 0;
                         const hitRate = hasCacheActivity && data.hit_rate !== undefined ? `${data.hit_rate}% Hit` : null;
@@ -260,10 +262,10 @@ export const InfoPanel = ({
 
                     return (
                         <>
-                            {llmProviders.map(([key, data], idx) =>
-                                renderProvider(key, data, idx < llmProviders.length - 1)
+                            {activeLLMProviders.map(([key, data], idx) =>
+                                renderProvider(key, data, idx < activeLLMProviders.length - 1)
                             )}
-                            {dataProviders.map(([key, data]) =>
+                            {activeDataProviders.map(([key, data]) =>
                                 renderProvider(key, data)
                             )}
                         </>

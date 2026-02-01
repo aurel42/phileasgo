@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.88 (2026-02-01)
+- **Fix**: **Orphaned Fallback Indicators**. Resolved a UI bug in the API stats dashboard where orphaned arrows appeared when only one LLM provider was active.
+
 ## v0.3.87 (2026-02-01)
 - **Fix**: **Coordinate Display Regression**. Resolved an issue where aircraft coordinates were missing from the frontend during active simulation by ensuring the central scheduler is initialized and started correctly.
 - **Improved**: **System Stability**. Hardened internal state management and test mocks within the narrator service to prevent intermittent race conditions.
