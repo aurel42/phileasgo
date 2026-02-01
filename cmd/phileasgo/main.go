@@ -150,6 +150,7 @@ func run(ctx context.Context, configPath string) error {
 
 	// Scheduler
 	sched := setupScheduler(appCfg, simClient, st, narratorSvc, annMgr, promptMgr, wdValidator, svcs, telH, losChecker, visCalc, sessionMgr)
+	go sched.Start(ctx)
 
 	// Scorer
 	// Use elProv, or if nil (missing file), use a nil interface (Scorer must handle or we wrap)

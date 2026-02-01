@@ -2,6 +2,7 @@ package narrator
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"phileasgo/pkg/config"
@@ -14,6 +15,7 @@ import (
 // --- Mocks ---
 
 type MockLLM struct {
+	mu                    sync.RWMutex
 	Response              string
 	Err                   error
 	GenerateTextFunc      func(ctx context.Context, name, prompt string) (string, error)
@@ -28,11 +30,17 @@ type MockLLM struct {
 func (m *MockLLM) Name() string                         { return "MockLLM" }
 func (m *MockLLM) Configure(cfg config.LLMConfig) error { return nil }
 func (m *MockLLM) GenerateText(ctx context.Context, name, prompt string) (string, error) {
+	m.mu.Lock()
 	m.GenerateTextCalls++
-	if m.GenerateTextFunc != nil {
-		return m.GenerateTextFunc(ctx, name, prompt)
+	fn := m.GenerateTextFunc
+	resp := m.Response
+	err := m.Err
+	m.mu.Unlock()
+
+	if fn != nil {
+		return fn(ctx, name, prompt)
 	}
-	return m.Response, m.Err
+	return resp, err
 }
 func (m *MockLLM) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
 	return nil
@@ -45,11 +53,17 @@ func (m *MockLLM) HasProfile(name string) bool {
 	return m.HasProfileVal
 }
 func (m *MockLLM) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
+	m.mu.Lock()
 	m.GenerateImageTextCalls++
-	if m.GenerateImageTextFunc != nil {
-		return m.GenerateImageTextFunc(ctx, name, prompt, imagePath)
+	fn := m.GenerateImageTextFunc
+	resp := m.Response
+	err := m.Err
+	m.mu.Unlock()
+
+	if fn != nil {
+		return fn(ctx, name, prompt, imagePath)
 	}
-	return m.Response, m.Err
+	return resp, err
 }
 
 type MockTTS struct {
@@ -65,6 +79,7 @@ func (m *MockTTS) Synthesize(ctx context.Context, text, voiceID, outputPath stri
 }
 
 type MockAudio struct {
+	mu              sync.RWMutex
 	PlayCalls       int
 	LastFile        string
 	PlayErr         error
@@ -75,9 +90,13 @@ type MockAudio struct {
 }
 
 func (m *MockAudio) Play(filepath string, startPaused bool, onComplete func()) error {
+	m.mu.Lock()
 	m.PlayCalls++
 	m.LastFile = filepath
 	m.IsPlayingVal = true
+	err := m.PlayErr
+	m.mu.Unlock()
+
 	// Simulate async completion if callback provided
 	if onComplete != nil {
 		go func() {
@@ -85,21 +104,25 @@ func (m *MockAudio) Play(filepath string, startPaused bool, onComplete func()) e
 			onComplete()
 		}()
 	}
-	return m.PlayErr
+	return err
 }
-func (m *MockAudio) Pause()                    {}
-func (m *MockAudio) Resume()                   {}
-func (m *MockAudio) Stop()                     {}
-func (m *MockAudio) Shutdown()                 {}
-func (m *MockAudio) IsPlaying() bool           { return m.IsPlayingVal }
-func (m *MockAudio) IsBusy() bool              { return m.IsPlayingVal }
-func (m *MockAudio) IsPaused() bool            { return m.IsUserPausedVal }
-func (m *MockAudio) SetVolume(vol float64)     {}
-func (m *MockAudio) Volume() float64           { return 1.0 }
-func (m *MockAudio) SetUserPaused(paused bool) { m.IsUserPausedVal = paused }
-func (m *MockAudio) IsUserPaused() bool        { return m.IsUserPausedVal }
-func (m *MockAudio) ResetUserPause()           { m.IsUserPausedVal = false }
-func (m *MockAudio) LastNarrationFile() string { return m.LastFile }
+func (m *MockAudio) Pause()                {}
+func (m *MockAudio) Resume()               {}
+func (m *MockAudio) Stop()                 {}
+func (m *MockAudio) Shutdown()             {}
+func (m *MockAudio) IsPlaying() bool       { m.mu.RLock(); defer m.mu.RUnlock(); return m.IsPlayingVal }
+func (m *MockAudio) IsBusy() bool          { m.mu.RLock(); defer m.mu.RUnlock(); return m.IsPlayingVal }
+func (m *MockAudio) IsPaused() bool        { m.mu.RLock(); defer m.mu.RUnlock(); return m.IsUserPausedVal }
+func (m *MockAudio) SetVolume(vol float64) {}
+func (m *MockAudio) Volume() float64       { return 1.0 }
+func (m *MockAudio) SetUserPaused(paused bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.IsUserPausedVal = paused
+}
+func (m *MockAudio) IsUserPaused() bool        { m.mu.RLock(); defer m.mu.RUnlock(); return m.IsUserPausedVal }
+func (m *MockAudio) ResetUserPause()           { m.mu.Lock(); defer m.mu.Unlock(); m.IsUserPausedVal = false }
+func (m *MockAudio) LastNarrationFile() string { m.mu.RLock(); defer m.mu.RUnlock(); return m.LastFile }
 func (m *MockAudio) ReplayLastNarration(onComplete func()) bool {
 	if m.CanReplay {
 		m.Replayed = true
@@ -257,6 +280,7 @@ func (m *MockSim) RequestData(defineID, reqID uint32) error              { retur
 func (m *MockSim) Close() error                                          { return nil }
 
 type MockStore struct {
+	mu         sync.RWMutex
 	SavedPOIs  []*model.POI
 	Articles   map[string]*model.Article
 	RecentPOIs []*model.POI
@@ -264,19 +288,38 @@ type MockStore struct {
 }
 
 func (m *MockStore) SavePOI(ctx context.Context, p *model.POI) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.SavedPOIs = append(m.SavedPOIs, p)
 	return nil
 }
-func (m *MockStore) GetPOI(ctx context.Context, qid string) (*model.POI, error) { return nil, nil }
+func (m *MockStore) GetPOI(ctx context.Context, qid string) (*model.POI, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	// Mock returns nil by default or we could add more logic here
+	return nil, nil
+}
 func (m *MockStore) GetPOIsBatch(ctx context.Context, ids []string) (map[string]*model.POI, error) {
 	return nil, nil
 }
 func (m *MockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.RecentPOIs, nil
 }
 func (m *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
-func (m *MockStore) SaveArticle(ctx context.Context, a *model.Article) error             { return nil }
+func (m *MockStore) SaveArticle(ctx context.Context, a *model.Article) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Articles == nil {
+		m.Articles = make(map[string]*model.Article)
+	}
+	m.Articles[a.UUID] = a
+	return nil
+}
 func (m *MockStore) GetArticle(ctx context.Context, uuid string) (*model.Article, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.Articles != nil {
 		if a, ok := m.Articles[uuid]; ok {
 			return a, nil
@@ -306,6 +349,8 @@ func (m *MockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]
 }
 
 func (m *MockStore) GetState(ctx context.Context, key string) (string, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.State == nil {
 		return "", false
 	}
@@ -314,6 +359,8 @@ func (m *MockStore) GetState(ctx context.Context, key string) (string, bool) {
 }
 
 func (m *MockStore) SetState(ctx context.Context, key, val string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.State == nil {
 		m.State = make(map[string]string)
 	}
