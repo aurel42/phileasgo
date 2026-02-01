@@ -125,7 +125,7 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 func (s *AIService) summarizeAndLogEvent(ctx context.Context, n *model.Narrative) {
 	s.initAssembler()
 
-	if n.Type == model.NarrativeTypeBorder {
+	if n.Type == model.NarrativeTypeBorder || n.Type == model.NarrativeTypeLetsgo || n.Type == model.NarrativeTypeDebriefing {
 		return
 	}
 
