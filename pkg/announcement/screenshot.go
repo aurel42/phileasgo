@@ -21,7 +21,7 @@ type Screenshot struct {
 
 func NewScreenshot(cfg *config.Config, watcher *watcher.Service, dp DataProvider, events EventRecorder) *Screenshot {
 	return &Screenshot{
-		Base:     NewBase("screenshot", model.NarrativeTypePOI, false, dp, events),
+		Base:     NewBase("screenshot", model.NarrativeTypeScreenshot, false, dp, events),
 		cfg:      cfg,
 		watcher:  watcher,
 		provider: dp,

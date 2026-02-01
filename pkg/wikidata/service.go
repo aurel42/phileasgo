@@ -245,7 +245,7 @@ func (s *Service) fetchTile(ctx context.Context, c Candidate, medians rescue.Med
 	s.inflightMu.Lock()
 	if s.inflightTiles[key] {
 		s.inflightMu.Unlock()
-		s.logger.Debug("Skipping in-flight tile", "tile", key)
+		logging.Trace(s.logger, "Skipping in-flight tile", "tile", key)
 		return true // Treat as "fast" / no-op to avoid blocking loop, or false? True is safer to keep loop going.
 	}
 	s.inflightTiles[key] = true
@@ -419,7 +419,7 @@ func (s *Service) EvictFarTiles(lat, lon, thresholdKm float64) int {
 	}
 
 	if count > 0 {
-		s.logger.Debug("Evicted far tiles from memory", "count", count, "threshold_km", thresholdKm)
+		logging.Trace(s.logger, "Evicted far tiles from memory", "count", count, "threshold_km", thresholdKm)
 	}
 	return count
 }

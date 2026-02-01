@@ -13,7 +13,7 @@ func TestNormalizeProvider(t *testing.T) {
 		{"fr.wikipedia.org", "wikipedia"},
 		{"generativelanguage.googleapis.com", "gemini"},
 		{"api.groq.com", "groq"}, // checking if existing logic covers this
-		{"api.perplexity.ai", "Perplexity"},
+		{"api.perplexity.ai", "perplexity"},
 		{"api.deepseek.com", "deepseek"}, // The new requirement
 		{"other.com", "other.com"},
 	}

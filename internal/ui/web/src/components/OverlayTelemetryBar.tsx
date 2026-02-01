@@ -183,7 +183,6 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
 
                 {/* 3. LLM Pipeline Card */}
                 <div className="stat-box" style={{ minWidth: '180px', alignItems: 'flex-start' }}>
-                    <div className="role-label-overlay" style={{ marginBottom: '6px', color: 'var(--accent)', fontSize: '12px', borderBottom: '1px solid rgba(212,175,55,0.2)', width: '100%' }}>LLM PIPELINE</div>
                     <div className="stat-value" style={{
                         display: 'grid',
                         gridTemplateColumns: 'max-content 1fr max-content',
@@ -228,7 +227,6 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
 
                 {/* 3b. Data Services Card */}
                 <div className="stat-box" style={{ minWidth: '160px', alignItems: 'flex-start' }}>
-                    <div className="role-label-overlay" style={{ marginBottom: '6px', color: 'var(--accent)', fontSize: '12px', borderBottom: '1px solid rgba(212,175,55,0.2)', width: '100%' }}>DATA SERVICES</div>
                     <div className="stat-value" style={{
                         display: 'grid',
                         gridTemplateColumns: 'max-content 1fr max-content',

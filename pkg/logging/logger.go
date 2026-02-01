@@ -248,4 +248,7 @@ func LogEvent(event *model.TripEvent) {
 	if _, err := f.WriteString(line); err != nil {
 		slog.Error("failed to write event log", "error", err)
 	}
+
+	// Also capture for the overlay
+	_, _ = GlobalEventCapture.Write([]byte(strings.TrimSpace(line)))
 }

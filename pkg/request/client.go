@@ -102,11 +102,11 @@ func (c *Client) GetWithHeaders(ctx context.Context, u string, headers map[strin
 	if cacheKey != "" {
 		if val, hit := c.cache.GetCache(ctx, cacheKey); hit {
 			c.tracker.TrackCacheHit(provider)
-			slog.Debug("Cache Hit", "provider", provider, "key", cacheKey)
+			logging.TraceDefault("Cache Hit", "provider", provider, "key", cacheKey)
 			return val, nil
 		}
 		c.tracker.TrackCacheMiss(provider)
-		slog.Debug("Cache Miss", "provider", provider, "key", cacheKey)
+		logging.TraceDefault("Cache Miss", "provider", provider, "key", cacheKey)
 	}
 
 	// 2. Enqueue Request
@@ -176,7 +176,7 @@ func normalizeProvider(host string) string {
 		return "groq"
 	}
 	if strings.HasSuffix(host, "perplexity.ai") {
-		return "Perplexity"
+		return "perplexity"
 	}
 	if strings.HasSuffix(host, "deepseek.com") {
 		return "deepseek"
@@ -262,11 +262,11 @@ func (c *Client) PostWithCache(ctx context.Context, u string, body []byte, heade
 	if cacheKey != "" {
 		if val, hit := c.cache.GetCache(ctx, cacheKey); hit {
 			c.tracker.TrackCacheHit(provider)
-			slog.Debug("Cache Hit", "provider", provider, "key", cacheKey)
+			logging.TraceDefault("Cache Hit", "provider", provider, "key", cacheKey)
 			return val, nil
 		}
 		c.tracker.TrackCacheMiss(provider)
-		slog.Debug("Cache Miss", "provider", provider, "key", cacheKey)
+		logging.TraceDefault("Cache Miss", "provider", provider, "key", cacheKey)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(body))
@@ -300,11 +300,11 @@ func (c *Client) PostWithGeodataCache(ctx context.Context, u string, body []byte
 	if cacheKey != "" {
 		if val, _, hit := c.cache.GetGeodataCache(ctx, cacheKey); hit {
 			c.tracker.TrackCacheHit(provider)
-			slog.Debug("Geodata Cache Hit", "provider", provider, "key", cacheKey)
+			logging.TraceDefault("Geodata Cache Hit", "provider", provider, "key", cacheKey)
 			return val, nil
 		}
 		c.tracker.TrackCacheMiss(provider)
-		slog.Debug("Geodata Cache Miss", "provider", provider, "key", cacheKey)
+		logging.TraceDefault("Geodata Cache Miss", "provider", provider, "key", cacheKey)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(body))

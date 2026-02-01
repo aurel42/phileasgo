@@ -1,7 +1,13 @@
 ﻿Release History
 
+## v0.3.96 (2026-02-01)
+- **Fix**: **Border Crossing Announcements**. Resolved an issue where border crossings would fail to trigger or display correctly.
+- **Improved**: **Announcement Consistency**. Standardized length and behavior across all flight events, including take-offs and screenshots.
+- **Performance**: **Reduced Log Noise**. Optimized background logging for database queries and POI classification to improve overall system responsiveness.
+
 ## v0.3.95 (2026-02-01)
-- **Feature**: **Flight Stage Events**. "Take-off" and "Landed" events are now automatically logged to the trip history with precise coordinates, enriching the session timeline for LLM context.
+- **Feature**: **Flight Stage Events**. "Take-off" and "Landed" events are logged to the trip history.
+- **Fix**: **Announcement Failures**. Resolved a critical issue where "Letsgo" (take-off) and "Screenshot" announcements would fail if no specific POI was in the vicinity by correcting their internal narrative types.
 
 ## v0.3.94 (2026-02-01)
 - **Fix**: **Briefing Triggers**. Briefing announcements now strictly prevent generation if the aircraft has already taken off in the current session, ensuring they only play at the true start of a trip.

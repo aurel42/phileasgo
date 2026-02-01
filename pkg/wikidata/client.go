@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"phileasgo/pkg/logging"
 	"phileasgo/pkg/request"
 )
 
@@ -65,14 +66,14 @@ func (c *Client) QuerySPARQL(ctx context.Context, query, cacheKey string, radius
 		"Accept":       "application/sparql-results+json",
 	}
 
-	c.Logger.Debug("Executing SPARQL Query", "query", query)
+	logging.Trace(c.Logger, "Executing SPARQL Query", "query", query)
 	start := time.Now()
 
 	// Use geodata cache (routes to cache_geodata table with radius metadata)
 	body, err := c.request.PostWithGeodataCache(ctx, c.SPARQLEndpoint, []byte(encodedData), headers, cacheKey, radiusM, lat, lon)
 
 	duration := time.Since(start)
-	c.Logger.Debug("SPARQL Query Completed", "duration", duration, "cached", err == nil && len(body) > 0)
+	logging.Trace(c.Logger, "SPARQL Query Completed", "duration", duration, "cached", err == nil && len(body) > 0)
 
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %v", ErrNetwork, err)

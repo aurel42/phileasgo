@@ -38,10 +38,12 @@ X Flight Stage: refine conditions for stages based on previos stages (e.g. hold 
 - improve situational/positional awareness of the LLM, describe distance and direction better.
 X the label of the range rings sometimes periodically jumps between two range rings, needs hysteresis? Depends on window size, ofc.
 X move session persistence to a better place than in a "heartbeat"
-- in the overlay, also show failed API requests
 X turn trip summary into a log file
 
 # Trip Themes
 
 # Trip Planning
 - can we pre-plan a whole trip? Generate a flight plan?
+
+# Trip Summary / Improved Debriefing
+- we're collecting POIs and timestamps now.

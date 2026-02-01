@@ -8,6 +8,7 @@ import (
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 )
 
@@ -18,8 +19,9 @@ type LocationProvider interface {
 
 type Border struct {
 	*Base
-	geo LocationProvider
-	cfg *config.Config
+	geo      LocationProvider
+	provider DataProvider
+	cfg      *config.Config
 
 	lastLocation    model.LocationInfo
 	lastCheck       time.Time
@@ -36,6 +38,7 @@ func NewBorder(cfg *config.Config, geo LocationProvider, dp DataProvider, events
 	return &Border{
 		Base:            NewBase("border", model.NarrativeTypeBorder, false, dp, events),
 		geo:             geo,
+		provider:        dp,
 		cfg:             cfg,
 		checkCooldown:   10 * time.Second, // Check every 10s (similar to old 15s)
 		repeatCooldowns: make(map[string]time.Time),
@@ -153,11 +156,18 @@ func (b *Border) isCooldownActive(from, to string) bool {
 }
 
 func (b *Border) GetPromptData(t *sim.Telemetry) (any, error) {
-	return map[string]string{
-		"From": b.pendingFrom,
-		"To":   b.pendingTo,
-		"Type": "border",
-	}, nil
+	// Use the generic assembler provided by infra
+	pd := b.provider.AssembleGeneric(context.Background(), t)
+	if pd == nil {
+		pd = make(prompt.Data)
+	}
+
+	pd["From"] = b.pendingFrom
+	pd["To"] = b.pendingTo
+	pd["Type"] = "border"
+	pd["MaxWords"] = 30 // Narrative should be concise
+
+	return pd, nil
 }
 
 func (b *Border) ShouldPlay(t *sim.Telemetry) bool {

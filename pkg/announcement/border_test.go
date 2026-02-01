@@ -4,6 +4,7 @@ import (
 	"context"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 	"testing"
 	"time"
@@ -114,5 +115,43 @@ func TestBorder_Cooldowns(t *testing.T) {
 
 	if b.ShouldGenerate(&sim.Telemetry{}) {
 		t.Error("Expected suppression by repeat cooldown")
+	}
+}
+
+func TestBorder_GetPromptData(t *testing.T) {
+	cfg := config.DefaultConfig()
+	geo := &mockBorderGeo{}
+	dp := &mockDP{}
+	b := NewBorder(cfg, geo, dp, dp)
+
+	b.pendingFrom = "France"
+	b.pendingTo = "Germany"
+
+	dp.AssembleGenericFunc = func(ctx context.Context, t *sim.Telemetry) prompt.Data {
+		return prompt.Data{"FlightData": "present"}
+	}
+
+	data, err := b.GetPromptData(&sim.Telemetry{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	m, ok := data.(prompt.Data)
+	if !ok {
+		t.Fatalf("Expected prompt.Data, got %T", data)
+	}
+
+	if m["From"] != "France" {
+		t.Errorf("Expected From='France', got '%v'", m["From"])
+	}
+	if m["To"] != "Germany" {
+		t.Errorf("Expected To='Germany', got '%v'", m["To"])
+	}
+	if m["MaxWords"] != 30 {
+		t.Errorf("Expected MaxWords=30, got %v", m["MaxWords"])
+	}
+	// Check that AssembleGeneric was called (e.g. FlightData exists)
+	if _, ok := m["FlightData"]; !ok {
+		t.Error("Expected FlightData from AssembleGeneric")
 	}
 }

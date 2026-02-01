@@ -114,7 +114,7 @@ func (m *Manager) TrackPOI(ctx context.Context, p *model.POI) error {
 func (m *Manager) upsertInternal(ctx context.Context, p *model.POI, shouldSave bool) error {
 	// 0. Name Validation: Drop POIs without ANY valid name
 	if p.NameEn == "" && p.NameLocal == "" && p.NameUser == "" {
-		m.logger.Debug("Dropping nameless POI", "qid", p.WikidataID)
+		logging.Trace(m.logger, "Dropping nameless POI", "qid", p.WikidataID)
 		return nil
 	}
 
@@ -215,7 +215,7 @@ func (m *Manager) EnrichWithMSFS(ctx context.Context, p *model.POI) error {
 	}
 	if isOverlap {
 		p.IsMSFSPOI = true
-		m.logger.Debug("MSFS Overlap Detected", "qid", p.WikidataID, "name", p.DisplayName())
+		logging.Trace(m.logger, "MSFS Overlap Detected", "qid", p.WikidataID, "name", p.DisplayName())
 	}
 	return nil
 }
@@ -646,7 +646,7 @@ func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (
 	}
 
 	// 5. Fallback: No POI found
-	m.logger.Debug("River detected but no matching POI found", "name", candidate.Name, "qid", candidate.WikidataID)
+	logging.Trace(m.logger, "River detected but no matching POI found", "name", candidate.Name, "qid", candidate.WikidataID)
 	return nil, nil
 }
 

@@ -236,7 +236,7 @@ func (p *Pipeline) rescueFromBatch(candidates []Article, lat, lon float64, media
 			}
 			candidates[i].Category = ra.Category
 			candidates[i].DimensionMultiplier = ra.DimensionMultiplier
-			p.logger.Debug("Rescued article by dimension", "qid", ra.ID, "category", ra.Category, "multiplier", ra.DimensionMultiplier)
+			logging.Trace(p.logger, "Rescued article by dimension", "qid", ra.ID, "category", ra.Category, "multiplier", ra.DimensionMultiplier)
 			*processed = append(*processed, candidates[i])
 			count++
 			break
@@ -264,7 +264,7 @@ func (p *Pipeline) logRescueStats(lat, lon float64, localMax rescue.TileStats, m
 	}
 
 	key := p.grid.TileAt(lat, lon).Key()
-	p.logger.Debug("Dimension Rescue Tile Stats",
+	logging.Trace(p.logger, "Dimension Rescue Tile Stats",
 		"tile", key,
 		"max_h", localMax.MaxHeight, "max_h_qid", maxHQID, "med_h", medians.MedianHeight,
 		"max_l", localMax.MaxLength, "max_l_qid", maxLQID, "med_l", medians.MedianLength,

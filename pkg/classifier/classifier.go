@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/tracker"
@@ -259,7 +260,7 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 	// 2. Only if no match, check for ignored
 	for _, sub := range subclasses {
 		if _, ok := c.config.IgnoredCategories[sub]; ok {
-			slog.Debug("Ignored category found as direct subclass", "qid", qid, "ignored", sub)
+			logging.TraceDefault("Ignored category found as direct subclass", "qid", qid, "ignored", sub)
 			return c.finalizeIgnored(ctx, qid, subclasses, label)
 		}
 	}

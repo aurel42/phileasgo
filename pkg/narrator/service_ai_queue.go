@@ -10,6 +10,7 @@ import (
 	"phileasgo/pkg/announcement"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/narrator/generation"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 )
 
@@ -119,8 +120,6 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 		case model.NarrativeTypePOI:
 			req = s.handlePOIJob(genCtx, job)
 
-		case model.NarrativeTypeBorder:
-			req = s.handleBorderJob(genCtx, job)
 		default:
 			req = s.handleAnnouncementJob(genCtx, job)
 		}
@@ -307,28 +306,7 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 	return req
 }
 
-func (s *AIService) handleBorderJob(ctx context.Context, job *generation.Job) *GenerationRequest {
-	s.initAssembler()
-	data := s.promptAssembler.NewPromptData(s.getSessionState())
-	data["From"] = job.From
-	data["To"] = job.To
-	data["MaxWords"] = 30                                                                                                   // Short statement
-	data["TTSInstructions"] = s.promptAssembler.ForPOI(ctx, nil, job.Telemetry, "", s.getSessionState())["TTSInstructions"] // Hacky but works to get TTS instructions
-	prompt, err := s.prompts.Render("narrator/border.tmpl", data)
-	if err != nil {
-		slog.Error("Narrator: Failed to render border prompt", "error", err)
-		return nil
-	}
-	return &GenerationRequest{
-		Type:          model.NarrativeTypeBorder,
-		Prompt:        prompt,
-		Title:         "Border Crossing",
-		SafeID:        "border_" + time.Now().Format("150405"),
-		MaxWords:      data["MaxWords"].(int),
-		Manual:        true,
-		SkipBusyCheck: true,
-	}
-}
+// DELETED handleBorderJob as it's now handled by the generic announcement path
 
 func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.Job) *GenerationRequest {
 	if job.Announcement == nil {
@@ -344,19 +322,31 @@ func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.J
 
 	// Find prompt template based on narrative type
 	tmpl := fmt.Sprintf("announcement/%s.tmpl", strings.ToLower(string(job.Type)))
-	prompt, err := s.prompts.Render(tmpl, data)
+	promptData, err := s.prompts.Render(tmpl, data)
 	if err != nil {
 		slog.Error("Narrator: Failed to render announcement prompt", "error", err, "tmpl", tmpl)
 		return nil
 	}
 
+	maxWords := 300
+	switch m := data.(type) {
+	case prompt.Data:
+		if mw, ok := m["MaxWords"].(int); ok {
+			maxWords = mw
+		}
+	case map[string]any:
+		if mw, ok := m["MaxWords"].(int); ok {
+			maxWords = mw
+		}
+	}
+
 	return &GenerationRequest{
 		Type:          job.Type,
-		Prompt:        prompt,
+		Prompt:        promptData,
 		Title:         job.Announcement.Title(),
 		Summary:       job.Announcement.Summary(),
 		SafeID:        job.Announcement.ID(),
-		MaxWords:      300,
+		MaxWords:      maxWords,
 		Manual:        true, // Announcements are treated with same priority as manual
 		SkipBusyCheck: true,
 		ThumbnailURL:  job.Announcement.ImagePath(),
