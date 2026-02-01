@@ -106,6 +106,7 @@ func (f *Provider) HasProfile(name string) bool {
 }
 
 // HealthCheck verifies that at least one provider is healthy.
+// Checks run in parallel with individual timeouts to prevent one slow provider from blocking others.
 func (f *Provider) HealthCheck(ctx context.Context) error {
 	f.mu.RLock()
 	providers := f.providers
@@ -116,13 +117,39 @@ func (f *Provider) HealthCheck(ctx context.Context) error {
 	}
 	f.mu.RUnlock()
 
-	var errors []string
+	type result struct {
+		name string
+		err  error
+	}
+
+	results := make(chan result, len(providers))
+	var wg sync.WaitGroup
+
 	for i, p := range providers {
 		if disabled[i] {
 			continue
 		}
-		if err := p.HealthCheck(ctx); err != nil {
-			errors = append(errors, fmt.Sprintf("%s: %v", names[i], err))
+		wg.Add(1)
+		go func(idx int, provider llm.Provider, name string) {
+			defer wg.Done()
+			// Each provider gets its own 5-second timeout
+			checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			err := provider.HealthCheck(checkCtx)
+			results <- result{name: name, err: err}
+		}(i, p, names[i])
+	}
+
+	// Close results channel when all goroutines complete
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var errors []string
+	for r := range results {
+		if r.err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", r.name, r.err))
 			continue
 		}
 		return nil // At least one is healthy

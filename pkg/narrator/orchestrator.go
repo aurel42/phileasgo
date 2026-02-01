@@ -104,6 +104,15 @@ func (o *Orchestrator) IsPlaying() bool {
 }
 
 func (o *Orchestrator) PlayPOI(ctx context.Context, poiID string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
+	// Immediate Visual Update (Marker Preview)
+	if o.beaconSvc != nil {
+		if pm := o.POIManager(); pm != nil {
+			if p, err := pm.GetPOI(ctx, poiID); err == nil && p != nil {
+				_ = o.beaconSvc.SetTarget(ctx, p.Lat, p.Lon)
+			}
+		}
+	}
+
 	// Deduplication/Promotion check
 	if o.promoteInQueue(poiID, manual) {
 		go o.ProcessPlaybackQueue(context.Background())
@@ -210,10 +219,6 @@ func (o *Orchestrator) PlayNarrative(ctx context.Context, n *model.Narrative) er
 		return err
 	}
 
-	// Clear beacon for non-border narratives
-	if o.beaconSvc != nil && n.Type != model.NarrativeTypeBorder {
-		o.beaconSvc.Clear()
-	}
 
 	// Post-play logic (session, state, logging)
 	if n.POI != nil {

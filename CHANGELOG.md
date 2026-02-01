@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.102 (2026-02-01)
+- **Fix**: **Beacon Markers**. Restored beacon spawning that was lost during the Orchestrator refactor. Balloons now appear immediately when a POI is triggered.
+- **Fix**: **LLM Health Check Cascade**. Health checks now run in parallel with individual timeouts, preventing one slow or rate-limited provider from causing all providers to fail.
+
 ## v0.3.100 (2026-02-01)
 - **Fix**: **Mid-Air Restart**. Prevented "Let's Go" announcement from re-triggering incorrectly after mid-air session restarts.
 - **Optimization**: **Request Latency**. Significantly reduced latency during LLM failover by disabling internal retries for non-terminal providers.
