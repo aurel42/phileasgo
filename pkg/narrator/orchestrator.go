@@ -456,13 +456,6 @@ func (o *Orchestrator) GetRepeatTTL() time.Duration {
 	return 0
 }
 
-func (o *Orchestrator) GetTripSummary() string {
-	if ai, ok := o.gen.(interface{ GetTripSummary() string }); ok {
-		return ai.GetTripSummary()
-	}
-	return ""
-}
-
 func (o *Orchestrator) GetLastTransition(stage string) time.Time {
 	if ai, ok := o.gen.(interface{ GetLastTransition(string) time.Time }); ok {
 		return ai.GetLastTransition(stage)

@@ -91,7 +91,6 @@ func (m *mockNarratorService) GetLocation(lat, lon float64) model.LocationInfo {
 }
 func (m *mockNarratorService) GetPOIsNear(lat, lon, radius float64) []*model.POI { return nil }
 func (m *mockNarratorService) GetRepeatTTL() time.Duration                       { return 0 }
-func (m *mockNarratorService) GetTripSummary() string                            { return "" }
 func (m *mockNarratorService) GetLastTransition(stage string) time.Time          { return time.Time{} }
 func (m *mockNarratorService) AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data {
 	return nil

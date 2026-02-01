@@ -8,15 +8,19 @@ import (
 	"testing"
 )
 
-// TestBorderBeaconExemption verifies that playing a Border narrative
-// does NOT clear the existing beacons.
-func TestBorderBeaconExemption(t *testing.T) {
+// TestBeaconNotClearedOnPlayback verifies that playing any narrative
+// does NOT actively clear beacons (SetTarget handles clearing when new target is set).
+func TestBeaconNotClearedOnPlayback(t *testing.T) {
 	mockBeacon := &MockBeacon{}
 	mockGen := &MockAIService{}
 	pbQ := playback.NewManager()
 	sess := session.NewManager(nil)
 	o := NewOrchestrator(mockGen, &MockAudio{}, pbQ, sess, mockBeacon, nil)
 
+	// Use a mock audio that doesn't block and runs synchronously
+	o.audio = &MockAudio{CanReplay: true, PlaySync: true}
+
+	// Test Border narrative
 	n := &model.Narrative{
 		Type:      model.NarrativeTypeBorder,
 		Title:     "Border Crossing",
@@ -24,9 +28,6 @@ func TestBorderBeaconExemption(t *testing.T) {
 		AudioPath: "test_audio",
 		Format:    "mp3",
 	}
-
-	// Use a mock audio that doesn't block and runs synchronously
-	o.audio = &MockAudio{CanReplay: true, PlaySync: true}
 
 	err := o.PlayNarrative(context.Background(), n)
 	if err != nil {
@@ -37,8 +38,8 @@ func TestBorderBeaconExemption(t *testing.T) {
 		t.Error("Beacon service should NOT be cleared for Border narratives")
 	}
 
-	// 2. Verify behavior for other types (e.g. Screenshot)
-	mockBeacon.Cleared = false // Reset
+	// Test Screenshot narrative - also should NOT clear (SetTarget handles it)
+	mockBeacon.Cleared = false
 
 	nScreen := &model.Narrative{
 		Type:      model.NarrativeTypeScreenshot,
@@ -53,8 +54,8 @@ func TestBorderBeaconExemption(t *testing.T) {
 		t.Fatalf("PlayNarrative failed: %v", err)
 	}
 
-	if !mockBeacon.Cleared {
-		t.Error("Beacon service SHOULD be cleared for Screenshot narratives")
+	if mockBeacon.Cleared {
+		t.Error("Beacon service should NOT be cleared - SetTarget handles clearing when new target is set")
 	}
 }
 

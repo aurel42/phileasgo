@@ -103,7 +103,6 @@ type Service interface {
 	GetLocation(lat, lon float64) model.LocationInfo
 	GetPOIsNear(lat, lon, radius float64) []*model.POI
 	GetRepeatTTL() time.Duration
-	GetTripSummary() string
 	GetLastTransition(stage string) time.Time
 	AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data
 	AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data
@@ -375,7 +374,6 @@ func (s *StubService) ClearCurrentImage() {
 func (s *StubService) GetLocation(lat, lon float64) model.LocationInfo   { return model.LocationInfo{} }
 func (s *StubService) GetPOIsNear(lat, lon, radius float64) []*model.POI { return nil }
 func (s *StubService) GetRepeatTTL() time.Duration                       { return 0 }
-func (s *StubService) GetTripSummary() string                            { return "" }
 func (s *StubService) GetLastTransition(stage string) time.Time          { return time.Time{} }
 func (s *StubService) AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data {
 	return nil

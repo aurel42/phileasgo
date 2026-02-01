@@ -75,7 +75,6 @@ func (m *mockPhase2NarratorService) GetLocation(lat, lon float64) model.Location
 }
 func (m *mockPhase2NarratorService) GetPOIsNear(lat, lon, radius float64) []*model.POI { return nil }
 func (m *mockPhase2NarratorService) GetRepeatTTL() time.Duration                       { return 0 }
-func (m *mockPhase2NarratorService) GetTripSummary() string                            { return "" }
 func (m *mockPhase2NarratorService) GetLastTransition(stage string) time.Time          { return time.Time{} }
 func (m *mockPhase2NarratorService) AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data {
 	return nil

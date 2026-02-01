@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.103 (2026-02-01)
+- **Fix**: **Debriefing Trip Summary**. Fixed empty trip summary in debriefing prompts by using the event-based summary instead of the deprecated legacy field.
+- **Cleanup**: Removed legacy `GetTripSummary()` interface and implementations, replaced by event-based `formatTripLog()`.
+
 ## v0.3.102 (2026-02-01)
 - **Fix**: **Beacon Markers**. Restored beacon spawning that was lost during the Orchestrator refactor. Balloons now appear immediately when a POI is triggered.
 - **Fix**: **LLM Health Check Cascade**. Health checks now run in parallel with individual timeouts, preventing one slow or rate-limited provider from causing all providers to fail.

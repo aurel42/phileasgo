@@ -61,7 +61,6 @@ type DataProvider interface {
 	// Proximity & Knowledge
 	GetPOIsNear(lat, lon, radius float64) []*model.POI
 	GetRepeatTTL() time.Duration
-	GetTripSummary() string
 	GetLastTransition(stage string) time.Time
 
 	// Prompt Data Assembly

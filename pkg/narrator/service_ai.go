@@ -192,11 +192,6 @@ func (s *AIService) NarratedCount() int {
 	return s.session().NarratedCount()
 }
 
-// GetTripSummary returns the combined summary of all POIs visited in the current session.
-func (s *AIService) GetTripSummary() string {
-	return s.session().GetState().TripSummary
-}
-
 // GetLastTransition returns the timestamp of the last transition to the given stage.
 func (s *AIService) GetLastTransition(stage string) time.Time {
 	if s.sim == nil {

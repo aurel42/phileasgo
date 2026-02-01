@@ -73,8 +73,7 @@ func (a *Debriefing) ShouldPlay(t *sim.Telemetry) bool {
 }
 
 func (a *Debriefing) GetPromptData(t *sim.Telemetry) (any, error) {
-	// Use AssembleGeneric to get standard context (Language, User Name, etc.) for Style macro
+	// Use AssembleGeneric to get standard context (Language, TripSummary, etc.)
 	data := a.dp.AssembleGeneric(context.Background(), t)
-	data["TripSummary"] = a.dp.GetTripSummary()
 	return data, nil
 }

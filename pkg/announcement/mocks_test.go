@@ -11,7 +11,6 @@ import (
 type mockDP struct {
 	events                []model.TripEvent
 	GetRepeatTTLFunc      func() time.Duration
-	GetTripSummaryFunc    func() string
 	GetLastTransitionFunc func(string) time.Time
 	AddEventFunc          func(*model.TripEvent)
 	AssemblePOIFunc       func(context.Context, *model.POI, *sim.Telemetry, string) prompt.Data
@@ -24,12 +23,6 @@ func (m *mockDP) GetRepeatTTL() time.Duration {
 		return m.GetRepeatTTLFunc()
 	}
 	return 0
-}
-func (m *mockDP) GetTripSummary() string {
-	if m.GetTripSummaryFunc != nil {
-		return m.GetTripSummaryFunc()
-	}
-	return ""
 }
 func (m *mockDP) GetLastTransition(s string) time.Time {
 	if m.GetLastTransitionFunc != nil {
