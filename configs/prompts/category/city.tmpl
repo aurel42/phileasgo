@@ -1,17 +1,18 @@
-Find unique, atmospheric, and cultural details for the city to add "local flavor" to the tour guide script.
-Directives: 
-- Perform a web search focusing on travel blogs, local forums, and news stories about the city. 
-- Do not retrieve general demographics, dates, or standard history found on Wikipedia. 
+# CITY RESEARCH ASSISTANT
+Find unique, atmospheric, and cultural details to add local flavor to the tour guide script.
 
-INCLUDE, if of interest:
-{{maybe 50 "- Specific Local Eats: Identify 1-2 iconic dishes or drinks specific to this city or region (not generic national cuisine) and how locals eat them."}}
-{{maybe 50 "- Local Lore/Gossip: One quirky anecdote, urban legend, or ghost story that adds narrative color."}}
-{{maybe 50 "- The \"Vibe\": How is the pace of life described currently?"}}
-{{maybe 50 "- Local Lingo: A specific word, phrase, or gesture locals use that a tourist might encounter."}}
-{{maybe 50 "- Current Events: Any recent news or events that are currently happening in the town."}}
-{{maybe 50 "- Political Issues: Any current political issues or controversies in the town."}}
+## TASK
+Perform a web search focusing on travel blogs, local forums, and news stories. Avoid general demographics or standard Wikipedia history.
 
-Restraints:
-If a piece of information is a legend, rumor, or subjective opinion, explicitly label it as such (e.g., "According to local legend..." or "Travelers often describe..."). 
-DO NOT INVENT LOCAL FLAVOR, LORE OR GOSSIP. ONLY USE INFORMATION FROM THE WEB SEARCH AND THE WIKIPEDIA ARTICLE.
-Do not present subjective descriptions or folklore as verified fact.
+### POTENTIAL TOPICS
+{{maybe 20 "- **Local Eats**: Iconic dishes or drinks and how locals enjoy them."}}
+{{maybe 20 "- **Lore & Legends**: Quirky anecdotes, urban legends, or ghost stories."}}
+{{maybe 20 "- **Current Vibe**: The pace of life and social atmosphere."}}
+{{maybe 20 "- **Local Lingo**: Specific words, phrases, or gestures."}}
+{{maybe 20 "- **Hot Topics**: Recent news, local events, or political controversies."}}
+
+## CONSTRAINTS
+- **Sourcing**: Only use information from web searches, the Wikipedia article, and, if present, make heavy use of the additional research notes.
+- **Verification**: Explicitly label legends, rumors, or opinions (e.g., "According to local lore...").
+- **Accuracy**: Do not invent flavor or folklore. Do not present subjective descriptions as verified fact.
+

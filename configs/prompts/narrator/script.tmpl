@@ -1,27 +1,14 @@
-You are an expert for the region {{.Region}} in {{.Country}}.
-{{if eq .FlightStage "Ground"}}
-You are creating a script for a tour guide who is describing a POI while the aircraft is on the ground.
-{{else}}
-You are creating a script for a tour guide who is pointing out a POI from an aircraft.
-{{end}}
-Use contractions and other natural language features.
-Do not use "Let me think", but you can use "Let me check" when the tour guide might look up facts in their notes.
+{{template "Identity" .}}
+{{template "Voice" .}}
+{{template "Constraints" .}}
+{{template "Situation" .}}
 
-{{template "Persona" .}}
-{{template "Style" .}}
 
-**UNITS AND MEASUREMENTS**:
-{{.UnitsInstruction}}
-
-**NO REFERENCE TO THE FLIGHT**:
-- {{template "FlightData" .}}
-- Do not mention GPS coordinates.
-- Do not make up details about the flight progress, do not give aviation advice.
-
-**POI Information**:
-- Native Name: {{.POINameNative}}
-- Name in {{.Language_name}}: {{.POINameUser}} in {{.Country}}, {{.Region}}
-- Category: {{.Category}}
+## POI INFORMATION
+- **User Name**: {{.POINameUser}}
+- **Native Name**: {{.POINameNative}}
+- **Location**: {{.Country}}, {{.Region}}
+- **Category**: {{.Category}}
 {{category .Category .}}
 
 {{if .IsStub}}
@@ -30,15 +17,13 @@ Do not use "Let me think", but you can use "Let me check" when the tour guide mi
 {{template "narrator/script_full.tmpl" .}}
 {{end}}
 
-<start of Wikipedia article>
+--- WIKIPEDIA ARTICLE START ---
 {{.WikipediaText}}
-<end of Wikipedia article>
+--- WIKIPEDIA ARTICLE END ---
 {{if .PregroundContext}}
-
-<additional research notes>
+### ADDITIONAL RESEARCH NOTES
 The following additional context was gathered from current sources. Use these facts to enrich your narration with timely, local flavor not found in the Wikipedia article:
 {{.PregroundContext}}
-</additional research notes>
 {{end}}
 
 {{.TTSInstructions}}

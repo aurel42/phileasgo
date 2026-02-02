@@ -94,8 +94,10 @@ func (a *Assembler) ForPOI(ctx context.Context, p *model.POI, tel *sim.Telemetry
 	pd["MaxWords"] = maxWords
 	pd["DomStrat"] = domStrat
 	pd["IsStub"] = isStub
-	pd["NavInstruction"] = a.calculateNavInstruction(p, tel)
 	pd["ArticleURL"] = p.WPURL
+
+	// Inject raw navigation data for template-side logic
+	a.injectNavigationData(pd, p, tel)
 
 	// Final fetch of TTS instructions with full context
 	pd["TTSInstructions"] = a.fetchTTSInstructions(pd)
@@ -124,50 +126,12 @@ func (a *Assembler) injectTelemetry(pd Data, t *sim.Telemetry) {
 	pd["PredictedLat"] = t.PredictedLatitude
 	pd["PredictedLon"] = t.PredictedLongitude
 	pd["FlightStage"] = sim.FormatStage(t.FlightStage)
-	pd["FlightStatusSentence"] = GenerateFlightStatusSentence(t)
+	pd["IsOnGround"] = t.IsOnGround
 
 	// Geographical context for aircraft position
 	loc := a.geoSvc.GetLocation(t.Latitude, t.Longitude)
 	pd["TargetRegion"] = fmt.Sprintf("Near %s", loc.CityName)
 	pd["TargetCountry"] = loc.CountryName
-}
-
-func (a *Assembler) GenerateFlightStatusSentence(t *sim.Telemetry) string {
-	return GenerateFlightStatusSentence(t)
-}
-
-func GenerateFlightStatusSentence(t *sim.Telemetry) string {
-	if t == nil {
-		return "The aircraft position is unknown."
-	}
-
-	lat := fmt.Sprintf("%.4f", t.PredictedLatitude)
-	lon := fmt.Sprintf("%.4f", t.PredictedLongitude)
-
-	if t.IsOnGround {
-		action := "sitting"
-		if t.GroundSpeed >= 2.0 {
-			action = "taxiing"
-		}
-		return fmt.Sprintf("The aircraft is %s on the ground. Its position is %s, %s.", action, lat, lon)
-	}
-
-	// Flying
-	alt := t.AltitudeAGL
-	var altStr string
-	if alt < 1000 {
-		rounded := math.Round(alt/100) * 100
-		altStr = fmt.Sprintf("%.0f", rounded)
-	} else {
-		rounded := math.Round(alt/1000) * 1000
-		altStr = fmt.Sprintf("%.0f", rounded)
-	}
-
-	speed := fmt.Sprintf("%.0f", t.GroundSpeed)
-	hdg := fmt.Sprintf("%.0f", t.Heading)
-
-	return fmt.Sprintf("The aircraft is cruising about %s ft over the ground, moving at %s knots in heading %s. Its position is %s, %s.",
-		altStr, speed, hdg, lat, lon)
 }
 
 func (a *Assembler) injectPersona(pd Data, session SessionState) {
@@ -250,6 +214,7 @@ func (a *Assembler) injectPOI(ctx context.Context, pd Data, p *model.POI) {
 
 func (a *Assembler) injectUnits(pd Data) {
 	pd["UnitsInstruction"] = a.fetchUnitsInstruction()
+	pd["UnitSystem"] = strings.ToLower(a.cfg.Narrator.Units)
 }
 
 func (a *Assembler) fetchUnitsInstruction() string {
@@ -369,7 +334,35 @@ func (a *Assembler) fetchPregroundContext(ctx context.Context, p *model.POI) str
 		return ""
 	}
 
-	return result
+	return a.cleanPregroundingResult(result)
+}
+
+func (a *Assembler) cleanPregroundingResult(s string) string {
+	// Strip bracketed citations like [1], [23], etc.
+	// We use a simple regex-like approach or strings replace if we want to avoid regex overhead,
+	// but for this depth, a simple regex is safest.
+	// However, I'll stick to a robust manual pass or a few common replacements to be safe.
+
+	// 1. Strip markdown links [text](url) -> text
+	// 2. Strip bracketed numbers [1]
+	// 3. Strip parenthetical numbers (1)
+
+	// For now, let's keep it simple and effective:
+	lines := strings.Split(s, "\n")
+	var cleaned []string
+	for _, line := range lines {
+		l := line
+		// Remove bracketed citations [1]...[99]
+		for i := 1; i < 20; i++ {
+			l = strings.ReplaceAll(l, fmt.Sprintf("[%d]", i), "")
+		}
+		// Remove Markdown URLs but keep the text
+		// This is a bit too complex for simple string replace, but we can do a basic pass
+
+		cleaned = append(cleaned, strings.TrimSpace(l))
+	}
+
+	return strings.Join(cleaned, "\n")
 }
 
 func (a *Assembler) fetchTTSInstructions(data Data) string {
@@ -460,9 +453,9 @@ func DetermineSkewStrategy(p *model.POI, poiMgr POIProvider, isOnGround bool) st
 	return StrategyMaxSkew
 }
 
-func (a *Assembler) calculateNavInstruction(p *model.POI, tel *sim.Telemetry) string {
-	if tel == nil {
-		return ""
+func (a *Assembler) injectNavigationData(pd Data, p *model.POI, tel *sim.Telemetry) {
+	if p == nil || tel == nil {
+		return
 	}
 
 	latSrc, lonSrc := tel.Latitude, tel.Longitude
@@ -474,80 +467,59 @@ func (a *Assembler) calculateNavInstruction(p *model.POI, tel *sim.Telemetry) st
 	pTarget := geo.Point{Lat: p.Lat, Lon: p.Lon}
 
 	distMeters := geo.Distance(pSrc, pTarget)
-	distKm := distMeters / 1000.0
-
-	if distKm < 4.5 {
-		if tel.IsOnGround {
-			return ""
-		}
-		return a.formatAirborneRelative(pSrc, pTarget, tel.Heading)
-	}
-
-	var distStr string
-	unitSys := strings.ToLower(a.cfg.Narrator.Units)
-
-	if unitSys == "metric" || unitSys == "hybrid" {
-		val := a.humanRound(distKm)
-		distStr = fmt.Sprintf("about %.0f kilometers", val)
-	} else {
-		distNm := distMeters * 0.000539957
-		val := a.humanRound(distNm)
-		distStr = fmt.Sprintf("about %.0f miles", val)
-	}
-
-	if tel.IsOnGround {
-		return a.formatGroundCardinal(pSrc, pTarget, distStr)
-	}
-	return a.formatAirborneClock(pSrc, pTarget, tel.Heading, distStr)
-}
-
-func (a *Assembler) formatGroundCardinal(pSrc, pTarget geo.Point, distStr string) string {
 	bearing := geo.Bearing(pSrc, pTarget)
 	normBearing := math.Mod(bearing+360, 360)
-	dirs := []string{"North", "North-East", "East", "South-East", "South", "South-West", "West", "North-West"}
-	idx := int((normBearing+22.5)/45.0) % 8
-	direction := fmt.Sprintf("to the %s", dirs[idx])
+	relBearing := math.Mod(bearing-tel.Heading+360, 360)
 
-	return a.capitalizeStart(fmt.Sprintf("%s, %s away", direction, distStr))
+	pd["DistMeters"] = distMeters
+	pd["DistKm"] = a.humanRound(distMeters / 1000.0)
+	pd["DistNm"] = a.humanRound(distMeters * 0.000539957)
+	pd["Bearing"] = normBearing
+	pd["RelBearing"] = relBearing
+	pd["ClockPos"] = a.calculateClockPos(relBearing)
+	pd["CardinalDir"] = a.calculateCardinalDir(normBearing)
+	pd["RelativeDir"] = a.calculateRelativeDir(relBearing)
+	pd["Movement"] = a.calculateMovement(relBearing)
 }
 
-func (a *Assembler) formatAirborneRelative(pSrc, pTarget geo.Point, userHdg float64) string {
-	bearing := geo.Bearing(pSrc, pTarget)
-	relBearing := math.Mod(bearing-userHdg+360, 360)
-
-	var direction string
-	switch {
-	case relBearing >= 345 || relBearing <= 15:
-		direction = "straight ahead"
-	case relBearing > 15 && relBearing <= 135:
-		direction = "on your right"
-	case relBearing > 135 && relBearing <= 225:
-		direction = "behind you"
-	case relBearing > 225 && relBearing < 345:
-		direction = "on your left"
-	}
-
-	return a.capitalizeStart(direction)
-}
-
-func (a *Assembler) formatAirborneClock(pSrc, pTarget geo.Point, userHdg float64, distStr string) string {
-	bearing := geo.Bearing(pSrc, pTarget)
-	relBearing := math.Mod(bearing-userHdg+360, 360)
-
+func (a *Assembler) calculateClockPos(relBearing float64) int {
 	clock := int((relBearing + 15) / 30)
 	if clock == 0 {
-		clock = 12
+		return 12
 	}
-	direction := fmt.Sprintf("at your %d o'clock", clock)
-
-	return a.capitalizeStart(fmt.Sprintf("%s, %s away", direction, distStr))
+	return clock
 }
 
-func (a *Assembler) capitalizeStart(s string) string {
-	if s == "" {
-		return ""
+func (a *Assembler) calculateCardinalDir(normBearing float64) string {
+	dirs := []string{"North", "North-East", "East", "South-East", "South", "South-West", "West", "North-West"}
+	idx := int((normBearing+22.5)/45.0) % 8
+	return dirs[idx]
+}
+
+func (a *Assembler) calculateRelativeDir(relBearing float64) string {
+	switch {
+	case relBearing >= 345 || relBearing <= 15:
+		return "ahead"
+	case relBearing > 15 && relBearing <= 135:
+		return "right"
+	case relBearing > 135 && relBearing <= 225:
+		return "behind"
+	default:
+		return "left"
 	}
-	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func (a *Assembler) calculateMovement(relBearing float64) string {
+	switch {
+	case relBearing > 45 && relBearing <= 135:
+		return "passing"
+	case relBearing > 135 && relBearing <= 225:
+		return "beyond"
+	case relBearing > 225 && relBearing < 315:
+		return "passing"
+	default:
+		return "approaching"
+	}
 }
 
 func (a *Assembler) humanRound(val float64) float64 {

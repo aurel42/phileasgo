@@ -1,16 +1,21 @@
 ﻿Release History
 
+## v0.3.114 (2026-02-02)
+- **Refactor**: **Layered Prompt System**. Transitioned to a modular, stratified prompt architecture with shared core layers (`Identity`, `Voice`, `Constraints`, `Situation`).
+- **Feature**: **Dynamic Navigation Logic**. Moved navigation and flight status humanization from backend code to templates, utilizing new raw telemetry primitives.
+- **Improved**: **Regional Essays**. Enhanced the essay engine with "The Hook" (engaging opening) and "Depth over Breadth" directives for more focused storytelling.
+- **Refinement**: **Automatic Citation Scrubber**. Implemented a backend filter to strip LLM-generated bracketed citations from research results before narration.
+- **Refinement**: **Standardized Measurement Systems**. Unified and modernized all unit templates (Metric, Imperial, Hybrid) to follow the new hierarchical structure.
+
 ## v0.3.113 (2026-02-02)
 - **Fix**: **Playback Skip Regression**. Resolved an issue where skipping a narration blocked future audio output. The audio manager now correctly triggers the completion callback on `Stop()`, ensuring internal state is reset.
 - **Improved**: Decentralized skip logic to the `Orchestrator` for better state management and pacing control.
-
 
 ## v0.3.112 (2026-02-02)
 - **Feature**: **Multi-Target Beacons**. Replaced the persistence toggle with a configurable quota system (`beacon.max_targets`), supporting multiple persistent target balloons (default 2).
 - **Improved**: **Independent Physics**. Each target balloon now tracks its own position and sinking logic independently, while formation balloons follow the active target.
 - **Refinement**: **Automatic Despawn**. Implemented smart cleanup for beacons that are significantly behind the aircraft (50km+ and >90° relative bearing) to ensure performance.
 - **Refactor**: Improved beacon service architecture for better terrain-aware grounding and reduced complexity.
-
 
 ## v0.3.111 (2026-02-02)
 - **Fix**: **Debriefing Reliability**. Extended the debriefing announcement window to include the `Parked` stage, ensuring flight summaries are delivered even after engine shutdown.

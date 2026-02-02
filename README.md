@@ -6,46 +6,36 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 
 ## Features
 
-- **AI Tour Guide**: Generates context-aware, real-time briefings for landmarks using LLMs. It knows where you are, your heading, and effectively "sees" the terrain.
-- **Multi-Provider LLM Support**: Supports Google Gemini, Groq, and any OpenAI-compatible API (Mistral, Ollama, etc.).
-- **Terrain & Visibility Awareness**: 
-    - **Line-of-Sight (LOS)**: Uses ETOPO1 global elevation data to verify visibility. Phileas will rarely point out landmarks hidden behind mountain ranges.
-- **Smart POI Prioritization**:
-    - **Contextual Scoring**: Weighs distance, size, and novelty. Prioritizes significant landmarks (Airports, Mountains, Cities) over generic data points.
-- **Immersive Audio**:
-    - **Headset Effect**: Optional bandpass filter to simulate aviation headset/radio audio.
-    - **Multiple Providers**: Supports Edge TTS (free/default), Azure Speech, and Fish Audio.
-- **Flight Bag (Web UI)**:
-    - Live map showing aircraft position, flight path, and scanned area heatmap.
-    - **Manual Control**: Trigger narrations manually or review nearby POIs.
-- **Visual Markers (VFR)**: Spawns in-sim balloons to help you visually identify a specific landmark.
-- **Sim-Optimized**: 
-    - **Lightweight**: Written in Go (~100MB RAM), runs in the background with zero impact on MSFS framerates. Vibecoded using a braindead LLM, so it's probably not that optimized, but it's good enough for me.
-    - **Offline-First Design**: Heavy SQLite caching ensures that once an area is flown, it loads instantly without hammering APIs.
-- **Highly configurable**: 
-    - **POI Prioritization**: Configure which categories of POIs are most important to you.
-    - **Narration Settings**: Adjust volume, speed, and other settings.
+- **AI Tour Guide**: Generates context-aware, real-time briefings for landmarks using LLMs.
+- **Multi-Provider LLM Support**: Supports Google Gemini, Groq, DeepSeek, and Perplexity for grounding.
+- **Terrain & Visibility Awareness**: Uses ETOPO1 global elevation data for line-of-sight calculations. It's not perfect, because of the low resolution (to conserve resources), Phileas will occasionally point out landmarks hidden behind mountain ranges.
+- **Smart POI Prioritization**: Weighs amount of available data, visibility, distance, novelty and other factors to pick good POIs. You can tune the weights for each category or add new categories.
+- **Immersive Audio**: Supports Edge TTS (free/default), Azure Speech, and Fish Audio. Optional bandpass filter to simulate aviation headset/radio audio.
+- **User Interface**: Comes with a headless server, a web UI, an experimental overlay for streaming, and a Windows app (a wrapper around the web UI) for easy import into VR.
+    - Live map showing aircraft position and POIs around your aircraft.
+    - Trigger narrations manually or review nearby POIs.
+    - No in-game interface. I investigated what it would take to turn the interface into an EFB app, and, while I still find the idea sexy, MSFS's security/sandbox model makes this more difficult than it should be.
+- **Visual Markers (VFR)**: Spawns in-sim balloons to help you visually identify a specific landmark. A formation of balloons travels with your aircraft pointing in the direction of the active POI. When you get close, the formation is replaced with a single balloon that sinks towards the POI. You will know which mountain or settlement the tour guide is talking about, if you want to see the castle the tour guide mentioned, just follow the balloons.
+- **As resource-friendly as possible**: While Phileas gets a lot of data from Wikidata and Wikipedia, it tries to be responsible about it (it only gets the data it needs when it needs it, all responses are cached).
+- **Highly configurable**: Most aspects of Phileas can be configured by editing yaml files, all the LLM prompts can be edited which allows for radically different experiences.
+- **CAVEAT**: This is an experimental, educational vibecoding project with a (most likely) limited lifespan. The code quality is probably mediocre at best, but I'm trying to make it as robust as possible without touching code myself (part of the experiment).
 
 ## Requirements
 
 - Windows 10/11
 - Microsoft Flight Simulator 2024
-- An LLM API key (Gemini or Groq recommended)
+- One or more LLM API keys (combine a free tier with a paid tier to minimize costs while maximizing reliability)
 - Azure TTS credentials (optional - Edge TTS works without configuration)
 
 ## LLM Providers
 
-PhileasGo supports multiple LLM providers. You only need **one** of the following:
-
-| Provider | Cost | Notes |
-|----------|------|-------|
-| **Groq** | Free tier available | Recommended for getting started. Obtaining an API key is painless—just sign up at [console.groq.com](https://console.groq.com) and create a key. The free tier is generous enough for casual use. |
-| **Gemini** | Pay-per-use | Google's Gemini models. |
-| **OpenAI-compatible** | Varies | Any OpenAI Chat Completions API (Mistral, Ollama, local models, proxies). |
+PhileasGo supports multiple LLM providers. 
+You only need **one** of the following: Groq, Gemini, DeepSeek, any OpenAI-compatible API (needs testing).
+Phileas can optionally make use of the Perplexity API for grounding.
 
 If you have access to a paid tier from one provider, and a free tier from another provider, configure a fallback chain in configs/phileas.yaml (e.g., `llm.fallback: ["groq", "gemini"]`). Should you hit the quotas for the free tier, PhileasGo will use the next provider in the chain. This is particularly useful for Groq, which has a generous free tier but can be rate-limited during peak hours. 
 
-Note that different models produce radically different results when it comes to the script prose, so the fallback mechanism will result in your tour guide demonstrating... erm... rhetorical range.
+Note that, even with detailed prompts, different models produce radically different results when it comes to the script prose, so the fallback mechanism will result in your tour guide demonstrating... erm... rhetorical range.
 
 ## Limitations
 
@@ -67,11 +57,11 @@ The install script will:
 - Download and extract GeoNames city data
 - Download and extract ETOPO1 global elevation data (for Line-of-Sight visibility)
 - Prompt you to manually download and place MSFS POI data (Master.csv)
-- Generate the default configuration file if missing
+- Generate the default configuration file with default values (if missing)
 
 ### API Key Configuration
 
-API keys are configured via environment variables in a `.env.local` file (not committed to git):
+API keys are configured via environment variables in a `.env.local` or `.env` file:
 
 ```bash
 # Copy the template
@@ -82,10 +72,13 @@ cp .env.template .env.local
 
 The `.env.template` file shows all available options:
 
-```bash
 # LLM Providers (you need at least one)
 GEMINI_API_KEY=your_gemini_key_here
 GROQ_API_KEY=your_groq_key_here
+DEEPSEEK_API_KEY=your_deepseek_key_here
+OPENAI_API_KEY=your_openai_key_here # untested
+
+PERPLEXITY_API_KEY=your_perplexity_key_here # optional grounding
 
 # TTS Providers (optional - Edge TTS works without keys)
 FISH_API_KEY=
@@ -93,7 +86,7 @@ SPEECH_KEY=
 SPEECH_REGION=
 ```
 
-> **Tip**: For the easiest setup, just get a free Groq API key from [console.groq.com](https://console.groq.com).
+> **Tip**: Ask your favorite LLM about Groq's free tier.
 
 ## Configuration
 
@@ -109,7 +102,7 @@ tts:
   # options: "windows-sapi", "edge-tts", "fish-audio", "azure-speech"
 ```
 
-> **Note**: API keys are configured in `.env.local`, not in `phileas.yaml`. See [API Key Configuration](#api-key-configuration) above.
+TODO: it's poorly documented, because I feel that most of the settings should be moved to a better settings dialog. Work in progress.
 
 ### Advanced Customization
 
@@ -137,17 +130,20 @@ You can tweak the behavior of the tour guide by modifying other files in `config
     - **`tts/fish-audio.tmpl`**: A special prompt optimized for a specific cloned voice. It instructs the LLM to use specific mannerisms, vocabulary, and rhetorical styles that align with that persona.
     - **`common/macros.tmpl`**: Defines the shared persona traits and values. **Edit this file if the tour guide's "politics" or worldview are not to your liking.** It currently defines a narrator who is critical of imperialism/authoritarianism and sides with the oppressed; you can adjust these instructions to match your preferred narrative neutrality or bias.
 
+*Note*: If you want a configuration change in these files to take effect, you need to restart `PhileasGUI.exe`. You can do that mid-flight, Phileas remembers where you've been.
+
 ## Usage
 
-1. Start Microsoft Flight Simulator
-2. Run `phileasgo.exe`
-3. Open http://localhost:1920 in your browser
-4. Start a flight and enjoy the narration!
+1. Run `PhileasGUI.exe` before or after starting a flight in MSFS2024.
+2. Enjoy the tour!
 
 The web UI shows:
 - Current flight telemetry
 - Nearby points of interest
 - Narration status and controls
+
+Or use the Windows app:
+
 
 ### Cockpit Control (Transponder)
 
@@ -161,10 +157,12 @@ PhileasGo can be controlled directly from your aircraft's transponder, allowing 
     - *Example*: Squawking `7231` sets normal frequency, normal length, and no boost. `7055` pauses narration but sets max length and boost for when you resume.
 - **IDENT Button**: Pressing the transponder's **IDENT** button triggers a configurable action. Use `IdentAction` in `configs/phileas.yaml` to set this to `skip` (default), `pause_toggle`, or `stop`.
     - *Note*: The IDENT trigger works regardless of your squawk code, as long as the feature is enabled.
+    - *Note*: The IDENT button sends the IDENT signal for about twenty seconds. You shouldn't press it more than once every twenty seconds, until I have a clever idea how to handle this better.
 
 For streaming: point the browser to http://localhost:1920/overlay for a transparent overlay. The elements can be turned on/off in `configs/phileas.yaml`.
 
-Note: on your first flight, the Wikidata QID hierarchy cache table is populated. This will result in a high number of Wikidata API calls and is nothing to worry about. As long as your database (data/phileas.db) is present, we will rarely ask for any piece of information more than once. If you want to make it easier on Phileas, don't start your first flight in the middle of a metropolitan area.
+*Note*: On your first flight, the Wikidata QID hierarchy cache table is populated. This will result in a high number of Wikidata API calls and is nothing to worry about. As long as your database (data/phileas.db) is present, we will rarely ask for any piece of information more than once. If you want to make it easier on Phileas, don't start your first flight in the middle of a metropolitan area.
+*Note*: On longer flights, the number of Wikidata requests can go into the thousands. This is normal. Phileas is asking Wikidata for the ids and some (cheap) metadata of all landmarks around and ahead of your aircraft, and it prefers to get that data in many small portions (with pauses between requests). You can visualize the tiles in PhileasGUI by enabling "Show Cache Layer".
 
 ## Building from Source
 
@@ -210,11 +208,13 @@ I started this project to see how far I could get purely by vibecoding. I always
 
 I vibecoded a series of three Python clients with growing complexity (and resource usage), and encountered the limits of current vibecoding tools (repeatedly). This fourth attempt in Go was meant to explore how a stricter language, a more structured codebase, and access to the Python proof-of-concept implementations would improve agents' abilities to manage the complexity.
 
-It turned out so well that I'm releasing it as a public project (let's call it a "public backup"). I'm sure the code is not pretty (I don't actually code in Go, that was part of the experiment), but the resource usage is plausible and, at least for me, it appears to do what it's supposed to do.
+It turned out so well that I'm releasing it as a public project (let's call it a "public backup"). I'm sure the code is not pretty (I don't actually code in Go, that was part of the experiment), but the resource usage is plausible and, at least for me, it appears to do what it's supposed to do. Also, while the agents try their hardest to violate my design any chance they get, I feel that the design I have in my head has really good elements and, sometimes, for a few versions, the implementation gets pretty close to that design.
 
-I expect to be the only user for the foreseeable future, so at this point I don't care to put together a binary release. Let me know if you feel I should (or which missing LLM/TTS services you feel the project should support). Or if you want support for MSFS2020.
+I expect to be the only user for the foreseeable future, so I'll only put together a binary release when I'm happy with the current state. If you want, if you really, really want, you can always build it yourself.
 
 ## Credits
+
+This project is made possible by the incredible volume of open data provided by the **[Wikimedia Foundation](https://wikimediafoundation.org/)**. PhileasGo relies heavily on **[Wikidata](https://www.wikidata.org/)** for metadata and **[Wikipedia](https://www.wikipedia.org/)** for descriptive content; without their contributors' tireless work, our tour guide would literally have nothing to say.
 
 This project uses the **[Uber H3](https://github.com/uber/h3)** geospatial indexing system.
 H3 is licensed under the [Apache License 2.0](https://github.com/uber/h3/blob/master/LICENSE).
@@ -226,7 +226,5 @@ Category icons provided by **[Mapbox Maki](https://github.com/mapbox/maki)** (CC
 
 Made with **[Natural Earth](https://www.naturalearthdata.com/)**. Free vector and raster map data @ naturalearthdata.com.
 
-
 ## License
-
 MIT License - see [LICENSE](LICENSE) file for details.

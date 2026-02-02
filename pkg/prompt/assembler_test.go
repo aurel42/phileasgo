@@ -132,13 +132,14 @@ func TestAssembler_ForPOI_NilTelemetry(t *testing.T) {
 		Lat:        10,
 		Lon:        10,
 		WikidataID: "Q123",
+		NameEn:     "Test POI",
 		Score:      1.0,
 	}
 
 	// Should not panic (handle nil telemetry)
 	pd := a.ForPOI(context.Background(), p, nil, "", session)
 
-	if pd["NavInstruction"] != "" {
-		t.Errorf("Expected empty nav instruction for nil telemetry, got %v", pd["NavInstruction"])
+	if pd["POINameNative"] == "" {
+		t.Errorf("Expected POINameNative to be populated")
 	}
 }

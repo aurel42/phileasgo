@@ -6,7 +6,6 @@ import (
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/model"
-	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 )
 
@@ -64,7 +63,6 @@ func (a *Letsgo) GetPromptData(t *sim.Telemetry) (any, error) {
 	pd["AltitudeAGL"] = t.AltitudeAGL
 	pd["GroundSpeed"] = t.GroundSpeed
 	pd["FlightStage"] = sim.FormatStage(t.FlightStage)
-	pd["FlightStatusSentence"] = prompt.GenerateFlightStatusSentence(t)
 
 	return pd, nil
 }

@@ -198,7 +198,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			// Temp prompts
 			tmpDir := t.TempDir()
 			_ = os.MkdirAll(filepath.Join(tmpDir, "narrator"), 0o755)
-			_ = os.WriteFile(filepath.Join(tmpDir, "narrator", "script.tmpl"), []byte("Prompt: {{.NavInstruction}} Context: {{.RecentContext}}"), 0o644)
+			_ = os.WriteFile(filepath.Join(tmpDir, "narrator", "script.tmpl"), []byte("Prompt: At your {{.ClockPos}} o'clock about Context: {{.RecentContext}}"), 0o644)
 			_ = os.MkdirAll(filepath.Join(tmpDir, "common"), 0o755)
 			pm, _ := prompts.NewManager(tmpDir)
 
@@ -300,7 +300,7 @@ func TestAIService_NavUnits(t *testing.T) {
 			// Init Prompts
 			tmpDir := t.TempDir()
 			_ = os.MkdirAll(filepath.Join(tmpDir, "narrator"), 0o755)
-			_ = os.WriteFile(filepath.Join(tmpDir, "narrator", "script.tmpl"), []byte("Prompt: {{.NavInstruction}}"), 0o644)
+			_ = os.WriteFile(filepath.Join(tmpDir, "narrator", "script.tmpl"), []byte("Prompt: {{if eq .UnitSystem \"metric\"}}about {{.DistKm}} kilometers{{else}}{{.DistNm}} miles{{end}}"), 0o644)
 			_ = os.MkdirAll(filepath.Join(tmpDir, "common"), 0o755)
 			_ = os.MkdirAll(filepath.Join(tmpDir, "units"), 0o755)
 			_ = os.WriteFile(filepath.Join(tmpDir, "units", "imperial.tmpl"), []byte("Imperial rules"), 0o644)
@@ -546,6 +546,8 @@ func TestAIService_ScriptValidation(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
 	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
 	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
+	_ = os.MkdirAll(filepath.Join(tempDir, "context"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, "context", "rescue_script.tmpl"), []byte("RESCUED {{.Script}}"), 0o644)
 	pm, _ := prompts.NewManager(tempDir)
 
 	longScript := strings.Repeat("word ", 1000)

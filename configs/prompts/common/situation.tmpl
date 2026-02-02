@@ -1,0 +1,21 @@
+{{define "Situation"}}
+## FLIGHT SITUATION
+We are in a small aircraft.
+
+### STATUS
+The aircraft is {{if .IsOnGround -}}
+  {{if ge .GroundSpeed 2.0}}taxiing{{else}}sitting{{end}} on the ground{{- if .POINameUser}} at **{{.POINameUser}}** ({{.POINameNative}}){{end}}.
+  We cannot see things "from above" yet.
+{{- else -}}
+  cruising at about {{.AltitudeAGL}} ft AGL, moving at {{.GroundSpeed}} knots in heading {{.Heading}}.
+{{- end}}
+Its current position is {{printf "%.4f" .Lat}}, {{printf "%.4f" .Lon}} ({{if .City}}near {{.City}}, {{.Region}} in {{.Country}}{{else}}{{.TargetRegion}} in {{.TargetCountry}}{{end}}).
+
+{{if .POINameUser}}
+### DIRECTION
+We are **{{.Movement}}** {{.POINameUser}}.
+- **Direction**: {{.ClockPos}} o'clock ({{.RelativeDir}})
+- **Distance**: {{if eq .UnitSystem "metric"}}{{.DistKm}} km{{else if eq .UnitSystem "hybrid"}}{{.DistKm}} km{{else}}{{.DistNm}} miles{{end}}
+- **Bearing**: {{printf "%.0f" .Bearing}}° ({{.CardinalDir}})
+{{end}}
+{{end}}
