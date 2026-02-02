@@ -21,12 +21,13 @@ func TestDebriefing_Triggers(t *testing.T) {
 		expectedGen  bool
 		expectedPlay bool
 	}{
-		{"Ground Idle", sim.StageParked, time.Time{}, false, false},
+		{"Ground Idle", sim.StageParked, time.Time{}, false, true},
 		{"Airborne", sim.StageCruise, now.Add(-10 * time.Minute), false, false},
 		{"Landed Early", sim.StageLanded, now.Add(-1 * time.Minute), false, false},
 		{"Landed Enough", sim.StageLanded, now.Add(-10 * time.Minute), true, false},
 		{"Taxi Enough", sim.StageTaxi, now.Add(-10 * time.Minute), true, true},
 		{"Hold Enough", sim.StageHold, now.Add(-10 * time.Minute), true, true},
+		{"Parked Enough", sim.StageParked, now.Add(-10 * time.Minute), true, true},
 	}
 
 	for _, tt := range tests {

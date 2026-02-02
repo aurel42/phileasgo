@@ -36,7 +36,8 @@ func (a *Debriefing) ShouldGenerate(t *sim.Telemetry) bool {
 	// 1. Check if we are in a "post-flight" stage
 	isLanded := t.FlightStage == sim.StageLanded ||
 		t.FlightStage == sim.StageTaxi ||
-		t.FlightStage == sim.StageHold
+		t.FlightStage == sim.StageHold ||
+		t.FlightStage == sim.StageParked
 
 	if !isLanded {
 		return false
@@ -66,10 +67,10 @@ func (a *Debriefing) ShouldGenerate(t *sim.Telemetry) bool {
 	return true
 }
 
-// ShouldPlay returns true once we are settled (Taxi or Hold)
+// ShouldPlay returns true once we are settled (Taxi or Hold) or Parked.
 // We don't want to play right during the high-workload Landed stage.
 func (a *Debriefing) ShouldPlay(t *sim.Telemetry) bool {
-	return t.FlightStage == sim.StageTaxi || t.FlightStage == sim.StageHold
+	return t.FlightStage == sim.StageTaxi || t.FlightStage == sim.StageHold || t.FlightStage == sim.StageParked
 }
 
 func (a *Debriefing) GetPromptData(t *sim.Telemetry) (any, error) {

@@ -277,7 +277,7 @@ func (c *Client) connect() {
 	c.hasValidData = false
 	c.telemetryMu.Unlock()
 
-	c.lastMessageTime = time.Now() // Initialize watchdog
+	c.lastMessageTime = time.Time{} // Initialize watchdog (waits for first message)
 	c.logger.Info("SimConnect Connected")
 
 	// Setup data definitions
@@ -413,7 +413,8 @@ func (c *Client) dispatchLoop() {
 
 			if ppData == nil {
 				// Watchdog check
-				if time.Since(c.lastMessageTime) > 5*time.Second {
+				// Only enforce timeout if we have received at least one message (lastMessageTime is set)
+				if !c.lastMessageTime.IsZero() && time.Since(c.lastMessageTime) > 5*time.Second {
 					c.logger.Warn("Watchdog timeout (no data for 5s), resetting connection")
 					c.disconnect()
 					return

@@ -85,15 +85,16 @@ type MockSimConfig struct {
 
 // BeaconConfig holds settings for the beacon guidance system.
 type BeaconConfig struct {
-	Enabled            bool     `yaml:"enabled"`
-	FormationEnabled   bool     `yaml:"formation_enabled"`
-	FormationDistance  Distance `yaml:"formation_distance"`
-	FormationCount     int      `yaml:"formation_count"`
-	MinSpawnAltitude   Distance `yaml:"min_spawn_altitude"`
-	AltitudeFloor      Distance `yaml:"altitude_floor"`
-	TargetSinkDistFar  Distance `yaml:"target_sink_dist_far"`
-	TargetSinkDistNear Distance `yaml:"target_sink_dist_near"`
-	TargetFloorAGL     Distance `yaml:"target_floor_agl"`
+	Enabled                    bool     `yaml:"enabled"`
+	FormationEnabled           bool     `yaml:"formation_enabled"`
+	FormationDistance          Distance `yaml:"formation_distance"`
+	FormationCount             int      `yaml:"formation_count"`
+	MinSpawnAltitude           Distance `yaml:"min_spawn_altitude"`
+	AltitudeFloor              Distance `yaml:"altitude_floor"`
+	TargetSinkDistFar          Distance `yaml:"target_sink_dist_far"`
+	TargetSinkDistNear         Distance `yaml:"target_sink_dist_near"`
+	TargetFloorAGL             Distance `yaml:"target_floor_agl"`
+	DisableTargetBeaconDespawn bool     `yaml:"disable_target_beacon_despawn"`
 }
 
 // LLMConfig holds settings for the Large Language Model providers.

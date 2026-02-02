@@ -221,6 +221,10 @@ func (s *Service) clearLocked() {
 
 	for _, b := range s.spawnedBeacons {
 		// Best effort remove
+		if b.IsTarget && s.config.DisableTargetBeaconDespawn {
+			// Skip despawn for target
+			continue
+		}
 		_ = s.client.RemoveObject(b.ID, reqIDRemove)
 	}
 	s.spawnedBeacons = []SpawnedBeacon{}
