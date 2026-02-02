@@ -195,6 +195,14 @@ body {
   width: 100%;
 }
 
+.stats-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+  width: 100%;
+}
+
 .hud-card {
   background: var(--card-bg);
   padding: 12px;
@@ -695,9 +703,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  padding: 0;
+  margin: 0 -4px;
   color: var(--accent);
   opacity: 0.7;
+  z-index: 2;
+  align-self: center;
 }
 
 .fallback-triangle {
@@ -710,7 +721,7 @@ body {
 }
 
 .stat-card-container {
-  display: contents;
+  /* Removed to avoid layout issues with flexbox flow */
 }
 
 .roman-numeral {

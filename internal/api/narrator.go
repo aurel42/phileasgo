@@ -15,6 +15,7 @@ import (
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/store"
 	"strconv"
+	"strings"
 )
 
 // AudioController defines methods for controlling audio playback.
@@ -125,7 +126,15 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 
 	displayThumbnail := h.narrator.CurrentThumbnailURL()
 	currentImg := h.narrator.CurrentImagePath()
-	if h.narrator.CurrentType() == model.NarrativeTypeScreenshot && displayThumbnail == "" && currentImg != "" {
+
+	// Robust wrapping: if it's a raw local path (Windows drive OR non-URL/API path), wrap it.
+	// We check for "C:\" style OR if it's not already an API/HTTP URL.
+	isRawPath := strings.Contains(displayThumbnail, ":\\") ||
+		(displayThumbnail != "" && !strings.HasPrefix(displayThumbnail, "/api/") && !strings.HasPrefix(displayThumbnail, "http"))
+
+	if isRawPath {
+		displayThumbnail = "/api/images/serve?path=" + url.QueryEscape(displayThumbnail)
+	} else if h.narrator.CurrentType() == model.NarrativeTypeScreenshot && displayThumbnail == "" && currentImg != "" {
 		displayThumbnail = "/api/images/serve?path=" + url.QueryEscape(currentImg)
 	}
 
