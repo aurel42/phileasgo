@@ -65,8 +65,8 @@ const OverlayPage = () => {
 
     const isConnected = telemetry?.SimState === 'active';
 
-    // Current narrated POI
-    const currentPoi = narratorStatus?.playback_status !== 'idle' ? narratorStatus?.current_poi : null;
+    // Current narrated POI (only use current_poi when actually playing a POI narration)
+    const currentPoi = narratorStatus?.playback_status !== 'idle' && narratorStatus?.current_type === 'poi' ? narratorStatus?.current_poi : null;
     const isPlaying = narratorStatus?.playback_status === 'playing';
 
     // Calculate playback progress

@@ -62,7 +62,7 @@ function App() {
 
   // Auto-open panel when narrator starts playing (unless user dismissed it)
   useEffect(() => {
-    if (narratorStatus?.playback_status === 'playing' && narratorStatus?.current_poi) {
+    if (narratorStatus?.playback_status === 'playing' && narratorStatus?.current_poi && narratorStatus?.current_type === 'poi') {
       const poiId = narratorStatus.current_poi.wikidata_id;
       // Don't auto-open if user manually closed the panel for THIS specific POI
       if (userDismissedRef.current === poiId) {

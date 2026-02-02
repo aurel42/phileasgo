@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.116 (2026-02-02)
+- **Fix**: **Screenshot Panel Race Condition**. Fixed an issue where taking a screenshot during POI playback would show the previous POI's info panel instead of the screenshot panel when playback ended. Both the web UI and overlay now correctly check `current_type` before displaying POI content.
+
 ## v0.3.115 (2026-02-02)
 - **Feature**: **Experimental Style Controls**. Added two new narrator config options for testing: `testing_in_the_style_of` (writes scripts in a specified style) and `testing_secret_word_for_tonight` (weaves a theme into narrations without mentioning it verbatim).
 - **Refactor**: **Consolidated POI Cooldown Logic**. Added `IsOnCooldown(ttl)` method to the POI model, replacing duplicated cooldown checks across scorer, manager, narration job, and briefing modules.
