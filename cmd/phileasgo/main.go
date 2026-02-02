@@ -115,12 +115,24 @@ func run(ctx context.Context, configPath string) error {
 	}
 	go svcs.WikiSvc.Start(ctx)
 
+	// LOS / Elevation
+	elProv, losChecker := initElevation(appCfg)
+	if elProv != nil {
+		defer elProv.Close()
+
+		// If using Mock Sim, inject coordinates
+		if mc, ok := simClient.(*mocksim.MockClient); ok {
+			slog.Info("Injecting ETOPO1 elevation provider into Mock Sim")
+			mc.SetElevationProvider(elProv)
+		}
+	}
+
 	// Startup Verification
 	wdValidator := wikidata.NewValidator(svcs.WikiClient)
 	verifyStartup(ctx, catCfg, wdValidator)
 
 	// Narrator & TTS
-	comps, err := initNarrator(ctx, appCfg, svcs, tr, simClient, st, catCfg)
+	comps, err := initNarrator(ctx, appCfg, svcs, tr, simClient, st, catCfg, elProv)
 	if err != nil {
 		return err
 	}
@@ -136,18 +148,6 @@ func run(ctx context.Context, configPath string) error {
 
 	// Telemetry Handler (must be created before scheduler to receive updates)
 	telH := api.NewTelemetryHandler()
-
-	// LOS
-	elProv, losChecker := initLOS(appCfg)
-	if elProv != nil {
-		defer elProv.Close()
-
-		// If using Mock Sim, inject coordinates
-		if mc, ok := simClient.(*mocksim.MockClient); ok {
-			slog.Info("Injecting ETOPO1 elevation provider into Mock Sim")
-			mc.SetElevationProvider(elProv)
-		}
-	}
 
 	// Visibility
 	visCalc := initVisibility(st)
@@ -266,7 +266,7 @@ type NarratorComponents struct {
 	SessionManager *session.Manager
 }
 
-func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store, catCfg *config.CategoriesConfig) (*NarratorComponents, error) {
+func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store, catCfg *config.CategoriesConfig, elProv *terrain.ElevationProvider) (*NarratorComponents, error) {
 	llmProv, err := narrator.NewLLMProvider(cfg.LLM, cfg.History.LLM, svcs.ReqClient, tr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize LLM provider: %w", err)
@@ -295,6 +295,9 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 	if cfg.Beacon.Enabled {
 		if bc, ok := simClient.(beacon.ObjectClient); ok {
 			beaconSvc = beacon.NewService(bc, slog.With("component", "beacon"), &cfg.Beacon)
+			if elProv != nil {
+				beaconSvc.SetElevationProvider(elProv)
+			}
 			beaconSvc.SetDLLPath("SimConnect.dll")
 			go beaconSvc.StartIndependentLoop(ctx)
 		}
@@ -358,7 +361,7 @@ func initVisibility(st store.Store) *visibility.Calculator {
 	return visibility.NewCalculator(visManager, st)
 }
 
-func initLOS(cfg *config.Config) (*terrain.ElevationProvider, *terrain.LOSChecker) {
+func initElevation(cfg *config.Config) (*terrain.ElevationProvider, *terrain.LOSChecker) {
 	path := cfg.Terrain.ElevationFile
 	if path == "" {
 		path = "data/etopo1/etopo1_ice_g_i2.bin"

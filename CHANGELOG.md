@@ -1,5 +1,11 @@
 ﻿Release History
 
+## v0.3.111 (2026-02-02)
+- **Fix**: **Debriefing Reliability**. Extended the debriefing announcement window to include the `Parked` stage, ensuring flight summaries are delivered even after engine shutdown.
+- **Feature**: **Beacon Persistence Toggle**. Added `beacon.disable_target_beacon_despawn` configuration to allow previous target balloons to remain in the sky for visual history.
+- **Refinement**: **Accurate Beacon Grounding**. Integrated ETOPO1 terrain data to accurately pin target balloons to the local terrain elevation, preventing sliding or phantom movement.
+- **Refactor**: Improved beacon initialization and reordered system startup for better stability.
+
 ## v0.3.110 (2026-02-02)
 - **Fix**: **Orchestrator Stability**. Resolved a race condition where the orchestrator would silently drop announcements (e.g., Debriefs) if triggered while busy, instead of queuing them.
 - **Fix**: **Status Pill Regression**. Fixed an issue where the dashboard status pill incorrectly showed "Active" when the simulator was paused.

@@ -12,6 +12,7 @@ import (
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/sim/simconnect"
+	"phileasgo/pkg/terrain"
 )
 
 const (
@@ -64,6 +65,8 @@ type Service struct {
 
 	spawnedBeacons  []SpawnedBeacon
 	formationActive bool
+
+	elev terrain.ElevationGetter
 }
 
 type SpawnedBeacon struct {
@@ -79,6 +82,13 @@ func NewService(client ObjectClient, logger *slog.Logger, cfg *config.BeaconConf
 		logger: logger,
 		config: cfg,
 	}
+}
+
+// SetElevationProvider injects a terrain elevation provider.
+func (s *Service) SetElevationProvider(e terrain.ElevationGetter) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.elev = e
 }
 
 func computeFormationOffsets(count int) []float64 {

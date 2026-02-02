@@ -29,9 +29,23 @@ func (s *Service) calculateTargetAltitude(tel *simconnect.TelemetryData, distMet
 
 		// Target Altitude Calculation
 		baseAlt := s.targetAlt
-		// Approximate Ground + TargetFloor
-		// We use current AGL to estimate ground MSL under the balloon (UserAGL approx BalloonAGL assumption)
-		floorAlt := (tel.AltitudeMSL - tel.AltitudeAGL) + targetFloorFt
+
+		// Floor Altitude Calculation
+		var floorAlt float64
+		if s.elev != nil {
+			// Query ETOPO1 for terrain height at POI
+			elevMeters, err := s.elev.GetElevation(s.targetLat, s.targetLon)
+			if err == nil {
+				// Convert meters to feet + offset
+				floorAlt = (float64(elevMeters) * 3.28084) + targetFloorFt
+			} else {
+				// Fallback to plane-relative heuristic on error
+				floorAlt = (tel.AltitudeMSL - tel.AltitudeAGL) + targetFloorFt
+			}
+		} else {
+			// Standard plane-relative heuristic (Assumes plane and balloon share same ground)
+			floorAlt = (tel.AltitudeMSL - tel.AltitudeAGL) + targetFloorFt
+		}
 
 		return (1-t)*baseAlt + t*floorAlt
 	}
