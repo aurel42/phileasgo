@@ -321,7 +321,7 @@ func initNarrator(ctx context.Context, cfg *config.Config, svcs *CoreServices, t
 	}
 
 	// Initialize Announcement Managers (Decoupled from AIService)
-	annMgr := announcement.NewManager(orch)
+	annMgr := announcement.NewManager(gen, orch)
 	annMgr.Register(announcement.NewLetsgo(cfg, orch, sessionMgr))
 	annMgr.Register(announcement.NewBriefing(cfg, orch, sessionMgr))
 	annMgr.Register(announcement.NewDebriefing(cfg, orch, sessionMgr))

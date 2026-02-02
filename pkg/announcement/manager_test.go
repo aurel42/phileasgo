@@ -73,7 +73,7 @@ func TestManager_Lifecycle(t *testing.T) {
 		enqueued: make(chan bool, 10),
 		done:     make(chan bool, 10),
 	}
-	mgr := NewManager(provider)
+	mgr := NewManager(provider, provider)
 
 	a := &testAnnouncement{
 		Base: NewBase("a1", model.NarrativeTypePOI, false, &mockDP{}, &mockDP{}),
@@ -124,7 +124,7 @@ func TestManager_ImmediatePlay(t *testing.T) {
 		enqueued: make(chan bool, 10),
 		done:     make(chan bool, 10),
 	}
-	mgr := NewManager(provider)
+	mgr := NewManager(provider, provider)
 
 	a := &testAnnouncement{
 		Base: NewBase("a2", model.NarrativeTypePOI, false, &mockDP{}, &mockDP{}),

@@ -9,23 +9,29 @@ import (
 	"phileasgo/pkg/sim"
 )
 
-// GenerationProvider defines the dependency on the AI service for creating narratives.
-type GenerationProvider interface {
+// Generator responsible for creating narratives.
+type Generator interface {
 	EnqueueAnnouncement(ctx context.Context, a Item, t *sim.Telemetry, onComplete func(*model.Narrative))
+}
+
+// Player responsible for playing narratives.
+type Player interface {
 	Play(n *model.Narrative)
 }
 
 // Manager orchestrates the lifecycle of multiple flight announcements.
 type Manager struct {
-	mu       sync.RWMutex
-	narrator GenerationProvider
-	registry map[string]Item
+	mu        sync.RWMutex
+	generator Generator
+	player    Player
+	registry  map[string]Item
 }
 
-func NewManager(n GenerationProvider) *Manager {
+func NewManager(g Generator, p Player) *Manager {
 	return &Manager{
-		narrator: n,
-		registry: make(map[string]Item),
+		generator: g,
+		player:    p,
+		registry:  make(map[string]Item),
 	}
 }
 
@@ -85,7 +91,7 @@ func (m *Manager) Tick(ctx context.Context, t *sim.Telemetry) {
 }
 func (m *Manager) enqueueGeneration(ctx context.Context, a Item, t *sim.Telemetry) {
 	id := a.ID()
-	m.narrator.EnqueueAnnouncement(ctx, a, t, func(n *model.Narrative) {
+	m.generator.EnqueueAnnouncement(ctx, a, t, func(n *model.Narrative) {
 		m.onResult(id, n, t)
 	})
 }
@@ -111,7 +117,7 @@ func (m *Manager) onResult(id string, n *model.Narrative, t *sim.Telemetry) {
 
 func (m *Manager) triggerPlayback(a Item) {
 	slog.Info("Announcement: Triggering playback", "id", a.ID(), "title", a.Title())
-	m.narrator.Play(a.GetHeldNarrative())
+	m.player.Play(a.GetHeldNarrative())
 	a.SetStatus(StatusTriggered)
 }
 

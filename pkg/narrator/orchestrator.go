@@ -219,7 +219,6 @@ func (o *Orchestrator) PlayNarrative(ctx context.Context, n *model.Narrative) er
 		return err
 	}
 
-
 	// Post-play logic (session, state, logging)
 	if n.POI != nil {
 		n.POI.LastPlayed = time.Now()
@@ -394,12 +393,8 @@ func (o *Orchestrator) Reset(ctx context.Context) {
 	}
 }
 
-func (o *Orchestrator) EnqueueAnnouncement(ctx context.Context, a announcement.Item, t *sim.Telemetry, onComplete func(*model.Narrative)) {
-	o.gen.EnqueueAnnouncement(ctx, a, t, onComplete)
-}
-
 func (o *Orchestrator) Play(n *model.Narrative) {
-	_ = o.PlayNarrative(context.Background(), n)
+	o.EnqueuePlayback(n, true)
 }
 
 func (o *Orchestrator) AudioService() audio.Service {

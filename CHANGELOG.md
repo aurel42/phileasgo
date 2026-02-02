@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.110 (2026-02-02)
+- **Fix**: **Orchestrator Stability**. Resolved a race condition where the orchestrator would silently drop announcements (e.g., Debriefs) if triggered while busy, instead of queuing them.
+- **Fix**: **Status Pill Regression**. Fixed an issue where the dashboard status pill incorrectly showed "Active" when the simulator was paused.
+- **Refactor**: **Status Pill**. Unified the dashboard status pill component for consistency and removed legacy heuristics.
+
 ## v0.3.109 (2026-02-02)
 - **Feature**: **Visibility-Based Deferral**. Replaced distance-only deferral with a visibility prediction model. The system now accounts for bearing, window framing, and blind spots to wait for the "cinematic" angle (10-11 o'clock) rather than just waiting for proximity.
 - **Config**: Updated default `deferral_threshold` to 1.1 (defer if future visibility is 10% better).
