@@ -1,7 +1,12 @@
 ﻿Release History
 
+## v0.3.108 (2026-02-02)
+- Restored transponder IDENT button functionality (pause/resume, skip, stop).
+- Fixed screenshot watcher only triggering once per session (now repeatable).
+- Resolved issue where the "Paid API Status" indicator was incorrectly showing for free tiers.
+
 ## v0.3.107 (2026-02-02)
-- **Refactor**: **POI Selection Architecture**. Separated scoring into IntrinsicScore (content-based) and Visibility (position-based) for cleaner reasoning about POI ranking.
+- **Refactor**: **POI Selection Architecture**. Separated scoring into Score (content-based) and Visibility (position-based) for cleaner reasoning about POI ranking.
 - **Improved**: **Deferral Logic**. Changed deferral from a score multiplier to a hard filter - deferred POIs are now excluded from selection entirely, ensuring we wait for optimal viewing.
 - **Cleanup**: Removed redundant `urgent` and `patient` badge score multipliers; urgency is now handled purely in selection phase.
 

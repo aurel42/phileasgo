@@ -114,8 +114,23 @@ func (j *TransponderWatcherJob) handleSquawkChange(squawk int) {
 }
 
 func (j *TransponderWatcherJob) handleIdentTrigger() {
-	slog.Info("Transponder: IDENT triggered (rising edge)")
-	j.narrator.TriggerIdentAction()
+	action := j.cfg.Transponder.IdentAction
+	slog.Info("Transponder: IDENT triggered (rising edge)", "action", action)
+
+	switch action {
+	case "pause_toggle":
+		if j.narrator.IsPaused() {
+			j.narrator.Resume()
+		} else {
+			j.narrator.Pause()
+		}
+	case "stop":
+		j.narrator.Stop()
+	case "skip":
+		j.narrator.Skip()
+	default:
+		slog.Warn("Transponder: unknown ident action", "action", action)
+	}
 }
 
 // isControlSquawk returns true if squawk matches 7[0-5][1-5][1-5]

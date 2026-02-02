@@ -135,14 +135,89 @@ func TestTransponderWatcherJob_ShouldFire(t *testing.T) {
 	}
 }
 
-func TestTransponderWatcherJob_handleIdentTrigger(t *testing.T) {
-	n := narrator.NewStubService()
-	job := NewTransponderWatcherJob(nil, n, nil, nil)
+// MockNarrator for tracking calls
+type MockNarrator struct {
+	*narrator.StubService
+	paused  bool
+	skipped bool
+	stopped bool
+}
 
-	// We just check if it runs without panic and triggers the stub
-	// Since stub just logs, we can't easily check output here without a real mock,
-	// but the Run method calling it is enough for coverage.
-	tel := &sim.Telemetry{Ident: true}
-	job.lastIdent = false // Ensure rising edge
-	job.Run(context.Background(), tel)
+func (m *MockNarrator) Pause() {
+	m.paused = true
+}
+func (m *MockNarrator) Resume() {
+	m.paused = false
+}
+func (m *MockNarrator) IsPaused() bool {
+	return m.paused
+}
+func (m *MockNarrator) Skip() {
+	m.skipped = true
+}
+func (m *MockNarrator) Stop() {
+	m.stopped = true
+}
+
+func TestTransponderWatcherJob_handleIdentTrigger(t *testing.T) {
+	tests := []struct {
+		name         string
+		action       string
+		initialPause bool
+		wantPaused   bool // check paused state after toggle
+		wantSkipped  bool
+		wantStopped  bool
+	}{
+		{
+			name:         "Pause Toggle (Resume)",
+			action:       "pause_toggle",
+			initialPause: true,
+			wantPaused:   false,
+		},
+		{
+			name:         "Pause Toggle (Pause)",
+			action:       "pause_toggle",
+			initialPause: false,
+			wantPaused:   true,
+		},
+		{
+			name:        "Skip",
+			action:      "skip",
+			wantSkipped: true,
+		},
+		{
+			name:        "Stop",
+			action:      "stop",
+			wantStopped: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			cfg.Transponder.IdentAction = tt.action
+
+			mn := &MockNarrator{StubService: narrator.NewStubService()}
+			mn.paused = tt.initialPause
+
+			job := NewTransponderWatcherJob(cfg, mn, nil, nil)
+
+			// Simulate trigger
+			tel := &sim.Telemetry{Ident: true}
+			job.lastIdent = false // Ensure rising edge
+			job.Run(context.Background(), tel)
+
+			if tt.action == "pause_toggle" {
+				if mn.paused != tt.wantPaused {
+					t.Errorf("paused = %v, want %v", mn.paused, tt.wantPaused)
+				}
+			}
+			if tt.wantSkipped && !mn.skipped {
+				t.Error("expected Skip() to be called")
+			}
+			if tt.wantStopped && !mn.stopped {
+				t.Error("expected Stop() to be called")
+			}
+		})
+	}
 }

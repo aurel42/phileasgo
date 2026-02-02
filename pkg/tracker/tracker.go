@@ -94,9 +94,16 @@ func (t *Tracker) Snapshot() map[string]ProviderStats {
 	return result
 }
 
-// Reset clears all statistics for all providers.
+// Reset clears all statistics for all providers but preserves configuration (FreeTier).
 func (t *Tracker) Reset() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.stats = make(map[string]*ProviderStats)
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	for _, s := range t.stats {
+		atomic.StoreInt64(&s.CacheHits, 0)
+		atomic.StoreInt64(&s.CacheMisses, 0)
+		atomic.StoreInt64(&s.APISuccess, 0)
+		atomic.StoreInt64(&s.APIFailures, 0)
+		atomic.StoreInt64(&s.APIZeroResult, 0)
+	}
 }

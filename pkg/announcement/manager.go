@@ -68,6 +68,10 @@ func (m *Manager) Tick(ctx context.Context, t *sim.Telemetry) {
 		case StatusTriggered:
 			if !a.IsRepeatable() {
 				a.SetStatus(StatusDone)
+			} else {
+				// Auto-reset repeatable announcements to Idle so they can be picked up again
+				// logic inside ShouldGenerate is responsible for throttling/one-shot logic per state
+				a.Reset()
 			}
 			// Waiting for reset
 		}

@@ -44,3 +44,38 @@ func TestTracker(t *testing.T) {
 		t.Errorf("Expected 1 APIZeroResult, got %d", pStats.APIZeroResult)
 	}
 }
+
+func TestResetPreservesFreeTier(t *testing.T) {
+	tr := New()
+	provider := "free.provider"
+
+	// Setup: Mark as free and add some stats
+	tr.SetFreeTier(provider, true)
+	tr.TrackAPISuccess(provider)
+
+	// Verify Setup
+	stats := tr.Snapshot()
+	if !stats[provider].FreeTier {
+		t.Fatal("Pre-Reset: Expected FreeTier to be true")
+	}
+	if stats[provider].APISuccess != 1 {
+		t.Fatal("Pre-Reset: Expected APISuccess to be 1")
+	}
+
+	// Action: Reset
+	tr.Reset()
+
+	// Verify Result
+	stats = tr.Snapshot()
+	s, ok := stats[provider]
+	if !ok {
+		t.Fatal("Post-Reset: Provider should still exist in map")
+	}
+
+	if !s.FreeTier {
+		t.Error("Post-Reset: FreeTier should still be true")
+	}
+	if s.APISuccess != 0 {
+		t.Errorf("Post-Reset: APISuccess should be 0, got %d", s.APISuccess)
+	}
+}
