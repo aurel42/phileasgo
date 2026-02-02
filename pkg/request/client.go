@@ -386,6 +386,7 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 			}
 
 			// Network error - record failure and retry
+			slog.Debug("Request failed", "provider", provider, "error", err)
 			slog.Warn("Request failed, retrying", "provider", provider, "attempt", attempt+1, "error", err)
 			c.backoff.RecordFailure(provider)
 			continue
@@ -394,6 +395,7 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 		// Handle Status Codes
 		if resp.StatusCode == 429 || (resp.StatusCode >= 500 && resp.StatusCode < 600) {
 			resp.Body.Close()
+			slog.Debug("Request failed (retryable)", "status", resp.StatusCode, "provider", provider)
 			slog.Warn("API Backoff", "status", resp.StatusCode, "provider", provider, "attempt", attempt+1)
 			c.backoff.RecordFailure(provider)
 			continue
@@ -401,6 +403,7 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 
 		if resp.StatusCode >= 400 {
 			resp.Body.Close()
+			slog.Debug("Request failed (terminal)", "status", resp.StatusCode, "provider", provider, "url", req.URL.String())
 			return nil, fmt.Errorf("api error: status %d", resp.StatusCode)
 		}
 

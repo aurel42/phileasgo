@@ -105,62 +105,6 @@ func (f *Provider) HasProfile(name string) bool {
 	return false
 }
 
-// HealthCheck verifies that at least one provider is healthy.
-// Checks run in parallel with individual timeouts to prevent one slow provider from blocking others.
-func (f *Provider) HealthCheck(ctx context.Context) error {
-	f.mu.RLock()
-	providers := f.providers
-	names := f.names
-	disabled := make(map[int]bool)
-	for k, v := range f.disabled {
-		disabled[k] = v
-	}
-	f.mu.RUnlock()
-
-	type result struct {
-		name string
-		err  error
-	}
-
-	results := make(chan result, len(providers))
-	var wg sync.WaitGroup
-
-	for i, p := range providers {
-		if disabled[i] {
-			continue
-		}
-		wg.Add(1)
-		go func(idx int, provider llm.Provider, name string) {
-			defer wg.Done()
-			// Each provider gets its own 5-second timeout
-			checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-			err := provider.HealthCheck(checkCtx)
-			results <- result{name: name, err: err}
-		}(i, p, names[i])
-	}
-
-	// Close results channel when all goroutines complete
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	var errors []string
-	for r := range results {
-		if r.err != nil {
-			errors = append(errors, fmt.Sprintf("%s: %v", r.name, r.err))
-			continue
-		}
-		return nil // At least one is healthy
-	}
-
-	if len(errors) == 0 {
-		return fmt.Errorf("no providers available in failover chain")
-	}
-	return fmt.Errorf("all LLM providers failed health check: %s", strings.Join(errors, "; "))
-}
-
 // ValidateModels checks if the configured models are available for all providers.
 func (f *Provider) ValidateModels(ctx context.Context) error {
 	f.mu.RLock()

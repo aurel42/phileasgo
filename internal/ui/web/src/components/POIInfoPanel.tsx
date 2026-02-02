@@ -94,7 +94,7 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
     if (!poi) {
         let displayTitle = currentTitle;
         let displayCategory = 'Regional Essay';
-        let defaultText = 'Enjoy this regional essay about your current surroundings.';
+        let defaultText = '';
 
         if (currentType === 'debriefing') {
             displayTitle = displayTitle || 'Flight Debrief';
@@ -108,9 +108,9 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
             displayTitle = displayTitle || 'Regional Essay';
         }
 
-        		const screenshotUrl = (currentType === 'screenshot' && narratorStatus?.display_thumbnail)
-			? narratorStatus.display_thumbnail
-			: null;
+        const screenshotUrl = (currentType === 'screenshot' && narratorStatus?.display_thumbnail)
+            ? narratorStatus.display_thumbnail
+            : null;
 
         return (
             <div className="poi-info-panel generic-narration" style={{ display: 'flex', gap: '12px' }}>

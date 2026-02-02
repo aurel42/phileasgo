@@ -180,11 +180,6 @@ func run(ctx context.Context, configPath string) error {
 	// Startup Probes
 	probes := []probe.Probe{
 		{
-			Name:     "LLM Providers (Connectivity)",
-			Check:    narratorSvc.LLMProvider().HealthCheck,
-			Critical: true,
-		},
-		{
 			Name:     "LLM Models (Availability)",
 			Check:    narratorSvc.LLMProvider().ValidateModels,
 			Critical: true,
@@ -204,6 +199,9 @@ func run(ctx context.Context, configPath string) error {
 	if err := probe.AnalyzeResults(results); err != nil {
 		return fmt.Errorf("startup checks failed: %w", err)
 	}
+
+	// Reset stats to ignore startup/validation calls
+	tr.Reset()
 
 	// Server
 	return runServer(ctx, appCfg, svcs, narratorSvc, simClient, visCalc, tr, st, telH, elevGetter, promptMgr)

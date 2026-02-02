@@ -14,7 +14,6 @@ import (
 type mockProvider struct {
 	responses         []string
 	errors            []error
-	healthErr         error
 	callCount         int
 	supportedProfiles map[string]bool
 }
@@ -37,12 +36,11 @@ func (m *mockProvider) GenerateImageText(ctx context.Context, name, prompt, imag
 	return m.GenerateText(ctx, name, prompt)
 }
 
-func (m *mockProvider) HealthCheck(ctx context.Context) error {
-	return m.healthErr
-}
-
 func (m *mockProvider) ValidateModels(ctx context.Context) error {
-	return m.healthErr
+	if len(m.errors) > 0 {
+		return m.errors[0]
+	}
+	return nil
 }
 
 func (m *mockProvider) HasProfile(name string) bool {
@@ -203,36 +201,6 @@ func TestFailover_ImageText_Success(t *testing.T) {
 	}
 	if res != "image desc" {
 		t.Errorf("expected 'image desc', got %s", res)
-	}
-}
-
-func TestFailover_HealthCheck(t *testing.T) {
-	p1 := &mockProvider{healthErr: fmt.Errorf("failed")}
-	p2 := &mockProvider{healthErr: nil}
-
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, "", true, nil)
-
-	// Scenario: p1 fails healthcheck, p2 succeeds
-	err := f.HealthCheck(context.Background())
-	if err != nil {
-		t.Fatalf("HealthCheck should succeed if p2 is healthy: %v", err)
-	}
-
-	// Scenario: Both fail
-	p2.healthErr = fmt.Errorf("also failed")
-	err = f.HealthCheck(context.Background())
-	if err == nil {
-		t.Fatal("HealthCheck should fail if all providers are unhealthy")
-	}
-
-	// Scenario: One is disabled (Circuit Breaker)
-	p1.healthErr = nil                  // p1 is now healthy
-	p2.healthErr = fmt.Errorf("failed") // p2 is unhealthy
-	f.disabled[0] = true                // p1 is disabled
-
-	err = f.HealthCheck(context.Background())
-	if err == nil {
-		t.Fatal("HealthCheck should fail if only healthy provider is disabled")
 	}
 }
 

@@ -15,9 +15,6 @@ type Provider interface {
 	// GenerateImageText sends a prompt + image path and returns the text response.
 	GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error)
 
-	// HealthCheck verifies that the provider is configured and reachable.
-	HealthCheck(ctx context.Context) error
-
 	// ValidateModels checks if the configured models are available.
 	ValidateModels(ctx context.Context) error
 

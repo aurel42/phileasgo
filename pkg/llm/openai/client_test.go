@@ -160,23 +160,6 @@ func TestOpenAI_InternalError(t *testing.T) {
 	}
 }
 
-func TestOpenAI_HealthCheck(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}]}`))
-	}))
-	defer server.Close()
-
-	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{
-		Key:      "key",
-		Profiles: map[string]string{"test": "model"},
-	}, server.URL, rc)
-
-	if err := c.HealthCheck(context.Background()); err != nil {
-		t.Errorf("HealthCheck failed: %v", err)
-	}
-}
-
 func TestOpenAI_ResolveModel(t *testing.T) {
 	cfg := config.ProviderConfig{
 		Profiles: map[string]string{

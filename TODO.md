@@ -21,15 +21,15 @@ X API counters for all LLMs
 - fix beacon balloons hidden by terrain when flying parallel to high terrain
 X support multiple screenshot paths (e.g. VR, pancake)
 X feature: notification when crossing state or country borders, entering international waters, etc (new narrative type "remark"?)
-- handle "area" POIs (like lakes, cities) better, also "length" POIs like rivers and roads
+- improve handling of "area" POIs (like lakes, cities); also "length" POIs like roads; major rivers are already improved done
 X control the config using transponder codes and ident
 X build an frontend app that wraps the browser UI
 X marker badges for interesting states (e.g. deferred)
 - new IDENT/Playback control function: "expand on this"
 X change wp prose in prompt from truncated to wrapped
 X regression: restore telemetry loop to 1Hz
-- overlay info panel: allow adaptive font size for the title if it's too long to fit
-- POI script: tell the LLM how far away we are and weather the POI is ahead or to the side?
+X overlay info panel: allow adaptive font size for the title if it's too long to fit
+- POI script: tell the LLM how far away we are and whether the POI is ahead or to the side?
 - debug "patient" mode, and rework urgent/patient/deferral logic
 X regression: AP status line no longer visible
 X Flight Stage state machine needs tuning: take-off triggers after landing; take-off only when accelerating, landing only when decelerating?

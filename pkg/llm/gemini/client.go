@@ -353,44 +353,6 @@ func (c *Client) ValidateModels(ctx context.Context) error {
 	return fmt.Errorf("configured models %v not found or unauthorized.%s", missingModels, availableInfo)
 }
 
-// HealthCheck verifies that the provider is configured and reachable.
-func (c *Client) HealthCheck(ctx context.Context) error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if os.Getenv("TEST_MODE") == "true" {
-		return nil
-	}
-
-	if c.genaiClient == nil {
-		return fmt.Errorf("gemini client not initialized (missing API key?)")
-	}
-
-	// Verify that at least one configured profile is available.
-	if len(c.profiles) == 0 {
-		return fmt.Errorf("no profiles configured")
-	}
-
-	// checking arbitrarily the first one
-	var firstModel string
-	for _, m := range c.profiles {
-		firstModel = m
-		break
-	}
-
-	name := firstModel
-	if !strings.HasPrefix(name, "models/") {
-		name = "models/" + name
-	}
-
-	_, err := c.genaiClient.Models.Get(ctx, name, nil)
-	if err != nil {
-		return fmt.Errorf("configured model %q unavailable or API unreachable: %w", name, err)
-	}
-
-	return nil
-}
-
 // HasProfile checks if the provider has a specific profile configured.
 func (c *Client) HasProfile(name string) bool {
 	c.mu.RLock()

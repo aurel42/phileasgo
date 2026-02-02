@@ -249,28 +249,6 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 	return c.execute(ctx, req)
 }
 
-func (c *Client) HealthCheck(ctx context.Context) error {
-	if c.apiKey == "" {
-		return fmt.Errorf("api key not configured")
-	}
-
-	c.mu.RLock()
-	var testProfile string
-	for p := range c.profiles {
-		testProfile = p
-		break
-	}
-	c.mu.RUnlock()
-
-	if testProfile == "" {
-		return fmt.Errorf("no profiles configured")
-	}
-
-	// Simple text generation call as health check
-	_, err := c.GenerateText(ctx, testProfile, "ping")
-	return err
-}
-
 func (c *Client) Close() {}
 
 func (c *Client) execute(ctx context.Context, oreq openaiRequest) (string, error) {

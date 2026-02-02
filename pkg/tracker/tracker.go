@@ -93,3 +93,10 @@ func (t *Tracker) Snapshot() map[string]ProviderStats {
 	}
 	return result
 }
+
+// Reset clears all statistics for all providers.
+func (t *Tracker) Reset() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.stats = make(map[string]*ProviderStats)
+}

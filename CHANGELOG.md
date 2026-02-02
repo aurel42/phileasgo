@@ -1,10 +1,15 @@
 ﻿Release History
 
+## v0.3.106 (2026-02-02)
+- **Fix**: **Redundant Connectivity Checks**. Removed generic LLM provider connectivity probes during startup to eliminate spurious API error counts.
+- **Feature**: **Clean Metric State**. Implemented API statistics reset after model validation to ensure the dashboard starts with zero counters.
+- **Feature**: **GUI Flag Integration**. Added correct `?gui=true` parameter handling to ensure reliable detection of the PhileasGUI wrapper.
+- **Debugging**: **Request Failure Logs**. Added detailed `DEBUG` logging for non-200 HTTP responses in the request client for better observability.
+
 ## v0.3.105 (2026-02-02)
-- **Feature**: **Universal Model Validation**. Implemented a mandatory startup probe that verifies all configured LLM models (Gemini, OpenAI, DeepSeek, Groq) are available and authorized.
-- **Improved**: **Provider Flexibility**. Added `base_url` support to the LLM configuration, enabling seamless integration with custom OpenAI-compatible endpoints and Model-as-a-Service providers.
-- **Improved**: **DeepSeek R1 Compatibility**. Added automatic parameter tuning (temperature, JSON mode) for "reasoner" models to prevent API errors and ensure high-quality output.
-- **Refinement**: Updated DeepSeek and Groq providers to use root API URLs for standardized endpoint discovery.
+- **Feature**: **Model Validation**. Extended existing startup probe to verify all configured LLM models.
+- **Improved**: **Provider Flexibility**. Added `base_url` support to the LLM configuration.
+- **Fixed**: **DeepSeek R1 Compatibility**. Fixed wrong parameters for "reasoner" model.
 
 ## v0.3.104 (2026-02-02)
 - Fixed broken screenshot images by implementing clean URL wrapping in the delivery layer.

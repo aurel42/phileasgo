@@ -306,7 +306,7 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
                         {/* Row 1: SIM */}
                         <span className="role-label-overlay" style={{ textAlign: 'left' }}>SIM</span>
                         <span style={{ fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                            {telemetry.SimState === 'active' ? '🟢' : telemetry.SimState === 'inactive' ? '🟠' : '🔴'}
+                            {telemetry.SimState === 'active' ? ((telemetry.IsOnGround === false && telemetry.GroundSpeed < 1) ? '🟠' : '🟢') : telemetry.SimState === 'inactive' ? '🟠' : '🔴'}
                         </span>
 
                         {/* Row 2: MODE */}

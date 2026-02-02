@@ -216,10 +216,14 @@ const htmlContent = `
         });
 
         window.enableApp = function(url) {
-            appUrl = url;
-            frameApp.src = url;
-            // Also load config tab (using the generic settings route)
-            document.getElementById('frame-config').src = url + "/#/settings";
+            // Append ?gui=true to trigger environment-aware UI logic
+            // We use the hash-aware search for settings and the top-level search for the main app
+            const mainUrl = url + "/?gui=true";
+            const settingsUrl = url + "/#/settings?gui=true";
+            
+            appUrl = mainUrl;
+            frameApp.src = mainUrl;
+            document.getElementById('frame-config').src = settingsUrl;
             
             // Auto switch if currently viewing startup logs
             switchTab('app');

@@ -21,6 +21,8 @@ interface SettingsPanelProps {
     onTextLengthChange: (length: number) => void;
     streamingMode: boolean;
     onStreamingModeChange: (streaming: boolean) => void;
+    isGui?: boolean;
+    onBack?: () => void;
 }
 
 export const SettingsPanel = ({
@@ -32,7 +34,8 @@ export const SettingsPanel = ({
     filterMode, onFilterModeChange,
     targetPoiCount, onTargetPoiCountChange,
     narrationFrequency, onNarrationFrequencyChange,
-    textLength, onTextLengthChange
+    textLength, onTextLengthChange,
+    isGui, onBack
 }: SettingsPanelProps) => {
 
     const [simSource, setSimSource] = useState<string>('mock');
@@ -57,7 +60,31 @@ export const SettingsPanel = ({
 
     return (
         <div className="hud-container" style={{ padding: '24px', height: '100vh', boxSizing: 'border-box', overflowY: 'auto' }}>
-            {/* Header Removed */}
+            {!isGui && (
+                <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-start' }}>
+                    <button
+                        className="role-btn"
+                        onClick={onBack}
+                        style={{
+                            padding: '8px 16px',
+                            background: 'var(--card-bg)',
+                            color: 'var(--accent)',
+                            border: '3px double rgba(212, 175, 55, 0.5)',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontFamily: 'var(--font-display)',
+                            fontSize: '12px',
+                            letterSpacing: '0.1em',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
+                        }}
+                    >
+                        <span>⚓</span> BACK TO NAVIGATOR
+                    </button>
+                </div>
+            )}
 
             <div className="config-group" style={{ maxWidth: '600px', width: '100%' }}>
                 <div className="role-header" style={{ fontSize: '14px', marginBottom: '8px' }}>SIMULATION SOURCE</div>

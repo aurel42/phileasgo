@@ -133,28 +133,6 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 	return "", fmt.Errorf("perplexity sonar does not support image input")
 }
 
-func (c *Client) HealthCheck(ctx context.Context) error {
-	if c.apiKey == "" {
-		return fmt.Errorf("api key not configured")
-	}
-
-	c.mu.RLock()
-	var testProfile string
-	for p := range c.profiles {
-		testProfile = p
-		break
-	}
-	c.mu.RUnlock()
-
-	if testProfile == "" {
-		return fmt.Errorf("no profiles configured")
-	}
-
-	// Quick ping to validate API access
-	_, err := c.GenerateText(ctx, testProfile, "ping")
-	return err
-}
-
 func (c *Client) HasProfile(name string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

@@ -1,5 +1,5 @@
 import { Map } from './components/Map';
-import { useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { InfoPanel } from './components/InfoPanel';
 import { POIInfoPanel } from './components/POIInfoPanel';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -15,7 +15,10 @@ type Units = 'km' | 'nm';
 
 
 function App() {
+  const navigate = useNavigate();
   const location = useLocation();
+
+  const isGui = new URLSearchParams(location.search || window.location.search).get('gui') === 'true';
 
   // Streaming mode state (persisted to localStorage)
   const [streamingMode, setStreamingMode] = useState(() => {
@@ -239,6 +242,8 @@ function App() {
   if (isSettings) {
     return (
       <SettingsPanel
+        isGui={isGui}
+        onBack={() => navigate('/')}
         telemetry={telemetry}
         units={units}
         onUnitsChange={(val) => updateConfig('units', val)}
@@ -279,52 +284,102 @@ function App() {
         />
 
         {/* Config Pill Overlay */}
-        <a href="#/settings" className="config-pill" style={{
-          position: 'absolute',
-          top: '20px',
-          right: '20px',
-          zIndex: 1000,
-          textDecoration: 'none',
-          color: 'inherit',
-          background: 'var(--panel-bg)',
-          boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
-        }}>
-          {/* Sim Status Item */}
-          <div className="config-pill-item" style={{ marginRight: '8px', paddingRight: '12px', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
-            <div className="status-dot" style={{
-              width: '8px',
-              height: '8px',
-              marginRight: '6px',
-              backgroundColor: !telemetry ? '#ef4444' : ((telemetry.IsOnGround === false && telemetry.GroundSpeed < 1) ? '#fbbf24' : '#22c55e')
-            }}></div>
-            <span className="role-label" style={{ color: 'var(--text-color)' }}>
-              {!telemetry ? 'DISC' : ((telemetry.IsOnGround === false && telemetry.GroundSpeed < 1) ? 'PAUSED' : 'ACT')}
-            </span>
-          </div>
+        {isGui ? (
+          <div className="config-pill" style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            zIndex: 1000,
+            textDecoration: 'none',
+            color: 'inherit',
+            background: 'var(--panel-bg)',
+            boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
+            cursor: 'default'
+          }}>
+            {/* Sim Status Item */}
+            <div className="config-pill-item" style={{ marginRight: '8px', paddingRight: '12px', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+              <div className="status-dot" style={{
+                width: '8px',
+                height: '8px',
+                marginRight: '6px',
+                backgroundColor: !telemetry || telemetry.SimState === 'disconnected' ? '#ef4444' : ((telemetry.IsOnGround === false && telemetry.GroundSpeed < 1) ? '#fbbf24' : '#22c55e')
+              }}></div>
+              <span className="role-label" style={{ color: 'var(--text-color)' }}>
+                {!telemetry || telemetry.SimState === 'disconnected' ? 'DISC' : ((telemetry.IsOnGround === false && telemetry.GroundSpeed < 1) ? 'PAUSED' : 'ACT')}
+              </span>
+            </div>
 
-          <div className="config-pill-item">
-            <span className="config-mode-icon" style={{ color: 'var(--accent)' }}>{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
-            <span className="role-label" style={{ color: 'var(--muted)' }}>
-              {filterMode === 'adaptive' ? targetCount : minPoiScore}
-            </span>
-          </div>
-          <div className="config-pill-item">
-            <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>FRQ</span>
-            <div className="pip-container">
-              {[1, 2, 3, 4, 5].map(v => (
-                <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 3 ? 'high' : ''}`} />
-              ))}
+            <div className="config-pill-item">
+              <span className="config-mode-icon" style={{ color: 'var(--accent)' }}>{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
+              <span className="role-label" style={{ color: 'var(--muted)' }}>
+                {filterMode === 'adaptive' ? targetCount : minPoiScore}
+              </span>
+            </div>
+            <div className="config-pill-item">
+              <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>FRQ</span>
+              <div className="pip-container">
+                {[1, 2, 3, 4, 5].map(v => (
+                  <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 3 ? 'high' : ''}`} />
+                ))}
+              </div>
+            </div>
+            <div className="config-pill-item">
+              <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>LEN</span>
+              <div className="pip-container">
+                {[1, 2, 3, 4, 5].map(v => (
+                  <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''} ${(textLength || 0) >= v && v > 4 ? 'high' : ''}`} />
+                ))}
+              </div>
             </div>
           </div>
-          <div className="config-pill-item">
-            <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>LEN</span>
-            <div className="pip-container">
-              {[1, 2, 3, 4, 5].map(v => (
-                <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''} ${(textLength || 0) >= v && v > 4 ? 'high' : ''}`} />
-              ))}
+        ) : (
+          <a href="#/settings" className="config-pill" style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            zIndex: 1000,
+            textDecoration: 'none',
+            color: 'inherit',
+            background: 'var(--panel-bg)',
+            boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
+          }}>
+            {/* Sim Status Item */}
+            <div className="config-pill-item" style={{ marginRight: '8px', paddingRight: '12px', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+              <div className="status-dot" style={{
+                width: '8px',
+                height: '8px',
+                marginRight: '6px',
+                backgroundColor: !telemetry || telemetry.SimState === 'disconnected' ? '#ef4444' : ((telemetry.IsOnGround === false && telemetry.GroundSpeed < 1) ? '#fbbf24' : '#22c55e')
+              }}></div>
+              <span className="role-label" style={{ color: 'var(--text-color)' }}>
+                {!telemetry || telemetry.SimState === 'disconnected' ? 'DISC' : ((telemetry.IsOnGround === false && telemetry.GroundSpeed < 1) ? 'PAUSED' : 'ACT')}
+              </span>
             </div>
-          </div>
-        </a>
+
+            <div className="config-pill-item">
+              <span className="config-mode-icon" style={{ color: 'var(--accent)' }}>{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
+              <span className="role-label" style={{ color: 'var(--muted)' }}>
+                {filterMode === 'adaptive' ? targetCount : minPoiScore}
+              </span>
+            </div>
+            <div className="config-pill-item">
+              <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>FRQ</span>
+              <div className="pip-container">
+                {[1, 2, 3, 4, 5].map(v => (
+                  <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 3 ? 'high' : ''}`} />
+                ))}
+              </div>
+            </div>
+            <div className="config-pill-item">
+              <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>LEN</span>
+              <div className="pip-container">
+                {[1, 2, 3, 4, 5].map(v => (
+                  <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''} ${(textLength || 0) >= v && v > 4 ? 'high' : ''}`} />
+                ))}
+              </div>
+            </div>
+          </a>
+        )}
 
         {hasConnectionError && (
           <div className="connection-warning">
