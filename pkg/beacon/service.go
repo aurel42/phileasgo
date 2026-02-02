@@ -72,7 +72,10 @@ type Service struct {
 type SpawnedBeacon struct {
 	ID        uint32
 	IsTarget  bool
-	AltOffset float64 // Offset relative to current s.targetAlt
+	AltOffset float64 // Offset relative to its specific targetAlt
+	Lat       float64 // POI Latitude
+	Lon       float64 // POI Longitude
+	BaseAlt   float64 // POI Base Altitude
 }
 
 // NewService creates a new Beacon Service.
@@ -117,101 +120,166 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Optimization: If target is essentially the same, do nothing (prevents flicker)
+	// 1. Check for redundant calls
 	if s.active {
-		const threshold = 0.0001 // Approx 11m
-		dLat := math.Abs(s.targetLat - lat)
-		dLon := math.Abs(s.targetLon - lon)
-		if dLat < threshold && dLon < threshold {
-			s.logger.Debug("Ignoring redundant SetTarget call", "lat", lat, "lon", lon)
+		const threshold = 0.0001
+		if math.Abs(s.targetLat-lat) < threshold && math.Abs(s.targetLon-lon) < threshold {
 			return nil
 		}
 	}
 
-	// 1. Clear existing if any
-	if s.active {
-		s.clearLocked()
-	}
+	// 2. Clear formation and duplicates
+	s.clearFormationAndDuplicates(lat, lon)
 
 	s.targetLat = lat
 	s.targetLon = lon
 
-	// Get current user pos to calculate initial formation spawn
 	tel, err := s.client.GetTelemetry(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get telemetry for spawn: %w", err)
 	}
 
-	// 2. Select Title
-	title := titlesToTry[0] // TODO: Try loop if fails? (Spawn blocks now so we could)
-
-	// 3. Spawning Logic based on AGL and Ground State
-	// - If aircraft is ON GROUND: Do not spawn anything.
-	// - If below MinSpawnAltitude AGL (Config):
-	// - Spawn target at MSL + MinSpawnAltitude
-	// - Do NOT spawn formation
-	// - If above MinSpawnAltitude AGL:
-	// - Spawn target at MSL
-	// - Spawn formation (if enabled)
 	if tel.IsOnGround {
-		s.logger.Info("Aircraft is on ground, skipping beacon spawn")
-		s.active = true // System is active but balloons are suppressed
+		s.active = true
 		return nil
 	}
 
-	var spawnFormation bool
-	s.isHoldingAlt = false // Reset holding state
+	// 3. Setup altitude and spawn
+	title := titlesToTry[0]
+	spawnFormation := s.setupTargetAltitude(&tel)
 
-	minSpawnAltFt := float64(s.config.MinSpawnAltitude) * 3.28084
-	if tel.AltitudeAGL < minSpawnAltFt {
-		s.targetAlt = tel.AltitudeMSL + minSpawnAltFt
-		spawnFormation = false
-		s.isHoldingAlt = true // Lock immediately if spawned low
-		s.logger.Info("Low AGL, spawning target", "agl", tel.AltitudeAGL, "target_alt", s.targetAlt, "formation", false)
-	} else {
-		s.targetAlt = tel.AltitudeMSL
-		spawnFormation = s.config.FormationEnabled
-		s.logger.Info("Spawning Target Beacon", "lat", lat, "lon", lon, "alt", s.targetAlt)
-	}
+	// 4. Spawn Beacons
+	s.spawnTargetBalloon(title, lat, lon)
+	s.enforceTargetQuota()
 
-	targetID, err := s.client.SpawnAirTraffic(reqIDSpawnTarget, title, "TGT", lat, lon, s.targetAlt, 0)
-	if err != nil {
-		return fmt.Errorf("failed to spawn target: %w", err)
-	}
-	s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{ID: targetID, IsTarget: true, AltOffset: 0.0})
-
-	// 4. Spawn Formation (if active)
 	if spawnFormation {
-		hdgRad := tel.Heading * (math.Pi / 180.0)
-		latRad := tel.Latitude * (math.Pi / 180.0)
-
-		// Calc initial formation pos
-		formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, hdgRad, latRad, float64(s.config.FormationDistance)/1000.0)
-
-		offsets := computeFormationOffsets(s.config.FormationCount)
-		// We need unique Request IDs for each balloon.
-		// Start from 101.
-		baseReqID := uint32(101)
-
-		for i, offset := range offsets {
-			absAlt := s.targetAlt + offset
-			reqID := baseReqID + uint32(i)
-			id, err := s.client.SpawnAirTraffic(reqID, title, "FORM", formLat, formLon, absAlt, tel.Heading)
-			if err != nil {
-				s.logger.Error("Error spawning formation beacon", "error", err)
-				continue
-			}
-			s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{ID: id, IsTarget: false, AltOffset: offset})
-		}
-		s.formationActive = true
+		s.spawnFormationBalloons(title, &tel)
 	} else {
 		s.formationActive = false
 	}
 
 	s.active = true
 	s.logger.Info("Beacon system SetTarget complete", "active_beacons", len(s.spawnedBeacons))
-
 	return nil
+}
+
+func (s *Service) clearFormationAndDuplicates(lat, lon float64) {
+	const threshold = 0.0001
+	newSpawned := []SpawnedBeacon{}
+	for _, b := range s.spawnedBeacons {
+		isSamePOI := math.Abs(b.Lat-lat) < threshold && math.Abs(b.Lon-lon) < threshold
+		if !b.IsTarget || isSamePOI {
+			_ = s.client.RemoveObject(b.ID, reqIDRemove)
+		} else {
+			newSpawned = append(newSpawned, b)
+		}
+	}
+	s.spawnedBeacons = newSpawned
+}
+
+func (s *Service) setupTargetAltitude(tel *sim.Telemetry) bool {
+	s.targetAlt = tel.AltitudeMSL
+	minSpawnAltFt := float64(s.config.MinSpawnAltitude) * 3.28084
+	spawnFormation := s.config.FormationEnabled
+
+	if tel.AltitudeAGL < minSpawnAltFt {
+		s.targetAlt = tel.AltitudeMSL + minSpawnAltFt
+		spawnFormation = false
+		s.isHoldingAlt = true
+		s.logger.Info("Low AGL, spawning target", "agl", tel.AltitudeAGL, "target_alt", s.targetAlt, "formation", false)
+	} else {
+		s.isHoldingAlt = false
+		s.logger.Info("Spawning Target Beacon", "lat", s.targetLat, "lon", s.targetLon, "alt", s.targetAlt)
+	}
+	return spawnFormation
+}
+
+func (s *Service) spawnTargetBalloon(title string, lat, lon float64) {
+	targetID, err := s.client.SpawnAirTraffic(reqIDSpawnTarget, title, "TGT", lat, lon, s.targetAlt, 0)
+	if err == nil {
+		s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{
+			ID:       targetID,
+			IsTarget: true,
+			Lat:      lat,
+			Lon:      lon,
+			BaseAlt:  s.targetAlt,
+		})
+	} else {
+		s.logger.Error("Failed to spawn target beacon", "error", err)
+	}
+}
+
+func (s *Service) enforceTargetQuota() {
+	targetCount := 0
+	for _, b := range s.spawnedBeacons {
+		if b.IsTarget {
+			targetCount++
+		}
+	}
+	for targetCount > s.config.MaxTargets {
+		for i, b := range s.spawnedBeacons {
+			if b.IsTarget {
+				_ = s.client.RemoveObject(b.ID, reqIDRemove)
+				s.spawnedBeacons = append(s.spawnedBeacons[:i], s.spawnedBeacons[i+1:]...)
+				targetCount--
+				break
+			}
+		}
+	}
+}
+
+func (s *Service) spawnFormationBalloons(title string, tel *sim.Telemetry) {
+	if s.config.FormationCount <= 0 {
+		s.formationActive = false
+		return
+	}
+
+	bearingRad, _ := s.calculateBearing(tel.Latitude, tel.Longitude, s.targetLat, s.targetLon)
+	bearingDeg := bearingRad * 180.0 / math.Pi
+	distKm := float64(s.config.FormationDistance) / 1000.0
+	latRad := tel.Latitude * (math.Pi / 180.0)
+	fLat, fLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, distKm)
+
+	offsets := computeFormationOffsets(s.config.FormationCount)
+	baseReqID := uint32(200)
+	for i, offset := range offsets {
+		absAlt := s.targetAlt + offset
+		reqID := baseReqID + uint32(i)
+		id, err := s.client.SpawnAirTraffic(reqID, title, "FORM", fLat, fLon, absAlt, bearingDeg)
+		if err == nil {
+			s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{
+				ID:        id,
+				IsTarget:  false,
+				AltOffset: offset,
+				Lat:       fLat,
+				Lon:       fLon,
+			})
+		}
+	}
+	s.formationActive = true
+}
+
+// Helper: Calculate bearing between two points in radians.
+func (s *Service) calculateBearing(lat1, lon1, lat2, lon2 float64) (bearingRad, distKm float64) {
+	lat1Rad := lat1 * math.Pi / 180.0
+	lon1Rad := lon1 * math.Pi / 180.0
+	lat2Rad := lat2 * math.Pi / 180.0
+	lon2Rad := lon2 * math.Pi / 180.0
+
+	dLon := lon2Rad - lon1Rad
+
+	y := math.Sin(dLon) * math.Cos(lat2Rad)
+	x := math.Cos(lat1Rad)*math.Sin(lat2Rad) - math.Sin(lat1Rad)*math.Cos(lat2Rad)*math.Cos(dLon)
+	bearingRad = math.Atan2(y, x)
+
+	// distance in km for convenience
+	const R = 6371.0
+	dLat := lat2Rad - lat1Rad
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) + math.Cos(lat1Rad)*math.Cos(lat2Rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	distKm = R * c
+
+	return bearingRad, distKm
 }
 
 // Clear removes all beacons.
@@ -231,10 +299,6 @@ func (s *Service) clearLocked() {
 
 	for _, b := range s.spawnedBeacons {
 		// Best effort remove
-		if b.IsTarget && s.config.DisableTargetBeaconDespawn {
-			// Skip despawn for target
-			continue
-		}
 		_ = s.client.RemoveObject(b.ID, reqIDRemove)
 	}
 	s.spawnedBeacons = []SpawnedBeacon{}
@@ -389,35 +453,30 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 		return
 	}
 
-	// 1. Calculate Vector to Target
-	dLat := s.targetLat - tel.Latitude
-	dLon := s.targetLon - tel.Longitude
-	latRad := tel.Latitude * (math.Pi / 180.0)
+	// 1. Check for formation cleanup
+	bearingRad, distKm := s.calculateBearing(tel.Latitude, tel.Longitude, s.targetLat, s.targetLon)
+	s.checkFormationCleanup(distKm)
 
-	// Meters/Km conversion
-	dy := dLat * 111.0
-	dx := dLon * 111.0 * math.Cos(latRad)
-	distKm := math.Sqrt(dx*dx + dy*dy)
-
-	// Bearing
-	bearingRad := math.Atan2(dx, dy)
-	bearingDeg := bearingRad * (180.0 / math.Pi)
-	if bearingDeg < 0 {
-		bearingDeg += 360.0
+	// 2. Update aircraft-relative state
+	altFloorFt := float64(s.config.AltitudeFloor) * 3.28084
+	if tel.AltitudeAGL >= altFloorFt {
+		s.targetAlt = tel.AltitudeMSL
+		s.isHoldingAlt = false
+	} else if !s.isHoldingAlt {
+		s.isHoldingAlt = true
 	}
 
-	// 2. Check Trigger Distance (User logic: If < Trigger -> Despawn formation)
-	// We derive trigger distance as 1.5x formation distance to provide a buffer
-	// FormationDistance is meters, triggerDistKm expects km
-	triggerDistKm := (float64(s.config.FormationDistance) / 1000.0) * 1.5
+	// 3. Update all beacons
+	s.updateAllBeacons(tel, bearingRad)
+}
 
+func (s *Service) checkFormationCleanup(distKm float64) {
+	triggerDistKm := (float64(s.config.FormationDistance) / 1000.0) * 1.5
 	if s.formationActive && distKm < triggerDistKm {
 		s.logger.Info("Target Distance < Trigger Distance. Despawning formation.", "dist_km", distKm, "trigger_km", triggerDistKm)
-
 		var kept []SpawnedBeacon
 		for _, b := range s.spawnedBeacons {
 			if !b.IsTarget {
-				// Always use s.client for remove - objects were spawned via s.client
 				_ = s.client.RemoveObject(b.ID, reqIDRemove)
 			} else {
 				kept = append(kept, b)
@@ -426,70 +485,72 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 		s.spawnedBeacons = kept
 		s.formationActive = false
 	}
+}
 
-	// 3. Update Positions
-	// Logic:
-	// - If AGL >= AltitudeFloorFt: Balloons follow aircraft MSL (targetAlt = aircraft MSL)
-	// - If AGL < AltitudeFloorFt: Balloons lock at last good MSL (targetAlt = held value)
-
-	// Note: We use s.targetAlt as the "Base MSL" for the formation
-	altFloorFt := float64(s.config.AltitudeFloor) * 3.28084
-	if tel.AltitudeAGL >= altFloorFt {
-		s.targetAlt = tel.AltitudeMSL
-		s.isHoldingAlt = false
-	} else if !s.isHoldingAlt {
-		// Below safety floor
-		// If we weren't holding already, we lock now.
-		// If we spawned low, isHoldingAlt might be false initially, but SetTarget sets initial s.targetAlt
-		// based on spawn rules, so we just set holding=true and KEEP the existing s.targetAlt.
-		s.logger.Debug("Below altitude floor, holding beacon altitude", "agl", tel.AltitudeAGL, "hold_msl", s.targetAlt)
-		s.isHoldingAlt = true
-	}
-	// targetAlt remains unchanged in the else case (whether we just locked or were already locked)
-
-	// Calculate Formation Target Pos
+func (s *Service) updateAllBeacons(tel *simconnect.TelemetryData, bearingRad float64) {
+	latRad := tel.Latitude * math.Pi / 180.0
 	formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, float64(s.config.FormationDistance)/1000.0)
 
-	// Pre-calc limit constants for sinking logic
-	distMeters := distKm * 1000.0
-
+	kept := []SpawnedBeacon{}
 	for _, b := range s.spawnedBeacons {
+		bBearingRad, bDistKm := s.calculateBearing(tel.Latitude, tel.Longitude, b.Lat, b.Lon)
+		if b.IsTarget && s.isBeaconStale(tel, bBearingRad, bDistKm) {
+			s.logger.Info("Despawning stale target balloon", "id", b.ID, "dist", bDistKm)
+			_ = s.client.RemoveObject(b.ID, reqIDRemove)
+			continue
+		}
+
 		var absAlt float64
-
+		var lat, lon float64
 		if b.IsTarget {
-			// TARGET LOOP: Sinking Logic
-			absAlt = s.calculateTargetAltitude(tel, distMeters) + b.AltOffset
+			absAlt = s.calculateTargetAltitude(tel, b.Lat, b.Lon, b.BaseAlt, bDistKm*1000.0) + b.AltOffset
+			lat, lon = b.Lat, b.Lon
 		} else {
-			// FORMATION LOOP: Strict Altitude
-			// Formation stays at the "Base MSL" (s.targetAlt) + Offset
-			// It does NOT sink.
 			absAlt = s.targetAlt + b.AltOffset
+			lat, lon = formLat, formLon
 		}
 
-		var upd simconnect.MarkerUpdateData
-		if b.IsTarget {
-			upd = simconnect.MarkerUpdateData{
-				Latitude:    s.targetLat,
-				Longitude:   s.targetLon,
-				AltitudeMSL: absAlt,
-				Heading:     0,
-			}
-		} else {
-			upd = simconnect.MarkerUpdateData{
-				Latitude:    formLat,
-				Longitude:   formLon,
-				AltitudeMSL: absAlt,
-				Heading:     bearingDeg,
-			}
-		}
-
-		// Move it
-		if s.handle != 0 {
-			_ = simconnect.SetDataOnSimObject(s.handle, DefIDObjectPos, b.ID, 0, 0, uint32(unsafe.Sizeof(upd)), unsafe.Pointer(&upd))
-		} else {
-			_ = s.client.SetObjectPosition(b.ID, upd.Latitude, upd.Longitude, upd.AltitudeMSL, upd.Pitch, upd.Bank, upd.Heading)
+		if s.updateObjectOnSim(b.ID, lat, lon, absAlt) {
+			kept = append(kept, b)
 		}
 	}
+	s.spawnedBeacons = kept
+}
+
+func (s *Service) isBeaconStale(tel *simconnect.TelemetryData, bearingRad, distKm float64) bool {
+	hdgRad := tel.Heading * math.Pi / 180.0
+	diff := bearingRad - hdgRad
+	for diff > math.Pi {
+		diff -= 2 * math.Pi
+	}
+	for diff < -math.Pi {
+		diff += 2 * math.Pi
+	}
+
+	isBehind := math.Abs(diff) > math.Pi/2.0
+	return distKm > 50.0 && isBehind
+}
+
+func (s *Service) updateObjectOnSim(id uint32, lat, lon, alt float64) bool {
+	upd := simconnect.MarkerUpdateData{
+		Latitude:    lat,
+		Longitude:   lon,
+		AltitudeMSL: alt,
+	}
+
+	var err error
+	if s.handle != 0 {
+		err = simconnect.SetDataOnSimObject(s.handle, DefIDObjectPos, id, 0, 0, uint32(unsafe.Sizeof(upd)), unsafe.Pointer(&upd))
+	} else {
+		err = s.client.SetObjectPosition(id, lat, lon, alt, 0, 0, 0)
+	}
+
+	if err != nil {
+		s.logger.Debug("Failed to update beacon position", "id", id, "error", err)
+		_ = s.client.RemoveObject(id, reqIDRemove)
+		return false
+	}
+	return true
 }
 
 // Helper: Calculate new coord given origin, heading(rad), and dist(km)

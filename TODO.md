@@ -40,8 +40,8 @@ X the label of the range rings sometimes periodically jumps between two range ri
 X move session persistence to a better place than in a "heartbeat"
 X turn trip summary into a log file
 X target balloon: reduce altitude as we get closer to it to make it easier to spot objects on the ground
-- frontend continues to show paused when sim disconnects
-- frontend: click on configuration pill in main tab opens config page on main tab with no way back
+X frontend continues to show paused when sim disconnects
+X frontend: click on configuration pill in main tab opens config page on main tab with no way back
 
 # Trip Themes
 

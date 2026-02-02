@@ -4,7 +4,7 @@ import (
 	"phileasgo/pkg/sim/simconnect"
 )
 
-func (s *Service) calculateTargetAltitude(tel *simconnect.TelemetryData, distMeters float64) float64 {
+func (s *Service) calculateTargetAltitude(tel *simconnect.TelemetryData, pLat, pLon, pBaseAlt, distMeters float64) float64 {
 	// Pre-calc limit constants for sinking logic
 	sinkDistFar := float64(s.config.TargetSinkDistFar)   // e.g. 4000
 	sinkDistNear := float64(s.config.TargetSinkDistNear) // e.g. 1000
@@ -28,13 +28,13 @@ func (s *Service) calculateTargetAltitude(tel *simconnect.TelemetryData, distMet
 		}
 
 		// Target Altitude Calculation
-		baseAlt := s.targetAlt
+		baseAlt := pBaseAlt
 
 		// Floor Altitude Calculation
 		var floorAlt float64
 		if s.elev != nil {
 			// Query ETOPO1 for terrain height at POI
-			elevMeters, err := s.elev.GetElevation(s.targetLat, s.targetLon)
+			elevMeters, err := s.elev.GetElevation(pLat, pLon)
 			if err == nil {
 				// Convert meters to feet + offset
 				floorAlt = (float64(elevMeters) * 3.28084) + targetFloorFt

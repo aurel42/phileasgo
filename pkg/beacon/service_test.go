@@ -91,6 +91,7 @@ func TestSetTarget_SpawnsBeacons(t *testing.T) {
 		TargetSinkDistFar:  config.Distance(4000),
 		TargetSinkDistNear: config.Distance(1000),
 		TargetFloorAGL:     config.Distance(30.48),
+		MaxTargets:         2,
 	}
 
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
@@ -139,6 +140,7 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 		TargetSinkDistFar:  config.Distance(4000),
 		TargetSinkDistNear: config.Distance(1000),
 		TargetFloorAGL:     config.Distance(30.48),
+		MaxTargets:         2,
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
@@ -163,6 +165,7 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 	if len(mock.Moves) == 0 {
 		t.Error("Expected moves after update")
 	}
+	mock.Moves = []MoveCall{} // Reset for next part
 
 	// Test Despawn Trigger
 	// Trigger is config.FormationDistanceKm * 1.5 = 3.0km
@@ -197,6 +200,7 @@ func TestSetTarget_LowAGL(t *testing.T) {
 		TargetSinkDistFar:  config.Distance(4000),
 		TargetSinkDistNear: config.Distance(1000),
 		TargetFloorAGL:     config.Distance(30.48),
+		MaxTargets:         2,
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
@@ -237,6 +241,7 @@ func TestSetTarget_HighAGL(t *testing.T) {
 		TargetSinkDistFar:  config.Distance(4000),
 		TargetSinkDistNear: config.Distance(1000),
 		TargetFloorAGL:     config.Distance(30.48),
+		MaxTargets:         2,
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
@@ -278,6 +283,7 @@ func TestUpdateLoop_AltitudeLock(t *testing.T) {
 		TargetSinkDistFar:  config.Distance(4000),
 		TargetSinkDistNear: config.Distance(1000),
 		TargetFloorAGL:     config.Distance(30.48),
+		MaxTargets:         2,
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 

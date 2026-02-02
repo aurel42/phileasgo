@@ -1,5 +1,12 @@
 ﻿Release History
 
+## v0.3.112 (2026-02-02)
+- **Feature**: **Multi-Target Beacons**. Replaced the persistence toggle with a configurable quota system (`beacon.max_targets`), supporting multiple persistent target balloons (default 2).
+- **Improved**: **Independent Physics**. Each target balloon now tracks its own position and sinking logic independently, while formation balloons follow the active target.
+- **Refinement**: **Automatic Despawn**. Implemented smart cleanup for beacons that are significantly behind the aircraft (50km+ and >90° relative bearing) to ensure performance.
+- **Refactor**: Improved beacon service architecture for better terrain-aware grounding and reduced complexity.
+
+
 ## v0.3.111 (2026-02-02)
 - **Fix**: **Debriefing Reliability**. Extended the debriefing announcement window to include the `Parked` stage, ensuring flight summaries are delivered even after engine shutdown.
 - **Feature**: **Beacon Persistence Toggle**. Added `beacon.disable_target_beacon_despawn` configuration to allow previous target balloons to remain in the sky for visual history.
