@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -69,7 +70,12 @@ type openaiResponse struct {
 }
 
 // NewClient creates a new OpenAI client.
-func NewClient(cfg config.ProviderConfig, baseURL string, rc *request.Client) (*Client, error) {
+func NewClient(cfg config.ProviderConfig, defaultBaseURL string, rc *request.Client) (*Client, error) {
+	baseURL := cfg.BaseURL
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
+
 	if baseURL == "" {
 		return nil, fmt.Errorf("baseURL is required")
 	}
@@ -84,10 +90,69 @@ func NewClient(cfg config.ProviderConfig, baseURL string, rc *request.Client) (*
 	}, nil
 }
 
+// ValidateModels checks if the configured models are available.
+func (c *Client) ValidateModels(ctx context.Context) error {
+	if os.Getenv("TEST_MODE") == "true" {
+		slog.Warn("Skipping OpenAI model validation (TEST_MODE=true)")
+		return nil
+	}
+	if len(c.profiles) == 0 {
+		return nil
+	}
+
+	// OpenAI-compatible /models endpoint
+	// We assume baseURL is the root (e.g. https://api.openai.com/v1)
+	// If it's the full chat/completions URL, this will fail, which is intended
+	// as we want to encourage using the root URL.
+	u := c.baseURL + "/models"
+	headers := map[string]string{
+		"Authorization": "Bearer " + c.apiKey,
+	}
+
+	respBody, err := c.rc.GetWithHeaders(ctx, u, headers, "")
+	if err != nil {
+		return fmt.Errorf("failed to fetch models from %s: %w", u, err)
+	}
+
+	var mresp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &mresp); err != nil {
+		return fmt.Errorf("failed to parse models response: %w", err)
+	}
+
+	available := make(map[string]bool)
+	var availableList []string
+	for _, m := range mresp.Data {
+		available[m.ID] = true
+		availableList = append(availableList, m.ID)
+	}
+
+	var missing []string
+	for _, model := range c.profiles {
+		if !available[model] {
+			missing = append(missing, model)
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("configured models %v not found at %s. Available models: %v", missing, u, availableList)
+	}
+
+	return nil
+}
+
 func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string, error) {
 	model, err := c.resolveModel(name)
 	if err != nil {
 		return "", err
+	}
+
+	var temp float32 = 0.7
+	if isReasoner(model) {
+		temp = 1.0
 	}
 
 	req := openaiRequest{
@@ -95,7 +160,7 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 		Messages: []openaiMessage{
 			{Role: "user", Content: prompt},
 		},
-		Temperature: 0.7,
+		Temperature: temp,
 	}
 
 	return c.execute(ctx, req)
@@ -112,13 +177,21 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 		prompt += " Respond in JSON."
 	}
 
+	var temp float32 = 0.1
+	var respFmt *responseFormat = &responseFormat{Type: "json_object"}
+
+	if isReasoner(model) {
+		temp = 1.0
+		respFmt = nil // Reasoner/R1 doesn't support json_object mode
+	}
+
 	req := openaiRequest{
 		Model: model,
 		Messages: []openaiMessage{
 			{Role: "user", Content: prompt},
 		},
-		ResponseFormat: &responseFormat{Type: "json_object"},
-		Temperature:    0.1,
+		ResponseFormat: respFmt,
+		Temperature:    temp,
 	}
 
 	respText, err := c.execute(ctx, req)
@@ -154,6 +227,11 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 	b64Data := base64.StdEncoding.EncodeToString(data)
 	dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, b64Data)
 
+	var temp float32 = 0.7
+	if isReasoner(model) {
+		temp = 1.0
+	}
+
 	req := openaiRequest{
 		Model: model,
 		Messages: []openaiMessage{
@@ -165,7 +243,7 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 				},
 			},
 		},
-		Temperature: 0.7,
+		Temperature: temp,
 	}
 
 	return c.execute(ctx, req)
@@ -210,7 +288,8 @@ func (c *Client) execute(ctx context.Context, oreq openaiRequest) (string, error
 		"Content-Type":  "application/json",
 	}
 
-	respBody, err := c.rc.PostWithHeaders(ctx, c.baseURL, body, headers)
+	u := c.baseURL + "/chat/completions"
+	respBody, err := c.rc.PostWithHeaders(ctx, u, body, headers)
 	if err != nil {
 		return "", err
 	}
@@ -246,4 +325,9 @@ func (c *Client) resolveModel(intent string) (string, error) {
 		return model, nil
 	}
 	return "", fmt.Errorf("profile %q not configured", intent)
+}
+
+func isReasoner(model string) bool {
+	m := strings.ToLower(model)
+	return strings.Contains(m, "reasoner") || strings.Contains(m, "r1")
 }

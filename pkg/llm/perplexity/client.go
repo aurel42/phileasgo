@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -116,6 +117,14 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 		return fmt.Errorf("failed to unmarshal perplexity json: %w (raw: %s)", err, respText)
 	}
 
+	return nil
+}
+
+// ValidateModels checks if the configured models are available.
+func (c *Client) ValidateModels(ctx context.Context) error {
+	// Perplexity's /models endpoint appears to be unreliable or non-standard (returning 404).
+	// We disable validation for this provider to prevent startup failures.
+	slog.Debug("Skipping Perplexity model validation (disabled)")
 	return nil
 }
 

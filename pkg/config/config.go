@@ -106,6 +106,7 @@ type LLMConfig struct {
 type ProviderConfig struct {
 	Type     string            `yaml:"type"`      // "gemini", "groq", "openai"
 	Key      string            `yaml:"-"`         // API Key (Loaded from Env)
+	BaseURL  string            `yaml:"base_url"`  // Root URL for the API
 	Profiles map[string]string `yaml:"profiles"`  // Map of intent -> model
 	FreeTier bool              `yaml:"free_tier"` // Whether this is a free tier (usually shared)
 	Timeout  Duration          `yaml:"timeout"`   // Request timeout

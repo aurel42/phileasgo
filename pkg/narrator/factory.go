@@ -47,7 +47,7 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 		case "openai":
 			// For generic openai, we use fixed URL for now.
 			// Generic OpenAI support is primarily for self-hosted or other standard proxies.
-			url := "https://api.openai.com/v1/chat/completions"
+			url := "https://api.openai.com/v1"
 			sub, err = openai.NewClient(pCfg, url, rc)
 		case "perplexity", "sonar":
 			sub, err = perplexity.NewClient(pCfg, rc)

@@ -49,7 +49,8 @@ func (m *MockLLM) GenerateText(ctx context.Context, name, prompt string) (string
 func (m *MockLLM) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
 	return nil
 }
-func (m *MockLLM) HealthCheck(ctx context.Context) error { return nil }
+func (m *MockLLM) HealthCheck(ctx context.Context) error    { return nil }
+func (m *MockLLM) ValidateModels(ctx context.Context) error { return m.Err }
 func (m *MockLLM) HasProfile(name string) bool {
 	if m.HasProfileFunc != nil {
 		return m.HasProfileFunc(name)

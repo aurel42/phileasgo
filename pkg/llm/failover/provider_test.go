@@ -41,6 +41,10 @@ func (m *mockProvider) HealthCheck(ctx context.Context) error {
 	return m.healthErr
 }
 
+func (m *mockProvider) ValidateModels(ctx context.Context) error {
+	return m.healthErr
+}
+
 func (m *mockProvider) HasProfile(name string) bool {
 	if m.supportedProfiles != nil {
 		return m.supportedProfiles[name]

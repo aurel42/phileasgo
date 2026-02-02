@@ -57,7 +57,7 @@ func NewClient(cfg config.ProviderConfig, rc *request.Client, t *tracker.Tracker
 		c.genaiClient = client
 
 		// Validate Model Availability
-		if err := c.validateModel(context.Background()); err != nil {
+		if err := c.ValidateModels(context.Background()); err != nil {
 			if os.Getenv("TEST_MODE") == "true" {
 				slog.Warn("Gemini model validation failed (proceeding due to TEST_MODE)", "error", err)
 			} else {
@@ -297,8 +297,12 @@ func (c *Client) resolveModel(intent string) (string, *genai.GenerateContentConf
 	return model, cfg, nil
 }
 
-// validateModel checks if the configured models are available.
-func (c *Client) validateModel(ctx context.Context) error {
+// ValidateModels checks if the configured models are available.
+func (c *Client) ValidateModels(ctx context.Context) error {
+	if os.Getenv("TEST_MODE") == "true" {
+		slog.Warn("Skipping Gemini model validation (TEST_MODE=true)")
+		return nil
+	}
 	if len(c.profiles) == 0 {
 		return fmt.Errorf("no profiles configured for gemini provider")
 	}

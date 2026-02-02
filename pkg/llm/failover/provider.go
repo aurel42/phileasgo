@@ -161,6 +161,33 @@ func (f *Provider) HealthCheck(ctx context.Context) error {
 	return fmt.Errorf("all LLM providers failed health check: %s", strings.Join(errors, "; "))
 }
 
+// ValidateModels checks if the configured models are available for all providers.
+func (f *Provider) ValidateModels(ctx context.Context) error {
+	f.mu.RLock()
+	providers := f.providers
+	names := f.names
+	disabled := make(map[int]bool)
+	for k, v := range f.disabled {
+		disabled[k] = v
+	}
+	f.mu.RUnlock()
+
+	var errors []string
+	for i, p := range providers {
+		if disabled[i] {
+			continue
+		}
+		if err := p.ValidateModels(ctx); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", names[i], err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("llm model validation failed: %s", strings.Join(errors, "; "))
+	}
+	return nil
+}
+
 // execute runs the given function against the provider chain.
 func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func(context.Context, llm.Provider) (any, error)) (any, error) {
 	f.mu.RLock()

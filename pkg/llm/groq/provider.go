@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	groqBaseURL = "https://api.groq.com/openai/v1/chat/completions"
+	groqBaseURL = "https://api.groq.com/openai/v1"
 )
 
 // NewClient creates a new Groq client using the generic OpenAI provider.

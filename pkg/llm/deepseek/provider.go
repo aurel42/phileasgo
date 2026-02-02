@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	deepseekBaseURL = "https://api.deepseek.com/chat/completions"
+	deepseekBaseURL = "https://api.deepseek.com"
 )
 
 // NewClient creates a new DeepSeek client using the generic OpenAI provider.

@@ -1,5 +1,11 @@
 ﻿Release History
 
+## v0.3.105 (2026-02-02)
+- **Feature**: **Universal Model Validation**. Implemented a mandatory startup probe that verifies all configured LLM models (Gemini, OpenAI, DeepSeek, Groq) are available and authorized.
+- **Improved**: **Provider Flexibility**. Added `base_url` support to the LLM configuration, enabling seamless integration with custom OpenAI-compatible endpoints and Model-as-a-Service providers.
+- **Improved**: **DeepSeek R1 Compatibility**. Added automatic parameter tuning (temperature, JSON mode) for "reasoner" models to prevent API errors and ensure high-quality output.
+- **Refinement**: Updated DeepSeek and Groq providers to use root API URLs for standardized endpoint discovery.
+
 ## v0.3.104 (2026-02-02)
 - Fixed broken screenshot images by implementing clean URL wrapping in the delivery layer.
 - Fixed an issue where the visual info panel could not be closed for non-POI narrations.
