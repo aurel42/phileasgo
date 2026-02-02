@@ -1,10 +1,14 @@
 ﻿Release History
 
+## v0.3.107 (2026-02-02)
+- **Refactor**: **POI Selection Architecture**. Separated scoring into IntrinsicScore (content-based) and Visibility (position-based) for cleaner reasoning about POI ranking.
+- **Improved**: **Deferral Logic**. Changed deferral from a score multiplier to a hard filter - deferred POIs are now excluded from selection entirely, ensuring we wait for optimal viewing.
+- **Cleanup**: Removed redundant `urgent` and `patient` badge score multipliers; urgency is now handled purely in selection phase.
+
 ## v0.3.106 (2026-02-02)
 - **Fix**: **Redundant Connectivity Checks**. Removed generic LLM provider connectivity probes during startup to eliminate spurious API error counts.
-- **Feature**: **Clean Metric State**. Implemented API statistics reset after model validation to ensure the dashboard starts with zero counters.
-- **Feature**: **GUI Flag Integration**. Added correct `?gui=true` parameter handling to ensure reliable detection of the PhileasGUI wrapper.
-- **Debugging**: **Request Failure Logs**. Added detailed `DEBUG` logging for non-200 HTTP responses in the request client for better observability.
+- **Fix**: **Clean Metric State**. Implemented API statistics reset after model validation to ensure the dashboard starts with zero counters.
+- **Fix**: **GUI Flag Integration**. Added correct `?gui=true` parameter handling to ensure reliable detection of the PhileasGUI wrapper.
 
 ## v0.3.105 (2026-02-02)
 - **Feature**: **Model Validation**. Extended existing startup probe to verify all configured LLM models.

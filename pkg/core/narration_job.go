@@ -392,6 +392,11 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 
 	var visibleCandidates []*model.POI
 	for i, poi := range candidates {
+		// Skip deferred POIs - hard filter for better viewing later
+		if poi.IsDeferred {
+			continue
+		}
+
 		// Also skip if not playable
 		if !j.isPlayable(poi) {
 			continue
@@ -419,14 +424,17 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 }
 
 // selectBestCandidate picks the most urgent among top candidates.
+// Uses combined score (Score × Visibility) for ranking.
 func (j *NarrationJob) selectBestCandidate(visibleCandidates []*model.POI) *model.POI {
 	best := visibleCandidates[0]
-	topScore := best.Score
+	topCombined := best.Score * best.Visibility
 
 	for i := 1; i < len(visibleCandidates); i++ {
 		cand := visibleCandidates[i]
-		// Tolerance threshold: 30% of top score
-		if cand.Score < topScore*0.7 {
+		candCombined := cand.Score * cand.Visibility
+
+		// Tolerance threshold: 30% of top combined score
+		if candCombined < topCombined*0.7 {
 			continue
 		}
 
@@ -445,9 +453,12 @@ func (j *NarrationJob) selectBestCandidate(visibleCandidates []*model.POI) *mode
 func (j *NarrationJob) getBestCandidateFallback(t *sim.Telemetry) *model.POI {
 	slog.Debug("NarrationJob: LOS disabled or no checker", "los_enabled", j.cfg.Terrain.LineOfSight, "checker_nil", j.losChecker == nil)
 	minScore := j.getPOIQueryThreshold()
-	cands := j.poiMgr.GetNarrationCandidates(1, minScore)
-	if len(cands) > 0 {
-		return cands[0]
+	// Get more candidates to filter out deferred ones
+	cands := j.poiMgr.GetNarrationCandidates(10, minScore)
+	for _, poi := range cands {
+		if !poi.IsDeferred {
+			return poi
+		}
 	}
 	return nil
 }

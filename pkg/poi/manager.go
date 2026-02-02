@@ -366,27 +366,30 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 	}
 
 	// 2. Calculate Effective Threshold (Only based on Playable candidates)
+	// Use combined score (Score × Visibility) to match Narrator selection
+	combinedScore := func(p *model.POI) float64 { return p.Score * p.Visibility }
+
 	effectiveThreshold := minScore
 	if filterMode == "adaptive" && len(playableVisible) > 0 {
-		// Sort by score descending to find the cutoff
+		// Sort by combined score descending to find the cutoff
 		sort.Slice(playableVisible, func(i, j int) bool {
-			return playableVisible[i].Score > playableVisible[j].Score
+			return combinedScore(playableVisible[i]) > combinedScore(playableVisible[j])
 		})
 
 		if len(playableVisible) > targetCount {
-			effectiveThreshold = playableVisible[targetCount-1].Score
+			effectiveThreshold = combinedScore(playableVisible[targetCount-1])
 		} else {
 			effectiveThreshold = -math.MaxFloat64 // All playable qualify
 		}
 	}
 
-	// 3. Assemble final list: All Recently Played OR (Visible AND Playable AND Score >= Threshold)
+	// 3. Assemble final list: All Recently Played OR (Visible AND Playable AND CombinedScore >= Threshold)
 	resultMap := make(map[string]*model.POI)
 	for _, p := range played {
 		resultMap[p.WikidataID] = p
 	}
 	for _, p := range playableVisible {
-		if p.Score >= effectiveThreshold {
+		if combinedScore(p) >= effectiveThreshold {
 			resultMap[p.WikidataID] = p
 		}
 	}
@@ -396,10 +399,11 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 		result = append(result, p)
 	}
 
-	// 4. Stable sort for API output consistency
+	// 4. Stable sort for API output consistency (by combined score)
 	sort.Slice(result, func(i, j int) bool {
-		if result[i].Score != result[j].Score {
-			return result[i].Score > result[j].Score
+		ci, cj := combinedScore(result[i]), combinedScore(result[j])
+		if ci != cj {
+			return ci > cj
 		}
 		return result[i].WikidataID < result[j].WikidataID
 	})
@@ -435,9 +439,9 @@ func (m *Manager) GetNarrationCandidates(limit int, minScore *float64) []*model.
 		candidates = append(candidates, p)
 	}
 
-	// Sort Descending
+	// Sort Descending by combined score (Intrinsic × Visibility)
 	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].Score > candidates[j].Score
+		return candidates[i].Score*candidates[i].Visibility > candidates[j].Score*candidates[j].Visibility
 	})
 
 	if len(candidates) > limit {

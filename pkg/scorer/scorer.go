@@ -106,7 +106,10 @@ type DefaultSession struct {
 	futurePositions []geo.Point // Pre-calculated positions at +1, +3, +5, +10, +15 min
 }
 
-// Calculate updates the Score, ScoreDetails, and IsVisible fields of the POI.
+// Calculate updates the Score, Visibility, IsVisible, and IsDeferred fields of the POI.
+// Score = intrinsic score (content-based, position-agnostic).
+// Visibility = position-based visibility score.
+// Selection combines Score × Visibility when ranking candidates.
 func (sess *DefaultSession) Calculate(poi *model.POI) {
 	s := sess.scorer
 	input := sess.input
@@ -144,123 +147,114 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 	distNM := distMeters / 1852.0
 	bearing := geo.Bearing(predPoint, poiPoint)
 
-	score := 1.0
 	var logs []string
-	logs = append(logs, "Base Score: 1.0")
 
-	// 1. Geographic Scoring (Visibility & Ground)
-	// Pass lowestElev to geographic score for effective AGL calculation
-	// Ensure BoostFactor is at least 1.0
+	// 1. Calculate Visibility (position-based)
 	boost := input.BoostFactor
 	if boost < 1.0 {
 		boost = 1.0
 	}
-	geoScore, geoLogs, shouldReturn := s.calculateGeographicScore(poi, &state, bearing, distNM, sess.lowestElev, boost)
+	visScore, visLogs, shouldReturn := s.calculateVisibilityScore(poi, &state, bearing, distNM, sess.lowestElev, boost)
 	if shouldReturn {
-		return
+		return // POI not visible
 	}
-	score *= geoScore
-	logs = append(logs, geoLogs...)
+	logs = append(logs, visLogs...)
 
-	// 2. Content Multipliers
+	// 2. Calculate Intrinsic Score (content-based, position-agnostic)
+	intrinsicScore, intrinsicLogs := sess.calculateIntrinsicScore(poi)
+	logs = append(logs, intrinsicLogs...)
+
+	// 3. Determine Deferral (hard filter for selection)
+	if len(sess.futurePositions) > 0 {
+		sess.calculateUrgencyMetrics(poi, poiPoint, state.Heading)
+		poi.IsDeferred = sess.determineDeferral(poi, state.Heading, visScore)
+		if poi.IsDeferred {
+			poi.Badges = append(poi.Badges, "deferred")
+			logs = append(logs, "Deferred: Better view coming")
+		}
+	} else {
+		poi.IsDeferred = false
+	}
+
+	// [BADGE] Urgent (display only - POI about to go behind)
+	if poi.TimeToBehind > 0 && poi.TimeToBehind < 120 {
+		poi.Badges = append(poi.Badges, "urgent")
+	}
+
+	// Store scores separately - selection combines them
+	poi.Score = intrinsicScore
+	poi.ScoreDetails = strings.Join(logs, "\n")
+}
+
+// calculateIntrinsicScore computes the position-agnostic "interestingness" of a POI.
+// This combines content score (article length, sitelinks, category weight, MSFS) with
+// variety score (novelty, category repetition penalty).
+func (sess *DefaultSession) calculateIntrinsicScore(poi *model.POI) (score float64, logs []string) {
+	s := sess.scorer
+	input := sess.input
+
+	// Content Score
 	contentScore, contentLogs := s.calculateContentScore(poi)
-	score *= contentScore
+	score = contentScore
 	logs = append(logs, contentLogs...)
 
-	// 3. Variety & Novelty
+	// Variety Score
 	varietyScore, varietyLogs := s.calculateVarietyScore(poi, input.CategoryHistory)
 	score *= varietyScore
 	logs = append(logs, varietyLogs...)
 
 	// [BADGE] Fresh (Novelty)
-	// If variety score > 1.0, it means we got a boost (novelty), so mark it fresh.
-	// Note: We check varietyScore (which returns multiplier) directly.
 	if varietyScore > 1.0 {
 		poi.Badges = append(poi.Badges, "fresh")
 	}
 
-	// 4. Deferral Check: Will we be 25%+ closer in the future?
-	if len(sess.futurePositions) > 0 {
-		deferralPenalty, deferralMsg, isDeferred := sess.checkDeferral(poi, state.Heading)
-		if deferralPenalty < 1.0 {
-			score *= deferralPenalty
-			logs = append(logs, deferralMsg)
-		}
-		if isDeferred {
-			poi.Badges = append(poi.Badges, "deferred")
-		}
-	}
-
-	poi.Score = score
-	poi.ScoreDetails = strings.Join(logs, "\n")
+	return score, logs
 }
 
-// checkDeferral checks if we'll be significantly closer to the POI in the future.
-// Returns multiplier (1.0 if no deferral, 0.1 if deferred), a concise log message, and a boolean indicating state.
-func (sess *DefaultSession) checkDeferral(poi *model.POI, heading float64) (multiplier float64, msg string, isDeferred bool) {
-	poiPoint := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
-
-	// 1. Calculate Urgency Metrics (TTB, TTCPA) - Always run this first
-	sess.calculateUrgencyMetrics(poi, poiPoint, heading)
-
-	// 2. Apply Penalties/Boosts (Badges: Urgent/Patient)
-	urgencyMultiplier, urgencyMsg := sess.calculateUrgencyFactor(poi)
-
-	// 3. Deferral Distances Check
-	// Horizons: 0=1m, 1=3m, 2=5m, 3=10m, 4=15m
-	if len(sess.futurePositions) != 5 {
-		return urgencyMultiplier, urgencyMsg, false
+// determineDeferral checks if we should defer this POI because we'll have a better view later.
+// Returns true if the POI should be deferred (excluded from selection).
+// Deferral conditions:
+// - Future position (5-15 min) is 25%+ closer than near-term (1-3 min)
+// - POI is currently far (visibility < threshold)
+// - POI is not urgent (TimeToBehind > 5 min or -1)
+func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVisibility float64) bool {
+	// Don't defer if visibility is already good (close enough to see well)
+	// Threshold: 0.4 means only defer POIs with less than 40% visibility
+	const visibilityThreshold = 0.4
+	if currentVisibility >= visibilityThreshold {
+		return false
 	}
 
+	// Don't defer urgent POIs (about to disappear)
+	if poi.TimeToBehind > 0 && poi.TimeToBehind < 300 { // < 5 minutes
+		return false
+	}
+
+	// Check if we have valid future positions
+	if len(sess.futurePositions) != 5 {
+		return false
+	}
+
+	poiPoint := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
 	bestClose, bestFar := sess.getDeferralDistances(poiPoint, heading)
 
 	// If all "Close" positions are behind or invalid, we can't compare for deferral.
 	if math.IsInf(bestClose, 1) {
-		return urgencyMultiplier, urgencyMsg, false
+		return false
 	}
 
 	// If all "Far" positions are behind or invalid, we are moving away/past it.
 	if math.IsInf(bestFar, 1) {
-		return urgencyMultiplier, urgencyMsg, false
+		return false
 	}
 
-	// 4. Absolute Deferral Check
 	// Defer if bestFar is significantly closer than bestClose
 	threshold := sess.scorer.config.DeferralThreshold
 	if threshold <= 0 {
 		threshold = 0.75 // Default: defer if 25%+ closer
 	}
 
-	if bestFar < threshold*bestClose {
-		multiplier := sess.scorer.config.DeferralMultiplier
-		if multiplier <= 0 {
-			multiplier = 0.1
-		}
-		return multiplier, fmt.Sprintf("Defer: x%.1f (%.1fnm -> %.1fnm)", multiplier, bestClose, bestFar), true
-	}
-
-	return urgencyMultiplier, urgencyMsg, false
-}
-
-// calculateUrgencyFactor applies urgency boosts and patience penalties.
-func (sess *DefaultSession) calculateUrgencyFactor(poi *model.POI) (multiplier float64, msg string) {
-	urgencyMultiplier := 1.0
-
-	// Urgency Boost: If disappearing in < 2 minutes
-	if poi.TimeToBehind > 0 && poi.TimeToBehind < 120 {
-		urgencyMultiplier *= 1.5
-		msg = "Urgency Boost: x1.5 (Disappearing soon)"
-		poi.Badges = append(poi.Badges, "urgent")
-	}
-
-	// Patience Penalty: If CPA is > 10 minutes away and not disappearing soon
-	if poi.TimeToCPA > 600 && (poi.TimeToBehind == -1 || poi.TimeToBehind > 900) {
-		urgencyMultiplier *= 0.5
-		msg = "Patience Penalty: x0.5 (Best view far away)"
-		poi.Badges = append(poi.Badges, "patient")
-	}
-
-	return urgencyMultiplier, msg
+	return bestFar < threshold*bestClose
 }
 
 // getDeferralDistances calculates min distances for close (1-3m) and far (5-15m) buckets.
@@ -327,7 +321,9 @@ func (sess *DefaultSession) LowestElevation() float64 {
 	return sess.lowestElev
 }
 
-func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, bearing, distNM, lowestElevMeters, boostFactor float64) (score float64, logs []string, shouldReturn bool) {
+// calculateVisibilityScore determines if a POI is visible and calculates its visibility score.
+// Returns the visibility score (0.0-1.0+), log details, and whether to skip this POI.
+func (s *Scorer) calculateVisibilityScore(poi *model.POI, state *sim.Telemetry, bearing, distNM, lowestElevMeters, boostFactor float64) (score float64, logs []string, shouldReturn bool) {
 	// 1. Determine Size
 	poiSize := poi.Size
 	if poiSize == "" {
@@ -362,7 +358,6 @@ func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, 
 	}
 
 	poi.IsVisible = true
-	poi.Visibility = visScore
 	logs = []string{visDetails}
 	if appliedBoost > 1.0 {
 		logs = append(logs, fmt.Sprintf("Visibility Boost: x%.1f", appliedBoost))
@@ -381,6 +376,9 @@ func (s *Scorer) calculateGeographicScore(poi *model.POI, state *sim.Telemetry, 
 		score *= poi.DimensionMultiplier
 		logs = append(logs, fmt.Sprintf("Dimensions: x%.1f", poi.DimensionMultiplier))
 	}
+
+	// Store final visibility score (includes size penalty and dimension multiplier)
+	poi.Visibility = score
 
 	return score, logs, false
 }

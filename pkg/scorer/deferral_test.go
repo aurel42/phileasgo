@@ -1,7 +1,6 @@
 package scorer
 
 import (
-	"math"
 	"testing"
 
 	"phileasgo/pkg/config"
@@ -9,12 +8,11 @@ import (
 	"phileasgo/pkg/model"
 )
 
-func TestDefaultSession_CheckDeferral(t *testing.T) {
+func TestDefaultSession_DetermineDeferral(t *testing.T) {
 	s := &Scorer{
 		config: &config.ScorerConfig{
-			DeferralEnabled:    true,
-			DeferralThreshold:  0.75,
-			DeferralMultiplier: 0.1,
+			DeferralEnabled:   true,
+			DeferralThreshold: 0.75,
 		},
 	}
 
@@ -35,92 +33,93 @@ func TestDefaultSession_CheckDeferral(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		poiPos     geo.Point
-		heading    float64
-		expectMult float64
+		name              string
+		poiPos            geo.Point
+		heading           float64
+		visibility        float64
+		timeToBehind      float64 // -1 means not set
+		expectDeferred    bool
 	}{
 		{
-			name:       "Classic Approach (Significantly closer later)",
-			poiPos:     geo.Point{Lat: 15.0 / 60.0, Lon: 0}, // 15nm North
-			heading:    0,
-			expectMult: 0.1,
-			// Close Group (1, 3):
-			// t=1: 14nm, t=3: 12nm. BestClose = 12nm.
-			// Far Group (5, 10, 15):
-			// t=5: 10nm, t=10: 5nm, t=15: 0nm. BestFar = 0nm.
-			// 0 < 0.75 * 12 (9) -> DEFER
+			name:           "Classic Approach - Low Visibility (Defer)",
+			poiPos:         geo.Point{Lat: 15.0 / 60.0, Lon: 0}, // 15nm North
+			heading:        0,
+			visibility:     0.2, // Below threshold (0.4)
+			timeToBehind:   -1,
+			expectDeferred: true,
+			// Close Group (1, 3): BestClose = 12nm
+			// Far Group (5, 10, 15): BestFar = 0nm
+			// 0 < 0.75 * 12 -> DEFER
 		},
 		{
-			name:       "Already Close (Don't defer)",
-			poiPos:     geo.Point{Lat: 4.0 / 60.0, Lon: 0}, // 4nm North
-			heading:    0,
-			expectMult: 1.0,
-			// Close Group (1, 3):
-			// t=1: 3nm, t=3: 1nm. BestClose = 1nm.
-			// Far Group (5, 10, 15):
-			// t=5: 1nm (passed), t=10: 6nm (passed). BestFar = 1nm (distance is absolute, but direction matters)
-			// Wait, at t=5 (5nm N), POI (4nm N) is BEHIND (180deg). So t=5 is INVALID.
-			// All Far points are invalid/behind.
-			// Result -> NO DEFER (1.0)
+			name:           "Classic Approach - Good Visibility (No Defer)",
+			poiPos:         geo.Point{Lat: 15.0 / 60.0, Lon: 0}, // 15nm North
+			heading:        0,
+			visibility:     0.5, // Above threshold (0.4)
+			timeToBehind:   -1,
+			expectDeferred: false,
+			// Good visibility overrides deferral
 		},
 		{
-			name:       "Mid-Range Approach (Closer at 5m vs 3m)",
-			poiPos:     geo.Point{Lat: 8.0 / 60.0, Lon: 0}, // 8nm North
-			heading:    0,
-			expectMult: 0.1,
-			// Close Group: t=1 (7nm), t=3 (5nm). BestClose = 5nm.
-			// Far Group: t=5 (3nm), t=10 (2nm passed/behind?).
-			// at t=10 (10nm N), POI (8nm N) is behind. Invalid.
-			// BestFar = 3nm (at t=5).
-			// 3 < 0.75 * 5 (3.75) -> DEFER
+			name:           "Approaching but Urgent (No Defer)",
+			poiPos:         geo.Point{Lat: 15.0 / 60.0, Lon: 0}, // 15nm North
+			heading:        0,
+			visibility:     0.2,
+			timeToBehind:   180, // 3 minutes - urgent
+			expectDeferred: false,
+			// Urgent POIs should not be deferred
 		},
 		{
-			name:       "POI Side Tangent (Steady distance)",
-			poiPos:     geo.Point{Lat: 5.0 / 60.0, Lon: 5.0 / 60.0}, // 5nm North, 5nm East
-			heading:    0,
-			expectMult: 1.0,
-			// Close:
-			// t=3 (3N): Dist to (5N, 5E) = sqrt(2^2 + 5^2) = 5.38nm.
-			// Far:
-			// t=5 (5N): Dist to (5N, 5E) = 5.0nm.
-			// 5.0 is NOT < 0.75 * 5.38 (4.03). NO DEFER.
+			name:           "Already Close (No Defer)",
+			poiPos:         geo.Point{Lat: 4.0 / 60.0, Lon: 0}, // 4nm North
+			heading:        0,
+			visibility:     0.3,
+			timeToBehind:   -1,
+			expectDeferred: false,
+			// All Far points are invalid/behind -> no defer
 		},
 		{
-			name:       "POI Side Tangent (Converging enough)",
-			poiPos:     geo.Point{Lat: 15.0 / 60.0, Lon: 2.0 / 60.0}, // 15nm North, 2nm East
-			heading:    0,
-			expectMult: 0.1,
-			// Close:
-			// t=3 (3N): Dist to (15N, 2E) = sqrt(12^2 + 2^2) = 12.16nm.
-			// Far:
-			// t=15 (15N): Dist to (15N, 2E) = 2.0nm.
-			// 2.0 < 0.75 * 12.16 (9.12). DEFER.
+			name:           "Mid-Range Approach (Defer)",
+			poiPos:         geo.Point{Lat: 8.0 / 60.0, Lon: 0}, // 8nm North
+			heading:        0,
+			visibility:     0.3,
+			timeToBehind:   -1,
+			expectDeferred: true,
+			// Close Group: BestClose = 5nm
+			// Far Group: BestFar = 3nm
+			// 3 < 0.75 * 5 -> DEFER
 		},
 		{
-			name:       "POI Passed at t=1 (Invalid Close)",
-			poiPos:     geo.Point{Lat: 0.5 / 60.0, Lon: 0}, // 0.5nm North
-			heading:    0,
-			expectMult: 1.5, // 1.5 Urgency Boost (Disappearing soon)
-			// t=1 (1N): POI (0.5N) is behind. Invalid.
-			// t=3 (3N): POI (0.5N) is behind. Invalid.
-			// BestClose = Inf.
-			// Result -> NO DEFER (1.0)
+			name:           "POI Side Tangent - Steady Distance (No Defer)",
+			poiPos:         geo.Point{Lat: 5.0 / 60.0, Lon: 5.0 / 60.0}, // 5nm North, 5nm East
+			heading:        0,
+			visibility:     0.3,
+			timeToBehind:   -1,
+			expectDeferred: false,
+			// Distance stays roughly the same, no significant improvement
+		},
+		{
+			name:           "POI Side Tangent - Converging (Defer)",
+			poiPos:         geo.Point{Lat: 15.0 / 60.0, Lon: 2.0 / 60.0}, // 15nm North, 2nm East
+			heading:        0,
+			visibility:     0.2,
+			timeToBehind:   -1,
+			expectDeferred: true,
+			// Will be much closer later
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Run(tt.name, func(t *testing.T) {
-				poi := &model.POI{
-					Lat: tt.poiPos.Lat,
-					Lon: tt.poiPos.Lon,
-				}
-				mult, logs, _ := sess.checkDeferral(poi, tt.heading)
-				if math.Abs(mult-tt.expectMult) > 0.001 {
-					t.Errorf("expected multiplier %f, got %f (logs: %s)", tt.expectMult, mult, logs)
-				}
-			})
+			poi := &model.POI{
+				Lat:          tt.poiPos.Lat,
+				Lon:          tt.poiPos.Lon,
+				TimeToBehind: tt.timeToBehind,
+			}
+			result := sess.determineDeferral(poi, tt.heading, tt.visibility)
+			if result != tt.expectDeferred {
+				t.Errorf("expected IsDeferred=%v, got %v", tt.expectDeferred, result)
+			}
 		})
 	}
 }

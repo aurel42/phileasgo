@@ -36,11 +36,12 @@ type POI struct {
 	// Scorer Data
 	Size                string   `json:"size"`                 // S, M, L, XL
 	DimensionMultiplier float64  `json:"dimension_multiplier"` // Multiplier from physical dimensions
-	Score               float64  `json:"score"`                // Dynamic score
+	Score               float64  `json:"score"`                // Intrinsic score (content-based, position-agnostic)
 	ScoreDetails        string   `json:"score_details"`        // Explainer for debug
 	IsVisible           bool     `json:"is_visible"`
-	Visibility          float64  `json:"visibility"` // Raw visibility score (0.0 - 1.0+)
-	Badges              []string `json:"badges"`     // Ephemeral state (deferred, msfs, etc.)
+	IsDeferred          bool     `json:"is_deferred"` // Hard filter: don't pick this POI now
+	Visibility          float64  `json:"visibility"`  // Raw visibility score (0.0 - 1.0+)
+	Badges              []string `json:"badges"`      // Ephemeral state (deferred, msfs, etc.)
 	// MSFS
 	IsMSFSPOI bool `json:"is_msfs_poi"`
 	// Narration

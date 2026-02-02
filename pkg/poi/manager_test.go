@@ -237,10 +237,10 @@ func TestManager_CandidateLogic(t *testing.T) {
 	ctx := context.Background()
 
 	pois := []*model.POI{
-		{WikidataID: "P1", NameEn: "P1", Score: 10.0, IsVisible: true}, // Best
-		{WikidataID: "P2", NameEn: "P2", Score: 5.0, IsVisible: true},
-		{WikidataID: "P3", NameEn: "P3", Score: 8.0, IsVisible: true},
-		{WikidataID: "P4", NameEn: "P4", Score: 2.0, IsVisible: true}, // Worst
+		{WikidataID: "P1", NameEn: "P1", Score: 10.0, Visibility: 1.0, IsVisible: true}, // Best
+		{WikidataID: "P2", NameEn: "P2", Score: 5.0, Visibility: 1.0, IsVisible: true},
+		{WikidataID: "P3", NameEn: "P3", Score: 8.0, Visibility: 1.0, IsVisible: true},
+		{WikidataID: "P4", NameEn: "P4", Score: 2.0, Visibility: 1.0, IsVisible: true}, // Worst
 	}
 
 	for _, p := range pois {
@@ -305,15 +305,15 @@ func TestManager_GetPOIsForUI(t *testing.T) {
 
 	now := time.Now()
 	pois := []*model.POI{
-		{WikidataID: "P1", NameEn: "P1", Score: 10.0, IsVisible: true},
-		{WikidataID: "P2", NameEn: "P2", Score: 8.0, IsVisible: true},
-		{WikidataID: "P3", NameEn: "P3", Score: 8.0, IsVisible: true},
-		{WikidataID: "P4", NameEn: "P4", Score: 5.0, IsVisible: true},
-		{WikidataID: "P5", NameEn: "P5", Score: 2.0, IsVisible: true},
-		{WikidataID: "P_Played", NameEn: "P_Played", Score: 1.0, IsVisible: true, LastPlayed: now},
-		{WikidataID: "P_Played_High", NameEn: "P_Played_High", Score: 20.0, IsVisible: true, LastPlayed: now},
-		{WikidataID: "P_Invisible", NameEn: "P_Invisible", Score: 15.0, IsVisible: false},
-		{WikidataID: "P_Airport", NameEn: "P_Airport", Score: 5.0, IsVisible: true, Category: "Aerodrome"},
+		{WikidataID: "P1", NameEn: "P1", Score: 10.0, Visibility: 1.0, IsVisible: true},
+		{WikidataID: "P2", NameEn: "P2", Score: 8.0, Visibility: 1.0, IsVisible: true},
+		{WikidataID: "P3", NameEn: "P3", Score: 8.0, Visibility: 1.0, IsVisible: true},
+		{WikidataID: "P4", NameEn: "P4", Score: 5.0, Visibility: 1.0, IsVisible: true},
+		{WikidataID: "P5", NameEn: "P5", Score: 2.0, Visibility: 1.0, IsVisible: true},
+		{WikidataID: "P_Played", NameEn: "P_Played", Score: 1.0, Visibility: 1.0, IsVisible: true, LastPlayed: now},
+		{WikidataID: "P_Played_High", NameEn: "P_Played_High", Score: 20.0, Visibility: 1.0, IsVisible: true, LastPlayed: now},
+		{WikidataID: "P_Invisible", NameEn: "P_Invisible", Score: 15.0, Visibility: 1.0, IsVisible: false},
+		{WikidataID: "P_Airport", NameEn: "P_Airport", Score: 5.0, Visibility: 1.0, IsVisible: true, Category: "Aerodrome"},
 	}
 
 	for _, p := range pois {
@@ -407,11 +407,11 @@ func TestManager_GetNarrationCandidates(t *testing.T) {
 	mgr.config = &cfg
 
 	pois := []*model.POI{
-		{WikidataID: "P1", NameEn: "P1", Score: 10.0, IsVisible: true},
-		{WikidataID: "P2", NameEn: "P2", Score: 8.0, IsVisible: true},
-		{WikidataID: "P_Cooldown", NameEn: "P_Cooldown", Score: 12.0, IsVisible: true, LastPlayed: now}, // Best but Cooldown
-		{WikidataID: "P_Invisible", NameEn: "P_Invisible", Score: 15.0, IsVisible: false},               // Best but Invisible
-		{WikidataID: "P_Airport", NameEn: "P_Airport", Score: 5.0, IsVisible: true, Category: "Aerodrome"},
+		{WikidataID: "P1", NameEn: "P1", Score: 10.0, Visibility: 1.0, IsVisible: true},
+		{WikidataID: "P2", NameEn: "P2", Score: 8.0, Visibility: 1.0, IsVisible: true},
+		{WikidataID: "P_Cooldown", NameEn: "P_Cooldown", Score: 12.0, Visibility: 1.0, IsVisible: true, LastPlayed: now}, // Best but Cooldown
+		{WikidataID: "P_Invisible", NameEn: "P_Invisible", Score: 15.0, Visibility: 1.0, IsVisible: false},               // Best but Invisible
+		{WikidataID: "P_Airport", NameEn: "P_Airport", Score: 5.0, Visibility: 1.0, IsVisible: true, Category: "Aerodrome"},
 	}
 
 	for _, p := range pois {
