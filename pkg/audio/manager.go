@@ -72,6 +72,7 @@ type Manager struct {
 	trackStreamer      beep.StreamSeekCloser
 	trackFormat        beep.Format
 	config             *config.NarratorConfig
+	onComplete         func()
 }
 
 // New creates a new Manager instance.
@@ -132,6 +133,7 @@ func (m *Manager) Play(filepath string, startPaused bool, onComplete func()) err
 	m.isPaused = startPaused
 
 	// Play with callback to clean up when done
+	m.onComplete = onComplete
 	speaker.Play(beep.Seq(m.ctrl, beep.Callback(func() {
 		// Launch goroutine to handle pause and cleanup without blocking the speaker thread
 		go func() {
@@ -143,11 +145,13 @@ func (m *Manager) Play(filepath string, startPaused bool, onComplete func()) err
 			m.mu.Lock()
 			m.ctrl = nil
 			m.isPaused = false
+			callback := m.onComplete
+			m.onComplete = nil
 			m.mu.Unlock()
 			streamer.Close()
 
-			if onComplete != nil {
-				onComplete()
+			if callback != nil {
+				callback()
 			}
 		}()
 	})))
@@ -218,6 +222,14 @@ func (m *Manager) stopLocked() {
 		speaker.Clear()
 		m.ctrl = nil
 		m.isPaused = false
+
+		// If we have a pending callback, call it now as we've stopped playback
+		if m.onComplete != nil {
+			callback := m.onComplete
+			m.onComplete = nil
+			// Call in a goroutine to avoid deadlocks if callback calls back into manager
+			go callback()
+		}
 	}
 }
 

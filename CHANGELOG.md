@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.113 (2026-02-02)
+- **Fix**: **Playback Skip Regression**. Resolved an issue where skipping a narration blocked future audio output. The audio manager now correctly triggers the completion callback on `Stop()`, ensuring internal state is reset.
+- **Improved**: Decentralized skip logic to the `Orchestrator` for better state management and pacing control.
+
+
 ## v0.3.112 (2026-02-02)
 - **Feature**: **Multi-Target Beacons**. Replaced the persistence toggle with a configurable quota system (`beacon.max_targets`), supporting multiple persistent target balloons (default 2).
 - **Improved**: **Independent Physics**. Each target balloon now tracks its own position and sinking logic independently, while formation balloons follow the active target.

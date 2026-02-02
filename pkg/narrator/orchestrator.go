@@ -255,7 +255,12 @@ func (o *Orchestrator) setPlaybackState(n *model.Narrative) string {
 }
 
 func (o *Orchestrator) finalizePlayback() {
-	time.Sleep(o.pacingDuration)
+	// If Skip was called, audio.Stop() should have triggered finalizePlayback
+	// via the onComplete callback. We just need to make sure we don't sleep
+	// if we're skipping.
+	if !o.ShouldSkipCooldown() {
+		time.Sleep(o.pacingDuration)
+	}
 
 	o.mu.Lock()
 	o.active = false
@@ -339,7 +344,19 @@ func (o *Orchestrator) IsPOIBusy(poiID string) bool {
 
 func (o *Orchestrator) Pause()  { o.audio.SetUserPaused(true); o.audio.Pause() }
 func (o *Orchestrator) Resume() { o.audio.ResetUserPause(); o.audio.Resume() }
-func (o *Orchestrator) Skip()   { o.audio.Stop() }
+func (o *Orchestrator) Skip() {
+	o.mu.Lock()
+	if !o.active {
+		o.mu.Unlock()
+		return
+	}
+	o.mu.Unlock()
+
+	slog.Info("Orchestrator: Skipping current narration", "title", o.currentTitle)
+	o.SkipCooldown()
+	o.audio.Stop()
+	// audio.Stop() will trigger finalizePlayback via the onComplete callback
+}
 func (o *Orchestrator) TriggerIdentAction() {
 	// Implement based on what we see in AIService
 }

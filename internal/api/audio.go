@@ -72,9 +72,8 @@ func (h *AudioHandler) HandleControl(w http.ResponseWriter, r *http.Request) {
 		h.audio.Stop()
 		state = "stopped"
 	case "skip":
-		h.audio.Stop()
+		h.narrator.Skip()
 		h.audio.ResetUserPause()
-		h.narrator.SkipCooldown()
 		state = "skipped"
 	case "replay":
 		if !h.narrator.ReplayLast(r.Context()) {

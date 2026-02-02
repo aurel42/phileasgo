@@ -3,8 +3,11 @@ package audio
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"phileasgo/pkg/config"
+
+	"github.com/gopxl/beep/v2"
 )
 
 func TestNew(t *testing.T) {
@@ -136,6 +139,28 @@ func TestManager_StateAccessors(t *testing.T) {
 				t.Error(err)
 			}
 		})
+	}
+}
+
+func TestStopCallback(t *testing.T) {
+	m := New(&config.NarratorConfig{})
+	callbackCalled := make(chan bool, 1)
+
+	m.mu.Lock()
+	m.onComplete = func() {
+		callbackCalled <- true
+	}
+	// Manually set ctrl to simulate active playback
+	m.ctrl = &beep.Ctrl{}
+	m.mu.Unlock()
+
+	m.Stop()
+
+	select {
+	case <-callbackCalled:
+		// Success
+	case <-time.After(time.Second):
+		t.Error("onComplete callback was not called after Stop")
 	}
 }
 
