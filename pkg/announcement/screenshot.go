@@ -85,12 +85,12 @@ func (s *Screenshot) Title() string {
 }
 
 func (s *Screenshot) ImagePath() string {
-	// The frontend API expects a generic path that the backend serves
-	// The legacy code used: "/api/images/serve?path=" + job.ImagePath
-	if s.currentPath == "" {
-		return ""
-	}
-	return "/api/images/serve?path=" + s.currentPath
+	return s.currentPath
+}
+
+// RawPath returns the raw file system path for LLM image analysis.
+func (s *Screenshot) RawPath() string {
+	return s.currentPath
 }
 
 // Reset clears the current path

@@ -138,6 +138,9 @@ func (s *AIService) constructNarrative(req *GenerationRequest, script, extracted
 		finalTitle = extractedTitle
 	}
 
+	// For screenshots, we preserve the raw path in ImagePath
+	imagePath := req.ImagePath
+
 	n := &model.Narrative{
 		Type:           req.Type,
 		Title:          finalTitle,
@@ -153,7 +156,7 @@ func (s *AIService) constructNarrative(req *GenerationRequest, script, extracted
 
 		// Context passthrough
 		POI:          req.POI,
-		ImagePath:    req.ImagePath,
+		ImagePath:    imagePath,
 		ThumbnailURL: req.ThumbnailURL,
 		Summary:      req.Summary,
 		Lat:          req.Lat,

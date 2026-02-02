@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sync"
 
+	"net/url"
 	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
@@ -118,42 +119,14 @@ func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
 
 // HandleStatus handles GET /api/narrator/status
 func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
-	status := "idle"
+	status := h.getPlaybackStatus()
 	isActive := h.narrator.IsActive()
-	isUserPaused := h.audio.IsUserPaused()
+	freq, textLen := h.getSyncConfig(r.Context())
 
-	if isUserPaused {
-		status = "paused"
-	} else if isActive {
-		// If narrator is active, check audio state
-		switch {
-		case h.audio.IsPlaying():
-			status = "playing"
-		case h.audio.IsBusy():
-			// Busy but not playing = Paused
-			status = "paused"
-		case h.narrator.IsGenerating():
-			// Active and generating = preparing
-			status = "preparing"
-		default:
-			// Active but not playing/generating = Cooldown/Finishing
-			status = "idle"
-		}
-	}
-
-	// Fetch current config from store to allow synchronization
-	ctx := r.Context()
-	freq := 3
-	if fStr, ok := h.store.GetState(ctx, "narration_frequency"); ok && fStr != "" {
-		if val, err := strconv.Atoi(fStr); err == nil {
-			freq = val
-		}
-	}
-	textLen := 3
-	if tStr, ok := h.store.GetState(ctx, "text_length"); ok && tStr != "" {
-		if val, err := strconv.Atoi(tStr); err == nil {
-			textLen = val
-		}
+	displayThumbnail := h.narrator.CurrentThumbnailURL()
+	currentImg := h.narrator.CurrentImagePath()
+	if h.narrator.CurrentType() == model.NarrativeTypeScreenshot && displayThumbnail == "" && currentImg != "" {
+		displayThumbnail = "/api/images/serve?path=" + url.QueryEscape(currentImg)
 	}
 
 	resp := NarratorStatusResponse{
@@ -163,9 +136,9 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		PreparingPOI:       h.narrator.GetPreparedPOI(),
 		CurrentTitle:       h.narrator.CurrentTitle(),
 		CurrentType:        string(h.narrator.CurrentType()),
-		CurrentImagePath:   h.narrator.CurrentImagePath(),
+		CurrentImagePath:   currentImg,
 		DisplayTitle:       h.narrator.CurrentTitle(),
-		DisplayThumbnail:   h.narrator.CurrentThumbnailURL(),
+		DisplayThumbnail:   displayThumbnail,
 		NarratedCount:      h.narrator.NarratedCount(),
 		Stats:              h.narrator.Stats(),
 		NarrationFrequency: freq,
@@ -186,6 +159,50 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Error("Failed to encode response", "error", err)
 	}
+}
+
+func (h *NarratorHandler) getPlaybackStatus() string {
+	if h.audio.IsUserPaused() {
+		return "paused"
+	}
+
+	if !h.narrator.IsActive() {
+		return "idle"
+	}
+
+	// If narrator is active, check audio state
+	switch {
+	case h.audio.IsPlaying():
+		return "playing"
+	case h.audio.IsBusy():
+		// Busy but not playing = Paused
+		return "paused"
+	case h.narrator.IsGenerating():
+		// Active and generating = preparing
+		return "preparing"
+	default:
+		// Active but not playing/generating = Cooldown/Finishing
+		return "idle"
+	}
+}
+
+func (h *NarratorHandler) getSyncConfig(ctx context.Context) (freq, textLen int) {
+	freq = 3
+	textLen = 3
+
+	if fStr, ok := h.store.GetState(ctx, "narration_frequency"); ok && fStr != "" {
+		if val, err := strconv.Atoi(fStr); err == nil {
+			freq = val
+		}
+	}
+
+	if tStr, ok := h.store.GetState(ctx, "text_length"); ok && tStr != "" {
+		if val, err := strconv.Atoi(tStr); err == nil {
+			textLen = val
+		}
+	}
+
+	return freq, textLen
 }
 
 // HandleClearImage handles POST /api/narrator/clear-image

@@ -108,9 +108,9 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
             displayTitle = displayTitle || 'Regional Essay';
         }
 
-        const screenshotUrl = (currentType === 'screenshot' && narratorStatus?.current_image_path)
-            ? `/api/images/serve?path=${encodeURIComponent(narratorStatus.current_image_path)}`
-            : null;
+        		const screenshotUrl = (currentType === 'screenshot' && narratorStatus?.display_thumbnail)
+			? narratorStatus.display_thumbnail
+			: null;
 
         return (
             <div className="poi-info-panel generic-narration" style={{ display: 'flex', gap: '12px' }}>

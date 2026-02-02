@@ -47,6 +47,7 @@ function App() {
 
   // POI selection state (lifted from Map.tsx)
   const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
+  const [showGenericPanel, setShowGenericPanel] = useState(false);
   const autoOpenedRef = useRef(false);
   const userDismissedRef = useRef<string | null>(null); // Track ID of user-dismissed POI
   const lastAutoOpenedIdRef = useRef<string | null>(null); // Track ID of last auto-opened POI to prevent loops
@@ -90,6 +91,7 @@ function App() {
       if (lastAutoOpenedIdRef.current !== title) {
         lastAutoOpenedIdRef.current = title;
         // Since we don't have a POI, the render logic handles showing the generic panel
+        setShowGenericPanel(true);
         autoOpenedRef.current = true;
       }
     }
@@ -104,6 +106,7 @@ function App() {
 
     if ((isIdle || (isPlayingNonPoi && !isSpecialType)) && autoOpenedRef.current) {
       setSelectedPOI(null);
+      setShowGenericPanel(false);
       autoOpenedRef.current = false;
       lastAutoOpenedIdRef.current = null;
     }
@@ -122,6 +125,7 @@ function App() {
       userDismissedRef.current = selectedPOI.wikidata_id; // Suppress auto-open for this POI
     }
     setSelectedPOI(null);
+    setShowGenericPanel(false);
     autoOpenedRef.current = false;
   }, [selectedPOI]);
 
@@ -330,7 +334,7 @@ function App() {
       </div>
       <div className="dashboard-container">
         <PlaybackControls />
-        {(selectedPOI || (narratorStatus?.playback_status === 'playing' && (narratorStatus?.current_type === 'debriefing' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot'))) ? (
+        {(selectedPOI || showGenericPanel) ? (
           <POIInfoPanel
             key={selectedPOI?.wikidata_id || (narratorStatus?.current_type + '-' + narratorStatus?.current_title)}
             poi={selectedPOI}

@@ -37,7 +37,7 @@ type Item interface {
 	// UI Metadata
 	Title() string
 	Summary() string
-	ImagePath() string
+	ImagePath() string // Raw local path (for screenshots)
 	POI() *model.POI
 
 	// Pipeline Data (Managed by the infrastructure)

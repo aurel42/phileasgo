@@ -1,10 +1,12 @@
 package announcement
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
 )
 
@@ -56,5 +58,22 @@ func TestLetsgo_Triggers(t *testing.T) {
 				t.Errorf("ShouldPlay for %s: expected %v, got %v", tt.name, tt.expectedPlay, got)
 			}
 		})
+	}
+}
+
+func TestLetsgo_GetPromptData(t *testing.T) {
+	dp := &mockDP{
+		AssembleGenericFunc: func(ctx context.Context, tel *sim.Telemetry) prompt.Data {
+			return prompt.Data{"Language": "en"}
+		},
+	}
+	a := NewLetsgo(config.DefaultConfig(), dp, dp)
+	data, err := a.GetPromptData(&sim.Telemetry{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := data.(prompt.Data)
+	if d["Language"] != "en" {
+		t.Error("Expected Language en")
 	}
 }

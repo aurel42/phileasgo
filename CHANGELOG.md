@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.104 (2026-02-02)
+- Fixed broken screenshot images by implementing clean URL wrapping in the delivery layer.
+- Fixed an issue where the visual info panel could not be closed for non-POI narrations.
+- Refactored backend API handlers for improved maintainability.
+
 ## v0.3.103 (2026-02-01)
 - **Fix**: **Debriefing Trip Summary**. Fixed empty trip summary in debriefing prompts by using the event-based summary instead of the deprecated legacy field.
 - **Cleanup**: Removed legacy `GetTripSummary()` interface and implementations, replaced by event-based `formatTripLog()`.

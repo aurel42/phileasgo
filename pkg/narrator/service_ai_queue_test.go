@@ -2,10 +2,17 @@ package narrator
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"phileasgo/pkg/announcement"
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/generation"
+	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/playback"
+	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/session"
+	"phileasgo/pkg/sim"
 	"testing"
 )
 
@@ -78,3 +85,94 @@ func TestAIService_ManualOverrides(t *testing.T) {
 		t.Errorf("expected Q1, got %s (ok=%v)", id, ok)
 	}
 }
+
+func TestAIService_RecordNarration(t *testing.T) {
+	// Setup Prompts Dir
+	tmpDir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(tmpDir, "narrator"), 0o755)
+	_ = os.WriteFile(filepath.Join(tmpDir, "narrator", "event_summary.tmpl"), []byte("Summary: {{.LastTitle}}"), 0o644)
+	pm, _ := prompts.NewManager(tmpDir)
+
+	sess := session.NewManager(nil)
+	svc := &AIService{
+		sessionMgr: sess,
+		cfg:        config.DefaultConfig(),
+		prompts:    pm,
+		llm:        &MockLLM{Response: "Summary: Test"},
+	}
+	svc.promptAssembler = prompt.NewAssembler(svc.cfg, nil, svc.prompts, nil, nil, nil, svc.llm, nil, nil)
+
+	n := &model.Narrative{
+		Title:  "Test Title",
+		Script: "Test Script",
+		Type:   model.NarrativeTypePOI,
+		POI:    &model.POI{WikidataID: "Q123"},
+	}
+
+	// This calls AddNarration and starts a goroutine for summarizeAndLogEvent
+	svc.RecordNarration(context.Background(), n)
+
+	// Since we can't easily wait for the goroutine in a unit test without mocks,
+	// we just verify the narration was added to the session history via events.
+	// Actually, session.Manager.AddNarration just sets LastSentence.
+	// AddEvent is called in a goroutine.
+
+	// Let's check state
+	state := sess.GetState()
+	if state.LastSentence == "" {
+		t.Error("expected LastSentence to be updated")
+	}
+}
+
+func TestAIService_HandleAnnouncementJob(t *testing.T) {
+	// Setup Prompts Dir (reuse same pattern as RecordNarration if needed, or just mock)
+	tmpDir := t.TempDir()
+	pm, _ := prompts.NewManager(tmpDir)
+
+	svc := &AIService{
+		prompts: pm,
+	}
+	// Mock announcement
+	a := &mockAnnouncement{
+		itemType: model.NarrativeTypeLetsgo,
+		title:    "Let's Go",
+	}
+
+	job := &generation.Job{
+		Type:         model.NarrativeTypeLetsgo,
+		Announcement: a,
+	}
+
+	// handleAnnouncementJob expects a prompt Data return from GetPromptData
+	// and a template to be available. We'll verify it handles nil data/missing templates gracefully
+	// or returns nil since we didn't setup the whole environment.
+	req := svc.handleAnnouncementJob(context.Background(), job)
+	if req != nil {
+		// It should fail because service.prompts is nil
+		t.Error("expected nil request due to missing prompts manager")
+	}
+}
+
+type mockAnnouncement struct {
+	itemType model.NarrativeType
+	title    string
+	held     *model.Narrative
+}
+
+func (m *mockAnnouncement) Type() model.NarrativeType { return m.itemType }
+func (m *mockAnnouncement) ID() string                { return "mock" }
+func (m *mockAnnouncement) Title() string             { return m.title }
+func (m *mockAnnouncement) Summary() string           { return "summary" }
+func (m *mockAnnouncement) ImagePath() string         { return "" }
+func (m *mockAnnouncement) POI() *model.POI           { return nil }
+func (m *mockAnnouncement) GetPromptData(t *sim.Telemetry) (any, error) {
+	return map[string]any{"MaxWords": 100}, nil
+}
+func (m *mockAnnouncement) ShouldGenerate(t *sim.Telemetry) bool { return true }
+func (m *mockAnnouncement) ShouldPlay(t *sim.Telemetry) bool     { return true }
+func (m *mockAnnouncement) Status() announcement.Status          { return announcement.StatusIdle }
+func (m *mockAnnouncement) Reset()                               {}
+func (m *mockAnnouncement) SetStatus(s announcement.Status)      {}
+func (m *mockAnnouncement) GetHeldNarrative() *model.Narrative   { return m.held }
+func (m *mockAnnouncement) SetHeldNarrative(n *model.Narrative)  { m.held = n }
+func (m *mockAnnouncement) IsRepeatable() bool                   { return true }

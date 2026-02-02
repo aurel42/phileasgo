@@ -244,7 +244,7 @@ func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.J
 		}
 	}
 
-	return &GenerationRequest{
+	req := &GenerationRequest{
 		Type:          job.Type,
 		Prompt:        promptBody,
 		Title:         job.Announcement.Title(),
@@ -256,4 +256,11 @@ func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.J
 		ThumbnailURL:  job.Announcement.ImagePath(),
 		POI:           job.Announcement.POI(),
 	}
+
+	// For screenshots, set raw path for LLM image analysis and API URL for UI
+	if ss, ok := job.Announcement.(*announcement.Screenshot); ok {
+		req.ImagePath = ss.RawPath() // Raw path for LLM GenerateImageText
+	}
+
+	return req
 }
