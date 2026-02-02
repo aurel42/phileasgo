@@ -6,119 +6,158 @@ import (
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/sim"
+	"phileasgo/pkg/visibility"
 )
 
-func TestDefaultSession_DetermineDeferral(t *testing.T) {
-	s := &Scorer{
-		config: &config.ScorerConfig{
-			DeferralEnabled:   true,
-			DeferralThreshold: 0.75,
+// setupDeferralScorer creates a Scorer with a visibility calculator for testing
+func setupDeferralScorer() *Scorer {
+	scorerCfg := &config.ScorerConfig{
+		DeferralEnabled:   true,
+		DeferralThreshold: 1.1, // New default
+	}
+
+	// Simple visibility manager:
+	// Alt 1000ft: SizeM visible up to 10nm
+	visMgr := visibility.NewManagerForTest([]visibility.AltitudeRow{
+		{
+			AltAGL: 1000,
+			Distances: map[visibility.SizeType]float64{
+				visibility.SizeM: 20.0,
+			},
 		},
+	})
+	visCalc := visibility.NewCalculator(visMgr, nil)
+
+	// Mock other dependencies
+	catCfg := &config.CategoriesConfig{Categories: map[string]config.Category{}}
+	return NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, false)
+}
+
+func TestDefaultSession_DetermineDeferral(t *testing.T) {
+	s := setupDeferralScorer()
+
+	// Base Telemetry: 1000ft AGL, Heading North (0)
+	baseTel := sim.Telemetry{
+		Latitude:    0.0,
+		Longitude:   0.0,
+		AltitudeAGL: 1000,
+		Heading:     0,
+		GroundSpeed: 60, // 1nm/min
+		IsOnGround:  false,
 	}
 
-	// Mock future positions: +1, +3, +5, +10, +15 minutes
-	// For testing, let's assume GS=60kts (1nm per min) heading NORTH (0deg)
-	// Aircraft is at (0,0) at t=0
+	// Mock future positions: straight North at 60kts
+	// 0, 1, 3, 5, 10, 15 nm North
 	futurePositions := []geo.Point{
-		{Lat: 1.0 / 60.0, Lon: 0},  // +1 min (1nm north)
-		{Lat: 3.0 / 60.0, Lon: 0},  // +3 min (3nm north)
-		{Lat: 5.0 / 60.0, Lon: 0},  // +5 min (5nm north)
-		{Lat: 10.0 / 60.0, Lon: 0}, // +10 min (10nm north)
-		{Lat: 15.0 / 60.0, Lon: 0}, // +15 min (15nm north)
-	}
-
-	sess := &DefaultSession{
-		scorer:          s,
-		futurePositions: futurePositions,
+		{Lat: 1.0 / 60.0, Lon: 0},
+		{Lat: 3.0 / 60.0, Lon: 0},
+		{Lat: 5.0 / 60.0, Lon: 0},
+		{Lat: 10.0 / 60.0, Lon: 0},
+		{Lat: 15.0 / 60.0, Lon: 0},
 	}
 
 	tests := []struct {
-		name              string
-		poiPos            geo.Point
-		heading           float64
-		visibility        float64
-		timeToBehind      float64 // -1 means not set
-		expectDeferred    bool
+		name           string
+		poiPos         geo.Point
+		heading        float64
+		timeToBehind   float64 // -1 means not set
+		expectDeferred bool
 	}{
 		{
-			name:           "Classic Approach - Low Visibility (Defer)",
-			poiPos:         geo.Point{Lat: 15.0 / 60.0, Lon: 0}, // 15nm North
+			name: "Fly-By: Improve Angle (Defer)",
+			// POI is 5nm North, 2nm East.
+			// Currently: Bearing ~22 deg (Right Front).
+			// Future (+5m): Will be at 5nm North -> POI is abeam (90 deg).
+			// Vis Calc gives bonus for side view vs front view?
+			// Let's check Vis Calc logic:
+			// < 90: 1.0 (Right Front)
+			// < 225: 0.0 (Rear)
+			// < 270: 0.5 (Left Rear)
+			// < 300: 1.5 (Left Side)
+			// < 330: 2.0 (Left Front - Best)
+			// So right side is 1.0. Left Front is 2.0.
+			// Let's put POI on LEFT side to test optimization.
+			// POI: 10nm North, 2nm West.
+			// Current (0,0): Bearing ~350 (Forward Left - x1.5). Dist ~10nm. Vis Score ~0.5 * 1.5 = 0.75
+			// Future (+5m): At 5nm North. Bearing ~340 (Forward Left/Left Best). Dist ~5nm. Vis Score ~0.75 * 2.0 = 1.5
+			// Future much better -> Defer.
+			poiPos:         geo.Point{Lat: 10.0 / 60.0, Lon: -2.0 / 60.0},
 			heading:        0,
-			visibility:     0.2, // Below threshold (0.4)
 			timeToBehind:   -1,
 			expectDeferred: true,
-			// Close Group (1, 3): BestClose = 12nm
-			// Far Group (5, 10, 15): BestFar = 0nm
-			// 0 < 0.75 * 12 -> DEFER
 		},
 		{
-			name:           "Classic Approach - Good Visibility (No Defer)",
-			poiPos:         geo.Point{Lat: 15.0 / 60.0, Lon: 0}, // 15nm North
+			name: "Already Best View (No Defer)",
+			// POI: 2nm North, 1nm West.
+			// Current: Bearing ~330 (Left Front Best x2.0). Dist ~2.2nm.
+			// Future (+1m): At 1nm North. Bearing ~315 (Left Front Best x2.0). Dist ~1.4nm.
+			// Future (+3m): At 3nm North. POI is Behind (Rear). Vis 0.
+			// We are at peak visibility or close to it.
+			// Distance improves slightly (2.2 -> 1.4), so score goes up due to proximity.
+			// 2.2nm / 20nm = 0.11 -> Vis 0.89 * 2 = 1.78
+			// 1.4nm / 20nm = 0.07 -> Vis 0.93 * 2 = 1.86
+			// Improvement: 1.86 / 1.78 = 1.04.
+			// Threshold is 1.1. 1.04 < 1.1 -> No Defer.
+			poiPos:         geo.Point{Lat: 2.0 / 60.0, Lon: -1.0 / 60.0},
 			heading:        0,
-			visibility:     0.5, // Above threshold (0.4)
 			timeToBehind:   -1,
 			expectDeferred: false,
-			// Good visibility overrides deferral
 		},
 		{
-			name:           "Approaching but Urgent (No Defer)",
-			poiPos:         geo.Point{Lat: 15.0 / 60.0, Lon: 0}, // 15nm North
+			name: "Urgent POI (No Defer)",
+			// Even if future is better, if urgent, play now.
+			poiPos:         geo.Point{Lat: 10.0 / 60.0, Lon: -2.0 / 60.0}, // Same as "Fly-By"
 			heading:        0,
-			visibility:     0.2,
-			timeToBehind:   180, // 3 minutes - urgent
+			timeToBehind:   120, // 2 mins remaining
 			expectDeferred: false,
-			// Urgent POIs should not be deferred
 		},
 		{
-			name:           "Already Close (No Defer)",
-			poiPos:         geo.Point{Lat: 4.0 / 60.0, Lon: 0}, // 4nm North
+			name: "Entering Blind Spot (No Defer)",
+			// Flying directly over POI.
+			// Current: 2nm North. Vis ~0.9.
+			// Future (+1m): 1nm North. Vis ~0.95.
+			// Improvement ~1.05x < 1.1x Threshold -> No Defer -> Play Now.
+			// Ideally we don't want to wait until 0.1nm to start playing 30s audio.
+			poiPos:         geo.Point{Lat: 2.0 / 60.0, Lon: 0.0001},
 			heading:        0,
-			visibility:     0.3,
-			timeToBehind:   -1,
-			expectDeferred: false,
-			// All Far points are invalid/behind -> no defer
-		},
-		{
-			name:           "Mid-Range Approach (Defer)",
-			poiPos:         geo.Point{Lat: 8.0 / 60.0, Lon: 0}, // 8nm North
-			heading:        0,
-			visibility:     0.3,
-			timeToBehind:   -1,
-			expectDeferred: true,
-			// Close Group: BestClose = 5nm
-			// Far Group: BestFar = 3nm
-			// 3 < 0.75 * 5 -> DEFER
-		},
-		{
-			name:           "POI Side Tangent - Steady Distance (No Defer)",
-			poiPos:         geo.Point{Lat: 5.0 / 60.0, Lon: 5.0 / 60.0}, // 5nm North, 5nm East
-			heading:        0,
-			visibility:     0.3,
 			timeToBehind:   -1,
 			expectDeferred: false,
-			// Distance stays roughly the same, no significant improvement
-		},
-		{
-			name:           "POI Side Tangent - Converging (Defer)",
-			poiPos:         geo.Point{Lat: 15.0 / 60.0, Lon: 2.0 / 60.0}, // 15nm North, 2nm East
-			heading:        0,
-			visibility:     0.2,
-			timeToBehind:   -1,
-			expectDeferred: true,
-			// Will be much closer later
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			input := &ScoringInput{
+				Telemetry:       baseTel,
+				CategoryHistory: []string{},
+				BoostFactor:     1.0,
+			}
+			sess := &DefaultSession{
+				scorer:          s,
+				input:           input,
+				futurePositions: futurePositions,
+			}
+
 			poi := &model.POI{
 				Lat:          tt.poiPos.Lat,
 				Lon:          tt.poiPos.Lon,
 				TimeToBehind: tt.timeToBehind,
+				Category:     "Church", // Size M
 			}
-			result := sess.determineDeferral(poi, tt.heading, tt.visibility)
+
+			// Pre-calculate current visibility (usually done in Calculate)
+			bearing := geo.Bearing(geo.Point{Lat: 0, Lon: 0}, tt.poiPos)
+			distNM := geo.Distance(geo.Point{Lat: 0, Lon: 0}, tt.poiPos) / 1852.0
+			curVis := s.visCalc.CalculateVisibility(tt.heading, 1000, bearing, distNM, false, 1.0)
+
+			// For testing "No Defer" because of blind spot, we need to ensure current vis > 0
+			// s.visCalc is mocked to return >0 if <20nm
+
+			result := sess.determineDeferral(poi, tt.heading, curVis)
+
 			if result != tt.expectDeferred {
-				t.Errorf("expected IsDeferred=%v, got %v", tt.expectDeferred, result)
+				t.Errorf("expected IsDeferred=%v, got %v (Current Vis: %.2f)", tt.expectDeferred, result, curVis)
 			}
 		})
 	}

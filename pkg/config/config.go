@@ -279,7 +279,7 @@ type ScorerConfig struct {
 	GroupPenalty        float64 `yaml:"group_penalty"`
 	// Deferral settings: wait for optimal viewing moment
 	DeferralEnabled    bool         `yaml:"deferral_enabled"`    // Enable deferral logic
-	DeferralThreshold  float64      `yaml:"deferral_threshold"`  // Defer if future dist < threshold * current (default 0.75 = 25% closer)
+	DeferralThreshold  float64      `yaml:"deferral_threshold"`  // Defer if max future visibility > threshold * current (default 1.1)
 	DeferralMultiplier float64      `yaml:"deferral_multiplier"` // Score multiplier when deferred (default 0.1)
 	PregroundBoost     int          `yaml:"preground_boost"`     // Virtual article length boost for pregrounding categories (default 4000)
 	Badges             BadgesConfig `yaml:"badges"`

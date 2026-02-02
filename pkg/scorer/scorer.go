@@ -214,76 +214,52 @@ func (sess *DefaultSession) calculateIntrinsicScore(poi *model.POI) (score float
 // determineDeferral checks if we should defer this POI because we'll have a better view later.
 // Returns true if the POI should be deferred (excluded from selection).
 // Deferral conditions:
-// - Future position (5-15 min) is 25%+ closer than near-term (1-3 min)
-// - POI is currently far (visibility < threshold)
+// - Max Future Visibility > Current Visibility * Threshold
 // - POI is not urgent (TimeToBehind > 5 min or -1)
 func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVisibility float64) bool {
-	// Don't defer if visibility is already good (close enough to see well)
-	// Threshold: 0.4 means only defer POIs with less than 40% visibility
-	const visibilityThreshold = 0.4
-	if currentVisibility >= visibilityThreshold {
-		return false
-	}
-
 	// Don't defer urgent POIs (about to disappear)
 	if poi.TimeToBehind > 0 && poi.TimeToBehind < 300 { // < 5 minutes
 		return false
 	}
 
 	// Check if we have valid future positions
-	if len(sess.futurePositions) != 5 {
+	if len(sess.futurePositions) == 0 {
 		return false
 	}
 
 	poiPoint := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
-	bestClose, bestFar := sess.getDeferralDistances(poiPoint, heading)
 
-	// If all "Close" positions are behind or invalid, we can't compare for deferral.
-	if math.IsInf(bestClose, 1) {
-		return false
+	// Prepare parameters for visibility calc
+	altAGL := sess.input.Telemetry.AltitudeAGL
+	isOnGround := sess.input.Telemetry.IsOnGround
+	boost := sess.input.BoostFactor
+	if boost < 1.0 {
+		boost = 1.0
 	}
 
-	// If all "Far" positions are behind or invalid, we are moving away/past it.
-	if math.IsInf(bestFar, 1) {
-		return false
+	// Calculate Max Future Visibility
+	maxFutureVis := 0.0
+	for _, pos := range sess.futurePositions {
+		bearingToPOI := geo.Bearing(pos, poiPoint)
+		distMeters := geo.Distance(pos, poiPoint)
+		distNM := distMeters / 1852.0
+
+		// Use the same lowestElev for simplicity (or we could recalculate if we had a grid)
+		visScore := sess.scorer.visCalc.CalculateVisibility(heading, altAGL, bearingToPOI, distNM, isOnGround, boost)
+
+		if visScore > maxFutureVis {
+			maxFutureVis = visScore
+		}
 	}
 
-	// Defer if bestFar is significantly closer than bestClose
 	threshold := sess.scorer.config.DeferralThreshold
 	if threshold <= 0 {
-		threshold = 0.75 // Default: defer if 25%+ closer
+		threshold = 1.1 // Default: defer if 10% better visibility later
 	}
 
-	return bestFar < threshold*bestClose
-}
-
-// getDeferralDistances calculates min distances for close (1-3m) and far (5-15m) buckets.
-func (sess *DefaultSession) getDeferralDistances(poiPoint geo.Point, heading float64) (bestClose, bestFar float64) {
-	// Group 1: Close (1m, 3m) -> indices 0, 1
-	bestClose = sess.minDistInRange(poiPoint, heading, []int{0, 1})
-	// Group 2: Far (5m, 10m, 15m) -> indices 2, 3, 4
-	bestFar = sess.minDistInRange(poiPoint, heading, []int{2, 3, 4})
-	return
-}
-
-// minDistInRange finds the minimum valid (forward-facing) distance in nautical miles.
-func (sess *DefaultSession) minDistInRange(poiPoint geo.Point, heading float64, indices []int) float64 {
-	minD := math.Inf(1)
-	for _, idx := range indices {
-		if idx >= len(sess.futurePositions) {
-			continue
-		}
-		pos := sess.futurePositions[idx]
-		bearingToPOI := geo.Bearing(pos, poiPoint)
-		if math.Abs(geo.NormalizeAngle(bearingToPOI-heading)) > 90 {
-			continue
-		}
-		d := geo.Distance(pos, poiPoint) / 1852.0
-		if d < minD {
-			minD = d
-		}
-	}
-	return minD
+	// If current is 0 (blind spot/far), and future is >0, this naturally returns true (defer).
+	// If current is 0.5, defer if future > 0.55
+	return maxFutureVis > currentVisibility*threshold
 }
 
 // calculateUrgencyMetrics calculates TimeToBehind (TTB) and TimeToCPA (TTCPA).

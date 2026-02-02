@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.109 (2026-02-02)
+- **Feature**: **Visibility-Based Deferral**. Replaced distance-only deferral with a visibility prediction model. The system now accounts for bearing, window framing, and blind spots to wait for the "cinematic" angle (10-11 o'clock) rather than just waiting for proximity.
+- **Config**: Updated default `deferral_threshold` to 1.1 (defer if future visibility is 10% better).
+
 ## v0.3.108 (2026-02-02)
 - Restored transponder IDENT button functionality (pause/resume, skip, stop).
 - Fixed screenshot watcher only triggering once per session (now repeatable).
