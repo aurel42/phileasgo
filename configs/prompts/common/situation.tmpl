@@ -17,5 +17,9 @@ We are **{{.Movement}}** {{.POINameUser}}.
 - **Direction**: {{.ClockPos}} o'clock ({{.RelativeDir}})
 - **Distance**: {{if eq .UnitSystem "metric"}}{{.DistKm}} km{{else if eq .UnitSystem "hybrid"}}{{.DistKm}} km{{else}}{{.DistNm}} miles{{end}}
 - **Bearing**: {{printf "%.0f" .Bearing}}° ({{.CardinalDir}})
+{{if .TestingSecretWordForTonight}}
+### ASSIGNED THEME
+The Theme or Topic for this trip is {{.TestingSecretWordForTonight}}. Incorporate the concept into the script without mentioning it verbatim whenever it makes sense.
+{{end}}
 {{end}}
 {{end}}

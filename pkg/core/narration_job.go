@@ -301,11 +301,7 @@ func (j *NarrationJob) isPlayable(p *model.POI) bool {
 	if j.narrator.IsPOIBusy(p.WikidataID) {
 		return false
 	}
-
-	if p.LastPlayed.IsZero() {
-		return true
-	}
-	return time.Since(p.LastPlayed) >= time.Duration(j.cfg.Narrator.RepeatTTL)
+	return !p.IsOnCooldown(time.Duration(j.cfg.Narrator.RepeatTTL))
 }
 
 // hasEligiblePOI returns true if there is at least one visible POI candidate.

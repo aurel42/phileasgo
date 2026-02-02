@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.115 (2026-02-02)
+- **Feature**: **Experimental Style Controls**. Added two new narrator config options for testing: `testing_in_the_style_of` (writes scripts in a specified style) and `testing_secret_word_for_tonight` (weaves a theme into narrations without mentioning it verbatim).
+- **Refactor**: **Consolidated POI Cooldown Logic**. Added `IsOnCooldown(ttl)` method to the POI model, replacing duplicated cooldown checks across scorer, manager, narration job, and briefing modules.
+
 ## v0.3.114 (2026-02-02)
 - **Refactor**: **Layered Prompt System**. Transitioned to a modular, stratified prompt architecture with shared core layers (`Identity`, `Voice`, `Constraints`, `Situation`).
 - **Feature**: **Dynamic Navigation Logic**. Moved navigation and flight status humanization from backend code to templates, utilizing new raw telemetry primitives.

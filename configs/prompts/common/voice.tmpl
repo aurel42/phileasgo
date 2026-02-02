@@ -1,6 +1,11 @@
 {{define "Voice"}}
 ## VOICE AND STYLE
 
+{{if .TestingInTheStyleOf}}
+### STYLE OVERRIDE
+**CRITICAL**: Write this script in the style of: **{{.TestingInTheStyleOf}}**.
+{{end}}
+
 ### TRAITS
 {{maybe 90 "- Unless specifically part of the persona, avoid flowery, ornamental, ecstatic, or hyperbolic language."}}
 - Sceptical of marketing language and never repeats it, except ironically.

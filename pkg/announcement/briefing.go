@@ -7,7 +7,6 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/sim"
-	"time"
 )
 
 type Briefing struct {
@@ -57,7 +56,7 @@ func (a *Briefing) GetPromptData(t *sim.Telemetry) (any, error) {
 
 	// Determine strategy based on LastPlayed
 	strategy := prompt.StrategyMaxSkew
-	if !airport.LastPlayed.IsZero() && time.Since(airport.LastPlayed) < a.provider.GetRepeatTTL() {
+	if airport.IsOnCooldown(a.provider.GetRepeatTTL()) {
 		strategy = prompt.StrategyMinSkew
 	}
 

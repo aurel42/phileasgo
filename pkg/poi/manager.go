@@ -452,10 +452,7 @@ func (m *Manager) GetNarrationCandidates(limit int, minScore *float64) []*model.
 
 // isPlayable helper checks if a POI is on cooldown.
 func (m *Manager) isPlayable(p *model.POI) bool {
-	if p.LastPlayed.IsZero() {
-		return true
-	}
-	return time.Since(p.LastPlayed) >= time.Duration(m.config.Narrator.RepeatTTL)
+	return !p.IsOnCooldown(time.Duration(m.config.Narrator.RepeatTTL))
 }
 
 // CountScoredAbove returns the number of tracked POIs with a score strictly greater than the threshold.

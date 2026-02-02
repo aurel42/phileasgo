@@ -113,6 +113,14 @@ func (p *POI) DisplayName() string {
 	return p.WikidataID
 }
 
+// IsOnCooldown returns true if the POI was played recently and is still within the cooldown period.
+func (p *POI) IsOnCooldown(ttl time.Duration) bool {
+	if p.LastPlayed.IsZero() {
+		return false
+	}
+	return time.Since(p.LastPlayed) < ttl
+}
+
 // MSFSPOI represents a POI from Microsoft Flight Simulator.
 type MSFSPOI struct {
 	ID        int64   `json:"id"`

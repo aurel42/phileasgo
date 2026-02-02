@@ -148,6 +148,10 @@ func (a *Assembler) injectPersona(pd Data, session SessionState) {
 	pd["TargetLanguage"] = a.cfg.Narrator.TargetLanguage
 	pd["MaxWords"] = a.cfg.Narrator.NarrationLengthLongWords
 
+	// Testing & Dynamic Style
+	pd["TestingInTheStyleOf"] = a.cfg.Narrator.TestingInTheStyleOf
+	pd["TestingSecretWordForTonight"] = a.cfg.Narrator.TestingSecretWordForTonight
+
 	// Language decoding logic if needed by templates
 	targetLang := a.cfg.Narrator.TargetLanguage
 	langCode := "en"

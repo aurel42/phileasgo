@@ -132,13 +132,9 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 		return
 	}
 
-	// [NEW] Skip logic for recently played POIs (on cooldown)
-	if !poi.LastPlayed.IsZero() && input.NarratorConfig != nil {
-		if time.Since(poi.LastPlayed) < time.Duration(input.NarratorConfig.RepeatTTL) {
-			// Marker is on cooldown (Blue marker).
-			// We skip all "Narrator" badges and scoring logic to avoid confusing UI.
-			return
-		}
+	// Skip recently played POIs (on cooldown / Blue marker)
+	if input.NarratorConfig != nil && poi.IsOnCooldown(time.Duration(input.NarratorConfig.RepeatTTL)) {
+		return
 	}
 
 	poiPoint := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
