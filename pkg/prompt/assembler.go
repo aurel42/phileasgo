@@ -223,13 +223,18 @@ func (a *Assembler) injectUnits(pd Data) {
 
 func (a *Assembler) fetchUnitsInstruction() string {
 	unitSys := strings.ToLower(a.cfg.Narrator.Units)
-	if unitSys == "metric" {
-		return "Use metric units (meters, kilometers) for all measurements."
+	tmplName := fmt.Sprintf("units/%s.tmpl", unitSys)
+
+	// Default to imperial if invalid/empty
+	if unitSys == "" {
+		tmplName = "units/imperial.tmpl"
 	}
-	if unitSys == "hybrid" {
-		return "Use hybrid units (kilometers for distances, feet for altitudes)."
+
+	content, err := a.prompts.Render(tmplName, nil)
+	if err != nil {
+		return ""
 	}
-	return "Use imperial units (miles, feet) for all measurements."
+	return content
 }
 
 func (a *Assembler) fetchWikipediaText(ctx context.Context, p *model.POI) *articleproc.Info {

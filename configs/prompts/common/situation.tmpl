@@ -17,6 +17,13 @@ We are **{{.Movement}}** {{.POINameUser}}.
 - **Direction**: {{.ClockPos}} o'clock ({{.RelativeDir}})
 - **Distance**: {{if eq .UnitSystem "metric"}}{{.DistKm}} km{{else if eq .UnitSystem "hybrid"}}{{.DistKm}} km{{else}}{{.DistNm}} miles{{end}}
 - **Bearing**: {{printf "%.0f" .Bearing}}° ({{.CardinalDir}})
+
+### RESTRICTIONS
+{{if .IsOnGround}}- Since we are on the ground, do not describe the landscape as if we were flying overhead.{{end}}
+- Don't mention the aircraft's position, speed, altitude, or heading.
+- Don't mention where we are going or what we are going to see next.
+- Don't predict where we will be landing.
+
 {{if .TestingSecretWordForTonight}}
 ### ASSIGNED THEME
 The Theme or Topic for this trip is {{.TestingSecretWordForTonight}}. Incorporate the concept into the script without mentioning it verbatim whenever it makes sense.
