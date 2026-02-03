@@ -30,6 +30,11 @@ func (m *mockStore) SetState(ctx context.Context, key, val string) error {
 	return nil
 }
 
+func (m *mockStore) DeleteState(ctx context.Context, key string) error {
+	delete(m.state, key)
+	return nil
+}
+
 func TestHandleGetConfig(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -49,11 +54,11 @@ func TestHandleGetConfig(t *testing.T) {
 			},
 			storeState:      map[string]string{},
 			wantTTSEngine:   "edge-tts",
-			wantSimSource:   "simconnect", // default
+			wantSimSource:   "simconnect", // default fallback
 			wantCacheLayer:  false,
-			wantFilterMode:  "fixed",
-			wantTargetCount: 20,
-			wantTextLength:  3, // Default from store (missing = 3)
+			wantFilterMode:  "adaptive",   // new default
+			wantTargetCount: 5,            // new default
+			wantTextLength:  3,
 		},
 		{
 			name: "Azure Config with Store Overrides",
@@ -90,12 +95,12 @@ func TestHandleGetConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			st := &mockStore{state: tt.storeState}
-			h := NewConfigHandler(st, tt.cfg)
+			h := NewConfigHandler(st, config.NewProvider(tt.cfg, st))
 
 			req := httptest.NewRequest("GET", "/api/config", nil)
 			w := httptest.NewRecorder()
 
-			h.HandleGetConfig(w, req)
+			h.HandleConfig(w, req)
 
 			resp := w.Result()
 			defer resp.Body.Close()
@@ -133,10 +138,12 @@ func TestHandleGetConfig(t *testing.T) {
 
 func TestHandleSetConfig(t *testing.T) {
 	st := &mockStore{state: make(map[string]string)}
-	h := NewConfigHandler(st, &config.Config{})
+	h := NewConfigHandler(st, config.NewProvider(&config.Config{}, st))
 
 	// Helper functions for pointers
 	ptrInt := func(i int) *int { return &i }
+	ptrBool := func(b bool) *bool { return &b }
+	ptrFloat := func(f float64) *float64 { return &f }
 
 	tests := []struct {
 		name    string
@@ -149,6 +156,12 @@ func TestHandleSetConfig(t *testing.T) {
 			req:     ConfigRequest{SimSource: "mock"},
 			wantKey: "sim_source",
 			wantVal: "mock",
+		},
+		{
+			name:    "Update Units",
+			req:     ConfigRequest{Units: "nm"},
+			wantKey: "units",
+			wantVal: "nm",
 		},
 		{
 			name:    "Update Filter Mode",
@@ -168,23 +181,82 @@ func TestHandleSetConfig(t *testing.T) {
 			wantKey: "text_length",
 			wantVal: "5",
 		},
+		{
+			name:    "Update Boolean True",
+			req:     ConfigRequest{ShowCacheLayer: ptrBool(true)},
+			wantKey: "show_cache_layer",
+			wantVal: "true",
+		},
+		{
+			name:    "Update Boolean False",
+			req:     ConfigRequest{ShowCacheLayer: ptrBool(false)},
+			wantKey: "show_cache_layer",
+			wantVal: "false",
+		},
+		{
+			name:    "Update Float Score",
+			req:     ConfigRequest{MinPOIScore: ptrFloat(0.75)},
+			wantKey: "min_poi_score",
+			wantVal: "0.75",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body, _ := json.Marshal(tt.req)
-			req := httptest.NewRequest("PUT", "/api/config", bytes.NewBuffer(body))
-			w := httptest.NewRecorder()
+			// Test both POST and PUT as both should be supported now
+			methods := []string{"POST", "PUT"}
+			for _, method := range methods {
+				req := httptest.NewRequest(method, "/api/config", bytes.NewBuffer(body))
+				w := httptest.NewRecorder()
 
-			h.HandleSetConfig(w, req)
+				h.HandleConfig(w, req)
 
-			if w.Code != http.StatusOK {
-				t.Errorf("expected 200 OK, got %d", w.Code)
-			}
+				if w.Code != http.StatusOK {
+					t.Errorf("method %s: expected 200 OK, got %d. Body: %s", method, w.Code, w.Body.String())
+				}
 
-			if val, ok := st.state[tt.wantKey]; !ok || val != tt.wantVal {
-				t.Errorf("Store[%q] = %q, want %q", tt.wantKey, val, tt.wantVal)
+				if val, ok := st.state[tt.wantKey]; !ok || val != tt.wantVal {
+					t.Errorf("method %s: Store[%q] = %q, want %q", method, tt.wantKey, val, tt.wantVal)
+				}
+
+				// Verify CORS headers
+				if w.Header().Get("Access-Control-Allow-Origin") != "*" {
+					t.Errorf("method %s: missing CORS header Access-Control-Allow-Origin", method)
+				}
 			}
 		})
 	}
+
+	t.Run("CORS and OPTIONS", func(t *testing.T) {
+		req := httptest.NewRequest("OPTIONS", "/api/config", nil)
+		w := httptest.NewRecorder()
+		h.HandleConfig(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("OPTIONS: expected 200 OK, got %d", w.Code)
+		}
+		if w.Header().Get("Access-Control-Allow-Methods") == "" {
+			t.Error("OPTIONS: missing Access-Control-Allow-Methods")
+		}
+	})
+
+	t.Run("Invalid Sim Source", func(t *testing.T) {
+		body, _ := json.Marshal(ConfigRequest{SimSource: "invalid"})
+		req := httptest.NewRequest("POST", "/api/config", bytes.NewBuffer(body))
+		w := httptest.NewRecorder()
+		h.HandleConfig(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request, got %d", w.Code)
+		}
+	})
+
+	t.Run("Invalid Units", func(t *testing.T) {
+		body, _ := json.Marshal(ConfigRequest{Units: "invalid"})
+		req := httptest.NewRequest("POST", "/api/config", bytes.NewBuffer(body))
+		w := httptest.NewRecorder()
+		h.HandleConfig(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 Bad Request, got %d", w.Code)
+		}
+	})
 }

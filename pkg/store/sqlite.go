@@ -713,3 +713,7 @@ func (s *SQLiteStore) SetState(ctx context.Context, key, val string) error {
 	_, err := s.db.ExecContext(ctx, query, key, val, time.Now())
 	return err
 }
+func (s *SQLiteStore) DeleteState(ctx context.Context, key string) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM persistent_state WHERE key = ?", key)
+	return err
+}

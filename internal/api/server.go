@@ -26,8 +26,7 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 	mux.HandleFunc("GET /api/version", handleVersion)
 
 	// 2c. Config Endpoints
-	mux.HandleFunc("GET /api/config", cfg.HandleGetConfig)
-	mux.HandleFunc("PUT /api/config", cfg.HandleSetConfig)
+	mux.HandleFunc("/api/config", cfg.HandleConfig)
 
 	// 2d. Stats Endpoint
 	mux.Handle("GET /api/stats", stats)

@@ -96,7 +96,7 @@ func TestAIService_RecordNarration(t *testing.T) {
 	sess := session.NewManager(nil)
 	svc := &AIService{
 		sessionMgr: sess,
-		cfg:        config.DefaultConfig(),
+		cfg:        config.NewProvider(config.DefaultConfig(), nil),
 		prompts:    pm,
 		llm:        &MockLLM{Response: "Summary: Test"},
 	}

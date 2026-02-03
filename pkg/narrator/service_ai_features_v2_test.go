@@ -17,7 +17,7 @@ func TestScreenshotCoordinatesPersistence(t *testing.T) {
 	pm, _ := prompts.NewManager(t.TempDir())
 
 	// Setup minimalist service (mocks only where needed)
-	svc := NewAIService(&config.Config{},
+	svc := NewAIService(config.NewProvider(&config.Config{}, nil),
 		&MockLLM{Response: "Script"},
 		&MockTTS{Format: "mp3"},
 		pm,

@@ -68,11 +68,11 @@ topics:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Mocks
-			cfg := &config.Config{
+			cfg := config.NewProvider(&config.Config{
 				Narrator: config.NarratorConfig{
 					TargetLanguage: "en",
 				},
-			}
+			}, nil)
 			mockLLM := &MockLLM{Response: "Essay Script", Err: tt.llmErr}
 			mockTTS := &MockTTS{Format: "mp3", Err: tt.ttsErr}
 			mockGeo := &MockGeo{Country: "France"}
@@ -104,7 +104,7 @@ topics:
 
 func TestAIService_PlayEssay_NoHandler(t *testing.T) {
 	// Setup minimalist service without essay handler
-	svc := NewAIService(&config.Config{}, &MockLLM{}, &MockTTS{}, nil, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+	svc := NewAIService(config.NewProvider(&config.Config{}, nil), &MockLLM{}, &MockTTS{}, nil, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 
 	if svc.PlayEssay(context.Background(), &sim.Telemetry{}) {
 		t.Error("Expected PlayEssay to return false when handler is nil")

@@ -57,7 +57,7 @@ type ScriptEntry struct {
 
 // AIService is the real implementation of the narrator generator using LLM and TTS.
 type AIService struct {
-	cfg           *config.Config
+	cfg           config.Provider
 	llm           llm.Provider
 	tts           tts.Provider
 	prompts       *prompts.Manager
@@ -108,7 +108,7 @@ type AIService struct {
 
 // NewAIService creates a new AI-powered narrator generator.
 func NewAIService(
-	cfg *config.Config,
+	cfg config.Provider,
 	llm llm.Provider,
 	tts tts.Provider,
 	prompts *prompts.Manager,
@@ -226,7 +226,7 @@ func (s *AIService) GetPOIsNear(lat, lon, radius float64) []*model.POI {
 }
 
 func (s *AIService) GetRepeatTTL() time.Duration {
-	return time.Duration(s.cfg.Narrator.RepeatTTL)
+	return s.cfg.RepeatTTL(context.Background())
 }
 
 func (s *AIService) AddEvent(event *model.TripEvent) {

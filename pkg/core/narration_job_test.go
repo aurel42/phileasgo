@@ -503,6 +503,10 @@ func (m *MockStore) SetState(ctx context.Context, key, val string) error {
 	m.state[key] = val
 	return nil
 }
+func (m *MockStore) DeleteState(ctx context.Context, key string) error {
+	delete(m.state, key)
+	return nil
+}
 
 // No-op implementations for other interfaces
 func (m *MockStore) GetPOI(ctx context.Context, wikidataID string) (*model.POI, error) {

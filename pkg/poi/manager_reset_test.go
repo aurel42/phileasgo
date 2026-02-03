@@ -9,7 +9,7 @@ import (
 
 func TestManager_ResetHistory(t *testing.T) {
 	mockStore := NewMockStore()
-	mgr := NewManager(&config.Config{}, mockStore, nil)
+	mgr := NewManager(config.NewProvider(&config.Config{}, nil), mockStore, nil)
 	ctx := context.Background()
 
 	// Calling ResetLastPlayed should not panic and should delegate to store (mock returns nil)

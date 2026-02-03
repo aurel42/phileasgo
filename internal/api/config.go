@@ -14,33 +14,45 @@ import (
 
 // ConfigHandler handles configuration API requests.
 type ConfigHandler struct {
-	store  store.Store
-	appCfg *config.Config
+	store   store.Store
+	cfgProv config.Provider
+	appCfg  *config.Config
 }
 
 // NewConfigHandler creates a new ConfigHandler.
-func NewConfigHandler(st store.Store, appCfg *config.Config) *ConfigHandler {
-	return &ConfigHandler{store: st, appCfg: appCfg}
+func NewConfigHandler(st store.Store, cfg config.Provider) *ConfigHandler {
+	return &ConfigHandler{
+		store:   st,
+		cfgProv: cfg,
+		appCfg:  cfg.AppConfig(),
+	}
 }
 
 // ConfigResponse represents the config API response.
 type ConfigResponse struct {
-	SimSource           string  `json:"sim_source"`
-	Units               string  `json:"units"`
-	TTSEngine           string  `json:"tts_engine"`
-	ShowCacheLayer      bool    `json:"show_cache_layer"`
-	ShowVisibilityLayer bool    `json:"show_visibility_layer"`
-	MinPOIScore         float64 `json:"min_poi_score"`
-	Volume              float64 `json:"volume"`
-	FilterMode          string  `json:"filter_mode"`
-	TargetPOICount      int     `json:"target_poi_count"`
-	NarrationFrequency  int     `json:"narration_frequency"`
-	TextLength          int     `json:"text_length"`
-	ShowMapBox          bool    `json:"show_map_box"`
-	ShowPOIInfo         bool    `json:"show_poi_info"`
-	ShowInfoBar         bool    `json:"show_info_bar"`
-	ShowLogLine         bool    `json:"show_log_line"`
-	LLMProvider         string  `json:"llm_provider"`
+	SimSource           string   `json:"sim_source"`
+	Units               string   `json:"units"`
+	TTSEngine           string   `json:"tts_engine"`
+	ShowCacheLayer      bool     `json:"show_cache_layer"`
+	ShowVisibilityLayer bool     `json:"show_visibility_layer"`
+	MinPOIScore         float64  `json:"min_poi_score"`
+	Volume              float64  `json:"volume"`
+	FilterMode          string   `json:"filter_mode"`
+	TargetPOICount      int      `json:"target_poi_count"`
+	NarrationFrequency  int      `json:"narration_frequency"`
+	TextLength          int      `json:"text_length"`
+	ShowMapBox          bool     `json:"show_map_box"`
+	ShowPOIInfo         bool     `json:"show_poi_info"`
+	ShowInfoBar         bool     `json:"show_info_bar"`
+	ShowLogLine         bool     `json:"show_log_line"`
+	LLMProvider         string   `json:"llm_provider"`
+	MockStartLat        float64  `json:"mock_start_lat"`
+	MockStartLon        float64  `json:"mock_start_lon"`
+	MockStartAlt        float64  `json:"mock_start_alt"`
+	MockStartHeading    *float64 `json:"mock_start_heading"`
+	MockDurationParked  string   `json:"mock_duration_parked"`
+	MockDurationTaxi    string   `json:"mock_duration_taxi"`
+	MockDurationHold    string   `json:"mock_duration_hold"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -54,38 +66,49 @@ type ConfigRequest struct {
 	TargetPOICount      *int     `json:"target_poi_count,omitempty"`
 	NarrationFrequency  *int     `json:"narration_frequency,omitempty"`
 	TextLength          *int     `json:"text_length,omitempty"`
+	MockStartLat        *float64 `json:"mock_start_lat,omitempty"`
+	MockStartLon        *float64 `json:"mock_start_lon,omitempty"`
+	MockStartAlt        *float64 `json:"mock_start_alt,omitempty"`
+	MockStartHeading    *float64 `json:"mock_start_heading,omitempty"`
+	MockDurationParked  string   `json:"mock_duration_parked,omitempty"`
+	MockDurationTaxi    string   `json:"mock_duration_taxi,omitempty"`
+	MockDurationHold    string   `json:"mock_duration_hold,omitempty"`
+}
+
+// HandleConfig is a unified handler for all config-related methods, facilitating CORS/OPTIONS.
+func (h *ConfigHandler) HandleConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		h.HandleGetConfig(w, r)
+	case http.MethodPut, http.MethodPost:
+		h.HandleSetConfig(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // HandleGetConfig returns the current configuration.
 func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	resp := h.getConfigResponse(ctx)
 
-	simSource, _ := h.store.GetState(ctx, "sim_source")
-	if simSource == "" {
-		simSource = "simconnect" // Default
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("Failed to encode config response", "error", err)
 	}
+}
 
-	units, _ := h.store.GetState(ctx, "units")
-	if units == "" {
-		units = "km" // Default
-	}
-
-	showCache, _ := h.store.GetState(ctx, "show_cache_layer")
-	showCacheBool := showCache == "true"
-
-	showVis, _ := h.store.GetState(ctx, "show_visibility_layer")
-	showVisBool := showVis == "true"
-
-	minScoreStr, _ := h.store.GetState(ctx, "min_poi_score")
-	minScore := 0.5 // Default
-	if minScoreStr != "" {
-		// Basic parsing
-		var val float64
-		if _, err := fmt.Sscanf(minScoreStr, "%f", &val); err == nil {
-			minScore = val
-		}
-	}
-
+func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
+	// Volume is not yet migrated to cfgProv, read directly
 	volStr, _ := h.store.GetState(ctx, "volume")
 	volume := 1.0 // Default
 	if volStr != "" {
@@ -95,66 +118,35 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	filterMode, _ := h.store.GetState(ctx, "filter_mode")
-	if filterMode == "" {
-		filterMode = "fixed"
-	}
-
-	targetCountStr, _ := h.store.GetState(ctx, "target_poi_count")
-	targetCount := 20 // Default
-	if targetCountStr != "" {
-		var val int
-		if _, err := fmt.Sscanf(targetCountStr, "%d", &val); err == nil {
-			targetCount = val
-		}
-	}
-
-	freqStr, _ := h.store.GetState(ctx, "narration_frequency")
-	frequency := 3 // Default (Active)
-	if freqStr != "" {
-		var val int
-		if _, err := fmt.Sscanf(freqStr, "%d", &val); err == nil {
-			frequency = val
-		}
-	}
-
-	textLenStr, _ := h.store.GetState(ctx, "text_length")
-	textLength := 3 // Default (Normal = x1.5)
-	if textLenStr != "" {
-		var val int
-		if _, err := fmt.Sscanf(textLenStr, "%d", &val); err == nil {
-			textLength = val
-		}
-	}
-
-	resp := ConfigResponse{
-		SimSource:           simSource,
-		Units:               units,
+	return ConfigResponse{
+		SimSource:           h.cfgProv.SimProvider(ctx),
+		Units:               h.cfgProv.Units(ctx),
 		TTSEngine:           h.appCfg.TTS.Engine,
-		ShowCacheLayer:      showCacheBool,
-		ShowVisibilityLayer: showVisBool,
-		MinPOIScore:         minScore,
-		Volume:              volume,
-		FilterMode:          filterMode,
-		TargetPOICount:      targetCount,
-		NarrationFrequency:  frequency,
-		TextLength:          textLength,
+		ShowCacheLayer:      h.cfgProv.ShowCacheLayer(ctx),
+		ShowVisibilityLayer: h.cfgProv.ShowVisibilityLayer(ctx),
+		MinPOIScore:         h.cfgProv.MinScoreThreshold(ctx),
+		Volume:              volume, // Volume is not migrated to cfgProv
+		FilterMode:          h.cfgProv.FilterMode(ctx),
+		TargetPOICount:      h.cfgProv.TargetPOICount(ctx),
+		NarrationFrequency:  h.cfgProv.NarrationFrequency(ctx),
+		TextLength:          h.cfgProv.TextLengthScale(ctx),
 		ShowMapBox:          h.appCfg.Overlay.MapBox,
 		ShowPOIInfo:         h.appCfg.Overlay.POIInfo,
 		ShowInfoBar:         h.appCfg.Overlay.InfoBar,
 		ShowLogLine:         h.appCfg.Overlay.LogLine,
 		LLMProvider:         h.getPrimaryLLMProvider(),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		slog.Error("Failed to encode config response", "error", err)
+		MockStartLat:        h.cfgProv.MockStartLat(ctx),
+		MockStartLon:        h.cfgProv.MockStartLon(ctx),
+		MockStartAlt:        h.cfgProv.MockStartAlt(ctx),
+		MockStartHeading:    h.cfgProv.MockStartHeading(ctx),
+		MockDurationParked:  h.cfgProv.MockDurationParked(ctx).String(),
+		MockDurationTaxi:    h.cfgProv.MockDurationTaxi(ctx).String(),
+		MockDurationHold:    h.cfgProv.MockDurationHold(ctx).String(),
 	}
 }
 
 // HandleSetConfig updates the configuration.
 func (h *ConfigHandler) HandleSetConfig(w http.ResponseWriter, r *http.Request) {
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read body", http.StatusBadRequest)
@@ -209,6 +201,31 @@ func (h *ConfigHandler) HandleSetConfig(w http.ResponseWriter, r *http.Request) 
 	}
 	if req.TextLength != nil {
 		h.updateIntState(ctx, "text_length", *req.TextLength)
+	}
+	if req.MockStartLat != nil {
+		h.updateFloatState(ctx, "mock_start_lat", *req.MockStartLat)
+	}
+	if req.MockStartLon != nil {
+		h.updateFloatState(ctx, "mock_start_lon", *req.MockStartLon)
+	}
+	if req.MockStartAlt != nil {
+		h.updateFloatState(ctx, "mock_start_alt", *req.MockStartAlt)
+	}
+	if req.MockStartHeading != nil {
+		h.updateFloatState(ctx, "mock_start_heading", *req.MockStartHeading)
+	} else if req.MockStartHeading == nil && containsJSONKey(body, "mock_start_heading") {
+		// Explicit null means random (heading removed)
+		_ = h.store.DeleteState(ctx, "mock_start_heading")
+	}
+
+	if req.MockDurationParked != "" {
+		_ = h.store.SetState(ctx, "mock_duration_parked", req.MockDurationParked)
+	}
+	if req.MockDurationTaxi != "" {
+		_ = h.store.SetState(ctx, "mock_duration_taxi", req.MockDurationTaxi)
+	}
+	if req.MockDurationHold != "" {
+		_ = h.store.SetState(ctx, "mock_duration_hold", req.MockDurationHold)
 	}
 
 	// Return updated config
@@ -275,6 +292,15 @@ func (h *ConfigHandler) updateFilterMode(ctx context.Context, val string) {
 			slog.Debug("Config updated", "filter_mode", val)
 		}
 	}
+}
+
+func containsJSONKey(body []byte, key string) bool {
+	var m map[string]interface{}
+	if err := json.Unmarshal(body, &m); err != nil {
+		return false
+	}
+	_, ok := m[key]
+	return ok
 }
 
 func (h *ConfigHandler) getPrimaryLLMProvider() string {

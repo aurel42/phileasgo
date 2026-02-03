@@ -90,11 +90,11 @@ func TestAIService_PlayPOI(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Mocks
-			cfg := &config.Config{
+			cfg := config.NewProvider(&config.Config{
 				Narrator: config.NarratorConfig{
 					TargetLanguage: "en",
 				},
-			}
+			}, nil)
 			mockLLM := &MockLLM{Response: "Generated Script", Err: tt.llmErr}
 			mockTTS := &MockTTS{Format: "mp3", Err: tt.ttsErr}
 			mockPOI := &MockPOIProvider{
@@ -202,7 +202,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			_ = os.MkdirAll(filepath.Join(tmpDir, "common"), 0o755)
 			pm, _ := prompts.NewManager(tmpDir)
 
-			svc := NewAIService(&config.Config{}, mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+			svc := NewAIService(config.NewProvider(&config.Config{}, nil), mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, false, &tt.telemetry, "uniform")
@@ -224,7 +224,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 func TestAIService_Lifecycle(t *testing.T) {
 	// Simple coverage for Start/Stop/Stats
 	pm, _ := prompts.NewManager(t.TempDir())
-	svc := NewAIService(&config.Config{}, &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+	svc := NewAIService(config.NewProvider(&config.Config{}, nil), &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 
 	if svc.running {
 		t.Error("should not be running initially")
@@ -271,12 +271,12 @@ func TestAIService_NavUnits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{
+			cfg := config.NewProvider(&config.Config{
 				Narrator: config.NarratorConfig{
 					Units:          tt.units,
 					TargetLanguage: "en",
 				},
-			}
+			}, nil)
 			mockLLM := &MockLLM{Response: "Script"}
 			mockPOI := &MockPOIProvider{
 				GetPOIFunc: func(ctx context.Context, qid string) (*model.POI, error) {
@@ -335,7 +335,7 @@ func TestAIService_GeneratePlay(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
 	pm, _ := prompts.NewManager(tempDir)
 
-	svc := NewAIService(&config.Config{},
+	svc := NewAIService(config.NewProvider(&config.Config{}, nil),
 		&MockLLM{Response: "GenScript"},
 		&MockTTS{Format: "mp3"},
 		pm,
@@ -384,9 +384,9 @@ func TestAIService_SummarizeAndLogEvent(t *testing.T) {
 
 	pm, _ := prompts.NewManager(tempDir)
 
-	cfg := &config.Config{
+	cfg := config.NewProvider(&config.Config{
 		Narrator: config.NarratorConfig{},
-	}
+	}, nil)
 	mockLLM := &MockLLM{Response: "Clean Summary"}
 	svc := &AIService{
 		cfg:        cfg,
@@ -433,7 +433,7 @@ func TestAIService_LatencyTracking(t *testing.T) {
 		return "Script", nil
 	}
 
-	svc := NewAIService(&config.Config{},
+	svc := NewAIService(config.NewProvider(&config.Config{}, nil),
 		mockLLM,
 		&MockTTS{Format: "mp3"},
 		pm,
@@ -508,7 +508,7 @@ func TestAIService_PipelineFlow(t *testing.T) {
 				},
 			}
 
-			svc := NewAIService(&config.Config{},
+			svc := NewAIService(config.NewProvider(&config.Config{}, nil),
 				mockLLM,
 				&MockTTS{Format: "mp3"},
 				pm,
@@ -558,11 +558,11 @@ func TestAIService_ScriptValidation(t *testing.T) {
 		},
 	}
 
-	cfg := &config.Config{
+	cfg := config.NewProvider(&config.Config{
 		Narrator: config.NarratorConfig{
 			NarrationLengthLongWords: 200,
 		},
-	}
+	}, nil)
 
 	svc := NewAIService(cfg, mockLLM, &MockTTS{Format: "mp3"}, pm, mockPOI, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 
@@ -598,7 +598,7 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 		t.Fatalf("Failed to load production templates: %v", err)
 	}
 
-	cfg := config.DefaultConfig()
+	cfg := config.NewProvider(config.DefaultConfig(), nil)
 	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
 
 	data := svc.promptAssembler.NewPromptData(svc.getSessionState())

@@ -37,14 +37,27 @@ export const SettingsPanel = ({
     textLength, onTextLengthChange,
     isGui, onBack
 }: SettingsPanelProps) => {
-
     const [simSource, setSimSource] = useState<string>('mock');
+    const [mockLat, setMockLat] = useState<number>(0);
+    const [mockLon, setMockLon] = useState<number>(0);
+    const [mockAlt, setMockAlt] = useState<number>(0);
+    const [mockHeading, setMockHeading] = useState<number | null>(null);
+    const [mockDurParked, setMockDurParked] = useState<string>('120s');
+    const [mockDurTaxi, setMockDurTaxi] = useState<string>('120s');
+    const [mockDurHold, setMockDurHold] = useState<string>('30s');
 
     useEffect(() => {
         fetch('/api/config')
             .then(r => r.json())
             .then(data => {
                 setSimSource(data.sim_source || 'mock');
+                setMockLat(data.mock_start_lat || 0);
+                setMockLon(data.mock_start_lon || 0);
+                setMockAlt(data.mock_start_alt || 0);
+                setMockHeading(data.mock_start_heading); // Can be null (random)
+                setMockDurParked(data.mock_duration_parked || '120s');
+                setMockDurTaxi(data.mock_duration_taxi || '120s');
+                setMockDurHold(data.mock_duration_hold || '30s');
             })
             .catch(e => console.error("Failed to fetch config", e));
     }, []);
@@ -87,7 +100,7 @@ export const SettingsPanel = ({
             )}
 
             <div className="config-group" style={{ maxWidth: '600px', width: '100%' }}>
-                <div className="role-header" style={{ fontSize: '14px', marginBottom: '8px' }}>SIMULATION SOURCE</div>
+                <div className="role-header" style={{ fontSize: '14px', marginBottom: '8px' }}>SIMULATION SOURCE*</div>
                 <div className="radio-group">
                     <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                         <input
@@ -107,8 +120,133 @@ export const SettingsPanel = ({
                     </label>
                 </div>
                 <div className="role-text-sm" style={{ fontSize: '12px', opacity: 0.7, marginTop: '4px' }}>
-                    Restart required after changing source
+                    * Restart required after changing
                 </div>
+
+                {simSource === 'mock' && (
+                    <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(212, 175, 55, 0.05)', borderLeft: '4px solid var(--accent)', borderRadius: '4px' }}>
+                        <div className="role-header" style={{ fontSize: '14px', marginBottom: '12px' }}>MOCK SIMULATION SETTINGS*</div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                            <div>
+                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '4px' }}>START LATITUDE</label>
+                                <input
+                                    type="number"
+                                    step="0.0001"
+                                    value={mockLat}
+                                    onChange={(e) => {
+                                        const v = parseFloat(e.target.value);
+                                        setMockLat(v);
+                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_start_lat: v }) });
+                                    }}
+                                    className="role-num-sm"
+                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
+                                />
+                            </div>
+                            <div>
+                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '4px' }}>START LONGITUDE</label>
+                                <input
+                                    type="number"
+                                    step="0.0001"
+                                    value={mockLon}
+                                    onChange={(e) => {
+                                        const v = parseFloat(e.target.value);
+                                        setMockLon(v);
+                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_start_lon: v }) });
+                                    }}
+                                    className="role-num-sm"
+                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
+                                />
+                            </div>
+                            <div>
+                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '4px' }}>START ALTITUDE (FT)</label>
+                                <input
+                                    type="number"
+                                    value={mockAlt}
+                                    onChange={(e) => {
+                                        const v = parseFloat(e.target.value);
+                                        setMockAlt(v);
+                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_start_alt: v }) });
+                                    }}
+                                    className="role-num-sm"
+                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
+                                />
+                            </div>
+                            <div>
+                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '4px' }}>START HEADING (DEG)</label>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="359"
+                                        disabled={mockHeading === null}
+                                        value={mockHeading === null ? '' : mockHeading}
+                                        onChange={(e) => {
+                                            const v = parseFloat(e.target.value);
+                                            setMockHeading(v);
+                                            fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_start_heading: v }) });
+                                        }}
+                                        className="role-num-sm"
+                                        placeholder="Random"
+                                        style={{ flex: 1, background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px', opacity: mockHeading === null ? 0.5 : 1 }}
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            const newVal = mockHeading === null ? 0 : null;
+                                            setMockHeading(newVal);
+                                            fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_start_heading: newVal }) });
+                                        }}
+                                        style={{ fontSize: '10px', padding: '4px 8px', background: 'rgba(212,175,55,0.1)', color: 'var(--accent)', border: '1px solid var(--accent)', cursor: 'pointer' }}
+                                    >
+                                        {mockHeading === null ? 'FIX' : 'RANDOM'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                            <div>
+                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '2px', fontSize: '10px' }}>PARKED DUR.</label>
+                                <input
+                                    type="text"
+                                    value={mockDurParked}
+                                    onChange={(e) => {
+                                        setMockDurParked(e.target.value);
+                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_duration_parked: e.target.value }) });
+                                    }}
+                                    className="role-num-sm"
+                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
+                                />
+                            </div>
+                            <div>
+                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '2px', fontSize: '10px' }}>TAXI DUR.</label>
+                                <input
+                                    type="text"
+                                    value={mockDurTaxi}
+                                    onChange={(e) => {
+                                        setMockDurTaxi(e.target.value);
+                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_duration_taxi: e.target.value }) });
+                                    }}
+                                    className="role-num-sm"
+                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
+                                />
+                            </div>
+                            <div>
+                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '2px', fontSize: '10px' }}>HOLD DUR.</label>
+                                <input
+                                    type="text"
+                                    value={mockDurHold}
+                                    onChange={(e) => {
+                                        setMockDurHold(e.target.value);
+                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_duration_hold: e.target.value }) });
+                                    }}
+                                    className="role-num-sm"
+                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>RANGE RING UNITS</div>
                 <div className="radio-group">

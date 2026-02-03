@@ -29,6 +29,10 @@ func (m *MockStore) SetState(ctx context.Context, key, value string) error {
 	m.Data[key] = value
 	return nil
 }
+func (m *MockStore) DeleteState(ctx context.Context, key string) error {
+	delete(m.Data, key)
+	return nil
+}
 
 func (m *MockStore) Close() error { return nil }
 

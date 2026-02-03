@@ -10,11 +10,11 @@ import (
 
 func TestAIService_AnnouncementFallback(t *testing.T) {
 	pm, _ := prompts.NewManager(t.TempDir())
-	cfg := &config.Config{
+	cfg := config.NewProvider(&config.Config{
 		Narrator: config.NarratorConfig{
 			TargetLanguage: "en",
 		},
-	}
+	}, nil)
 
 	tests := []struct {
 		name            string

@@ -168,3 +168,54 @@ func TestManager_Stop(t *testing.T) {
 		t.Error("Timed out waiting for shutdown request")
 	}
 }
+
+func TestManager_ResolveAddr(t *testing.T) {
+	tests := []struct {
+		addr string
+		want string
+	}{
+		{":1920", "127.0.0.1:1920"},
+		{"localhost:1920", "127.0.0.1:1920"},
+		{"127.0.0.1:1920", "127.0.0.1:1920"},
+		{"192.168.1.1:1920", "192.168.1.1:1920"},
+	}
+
+	for _, tt := range tests {
+		m := &Manager{serverAddr: tt.addr}
+		got := m.resolveAddr()
+		if got != tt.want {
+			t.Errorf("resolveAddr(%s) = %s, want %s", tt.addr, got, tt.want)
+		}
+	}
+}
+
+func TestManager_ServerStatus(t *testing.T) {
+	handler := http.NewServeMux()
+	handler.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("0.1.0"))
+	})
+	server := &http.Server{Handler: handler}
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	serverAddr := ln.Addr().String()
+	go server.Serve(ln)
+	defer server.Shutdown(context.Background())
+
+	m := &Manager{serverAddr: serverAddr}
+
+	if !m.isServerRunning() {
+		t.Error("isServerRunning() returned false")
+	}
+	if !m.isServerReady() {
+		t.Error("isServerReady() returned false")
+	}
+
+	// Test failure cases
+	mFail := &Manager{serverAddr: "127.0.0.1:1"} // Unlikely to be a server there
+	if mFail.isServerRunning() {
+		t.Error("isServerRunning() should be false for invalid port")
+	}
+	if mFail.isServerReady() {
+		t.Error("isServerReady() should be false for invalid port")
+	}
+}

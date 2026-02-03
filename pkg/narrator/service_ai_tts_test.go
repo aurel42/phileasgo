@@ -7,7 +7,7 @@ import (
 
 func TestAIService_TTSFallback(t *testing.T) {
 	svc := &AIService{
-		cfg: &config.Config{
+		cfg: config.NewProvider(&config.Config{
 			TTS: config.TTSConfig{
 				Engine: "azure-speech",
 				AzureSpeech: config.AzureSpeechConfig{
@@ -17,7 +17,7 @@ func TestAIService_TTSFallback(t *testing.T) {
 					VoiceID: "en-US-JennyNeural-Fallback",
 				},
 			},
-		},
+		}, nil),
 		tts: &MockTTS{},
 	}
 

@@ -392,6 +392,15 @@ func (m *MockStore) SetState(ctx context.Context, key, val string) error {
 	return nil
 }
 
+func (m *MockStore) DeleteState(ctx context.Context, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.State != nil {
+		delete(m.State, key)
+	}
+	return nil
+}
+
 func (m *MockStore) GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error) {
 	return nil, nil
 }

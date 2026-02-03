@@ -73,6 +73,7 @@ func (m *mockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]
 }
 func (m *mockStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
 func (m *mockStore) SetState(ctx context.Context, key, val string) error     { return nil }
+func (m *mockStore) DeleteState(ctx context.Context, key string) error       { return nil }
 func (m *mockStore) SaveMSFSPOI(ctx context.Context, p *model.MSFSPOI) error { return nil }
 func (m *mockStore) GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error) {
 	return nil, nil
@@ -250,7 +251,7 @@ func TestFetchTile_CacheOptimization(t *testing.T) {
 		Retries:   2,
 		BaseDelay: 10 * time.Millisecond,
 		MaxDelay:  50 * time.Millisecond,
-	}), geoSvc, poi.NewManager(&config.Config{}, st, nil), config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}, "en")
+	}), geoSvc, poi.NewManager(config.NewProvider(&config.Config{}, nil), st, nil), config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}, "en")
 	svc.client = mockClient
 	svc.classifier = &MockClassifier{
 		ClassifyBatchFunc: func(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult {
@@ -466,7 +467,7 @@ func TestProcessTileData(t *testing.T) {
 				mockClient,
 				&MockWikipediaProvider{},
 				&geo.Service{}, // Geo
-				poi.NewManager(&config.Config{}, st, nil), // POI
+				poi.NewManager(config.NewProvider(&config.Config{}, nil), st, nil), // POI
 				NewGrid(), // Grid (extracted from new scheduler)
 				NewLanguageMapper(st, nil, slog.Default()), // Mapper
 				cl,

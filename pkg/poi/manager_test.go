@@ -63,6 +63,7 @@ func (s *MockStore) SetGeodataCache(ctx context.Context, key string, val []byte,
 }
 func (s *MockStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
 func (s *MockStore) SetState(ctx context.Context, key, val string) error     { return nil }
+func (s *MockStore) DeleteState(ctx context.Context, key string) error       { return nil }
 func (s *MockStore) GetClassification(ctx context.Context, qid string) (category string, found bool, err error) {
 	return "", false, nil
 }
@@ -114,7 +115,7 @@ func (m *MockLoader) GetPOIsNear(ctx context.Context, lat, lon, radiusMeters flo
 }
 
 func TestManager_TrackPOI_Nameless(t *testing.T) {
-	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	mgr := NewManager(config.NewProvider(&config.Config{}, nil), NewMockStore(), nil)
 	ctx := context.Background()
 
 	p := &model.POI{
@@ -135,7 +136,7 @@ func TestManager_TrackPOI_Nameless(t *testing.T) {
 
 func TestManager_ActiveTracking(t *testing.T) {
 	mockStore := NewMockStore()
-	mgr := NewManager(&config.Config{}, mockStore, nil)
+	mgr := NewManager(config.NewProvider(&config.Config{}, nil), mockStore, nil)
 	ctx := context.Background()
 
 	p1 := &model.POI{WikidataID: "Q1", NameEn: "P1", CreatedAt: time.Now()}
@@ -165,7 +166,7 @@ func TestManager_ActiveTracking(t *testing.T) {
 
 func TestManager_Prune(t *testing.T) {
 	mockStore := NewMockStore()
-	mgr := NewManager(&config.Config{}, mockStore, nil)
+	mgr := NewManager(config.NewProvider(&config.Config{}, nil), mockStore, nil)
 	ctx := context.Background()
 
 	oldTime := time.Now().Add(-2 * time.Hour)
@@ -194,7 +195,7 @@ func TestManager_Prune(t *testing.T) {
 
 func TestManager_UpdateExistingPOI_LastPlayed_Safety(t *testing.T) {
 	mockStore := NewMockStore()
-	mgr := NewManager(&config.Config{}, mockStore, nil)
+	mgr := NewManager(config.NewProvider(&config.Config{}, nil), mockStore, nil)
 	ctx := context.Background()
 
 	// 1. Initial State provided by "Simulate Narrator"
@@ -233,7 +234,7 @@ func TestManager_UpdateExistingPOI_LastPlayed_Safety(t *testing.T) {
 }
 
 func TestManager_CandidateLogic(t *testing.T) {
-	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	mgr := NewManager(config.NewProvider(&config.Config{}, nil), NewMockStore(), nil)
 	ctx := context.Background()
 
 	pois := []*model.POI{
@@ -278,7 +279,7 @@ func TestManager_CandidateLogic(t *testing.T) {
 }
 
 func TestManager_ResetLastPlayed(t *testing.T) {
-	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	mgr := NewManager(config.NewProvider(&config.Config{}, nil), NewMockStore(), nil)
 	ctx := context.Background()
 
 	p := &model.POI{
@@ -300,7 +301,7 @@ func TestManager_ResetLastPlayed(t *testing.T) {
 func TestManager_GetPOIsForUI(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Narrator.RepeatTTL = config.Duration(1 * time.Hour)
-	mgr := NewManager(cfg, NewMockStore(), nil)
+	mgr := NewManager(config.NewProvider(cfg, nil), NewMockStore(), nil)
 	ctx := context.Background()
 
 	now := time.Now()
@@ -398,13 +399,13 @@ func TestManager_GetPOIsForUI(t *testing.T) {
 }
 
 func TestManager_GetNarrationCandidates(t *testing.T) {
-	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	mgr := NewManager(config.NewProvider(&config.Config{}, nil), NewMockStore(), nil)
 	ctx := context.Background()
 
 	now := time.Now()
 	cfg := config.Config{}
 	cfg.Narrator.RepeatTTL = config.Duration(1 * time.Hour) // Cooldown of 1 hour
-	mgr.config = &cfg
+	mgr.config = config.NewProvider(&cfg, nil)
 
 	pois := []*model.POI{
 		{WikidataID: "P1", NameEn: "P1", Score: 10.0, Visibility: 1.0, IsVisible: true},
@@ -481,11 +482,11 @@ func TestManager_GetNarrationCandidates(t *testing.T) {
 }
 
 func TestManager_CountScoredAbove_Competition(t *testing.T) {
-	mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+	mgr := NewManager(config.NewProvider(&config.Config{}, nil), NewMockStore(), nil)
 	ctx := context.Background()
 	cfg := config.Config{}
 	cfg.Narrator.RepeatTTL = config.Duration(1 * time.Hour)
-	mgr.config = &cfg
+	mgr.config = config.NewProvider(&cfg, nil)
 
 	now := time.Now()
 
@@ -513,7 +514,7 @@ func TestManager_CountScoredAbove_Competition(t *testing.T) {
 func TestManager_UpdateRivers(t *testing.T) {
 	ctx := context.Background()
 	store := NewMockStore()
-	mgr := NewManager(&config.Config{}, store, nil)
+	mgr := NewManager(config.NewProvider(&config.Config{}, nil), store, nil)
 
 	sentinel := &MockRiverSentinel{}
 	loader := &MockLoader{

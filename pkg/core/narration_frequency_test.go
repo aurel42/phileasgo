@@ -93,36 +93,18 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 			expectShouldFire: false,
 		},
 
-		// FREQUENCY 4: BUSY (Overlap 1.5x)
+		// FREQUENCY 4: HYPERACTIVE (Overlap 2.0x)
 		{
-			name:             "Busy: Playing, Lead Time Good (rem <= 1.5*lat) -> Fire",
+			name:             "Hyperactive: Playing, Lead Time Good (rem <= 2.0*lat) -> Fire",
 			freq:             4,
-			isPlaying:        true,
-			remaining:        15 * time.Second,
-			avgLatency:       10 * time.Second, // 15 <= 15 (1.5*10) -> True
-			expectShouldFire: true,
-		},
-		{
-			name:             "Busy: Playing, Too Early (rem > 1.5*lat) -> No Fire",
-			freq:             4,
-			isPlaying:        true,
-			remaining:        16 * time.Second,
-			avgLatency:       10 * time.Second, // 16 > 15 -> False
-			expectShouldFire: false,
-		},
-
-		// FREQUENCY 5: CONSTANT (Overlap 2.0x)
-		{
-			name:             "Constant: Playing, Lead Time Good (rem <= 2.0*lat) -> Fire",
-			freq:             5,
 			isPlaying:        true,
 			remaining:        20 * time.Second,
 			avgLatency:       10 * time.Second, // 20 <= 20 -> True
 			expectShouldFire: true,
 		},
 		{
-			name:             "Constant: Playing, Too Early (rem > 2.0*lat) -> No Fire",
-			freq:             5,
+			name:             "Hyperactive: Playing, Too Early (rem > 2.0*lat) -> No Fire",
+			freq:             4,
 			isPlaying:        true,
 			remaining:        21 * time.Second,
 			avgLatency:       10 * time.Second, // 21 > 20 -> False

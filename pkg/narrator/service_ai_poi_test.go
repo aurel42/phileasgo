@@ -24,11 +24,11 @@ func TestAIService_RescueScript(t *testing.T) {
 	svc := &AIService{
 		llm:     mockLLM,
 		prompts: pm,
-		cfg: &config.Config{
+		cfg: config.NewProvider(&config.Config{
 			Narrator: config.NarratorConfig{
 				TargetLanguage: "en-US",
 			},
-		},
+		}, nil),
 		sessionMgr: session.NewManager(nil),
 	}
 

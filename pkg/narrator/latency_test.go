@@ -10,7 +10,7 @@ import (
 // TestLatencyTracking verifies the rolling window logic for latency stats.
 func TestLatencyTracking(t *testing.T) {
 	s := &AIService{
-		cfg:       config.DefaultConfig(),
+		cfg:       config.NewProvider(config.DefaultConfig(), nil),
 		latencies: make([]time.Duration, 0, 10),
 		stats:     make(map[string]any),
 		sim:       &MockSim{}, // Required for SetPredictionWindow call

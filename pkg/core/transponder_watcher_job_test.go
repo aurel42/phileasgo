@@ -43,9 +43,9 @@ func TestTransponderWatcherJob_handleSquawkChange(t *testing.T) {
 			wantBoost: "1.00",
 		},
 		{
-			name:      "High Limits (7555)",
-			squawk:    7555,
-			wantFreq:  "5",
+			name:      "Max Frequency (7455)",
+			squawk:    7455,
+			wantFreq:  "4",
 			wantLen:   "5",
 			wantBoost: "2.00",
 		},

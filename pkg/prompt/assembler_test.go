@@ -61,11 +61,11 @@ func (m *MockRenderer) Render(name string, data any) (string, error) { return "R
 
 func TestAssembler_NewPromptData(t *testing.T) {
 	a := &Assembler{
-		cfg: &config.Config{
+		cfg: config.NewProvider(&config.Config{
 			Narrator: config.NarratorConfig{
 				TargetLanguage: "en-US",
 			},
-		},
+		}, nil),
 	}
 	session := SessionState{
 		Events: []model.TripEvent{
@@ -110,11 +110,11 @@ func TestAssembler_DetermineSkewStrategy(t *testing.T) {
 
 func TestAssembler_ForPOI_NilTelemetry(t *testing.T) {
 	a := &Assembler{
-		cfg: &config.Config{
+		cfg: config.NewProvider(&config.Config{
 			Narrator: config.NarratorConfig{
 				TargetLanguage: "en-US",
 			},
-		},
+		}, nil),
 		geoSvc:    &MockGeo{Country: "Test", City: "TestCity"},
 		st:        &MockStore{State: map[string]string{}},
 		prompts:   &MockRenderer{},
@@ -142,4 +142,70 @@ func TestAssembler_ForPOI_NilTelemetry(t *testing.T) {
 	if pd["POINameNative"] == "" {
 		t.Errorf("Expected POINameNative to be populated")
 	}
+}
+
+func TestAssembler_FetchUnitsInstruction(t *testing.T) {
+	tests := []struct {
+		name     string
+		units    string
+		expected string
+	}{
+		{
+			name:     "Metric",
+			units:    "metric",
+			expected: "units/metric.tmpl",
+		},
+		{
+			name:     "Imperial",
+			units:    "imperial",
+			expected: "units/imperial.tmpl",
+		},
+		{
+			name:     "Hybrid",
+			units:    "hybrid",
+			expected: "units/hybrid.tmpl",
+		},
+		{
+			name:     "Default to Imperial",
+			units:    "",
+			expected: "units/imperial.tmpl",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var renderedTmpl string
+			mockRenderer := &MockRendererWithCapture{
+				Capture: func(name string) {
+					renderedTmpl = name
+				},
+			}
+
+			a := &Assembler{
+				cfg: config.NewProvider(&config.Config{
+					Narrator: config.NarratorConfig{
+						Units: tt.units,
+					},
+				}, nil),
+				prompts: mockRenderer,
+			}
+
+			_ = a.fetchUnitsInstruction()
+
+			if renderedTmpl != tt.expected {
+				t.Errorf("Expected template %s, got %s", tt.expected, renderedTmpl)
+			}
+		})
+	}
+}
+
+type MockRendererWithCapture struct {
+	Capture func(string)
+}
+
+func (m *MockRendererWithCapture) Render(name string, data any) (string, error) {
+	if m.Capture != nil {
+		m.Capture(name)
+	}
+	return "Rendered", nil
 }

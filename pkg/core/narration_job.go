@@ -229,16 +229,13 @@ func (j *NarrationJob) checkFrequencyRules() bool {
 	}
 
 	// Calculate Lead Time Multiplier based on Frequency
-	// Active (3) -> 1.0x
-	// Busy (4)   -> 1.5x
-	// Constant (5) -> 2.0x
+	// Active (3)      -> 1.0x
+	// Hyperactive (4) -> 2.0x
 	var leadTimeMultiplier float64
 	switch freq {
 	case 3:
 		leadTimeMultiplier = 1.0
 	case 4:
-		leadTimeMultiplier = 1.5
-	case 5:
 		leadTimeMultiplier = 2.0
 	default:
 		leadTimeMultiplier = 1.0
@@ -547,12 +544,12 @@ func (j *NarrationJob) getNarrationFrequency() int {
 		return fallback
 	}
 
-	// Clamp to 1-5
+	// Clamp to 1-4
 	if parsed < 1 {
 		return 1
 	}
-	if parsed > 5 {
-		return 5
+	if parsed > 4 {
+		return 4
 	}
 	return parsed
 }

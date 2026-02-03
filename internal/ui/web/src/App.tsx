@@ -93,7 +93,8 @@ function App() {
           narratorStatus.current_type === 'screenshot' ? 'Photograph Analysis' : 'Essay');
       if (lastAutoOpenedIdRef.current !== title) {
         lastAutoOpenedIdRef.current = title;
-        // Since we don't have a POI, the render logic handles showing the generic panel
+        // Clear any previous POI selection to ensure the generic panel shows instead
+        setSelectedPOI(null);
         setShowGenericPanel(true);
         autoOpenedRef.current = true;
       }

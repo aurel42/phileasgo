@@ -35,22 +35,20 @@ func (s *AIService) getTTSProvider() tts.Provider {
 
 // getVoiceID returns the configured voice ID for the active TTS engine.
 func (s *AIService) getVoiceID() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
+	appCfg := s.cfg.AppConfig()
 	// If using fallback (EdgeTTS), use its config
 	if s.useFallbackTTS {
-		return s.cfg.TTS.EdgeTTS.VoiceID
+		return appCfg.TTS.EdgeTTS.VoiceID
 	}
 
 	// Otherwise check the primary engine
-	switch s.cfg.TTS.Engine {
+	switch appCfg.TTS.Engine {
 	case "azure-speech":
-		return s.cfg.TTS.AzureSpeech.VoiceID
+		return appCfg.TTS.AzureSpeech.VoiceID
 	case "fish-audio":
-		return s.cfg.TTS.FishAudio.VoiceID
+		return appCfg.TTS.FishAudio.VoiceID
 	case "edge-tts":
-		return s.cfg.TTS.EdgeTTS.VoiceID
+		return appCfg.TTS.EdgeTTS.VoiceID
 	default:
 		return ""
 	}

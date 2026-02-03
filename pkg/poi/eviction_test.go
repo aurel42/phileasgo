@@ -68,7 +68,7 @@ func TestManager_PruneByDistance(t *testing.T) {
 			// Note: manager_test.go defines MockStore and NewMockStore.
 			// 'go test' compiles all _test.go files in the package together, so it should be visible.
 
-			mgr := NewManager(&config.Config{}, NewMockStore(), nil)
+			mgr := NewManager(config.NewProvider(&config.Config{}, nil), NewMockStore(), nil)
 			p := &model.POI{WikidataID: tt.name, NameEn: tt.name, Lat: tt.poiLat, Lon: tt.poiLon}
 			_ = mgr.TrackPOI(context.Background(), p)
 

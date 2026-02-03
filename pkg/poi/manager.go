@@ -43,7 +43,7 @@ type RiverSentinel interface {
 // Returns *rivers.Candidate or nil
 
 type Manager struct {
-	config *config.Config
+	config config.Provider
 	store  ManagerStore
 	logger *slog.Logger
 
@@ -68,7 +68,7 @@ type Manager struct {
 }
 
 // NewManager creates a new POI Manager.
-func NewManager(cfg *config.Config, s ManagerStore, catCfg *config.CategoriesConfig) *Manager {
+func NewManager(cfg config.Provider, s ManagerStore, catCfg *config.CategoriesConfig) *Manager {
 	return &Manager{
 		config:      cfg,
 		store:       s,
@@ -452,7 +452,7 @@ func (m *Manager) GetNarrationCandidates(limit int, minScore *float64) []*model.
 
 // isPlayable helper checks if a POI is on cooldown.
 func (m *Manager) isPlayable(p *model.POI) bool {
-	return !p.IsOnCooldown(time.Duration(m.config.Narrator.RepeatTTL))
+	return !p.IsOnCooldown(m.config.RepeatTTL(context.Background()))
 }
 
 // CountScoredAbove returns the number of tracked POIs with a score strictly greater than the threshold.

@@ -15,7 +15,7 @@ import (
 )
 
 type Assembler struct {
-	cfg           *config.Config
+	cfg           config.Provider
 	st            Store
 	prompts       Renderer
 	geoSvc        GeoProvider
@@ -27,7 +27,7 @@ type Assembler struct {
 }
 
 func NewAssembler(
-	cfg *config.Config,
+	cfg config.Provider,
 	st Store,
 	prompts Renderer,
 	geoSvc GeoProvider,
@@ -135,25 +135,30 @@ func (a *Assembler) injectTelemetry(pd Data, t *sim.Telemetry) {
 }
 
 func (a *Assembler) injectPersona(pd Data, session SessionState) {
+	appCfg := a.cfg.AppConfig()
 	pd["TourGuideName"] = "Ava"
 	pd["Persona"] = "Intelligent, fascinating"
 	pd["Accent"] = "Neutral"
-	pd["Language"] = a.cfg.Narrator.TargetLanguage
+	pd["Language"] = a.cfg.TargetLanguage(context.Background())
 	pd["FemalePersona"] = "Intelligent, fascinating"
 	pd["FemaleAccent"] = "Neutral"
 	pd["PassengerMale"] = "Andrew"
 	pd["MaleAccent"] = "Neutral"
 	pd["TripSummary"] = a.formatTripLog(session.Events)
 	pd["LastSentence"] = session.LastSentence
-	pd["TargetLanguage"] = a.cfg.Narrator.TargetLanguage
-	pd["MaxWords"] = a.cfg.Narrator.NarrationLengthLongWords
+	pd["TargetLanguage"] = a.cfg.TargetLanguage(context.Background())
+	pd["MaxWords"] = appCfg.Narrator.NarrationLengthLongWords
 
 	// Testing & Dynamic Style
-	pd["TestingInTheStyleOf"] = a.cfg.Narrator.TestingInTheStyleOf
-	pd["TestingSecretWordForTonight"] = a.cfg.Narrator.TestingSecretWordForTonight
+	pd["TestingInTheStyleOf"] = appCfg.Narrator.TestingInTheStyleOf
+	// Config values for template context
+	pd["TemperatureBase"] = appCfg.Narrator.TemperatureBase
+	pd["TemperatureJitter"] = appCfg.Narrator.TemperatureJitter
+	pd["MinPOIScore"] = a.cfg.MinScoreThreshold(context.Background())
+	pd["TextLengthScale"] = a.cfg.TextLengthScale(context.Background())
+	pd["UnitSetting"] = a.cfg.Units(context.Background())
 
-	// Language decoding logic if needed by templates
-	targetLang := a.cfg.Narrator.TargetLanguage
+	targetLang := appCfg.Narrator.TargetLanguage
 	langCode := "en"
 	langName := "English"
 	parts := strings.Split(targetLang, "-")
@@ -218,11 +223,11 @@ func (a *Assembler) injectPOI(ctx context.Context, pd Data, p *model.POI) {
 
 func (a *Assembler) injectUnits(pd Data) {
 	pd["UnitsInstruction"] = a.fetchUnitsInstruction()
-	pd["UnitSystem"] = strings.ToLower(a.cfg.Narrator.Units)
+	pd["UnitSystem"] = strings.ToLower(a.cfg.Units(context.Background()))
 }
 
 func (a *Assembler) fetchUnitsInstruction() string {
-	unitSys := strings.ToLower(a.cfg.Narrator.Units)
+	unitSys := strings.ToLower(a.cfg.Units(context.Background()))
 	tmplName := fmt.Sprintf("units/%s.tmpl", unitSys)
 
 	// Default to imperial if invalid/empty
@@ -303,10 +308,6 @@ func (a *Assembler) fetchRecentContext(ctx context.Context, lat, lon float64) st
 		}
 	}
 
-	if len(contextParts) == 0 {
-		return "None"
-	}
-
 	return strings.Join(contextParts, ", ")
 }
 
@@ -320,13 +321,11 @@ func (a *Assembler) fetchPregroundContext(ctx context.Context, p *model.POI) str
 	}
 
 	data := struct {
-		Name     string
 		Category string
 		Country  string
 		Lat      float64
 		Lon      float64
 	}{
-		Name:     p.DisplayName(),
 		Category: p.Category,
 		Country:  a.geoSvc.GetLocation(p.Lat, p.Lon).CountryName,
 		Lat:      p.Lat,
@@ -377,7 +376,9 @@ func (a *Assembler) cleanPregroundingResult(s string) string {
 func (a *Assembler) fetchTTSInstructions(data Data) string {
 	var tmplName string
 	// Simplified fallback logic for now
-	switch strings.ToLower(a.cfg.TTS.Engine) {
+	appCfg := a.cfg.AppConfig()
+	data["TTSEngine"] = appCfg.TTS.Engine
+	switch strings.ToLower(appCfg.TTS.Engine) {
 	case "fish-audio":
 		tmplName = "tts/fish-audio.tmpl"
 	case "azure", "azure-speech":
@@ -394,8 +395,9 @@ func (a *Assembler) fetchTTSInstructions(data Data) string {
 }
 
 func (a *Assembler) sampleNarrationLength(p *model.POI, strategy string, sourceWords int) (words int, strategyUsed string) {
-	shortTarget := a.cfg.Narrator.NarrationLengthShortWords
-	longTarget := a.cfg.Narrator.NarrationLengthLongWords
+	appCfg := a.cfg.AppConfig()
+	shortTarget := appCfg.Narrator.NarrationLengthShortWords
+	longTarget := appCfg.Narrator.NarrationLengthLongWords
 	if shortTarget <= 0 {
 		shortTarget = 50
 	}

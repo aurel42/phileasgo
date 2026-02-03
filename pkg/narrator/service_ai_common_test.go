@@ -8,7 +8,7 @@ import (
 
 func TestAIService_HandleTTSError(t *testing.T) {
 	svc := &AIService{
-		cfg: &config.Config{},
+		cfg: config.NewProvider(&config.Config{}, nil),
 	}
 
 	// Should switch to fallback on fatal error

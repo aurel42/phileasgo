@@ -78,6 +78,7 @@ func (m *apiMockStore) GetState(ctx context.Context, key string) (string, bool) 
 	return "", false
 }
 func (m *apiMockStore) SetState(ctx context.Context, key, val string) error { return nil }
+func (m *apiMockStore) DeleteState(ctx context.Context, key string) error   { return nil }
 func (m *apiMockStore) GetClassification(ctx context.Context, qid string) (category string, found bool, err error) {
 	return "", false, nil
 }
@@ -97,7 +98,7 @@ func (m *apiMockStore) Close() error { return nil }
 
 func TestHandleResetLastPlayed(t *testing.T) {
 	mockStore := &apiMockStore{}
-	mgr := poi.NewManager(&config.Config{}, mockStore, nil)
+	mgr := poi.NewManager(config.NewProvider(&config.Config{}, nil), mockStore, nil)
 	handler := NewPOIHandler(mgr, nil, mockStore, nil, nil) // WP Client nil is fine here
 
 	t.Run("Success", func(t *testing.T) {
@@ -147,7 +148,7 @@ func TestHandleResetLastPlayed(t *testing.T) {
 
 func TestHandleTracked(t *testing.T) {
 	mockStore := &apiMockStore{}
-	mgr := poi.NewManager(&config.Config{}, mockStore, nil)
+	mgr := poi.NewManager(config.NewProvider(&config.Config{}, nil), mockStore, nil)
 	// Add some POIs to the manager
 	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P1", NameEn: "POI 1", Score: 10.0, IsVisible: true})
 	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P2", NameEn: "POI 2", Score: 8.0, IsVisible: true})

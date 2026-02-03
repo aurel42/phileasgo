@@ -1,7 +1,10 @@
 ﻿Release History
 
+## v0.3.118 (2026-02-03)
+- **Fix**: **Screenshot Panel State Leak**. Fixed an issue where the previous POI's info panel would appear instead of the screenshot panel. The root cause was that `selectedPOI` state was not cleared when transitioning to non-POI narratives (screenshots, essays, debriefs).
+
 ## v0.3.117 (2026-02-03)
-- **Refactor**: **Template-Driven Unit Instructions**. Replaced hardcoded measurement rules with a dynamic template system. Unit instructions (Metric, Imperial, Hybrid) are now loaded from external templates, allowing for richer and more customizable LLM guidance.
+- **Fix**: Fixed regression that prevented unit instructions (Metric, Imperial, Hybrid) from being loaded from templates.
 
 ## v0.3.116 (2026-02-02)
 - **Fix**: **Screenshot Panel Race Condition**. Fixed an issue where taking a screenshot during POI playback would show the previous POI's info panel instead of the screenshot panel when playback ended. Both the web UI and overlay now correctly check `current_type` before displaying POI content.

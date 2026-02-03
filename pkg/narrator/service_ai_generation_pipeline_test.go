@@ -16,11 +16,11 @@ import (
 
 func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
 	// Setup service with mocks
-	cfg := &config.Config{
+	cfg := config.NewProvider(&config.Config{
 		Narrator: config.NarratorConfig{
 			TargetLanguage: "en",
 		},
-	}
+	}, nil)
 	mockTTS := &MockTTS{Format: "mp3"}
 
 	tests := []struct {
@@ -122,7 +122,7 @@ func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
 
 func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 	// Setup minimalist service
-	cfg := &config.Config{}
+	cfg := config.NewProvider(&config.Config{}, nil)
 	mockTTS := &MockTTS{Format: "mp3"}
 
 	// Setup Prompts

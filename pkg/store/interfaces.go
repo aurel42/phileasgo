@@ -71,4 +71,5 @@ type MSFSPOIStore interface {
 type StateStore interface {
 	GetState(ctx context.Context, key string) (string, bool)
 	SetState(ctx context.Context, key, val string) error
+	DeleteState(ctx context.Context, key string) error
 }

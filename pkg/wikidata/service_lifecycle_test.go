@@ -63,7 +63,7 @@ func TestService_Lifecycle(t *testing.T) {
 	// Minimal valid service dependencies
 	svc := NewService(st, sm, tracker.New(), &MockClassifier{},
 		request.New(st, tracker.New(), request.ClientConfig{}),
-		&geo.Service{}, poi.NewManager(&config.Config{}, st, nil), cfg, "en")
+		&geo.Service{}, poi.NewManager(config.NewProvider(&config.Config{}, nil), st, nil), cfg, "en")
 
 	// 2. Accessors
 	if svc.WikipediaClient() == nil {

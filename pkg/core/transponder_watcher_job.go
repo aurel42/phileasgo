@@ -80,15 +80,15 @@ func (j *TransponderWatcherJob) handleSquawkChange(squawk int) {
 
 	slog.Info("Transponder: Control Squawk detected", "squawk", squawk, "freq", d1, "len", d2, "boost", d3)
 
-	// Digit 1: Frequency (0-5)
+	// Digit 1: Frequency (0-4)
 	if d1 == 0 {
 		slog.Info("Transponder: Frequency 0 detected, pausing narration")
 		j.narrator.Pause()
-	} else if d1 >= 1 && d1 <= 5 {
+	} else if d1 >= 1 && d1 <= 4 {
 		if j.st != nil {
 			_ = j.st.SetState(context.Background(), "narration_frequency", strconv.Itoa(d1))
 		}
-		// Auto-resume if frequency is moved from 0 to 1-5
+		// Auto-resume if frequency is moved from 0 to 1-4
 		j.narrator.Resume()
 	}
 
@@ -145,9 +145,9 @@ func isControlSquawk(s int) bool {
 	if str[0] != '7' {
 		return false
 	}
-	// Digit 1: 0-5
+	// Digit 1: 0-4
 	d1 := str[1]
-	if d1 < '0' || d1 > '5' {
+	if d1 < '0' || d1 > '4' {
 		return false
 	}
 	// Digits 2 & 3: 1-5
