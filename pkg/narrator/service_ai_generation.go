@@ -49,7 +49,12 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 	// 3a. Extract Metadata (Title) - BEFORE Rescue/TTS
 	extractedTitle, script := s.extractTitleFromScript(script)
 
-	// 4. Rescue Script (if too long)
+	// 4. Second Pass Refinement (if enabled)
+	if req.TwoPass {
+		script = s.performSecondPass(ctx, req, script)
+	}
+
+	// 5. Rescue Script (if too long)
 	script = s.performRescueIfNeeded(ctx, req, script)
 
 	// 5. TTS Synthesis
@@ -240,4 +245,41 @@ func (s *AIService) rescueScript(ctx context.Context, script string, maxWords in
 	}
 
 	return strings.TrimSpace(rescued), nil
+}
+
+func (s *AIService) performSecondPass(ctx context.Context, req *GenerationRequest, script string) string {
+	s.initAssembler()
+
+	pd := req.PromptData
+	if pd == nil {
+		// Fallback to basic data if missing
+		pd = s.promptAssembler.NewPromptData(s.getSessionState())
+	}
+
+	// Update with second-pass context
+	pd["Script"] = script
+	pd["MaxWords"] = int(float64(req.MaxWords) * 1.2)
+	pd["NarrativeType"] = string(req.Type)
+
+	promptStr, err := s.prompts.Render("context/second_pass.tmpl", pd)
+	if err != nil {
+		slog.Error("Narrator: Failed to render second-pass prompt", "error", err)
+		return script
+	}
+
+	// Use script_rescue profile (efficient model for cleaning)
+	refined, err := s.llm.GenerateText(ctx, "script_rescue", promptStr)
+	if err != nil {
+		slog.Error("Narrator: Second-pass LLM call failed", "error", err)
+		return script
+	}
+
+	// Check for explicit failure signal
+	if strings.TrimSpace(refined) == "RESCUE_FAILED" {
+		slog.Warn("Narrator: Second-pass refinement failed, using original script")
+		return script
+	}
+
+	slog.Info("Narrator: Second-pass refinement successful")
+	return strings.TrimSpace(refined)
 }

@@ -205,6 +205,7 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 		SkipBusyCheck: true,
 		ThumbnailURL:  p.ThumbnailURL,
 		ShowInfoPanel: true,
+		TwoPass:       s.cfg.AppConfig().Narrator.TwoPassScriptGeneration,
 	}
 
 	s.mu.Lock()
@@ -258,6 +259,14 @@ func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.J
 		POI:           job.Announcement.POI(),
 	}
 
+	// Attach full prompt data for two-pass refinement
+	switch d := data.(type) {
+	case prompt.Data:
+		req.PromptData = d
+	case map[string]any:
+		req.PromptData = prompt.Data(d)
+	}
+
 	// For screenshots, set raw path for LLM image analysis and API URL for UI
 	if ss, ok := job.Announcement.(*announcement.Screenshot); ok {
 		req.ImagePath = ss.RawPath() // Raw path for LLM GenerateImageText
@@ -266,6 +275,8 @@ func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.J
 	if job.Type == model.NarrativeTypeScreenshot || job.Type == model.NarrativeTypeDebriefing {
 		req.ShowInfoPanel = true
 	}
+
+	req.TwoPass = s.cfg.AppConfig().Narrator.TwoPassScriptGeneration && job.Announcement.TwoPass()
 
 	return req
 }

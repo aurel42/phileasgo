@@ -2,7 +2,13 @@ package narrator
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"phileasgo/pkg/config"
+	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/prompt"
+	"phileasgo/pkg/session"
 	"strings"
 	"testing"
 	"time"
@@ -138,4 +144,59 @@ func TestAIService_ConstructNarrative(t *testing.T) {
 	if n.ImagePath != "C:\\path\\to\\shot.png" {
 		t.Errorf("Expected ImagePath to be preserved as raw path, got '%s'", n.ImagePath)
 	}
+}
+
+func TestAIService_PerformSecondPass(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Create the template BEFORE initializing the manager
+	_ = writeFile(filepath.Join(tmpDir, "context", "second_pass.tmpl"), "Refined: {{.Script}} ({{.MaxWords}})")
+	pm, _ := prompts.NewManager(tmpDir)
+
+	mockLLM := &MockLLM{Response: "Refined script"}
+	cfg := config.NewProvider(config.DefaultConfig(), nil)
+	sess := session.NewManager(nil)
+
+	s := &AIService{
+		prompts:    pm,
+		llm:        mockLLM,
+		cfg:        cfg,
+		sessionMgr: sess,
+	}
+	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil)
+
+	req := &GenerationRequest{
+		MaxWords: 100,
+	}
+
+	// 1. Success case
+	got := s.performSecondPass(context.Background(), req, "Original")
+	if !strings.Contains(got, "Refined script") {
+		t.Errorf("expected refined script, got %q", got)
+	}
+
+	// 2. Multiplier check
+	mockLLM.GenerateTextFunc = func(ctx context.Context, name, promptBody string) (string, error) {
+		if !strings.Contains(promptBody, "(120)") { // 100 * 1.2
+			t.Errorf("expected MaxWords 120 in prompt, got %s", promptBody)
+		}
+		return "Refined with multiplier", nil
+	}
+	s.performSecondPass(context.Background(), req, "Original")
+
+	// 3. Rescue Failed case
+	mockLLM.GenerateTextFunc = nil
+	mockLLM.Response = "RESCUE_FAILED"
+	got = s.performSecondPass(context.Background(), req, "Original")
+	if got != "Original" {
+		t.Errorf("expected original script on rescue failed, got %q", got)
+	}
+}
+
+// Helper from manager_test or similar if not available
+func writeFile(path, content string) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(content), 0o644)
 }

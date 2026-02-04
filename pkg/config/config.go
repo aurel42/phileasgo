@@ -184,6 +184,7 @@ type NarratorConfig struct {
 	ActiveStyle               string             `yaml:"active_style"`
 	SecretWordLibrary         []string           `yaml:"secret_word_library"`
 	ActiveSecretWord          string             `yaml:"active_secret_word"`
+	TwoPassScriptGeneration   bool               `yaml:"two_pass_script_generation"`
 }
 
 // BorderConfig holds settings for border crossing announcements.

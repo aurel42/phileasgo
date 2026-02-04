@@ -157,6 +157,7 @@ type mockAnnouncement struct {
 	itemType model.NarrativeType
 	title    string
 	held     *model.Narrative
+	twoPass  bool
 }
 
 func (m *mockAnnouncement) Type() model.NarrativeType { return m.itemType }
@@ -176,3 +177,5 @@ func (m *mockAnnouncement) SetStatus(s announcement.Status)      {}
 func (m *mockAnnouncement) GetHeldNarrative() *model.Narrative   { return m.held }
 func (m *mockAnnouncement) SetHeldNarrative(n *model.Narrative)  { m.held = n }
 func (m *mockAnnouncement) IsRepeatable() bool                   { return true }
+func (m *mockAnnouncement) TwoPass() bool                        { return m.twoPass }
+func (m *mockAnnouncement) SetTwoPass(v bool)                    { m.twoPass = v }

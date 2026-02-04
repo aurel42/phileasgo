@@ -18,6 +18,7 @@ type Base struct {
 	// Infrastructure
 	DataProvider DataProvider
 	Events       EventRecorder // Specialized interface for logging
+	twoPass      bool
 
 	// UI metadata
 	title     string
@@ -40,6 +41,8 @@ func NewBase(id string, nType model.NarrativeType, repeatable bool, dp DataProvi
 func (b *Base) ID() string                { return b.id }
 func (b *Base) Type() model.NarrativeType { return b.narrativeType }
 func (b *Base) IsRepeatable() bool        { return b.repeatable }
+func (b *Base) TwoPass() bool             { return b.twoPass }
+func (b *Base) SetTwoPass(v bool)         { b.twoPass = v }
 
 func (b *Base) Status() Status {
 	b.mu.RLock()

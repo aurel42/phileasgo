@@ -16,11 +16,13 @@ type Briefing struct {
 }
 
 func NewBriefing(cfg *config.Config, dp DataProvider, events EventRecorder) *Briefing {
-	return &Briefing{
+	b := &Briefing{
 		Base:     NewBase("briefing", model.NarrativeTypeBriefing, false, dp, events),
 		cfg:      cfg,
 		provider: dp,
 	}
+	b.SetTwoPass(true)
+	return b
 }
 
 func (a *Briefing) ShouldGenerate(t *sim.Telemetry) bool {

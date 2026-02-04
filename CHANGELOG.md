@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.129 (2026-02-04)
+- **Feature**: **Two-Pass Script Generation**. Introduced an optional second refinement pass for AI-generated scripts to significantly improve quality and adherence to constraints.
+- **Improvement**: **Context Propagation**. Added full context propagation for the refinement phase, ensuring persona and thematic consistency across secondary LLM passes.
+- **Refactor**: **Template Modernization**. Removed redundant `macros.tmpl` in favor of a cleaner, modular template structure using direct `Identity`, `Voice`, `Constraints`, and `Situation` includes.
+
 ## v0.3.128 (2026-02-04)
 - **Fix**: **Automated POI Info Panel Regression**. Restored the automatic display of the info panel when POIs are narrated by the AI pilot.
 - **Fix**: **Map Interaction Continuity**. Restored map-click to close panel functionality and standardized POI marker layering for better interaction consistency.

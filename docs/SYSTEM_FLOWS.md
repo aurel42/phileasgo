@@ -532,14 +532,16 @@ The Prompt Manager registers several custom functions accessible within any `.tm
 - **`{{interests <list>}}`**: Shuffles and thins the user's interest list (dropping ~2 topics) to force the AI to rotate its focus.
 - **`{{category <name> <data>}}`**: Dynamically executes a sub-template from `configs/prompts/category/`. Allows for expert knowledge injection for specific POI types (e.g., "Aerodromes", "Cities").
 
-### Core Macros (`common/macros.tmpl`)
-Macros standardize the agent's persona and context regardless of the specific narration type.
+### Common Templates (`common/`)
 
-| Macro | Purpose | Content |
+Shared templates standardize the agent's persona and context regardless of the specific narration type.
+
+| Template | Purpose | Content |
 | :--- | :--- | :--- |
-| `{{template "persona" .}}` | Branding | Establishes a competent, fascinated tour guide persona. |
-| `{{template "style" .}}` | Tone Control | Enforces natural speech patterns (contractions, fillers) and conversational pace. |
-| `{{template "flight_data" .}}` | Telemetry | Injects current MSL, AGL, Groundspeed, Heading, and Predicted Position. |
+| `{{template "Identity" .}}` | Branding | Establishes a competent, fascinated tour guide persona. |
+| `{{template "Voice" .}}` | Tone Control | Enforces natural speech patterns (contractions, fillers) and conversational pace. |
+| `{{template "Constraints" .}}` | Boundaries | Enforces what NOT to say (no clichés, no Spock-like precision). |
+| `{{template "Situation" .}}` | Telemetry | Injects current MSL, AGL, Groundspeed, Heading, and Predicted Position. |
 
 ### Template Hierarchy
 Templates are organized in `configs/prompts/` by their functional role:

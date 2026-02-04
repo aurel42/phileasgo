@@ -101,6 +101,8 @@ interface DraftState {
     streamingMode: boolean;
     // Scorer tab
     deferralProximityBoostPower: number;
+    // Narrator refinement
+    twoPassScriptGeneration: boolean;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -168,6 +170,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     showVisibilityLayer,
                     streamingMode,
                     deferralProximityBoostPower: data.deferral_proximity_boost_power ?? 1.0,
+                    twoPassScriptGeneration: data.two_pass_script_generation ?? false,
                 });
                 setLoading(false);
             })
@@ -202,7 +205,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.showCacheLayer !== showCacheLayer ||
             draft.showVisibilityLayer !== showVisibilityLayer ||
             draft.streamingMode !== streamingMode ||
-            draft.deferralProximityBoostPower !== (serverConfig.deferral_proximity_boost_power ?? 1.0)
+            draft.deferralProximityBoostPower !== (serverConfig.deferral_proximity_boost_power ?? 1.0) ||
+            draft.twoPassScriptGeneration !== (serverConfig.two_pass_script_generation ?? false)
         );
     }, [draft, serverConfig, narrationFrequency, textLength, minPoiScore, filterMode, targetPoiCount, units, showCacheLayer, showVisibilityLayer, streamingMode]);
 
@@ -235,6 +239,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         if (draft.mockDurationTaxi !== (serverConfig?.mock_duration_taxi || '')) payload.mock_duration_taxi = draft.mockDurationTaxi;
         if (draft.mockDurationHold !== (serverConfig?.mock_duration_hold || '')) payload.mock_duration_hold = draft.mockDurationHold;
         if (draft.deferralProximityBoostPower !== (serverConfig?.deferral_proximity_boost_power ?? 1.0)) payload.deferral_proximity_boost_power = draft.deferralProximityBoostPower;
+        if (draft.twoPassScriptGeneration !== (serverConfig?.two_pass_script_generation ?? false)) payload.two_pass_script_generation = draft.twoPassScriptGeneration;
 
         try {
             // Send server-only changes
@@ -447,13 +452,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                     <input type="range" min="1" max="5" value={draft.textLength} onChange={e => updateDraft('textLength', parseInt(e.target.value))} />
                                 </div>
                             ))}
-                            {renderField('Unit System', (
+                            {renderField('Units', (
                                 <select className="settings-select" value={draft.promptUnits} onChange={e => updateDraft('promptUnits', e.target.value)}>
-                                    <option value="imperial">Imperial (ft, mph)</option>
-                                    <option value="hybrid">Hybrid (ft, knots)</option>
-                                    <option value="metric">Metric (m, km/h)</option>
+                                    <option value="imperial">Imperial (ft, knots, °F)</option>
+                                    <option value="hybrid">Hybrid (m, knots, °C)</option>
+                                    <option value="metric">Metric (m, km/h, °C)</option>
                                 </select>
                             ))}
+                            <VictorianToggle
+                                label="2-pass script generation"
+                                checked={draft.twoPassScriptGeneration}
+                                onChange={val => updateDraft('twoPassScriptGeneration', val)}
+                            />
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Language</div>
                             {renderField('Active Language', (

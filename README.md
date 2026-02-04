@@ -128,7 +128,7 @@ You can tweak the behavior of the tour guide by modifying other files in `config
     - **`narrator/script.tmpl`**: The main prompt used to generate landmark descriptions. You can edit this to change the personality, tone, or structure of the tour guide's narration.
     - **`category/`**: Contains dynamic sub-prompts used when flying over specific types of landmarks (e.g., `city.tmpl` instructs the LLM to search for local food and vibes, `aerodrome.tmpl` instructs the LLM to focus on aviation history).
     - **`tts/fish-audio.tmpl`**: A special prompt optimized for a specific cloned voice. It instructs the LLM to use specific mannerisms, vocabulary, and rhetorical styles that align with that persona.
-    - **`common/macros.tmpl`**: Defines the shared persona traits and values. **Edit this file if the tour guide's "politics" or worldview are not to your liking.** It currently defines a narrator who is critical of imperialism/authoritarianism and sides with the oppressed; you can adjust these instructions to match your preferred narrative neutrality or bias.
+    - **`common/`**: Defines the shared persona traits and values (Identity, Voice, Constraints, Situation). **Edit these files if the tour guide's "politics" or worldview are not to your liking.** They currently define a narrator who is critical of imperialism/authoritarianism and sides with the oppressed; you can adjust these instructions to match your preferred narrative neutrality or bias.
 
 *Note*: If you want a configuration change in these files to take effect, you need to restart `PhileasGUI.exe`. You can do that mid-flight, Phileas remembers where you've been.
 

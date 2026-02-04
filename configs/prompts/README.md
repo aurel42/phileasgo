@@ -6,8 +6,7 @@ This directory contains Go text templates for generating LLM prompts.
 
 ```
 prompts/
-├── common/          # Shared template definitions (macros)
-│   └── macros.tmpl  # Defines {{template "persona"}} and {{template "style"}}
+├── common/          # Shared template definitions (Identity, Voice, Constraints, Situation)
 ├── category/        # Category-specific instructions
 │   └── aerodrome.tmpl
 ├── narrator/        # Main narration templates

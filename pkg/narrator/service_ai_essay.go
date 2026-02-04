@@ -79,6 +79,8 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 		MaxWords:      s.promptAssembler.ApplyWordLengthMultiplier(topic.MaxWords),
 		Manual:        false,
 		SkipBusyCheck: true,
+		TwoPass:       s.cfg.AppConfig().Narrator.TwoPassScriptGeneration,
+		PromptData:    pd,
 	}
 
 	narrative, err := s.GenerateNarrative(ctx, &req)

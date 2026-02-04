@@ -40,6 +40,9 @@ type Item interface {
 	ImagePath() string // Raw local path (for screenshots)
 	POI() *model.POI
 
+	TwoPass() bool
+	SetTwoPass(bool)
+
 	// Pipeline Data (Managed by the infrastructure)
 	GetHeldNarrative() *model.Narrative
 	SetHeldNarrative(n *model.Narrative)

@@ -47,6 +47,8 @@ type GenerationRequest struct {
 	ThumbnailURL  string // Presentation metadata
 	Summary       string // User-visible summary
 	ShowInfoPanel bool
+	TwoPass       bool
+	PromptData    prompt.Data
 }
 
 // ScriptEntry represents a previously generated narration script.
