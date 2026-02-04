@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.127 (2026-02-04)
+- **Fix**: **Settings Panel Styling**. Fixed a regression where buttons, menus, and select dropdowns in the configuration UI displayed black text on dark backgrounds. The issue was caused by invalid CSS `var()` function calls with errant spaces that broke style inheritance.
+
 ## v0.3.126 (2026-02-04)
 - **Fix**: Corrected configuration scope for proximity boost from `narrator` to `scorer`.
 

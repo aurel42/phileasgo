@@ -615,16 +615,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     .settings-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: var (--bg-color);
+    background: var(--bg-color);
     z-index: 5000;
     display: flex;
-    font-family: var (--font-main);
+    font-family: var(--font-main);
     }
 
     .settings-container {
     width: 100%;
     height: 100%;
-    background: var (--panel-bg);
+    background: var(--panel-bg);
     display: flex;
     overflow: hidden;
     }
@@ -647,18 +647,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
 
     .settings-tab {
-    font-family: var (--font-display);
+    font-family: var(--font-display);
     font-size: 16px;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: var (--muted);
+    color: var(--muted);
     padding: 12px 0;
     cursor: pointer;
     transition: all 0.2s;
     }
 
-    .settings-tab: hover { color: var (--text-color); }
-    .settings-tab.active { color: var (--accent); }
+    .settings-tab:hover { color: var(--text-color); }
+    .settings-tab.active { color: var(--accent); }
 
     .settings-actions {
     display: flex;
@@ -669,67 +669,67 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
     .settings-save-btn {
     background: transparent;
-    border: 1px solid var (--muted);
-    color: var (--muted);
+    border: 1px solid var(--muted);
+    color: var(--muted);
     padding: 10px;
     cursor: not-allowed;
     transition: all 0.2s;
-    font-family: var (--font-display);
+    font-family: var(--font-display);
     text-transform: uppercase;
     letter-spacing: 1px;
     font-size: 12px;
     }
 
     .settings-save-btn.has-changes {
-    border-color: var (--accent);
-    color: var (--accent);
+    border-color: var(--accent);
+    color: var(--accent);
     cursor: pointer;
     }
 
-    .settings-save-btn.has-changes: hover {
-    background: var (--accent);
+    .settings-save-btn.has-changes:hover {
+    background: var(--accent);
     color: #000;
     }
 
     .settings-discard-btn {
     background: transparent;
-    border: 1px solid var (--muted);
-    color: var (--muted);
+    border: 1px solid var(--muted);
+    color: var(--muted);
     padding: 8px;
     cursor: not-allowed;
     transition: all 0.2s;
-    font-family: var (--font-main);
+    font-family: var(--font-main);
     font-size: 11px;
     }
 
-    .settings-discard-btn: not(: disabled) {
+    .settings-discard-btn:not(:disabled) {
     cursor: pointer;
     }
 
-    .settings-discard-btn: not(: disabled): hover {
+    .settings-discard-btn:not(:disabled):hover {
     border-color: #c44;
     color: #c44;
     }
 
     .settings-back-btn {
     background: transparent;
-    border: 1px solid var (--accent);
-    color: var (--accent);
+    border: 1px solid var(--accent);
+    color: var(--accent);
     padding: 10px;
     cursor: pointer;
     transition: all 0.2s;
     margin-top: 24px;
     }
 
-    .settings-back-btn: hover {
-    background: var (--accent);
+    .settings-back-btn:hover {
+    background: var(--accent);
     color: #000;
     }
 
     .settings-footer {
     margin-top: 24px;
     font-size: 11px;
-    color: var (--muted);
+    color: var(--muted);
     font-style: italic;
     }
 
@@ -737,7 +737,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     flex: 1;
     padding: 48px;
     overflow-y: auto;
-    color: var (--text-color);
+    color: var(--text-color);
     }
 
     .settings-group {
@@ -757,11 +757,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     width: 100%;
     background: #2a2a2a;
     border: 1px solid #444;
-    color: var (--text-color);
+    color: var(--text-color);
     padding: 8px 12px;
     border-radius: 4px;
-    font-family: var (--font-mono);
+    font-family: var(--font-mono);
     font-size: 14px;
+    }
+
+    .settings-select option {
+    background: #2a2a2a;
+    color: var(--text-color);
     }
 
     .settings-grid {
@@ -784,10 +789,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     border-radius: 2px;
     }
 
-    .settings-slider-container input: : -webkit-slider-thumb {
+    .settings-slider-container input::-webkit-slider-thumb {
     appearance: none;
     width: 16px; height: 16px;
-    background: var (--accent);
+    background: var(--accent);
     border-radius: 50%;
     cursor: pointer;
     }
@@ -798,7 +803,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     cursor: pointer;
     }
 
-    .role-value { color: var (--accent); font-family: var (--font-mono); }
+    .role-value { color: var(--accent); font-family: var(--font-mono); }
 
     @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
@@ -806,8 +811,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
 
     .settings-loading {
-    font-family: var (--font-display);
-    color: var (--accent);
+    font-family: var(--font-display);
+    color: var(--accent);
     font-size: 24px;
     letter-spacing: 2px;
     }
@@ -827,7 +832,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
     .v-tag {
     background: rgba(212, 175, 55, 0.1);
-    border: 1px solid var (--accent);
+    border: 1px solid var(--accent);
     padding: 4px 10px;
     border-radius: 4px;
     display: flex;
@@ -837,13 +842,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
     .v-tag span {
     font-size: 13px;
-    color: var (--accent);
-    font-family: var (--font-mono);
+    color: var(--accent);
+    font-family: var(--font-mono);
     }
     .v-tag button {
     background: transparent;
     border: none;
-    color: var (--accent);
+    color: var(--accent);
     cursor: pointer;
     font-size: 18px;
     padding: 0;
@@ -851,7 +856,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     opacity: 0.6;
     transition: opacity 0.2s;
     }
-    .v-tag button: hover { opacity: 1; }
+    .v-tag button:hover { opacity: 1; }
     .v-input-row {
     display: flex;
     gap: 8px;
@@ -865,16 +870,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     .v-preset-btn {
     background: transparent;
     border: 1px dashed rgba(255, 255, 255, 0.1);
-    color: var (--muted);
+    color: var(--muted);
     font-size: 11px;
     padding: 3px 8px;
     cursor: pointer;
     border-radius: 4px;
     transition: all 0.2s;
     }
-    .v-preset-btn: hover {
-    border-color: var (--accent);
-    color: var (--accent);
+    .v-preset-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
     background: rgba(255, 255, 255, 0.02);
     }
 `}</style>
