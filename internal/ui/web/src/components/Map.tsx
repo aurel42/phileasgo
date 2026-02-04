@@ -388,7 +388,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 {showFallbackMap && <MapBranding />}
                 {showFallbackMap && <CoverageLayer />}
                 {showCacheLayer && isConnected && <CacheLayer />}
-                <VisibilityLayer enabled={showVisibilityLayer} />
+                {isConnected && <VisibilityLayer enabled={showVisibilityLayer} />}
                 {isConnected && telemetry && throttledPos && (
                     <>
                         {/* We use TELEMETRY (real-time) for Ring positions? No, rings should probably move with the plane. 

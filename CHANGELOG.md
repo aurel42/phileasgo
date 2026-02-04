@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.131 (2026-02-04)
+- **Fix**: **Visibility Overlay Regression**. The visibility rings are now correctly hidden when the simulator is disconnected or when coordinates are invalid.
+
 ## v0.3.130 (2026-02-04)
 - **Fix**: **Settings Persistence**. Fixed an issue where the "2nd-pass script generation" toggle in the settings dialog would not persist across application restarts.
 - **Improvement**: **Merged Proximate POIs**. Increased spatial merge tolerances to better handle duplicate Wikidata entities with slightly different coordinates (e.g., school campuses).
@@ -7,7 +10,6 @@
 - **Improvement**: **Map Auto-Zoom Defaults**. Set the default auto-zoom to a 20x20km bounding box (10km radius) when no active POIs are present, preventing over-zooming.
 - **Improvement**: **Settings UI Tab Reordering**. Moved the Narrator tab to the front of the settings panel for easier access to secondary-pass and style settings.
 - **Improvement**: **Robust Audio Synthesis**. Implemented a mandatory 1KB minimum size check for synthesized audio files and a 3-pass retry mechanism to prevent silent narrations from transient API or connection failures.
-
 
 ## v0.3.129 (2026-02-04)
 - **Feature**: **Two-Pass Script Generation**. Introduced an optional second refinement pass for AI-generated scripts to improve quality and adherence to constraints.

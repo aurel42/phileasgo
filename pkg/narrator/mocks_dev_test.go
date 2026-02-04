@@ -2,6 +2,8 @@ package narrator
 
 import (
 	"context"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,14 +74,32 @@ func (m *MockLLM) GenerateImageText(ctx context.Context, name, prompt, imagePath
 }
 
 type MockTTS struct {
-	Format string
-	Err    error
+	Format          string
+	Err             error
+	SynthesizeFunc  func(ctx context.Context, text, voiceID, outputPath string) (string, error)
+	SynthesizeCalls int
 }
 
 func (m *MockTTS) Voices(ctx context.Context) ([]tts.Voice, error) {
 	return []tts.Voice{{ID: "voice-f", Name: "Female Voice"}}, nil
 }
 func (m *MockTTS) Synthesize(ctx context.Context, text, voiceID, outputPath string) (string, error) {
+	m.SynthesizeCalls++
+	if m.SynthesizeFunc != nil {
+		return m.SynthesizeFunc(ctx, text, voiceID, outputPath)
+	}
+
+	if m.Err == nil {
+		fullPath := outputPath
+		ext := m.Format
+		if ext == "" {
+			ext = "mp3"
+		}
+		if !strings.HasSuffix(strings.ToLower(fullPath), "."+ext) {
+			fullPath += "." + ext
+		}
+		_ = os.WriteFile(fullPath, make([]byte, tts.MinAudioSize+1), 0644)
+	}
 	return m.Format, m.Err
 }
 

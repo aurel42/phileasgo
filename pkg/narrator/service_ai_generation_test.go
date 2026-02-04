@@ -9,6 +9,7 @@ import (
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
 	"phileasgo/pkg/session"
+	"phileasgo/pkg/tts"
 	"strings"
 	"testing"
 	"time"
@@ -189,6 +190,60 @@ func TestAIService_PerformSecondPass(t *testing.T) {
 	got = s.performSecondPass(context.Background(), req, "Original")
 	if got != "Original" {
 		t.Errorf("expected original script on rescue failed, got %q", got)
+	}
+}
+
+func TestAIService_SynthesizeRetry(t *testing.T) {
+	mockTTS := &MockTTS{Format: "mp3"}
+	s := &AIService{
+		tts: mockTTS,
+		llm: &MockLLM{Response: "TITLE: OK\nScript"},
+		sim: &MockSim{},
+		cfg: config.NewProvider(config.DefaultConfig(), nil),
+	}
+	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, nil, nil, nil, nil, s.llm, nil, nil)
+
+	req := &GenerationRequest{
+		Type: model.NarrativeTypePOI,
+	}
+
+	// 1. Succeed on 3rd attempt
+	attempts := 0
+	mockTTS.SynthesizeFunc = func(ctx context.Context, text, voiceID, outputPath string) (string, error) {
+		attempts++
+		if attempts < 3 {
+			return "", tts.NewFatalError(500, "transient error")
+		}
+		// Success: write file
+		fullPath := outputPath + ".mp3"
+		_ = os.WriteFile(fullPath, make([]byte, tts.MinAudioSize+1), 0644)
+		return "mp3", nil
+	}
+
+	narrative, err := s.GenerateNarrative(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected success on 3rd attempt, got error: %v", err)
+	}
+	if narrative == nil {
+		t.Fatal("expected narrative, got nil")
+	}
+	if attempts != 3 {
+		t.Errorf("expected 3 synthesis attempts, got %d", attempts)
+	}
+
+	// 2. Fail after 3 attempts
+	attempts = 0
+	mockTTS.SynthesizeFunc = func(ctx context.Context, text, voiceID, outputPath string) (string, error) {
+		attempts++
+		return "", tts.NewFatalError(500, "permanent error")
+	}
+
+	_, err = s.GenerateNarrative(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error after 3 failed attempts, got nil")
+	}
+	if attempts != 3 {
+		t.Errorf("expected exactly 3 attempts before giving up, got %d", attempts)
 	}
 }
 
