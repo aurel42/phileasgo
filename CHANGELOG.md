@@ -1,6 +1,10 @@
 ﻿Release History
 
-## v0.3.122 (2026-02-04)
+## v0.3.125 (2026-02-04)
+- **Feature**: **Proximity Boost**. Added a configurable exponential penalty to the deferral mechanism (`narrator.deferral_proximity_boost_power`), allowing for much more selective narration timing based on distance and visual clarity.
+- **Improvement**: **Scorer Tab**. Introduced a dedicated Scorer settings tab with real-time control over the deferral proximity boost.
+- **Refinement**: **Deferral Logic**. Standardized the exponential power calculation across both current and future visibility estimates for consistent decision-making.
+
 - **Feature**: **Multi-Language Support**. Introduced dynamic target language selection and a configurable language library, allowing for runtime switching without application restarts.
 - **Refactor**: **Unified Units**. Separated prompt template units (imperial/hybrid/metric) from map display units (km/nm) to ensure independent control.
 - **Improvement**: **Library Management UI**. Added an expandable section in the Settings Panel for managing styles, themes, and language libraries.
@@ -8,7 +12,6 @@
 - **Fix**: **POI Deferral System**. Repaired a critical bug in the deferral logic that hardcoded "Medium" size for all future visibility predictions, which effectively suppressed deferrals for large landmarks. Deferrals now correctly account for the POI's actual size.
 - **Unification**: **Visibility Blind Spots**. Unified the airframe blind spot logic across the map overlay and narrator. Objects in the blind spot now consistently return zero visibility, ensuring the narrator remains silent when a landmark is physically obscured.
 - **Improvement**: **Scoring Accuracy**. Standardized the application of size penalties and dimension multipliers in the deferral calculator to ensure perfectly stable decision-making as landmarks approach.
-
 
 ## v0.3.120 (2026-02-04)
 - **Fix**: **Duration Unit Overhaul**. Resolved a systemic double-scaling bug introduced with the config refactor in v0.3.119.

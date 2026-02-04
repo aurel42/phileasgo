@@ -15,7 +15,7 @@ type Provider interface {
 	// General
 	SimProvider(ctx context.Context) string
 	TeleportDistance(ctx context.Context) float64
-	Units(ctx context.Context) string         // Prompt template units (imperial/hybrid/metric)
+	Units(ctx context.Context) string          // Prompt template units (imperial/hybrid/metric)
 	RangeRingUnits(ctx context.Context) string // Map display units (km/nm)
 	TelemetryLoop(ctx context.Context) time.Duration
 
@@ -45,6 +45,7 @@ type Provider interface {
 	TargetPOICount(ctx context.Context) int
 	PauseDuration(ctx context.Context) time.Duration
 	LineOfSight(ctx context.Context) bool
+	DeferralProximityBoostPower(ctx context.Context) float64
 
 	// Essay
 	EssayEnabled(ctx context.Context) bool
@@ -196,6 +197,10 @@ func (p *UnifiedProvider) PauseDuration(ctx context.Context) time.Duration {
 
 func (p *UnifiedProvider) LineOfSight(ctx context.Context) bool {
 	return p.base.Terrain.LineOfSight
+}
+
+func (p *UnifiedProvider) DeferralProximityBoostPower(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyDeferralProximityBoostPower, p.base.Scorer.DeferralProximityBoostPower)
 }
 
 func (p *UnifiedProvider) EssayEnabled(ctx context.Context) bool {

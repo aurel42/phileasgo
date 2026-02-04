@@ -285,11 +285,12 @@ type ScorerConfig struct {
 	NoveltyBoost        float64 `yaml:"novelty_boost"`
 	GroupPenalty        float64 `yaml:"group_penalty"`
 	// Deferral settings: wait for optimal viewing moment
-	DeferralEnabled    bool         `yaml:"deferral_enabled"`    // Enable deferral logic
-	DeferralThreshold  float64      `yaml:"deferral_threshold"`  // Defer if max future visibility > threshold * current (default 1.1)
-	DeferralMultiplier float64      `yaml:"deferral_multiplier"` // Score multiplier when deferred (default 0.1)
-	PregroundBoost     int          `yaml:"preground_boost"`     // Virtual article length boost for pregrounding categories (default 4000)
-	Badges             BadgesConfig `yaml:"badges"`
+	DeferralEnabled             bool         `yaml:"deferral_enabled"`    // Enable deferral logic
+	DeferralThreshold           float64      `yaml:"deferral_threshold"`  // Defer if max future visibility > threshold * current (default 1.1)
+	DeferralMultiplier          float64      `yaml:"deferral_multiplier"` // Score multiplier when deferred (default 0.1)
+	DeferralProximityBoostPower float64      `yaml:"deferral_proximity_boost_power"`
+	PregroundBoost              int          `yaml:"preground_boost"` // Virtual article length boost for pregrounding categories (default 4000)
+	Badges                      BadgesConfig `yaml:"badges"`
 }
 
 // BadgesConfig holds settings for badge triggers.
@@ -408,14 +409,15 @@ func DefaultConfig() *Config {
 			ElevationFile: "data/etopo1/etopo1_ice_g_i2.bin",
 		},
 		Scorer: ScorerConfig{
-			VarietyPenaltyFirst: 0.1,
-			VarietyPenaltyLast:  0.5,
-			VarietyPenaltyNum:   3,
-			NoveltyBoost:        1.3,
-			GroupPenalty:        0.5,
-			DeferralEnabled:     true,
-			DeferralThreshold:   0.75, // Defer if future dist < 75% of current
-			DeferralMultiplier:  0.1,  // 10% score when deferred
+			VarietyPenaltyFirst:         0.1,
+			VarietyPenaltyLast:          0.5,
+			VarietyPenaltyNum:           3,
+			NoveltyBoost:                1.3,
+			GroupPenalty:                0.5,
+			DeferralEnabled:             true,
+			DeferralThreshold:           0.75, // Defer if future dist < 75% of current
+			DeferralMultiplier:          0.1,  // 10% score when deferred
+			DeferralProximityBoostPower: 1.0,
 			Badges: BadgesConfig{
 				DeepDive: DeepDiveBadgeConfig{
 					ArticleLenMin: 20000,

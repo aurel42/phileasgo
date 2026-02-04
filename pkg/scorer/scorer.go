@@ -261,7 +261,16 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 		threshold = 1.1 // Default: defer if 10% better visibility later
 	}
 
-	return maxFutureVis > currentVisibility*threshold
+	power := sess.scorer.config.DeferralProximityBoostPower
+	if power <= 0 {
+		power = 1.0
+	}
+
+	// Apply exponential penalty to both scores before comparison
+	maxFutureVisPow := math.Pow(maxFutureVis, power)
+	currentVisPow := math.Pow(currentVisibility, power)
+
+	return maxFutureVisPow > currentVisPow*threshold
 }
 
 // calculateUrgencyMetrics calculates TimeToBehind (TTB) and TimeToCPA (TTCPA).

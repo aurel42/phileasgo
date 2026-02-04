@@ -30,65 +30,67 @@ func NewConfigHandler(st store.Store, cfg config.Provider) *ConfigHandler {
 
 // ConfigResponse represents the config API response.
 type ConfigResponse struct {
-	SimSource             string   `json:"sim_source"`
-	Units                 string   `json:"units"`                  // Prompt template units (imperial/hybrid/metric) - not used by frontend
-	RangeRingUnits        string   `json:"range_ring_units"`       // Map display units (km/nm) - used by frontend
-	TTSEngine             string   `json:"tts_engine"`
-	ShowCacheLayer        bool     `json:"show_cache_layer"`
-	ShowVisibilityLayer   bool     `json:"show_visibility_layer"`
-	MinPOIScore           float64  `json:"min_poi_score"`
-	Volume                float64  `json:"volume"`
-	FilterMode            string   `json:"filter_mode"`
-	TargetPOICount        int      `json:"target_poi_count"`
-	NarrationFrequency    int      `json:"narration_frequency"`
-	TextLength            int      `json:"text_length"`
-	ShowMapBox            bool     `json:"show_map_box"`
-	ShowPOIInfo           bool     `json:"show_poi_info"`
-	ShowInfoBar           bool     `json:"show_info_bar"`
-	ShowLogLine           bool     `json:"show_log_line"`
-	LLMProvider           string   `json:"llm_provider"`
-	TeleportDistance      float64  `json:"teleport_distance"`
-	MockStartLat          float64  `json:"mock_start_lat"`
-	MockStartLon          float64  `json:"mock_start_lon"`
-	MockStartAlt          float64  `json:"mock_start_alt"`
-	MockStartHeading      *float64 `json:"mock_start_heading"`
-	MockDurationParked    string   `json:"mock_duration_parked"`
-	MockDurationTaxi      string   `json:"mock_duration_taxi"`
-	MockDurationHold      string   `json:"mock_duration_hold"`
-	StyleLibrary          []string `json:"style_library"`
-	ActiveStyle           string   `json:"active_style"`
-	SecretWordLibrary     []string `json:"secret_word_library"`
-	ActiveSecretWord      string   `json:"active_secret_word"`
-	TargetLanguageLibrary []string `json:"target_language_library"`
-	ActiveTargetLanguage  string   `json:"active_target_language"`
+	SimSource                   string   `json:"sim_source"`
+	Units                       string   `json:"units"`            // Prompt template units (imperial/hybrid/metric) - not used by frontend
+	RangeRingUnits              string   `json:"range_ring_units"` // Map display units (km/nm) - used by frontend
+	TTSEngine                   string   `json:"tts_engine"`
+	ShowCacheLayer              bool     `json:"show_cache_layer"`
+	ShowVisibilityLayer         bool     `json:"show_visibility_layer"`
+	MinPOIScore                 float64  `json:"min_poi_score"`
+	Volume                      float64  `json:"volume"`
+	FilterMode                  string   `json:"filter_mode"`
+	TargetPOICount              int      `json:"target_poi_count"`
+	NarrationFrequency          int      `json:"narration_frequency"`
+	TextLength                  int      `json:"text_length"`
+	ShowMapBox                  bool     `json:"show_map_box"`
+	ShowPOIInfo                 bool     `json:"show_poi_info"`
+	ShowInfoBar                 bool     `json:"show_info_bar"`
+	ShowLogLine                 bool     `json:"show_log_line"`
+	LLMProvider                 string   `json:"llm_provider"`
+	TeleportDistance            float64  `json:"teleport_distance"`
+	MockStartLat                float64  `json:"mock_start_lat"`
+	MockStartLon                float64  `json:"mock_start_lon"`
+	MockStartAlt                float64  `json:"mock_start_alt"`
+	MockStartHeading            *float64 `json:"mock_start_heading"`
+	MockDurationParked          string   `json:"mock_duration_parked"`
+	MockDurationTaxi            string   `json:"mock_duration_taxi"`
+	MockDurationHold            string   `json:"mock_duration_hold"`
+	StyleLibrary                []string `json:"style_library"`
+	ActiveStyle                 string   `json:"active_style"`
+	SecretWordLibrary           []string `json:"secret_word_library"`
+	ActiveSecretWord            string   `json:"active_secret_word"`
+	TargetLanguageLibrary       []string `json:"target_language_library"`
+	ActiveTargetLanguage        string   `json:"active_target_language"`
+	DeferralProximityBoostPower float64  `json:"deferral_proximity_boost_power"`
 }
 
 // ConfigRequest represents the config API request for updates.
 type ConfigRequest struct {
-	SimSource             string   `json:"sim_source,omitempty"`
-	Units                 string   `json:"units,omitempty"`            // Prompt template units (imperial/hybrid/metric)
-	RangeRingUnits        string   `json:"range_ring_units,omitempty"` // Map display units (km/nm)
-	ShowCacheLayer        *bool    `json:"show_cache_layer,omitempty"` // Pointer to detect false vs missing
-	ShowVisibilityLayer   *bool    `json:"show_visibility_layer,omitempty"` // Pointer to detect false vs missing
-	MinPOIScore           *float64 `json:"min_poi_score,omitempty"`
-	FilterMode            string   `json:"filter_mode,omitempty"`
-	TargetPOICount        *int     `json:"target_poi_count,omitempty"`
-	NarrationFrequency    *int     `json:"narration_frequency,omitempty"`
-	TextLength            *int     `json:"text_length,omitempty"`
-	TeleportDistance      *float64 `json:"teleport_distance,omitempty"`
-	MockStartLat          *float64 `json:"mock_start_lat,omitempty"`
-	MockStartLon          *float64 `json:"mock_start_lon,omitempty"`
-	MockStartAlt          *float64 `json:"mock_start_alt,omitempty"`
-	MockStartHeading      *float64 `json:"mock_start_heading,omitempty"`
-	MockDurationParked    string   `json:"mock_duration_parked,omitempty"`
-	MockDurationTaxi      string   `json:"mock_duration_taxi,omitempty"`
-	MockDurationHold      string   `json:"mock_duration_hold,omitempty"`
-	StyleLibrary          []string `json:"style_library,omitempty"`
-	ActiveStyle           *string  `json:"active_style,omitempty"` // Pointer to detect empty string vs missing
-	SecretWordLibrary     []string `json:"secret_word_library,omitempty"`
-	ActiveSecretWord      *string  `json:"active_secret_word,omitempty"` // Pointer to detect empty string vs missing
-	TargetLanguageLibrary []string `json:"target_language_library,omitempty"`
-	ActiveTargetLanguage  *string  `json:"active_target_language,omitempty"`
+	SimSource                   string   `json:"sim_source,omitempty"`
+	Units                       string   `json:"units,omitempty"`                 // Prompt template units (imperial/hybrid/metric)
+	RangeRingUnits              string   `json:"range_ring_units,omitempty"`      // Map display units (km/nm)
+	ShowCacheLayer              *bool    `json:"show_cache_layer,omitempty"`      // Pointer to detect false vs missing
+	ShowVisibilityLayer         *bool    `json:"show_visibility_layer,omitempty"` // Pointer to detect false vs missing
+	MinPOIScore                 *float64 `json:"min_poi_score,omitempty"`
+	FilterMode                  string   `json:"filter_mode,omitempty"`
+	TargetPOICount              *int     `json:"target_poi_count,omitempty"`
+	NarrationFrequency          *int     `json:"narration_frequency,omitempty"`
+	TextLength                  *int     `json:"text_length,omitempty"`
+	TeleportDistance            *float64 `json:"teleport_distance,omitempty"`
+	MockStartLat                *float64 `json:"mock_start_lat,omitempty"`
+	MockStartLon                *float64 `json:"mock_start_lon,omitempty"`
+	MockStartAlt                *float64 `json:"mock_start_alt,omitempty"`
+	MockStartHeading            *float64 `json:"mock_start_heading,omitempty"`
+	MockDurationParked          string   `json:"mock_duration_parked,omitempty"`
+	MockDurationTaxi            string   `json:"mock_duration_taxi,omitempty"`
+	MockDurationHold            string   `json:"mock_duration_hold,omitempty"`
+	StyleLibrary                []string `json:"style_library,omitempty"`
+	ActiveStyle                 *string  `json:"active_style,omitempty"` // Pointer to detect empty string vs missing
+	SecretWordLibrary           []string `json:"secret_word_library,omitempty"`
+	ActiveSecretWord            *string  `json:"active_secret_word,omitempty"` // Pointer to detect empty string vs missing
+	TargetLanguageLibrary       []string `json:"target_language_library,omitempty"`
+	ActiveTargetLanguage        *string  `json:"active_target_language,omitempty"`
+	DeferralProximityBoostPower *float64 `json:"deferral_proximity_boost_power,omitempty"`
 }
 
 // HandleConfig is a unified handler for all config-related methods, facilitating CORS/OPTIONS.
@@ -135,37 +137,38 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 	}
 
 	return ConfigResponse{
-		SimSource:             h.cfgProv.SimProvider(ctx),
-		Units:                 h.cfgProv.Units(ctx),         // Prompt template units (imperial/hybrid/metric) - backend only
-		RangeRingUnits:        h.cfgProv.RangeRingUnits(ctx), // Map display units (km/nm) - frontend only
-		TTSEngine:             h.appCfg.TTS.Engine,
-		ShowCacheLayer:        h.cfgProv.ShowCacheLayer(ctx),
-		ShowVisibilityLayer:   h.cfgProv.ShowVisibilityLayer(ctx),
-		MinPOIScore:           h.cfgProv.MinScoreThreshold(ctx),
-		Volume:                volume, // Volume is not migrated to cfgProv
-		FilterMode:            h.cfgProv.FilterMode(ctx),
-		TargetPOICount:        h.cfgProv.TargetPOICount(ctx),
-		NarrationFrequency:    h.cfgProv.NarrationFrequency(ctx),
-		TextLength:            h.cfgProv.TextLengthScale(ctx),
-		ShowMapBox:            h.appCfg.Overlay.MapBox,
-		ShowPOIInfo:           h.appCfg.Overlay.POIInfo,
-		ShowInfoBar:           h.appCfg.Overlay.InfoBar,
-		ShowLogLine:           h.appCfg.Overlay.LogLine,
-		LLMProvider:           h.getPrimaryLLMProvider(),
-		TeleportDistance:      h.cfgProv.TeleportDistance(ctx),
-		MockStartLat:          h.cfgProv.MockStartLat(ctx),
-		MockStartLon:          h.cfgProv.MockStartLon(ctx),
-		MockStartAlt:          h.cfgProv.MockStartAlt(ctx),
-		MockStartHeading:      h.cfgProv.MockStartHeading(ctx),
-		MockDurationParked:    h.cfgProv.MockDurationParked(ctx).String(),
-		MockDurationTaxi:      h.cfgProv.MockDurationTaxi(ctx).String(),
-		MockDurationHold:      h.cfgProv.MockDurationHold(ctx).String(),
-		StyleLibrary:          h.cfgProv.StyleLibrary(ctx),
-		ActiveStyle:           h.cfgProv.ActiveStyle(ctx),
-		SecretWordLibrary:     h.cfgProv.SecretWordLibrary(ctx),
-		ActiveSecretWord:      h.cfgProv.ActiveSecretWord(ctx),
-		TargetLanguageLibrary: h.cfgProv.TargetLanguageLibrary(ctx),
-		ActiveTargetLanguage:  h.cfgProv.ActiveTargetLanguage(ctx),
+		SimSource:                   h.cfgProv.SimProvider(ctx),
+		Units:                       h.cfgProv.Units(ctx),          // Prompt template units (imperial/hybrid/metric) - backend only
+		RangeRingUnits:              h.cfgProv.RangeRingUnits(ctx), // Map display units (km/nm) - frontend only
+		TTSEngine:                   h.appCfg.TTS.Engine,
+		ShowCacheLayer:              h.cfgProv.ShowCacheLayer(ctx),
+		ShowVisibilityLayer:         h.cfgProv.ShowVisibilityLayer(ctx),
+		MinPOIScore:                 h.cfgProv.MinScoreThreshold(ctx),
+		Volume:                      volume, // Volume is not migrated to cfgProv
+		FilterMode:                  h.cfgProv.FilterMode(ctx),
+		TargetPOICount:              h.cfgProv.TargetPOICount(ctx),
+		NarrationFrequency:          h.cfgProv.NarrationFrequency(ctx),
+		TextLength:                  h.cfgProv.TextLengthScale(ctx),
+		ShowMapBox:                  h.appCfg.Overlay.MapBox,
+		ShowPOIInfo:                 h.appCfg.Overlay.POIInfo,
+		ShowInfoBar:                 h.appCfg.Overlay.InfoBar,
+		ShowLogLine:                 h.appCfg.Overlay.LogLine,
+		LLMProvider:                 h.getPrimaryLLMProvider(),
+		TeleportDistance:            h.cfgProv.TeleportDistance(ctx),
+		MockStartLat:                h.cfgProv.MockStartLat(ctx),
+		MockStartLon:                h.cfgProv.MockStartLon(ctx),
+		MockStartAlt:                h.cfgProv.MockStartAlt(ctx),
+		MockStartHeading:            h.cfgProv.MockStartHeading(ctx),
+		MockDurationParked:          h.cfgProv.MockDurationParked(ctx).String(),
+		MockDurationTaxi:            h.cfgProv.MockDurationTaxi(ctx).String(),
+		MockDurationHold:            h.cfgProv.MockDurationHold(ctx).String(),
+		StyleLibrary:                h.cfgProv.StyleLibrary(ctx),
+		ActiveStyle:                 h.cfgProv.ActiveStyle(ctx),
+		SecretWordLibrary:           h.cfgProv.SecretWordLibrary(ctx),
+		ActiveSecretWord:            h.cfgProv.ActiveSecretWord(ctx),
+		TargetLanguageLibrary:       h.cfgProv.TargetLanguageLibrary(ctx),
+		ActiveTargetLanguage:        h.cfgProv.ActiveTargetLanguage(ctx),
+		DeferralProximityBoostPower: h.cfgProv.DeferralProximityBoostPower(ctx),
 	}
 }
 
@@ -255,6 +258,9 @@ func (h *ConfigHandler) applyThresholdUpdates(ctx context.Context, req *ConfigRe
 	}
 	if req.TeleportDistance != nil {
 		h.updateFloatState(ctx, config.KeyTeleportDistance, *req.TeleportDistance)
+	}
+	if req.DeferralProximityBoostPower != nil {
+		h.updateFloatState(ctx, config.KeyDeferralProximityBoostPower, *req.DeferralProximityBoostPower)
 	}
 }
 
