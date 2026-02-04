@@ -46,6 +46,10 @@ func (m *mockPhase2NarratorService) CurrentType() model.NarrativeType {
 	return ""
 }
 
+func (m *mockPhase2NarratorService) CurrentShowInfoPanel() bool {
+	return false
+}
+
 func (m *mockPhase2NarratorService) IsGenerating() bool {
 	return m.isGeneratingVal
 }

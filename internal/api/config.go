@@ -54,6 +54,10 @@ type ConfigResponse struct {
 	MockDurationParked  string   `json:"mock_duration_parked"`
 	MockDurationTaxi    string   `json:"mock_duration_taxi"`
 	MockDurationHold    string   `json:"mock_duration_hold"`
+	StyleLibrary        []string `json:"style_library"`
+	ActiveStyle         string   `json:"active_style"`
+	SecretWordLibrary   []string `json:"secret_word_library"`
+	ActiveSecretWord    string   `json:"active_secret_word"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -75,6 +79,10 @@ type ConfigRequest struct {
 	MockDurationParked  string   `json:"mock_duration_parked,omitempty"`
 	MockDurationTaxi    string   `json:"mock_duration_taxi,omitempty"`
 	MockDurationHold    string   `json:"mock_duration_hold,omitempty"`
+	StyleLibrary        []string `json:"style_library,omitempty"`
+	ActiveStyle         *string  `json:"active_style,omitempty"`       // Pointer to detect empty string vs missing
+	SecretWordLibrary   []string `json:"secret_word_library,omitempty"`
+	ActiveSecretWord    *string  `json:"active_secret_word,omitempty"` // Pointer to detect empty string vs missing
 }
 
 // HandleConfig is a unified handler for all config-related methods, facilitating CORS/OPTIONS.
@@ -145,6 +153,10 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		MockDurationParked:  h.cfgProv.MockDurationParked(ctx).String(),
 		MockDurationTaxi:    h.cfgProv.MockDurationTaxi(ctx).String(),
 		MockDurationHold:    h.cfgProv.MockDurationHold(ctx).String(),
+		StyleLibrary:        h.cfgProv.StyleLibrary(ctx),
+		ActiveStyle:         h.cfgProv.ActiveStyle(ctx),
+		SecretWordLibrary:   h.cfgProv.SecretWordLibrary(ctx),
+		ActiveSecretWord:    h.cfgProv.ActiveSecretWord(ctx),
 	}
 }
 
@@ -175,6 +187,7 @@ func (h *ConfigHandler) HandleSetConfig(w http.ResponseWriter, r *http.Request) 
 	h.applyUIUpdates(ctx, &req)
 	h.applyThresholdUpdates(ctx, &req)
 	h.applyMockUpdates(ctx, &req, body)
+	h.applyStyleUpdates(ctx, &req)
 
 	// Return updated config
 	h.HandleGetConfig(w, r)
@@ -255,6 +268,31 @@ func (h *ConfigHandler) applyMockUpdates(ctx context.Context, req *ConfigRequest
 	}
 	if req.MockDurationHold != "" {
 		_ = h.store.SetState(ctx, config.KeyMockDurHold, req.MockDurationHold)
+	}
+}
+
+func (h *ConfigHandler) applyStyleUpdates(ctx context.Context, req *ConfigRequest) {
+	if req.StyleLibrary != nil {
+		jsonBytes, err := json.Marshal(req.StyleLibrary)
+		if err == nil {
+			_ = h.store.SetState(ctx, config.KeyStyleLibrary, string(jsonBytes))
+			slog.Debug("Config updated", config.KeyStyleLibrary, string(jsonBytes))
+		}
+	}
+	if req.ActiveStyle != nil {
+		_ = h.store.SetState(ctx, config.KeyActiveStyle, *req.ActiveStyle)
+		slog.Debug("Config updated", config.KeyActiveStyle, *req.ActiveStyle)
+	}
+	if req.SecretWordLibrary != nil {
+		jsonBytes, err := json.Marshal(req.SecretWordLibrary)
+		if err == nil {
+			_ = h.store.SetState(ctx, config.KeySecretWordLibrary, string(jsonBytes))
+			slog.Debug("Config updated", config.KeySecretWordLibrary, string(jsonBytes))
+		}
+	}
+	if req.ActiveSecretWord != nil {
+		_ = h.store.SetState(ctx, config.KeyActiveSecretWord, *req.ActiveSecretWord)
+		slog.Debug("Config updated", config.KeyActiveSecretWord, *req.ActiveSecretWord)
 	}
 }
 

@@ -22,8 +22,8 @@ export const ConfigBox = ({ telemetry, config }: ConfigBoxProps) => {
 
                 <span className="role-label-overlay" style={{ textAlign: 'left' }}>FRQ</span>
                 <div className="pips" style={{ display: 'flex', gap: '2px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                    {[1, 2, 3, 4, 5].map(v => (
-                        <div key={v} className={`pip ${v <= (config.narration_frequency || 0) ? 'active' : ''} ${v > 3 && v <= (config.narration_frequency || 0) ? 'high' : ''}`} />
+                    {[1, 2, 3, 4].map(v => (
+                        <div key={v} className={`pip ${v <= (config.narration_frequency || 0) ? 'active' : ''} ${v > 2 && v <= (config.narration_frequency || 0) ? 'high' : ''}`} />
                     ))}
                 </div>
 

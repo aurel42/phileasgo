@@ -36,6 +36,7 @@ type NarratorController interface {
 	GetPreparedPOI() *model.POI
 	CurrentTitle() string
 	CurrentThumbnailURL() string // Added
+	CurrentShowInfoPanel() bool  // Added
 	CurrentType() model.NarrativeType
 	CurrentImagePath() string
 	ClearCurrentImage() // Added
@@ -77,12 +78,14 @@ type NarratorStatusResponse struct {
 	CurrentTitle       string         `json:"current_title"`
 	CurrentType        string         `json:"current_type"`
 	CurrentImagePath   string         `json:"current_image_path,omitempty"`
-	DisplayTitle       string         `json:"display_title"`     // Added
-	DisplayThumbnail   string         `json:"display_thumbnail"` // Added
+	DisplayTitle       string         `json:"display_title"`
+	DisplayThumbnail   string         `json:"display_thumbnail"`
+	Summary            string         `json:"summary,omitempty"`
 	NarratedCount      int            `json:"narrated_count"`
 	Stats              map[string]any `json:"stats"`
 	NarrationFrequency int            `json:"narration_frequency"`
 	TextLength         int            `json:"text_length"`
+	ShowInfoPanel      bool           `json:"show_info_panel"`
 }
 
 // HandlePlay handles POST /api/narrator/play
@@ -152,6 +155,7 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		Stats:              h.narrator.Stats(),
 		NarrationFrequency: freq,
 		TextLength:         textLen,
+		ShowInfoPanel:      h.narrator.CurrentShowInfoPanel(),
 	}
 
 	// Check if state changed

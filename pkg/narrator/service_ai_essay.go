@@ -73,6 +73,7 @@ func (s *AIService) narrateEssay(ctx context.Context, topic *EssayTopic, tel *si
 	req := GenerationRequest{
 		Type:          model.NarrativeTypeEssay,
 		Prompt:        prompt,
+		Title:         topic.Name,
 		SafeID:        "essay_" + topic.ID,
 		EssayTopic:    topic,
 		MaxWords:      s.promptAssembler.ApplyWordLengthMultiplier(topic.MaxWords),

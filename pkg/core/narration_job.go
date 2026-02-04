@@ -207,7 +207,7 @@ func (j *NarrationJob) checkFlightStagePOI(t *sim.Telemetry) bool {
 	}
 }
 
-// checkFrequencyRules determines if we can fire based on frequency settings (1-5).
+// checkFrequencyRules determines if we can fire based on frequency settings (1-4).
 // Handles pipeline/overlap logic.
 func (j *NarrationJob) checkFrequencyRules(ctx context.Context) bool {
 	freq := j.cfgProv.NarrationFrequency(ctx)
@@ -222,7 +222,7 @@ func (j *NarrationJob) checkFrequencyRules(ctx context.Context) bool {
 		return true
 	}
 
-	// Strategies 3 (Active), 4 (Busy), 5 (Constant): Allow Overlap (Pipeline)
+	// Strategies 3 (Active), 4 (Hyperactive): Allow Overlap (Pipeline)
 	// If not playing, we are obviously ready.
 	if !isPlaying {
 		return true

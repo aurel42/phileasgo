@@ -60,7 +60,8 @@ func TestNarrationJob_EssayConfig(t *testing.T) {
 				FlightStage: sim.StageCruise,
 			}
 			// Force cooldown ready for non-playing case
-			job.lastTime = time.Now().Add(-10 * time.Minute)
+			// Must be at least 2 * PauseDuration (default 8s) AND DelayBeforeEssay (default 2m)
+			job.lastTime = time.Now().Add(-3 * time.Minute)
 
 			if got := job.CanPrepareEssay(context.Background(), tel); got != tt.expectFire {
 				t.Errorf("CanPrepareEssay() = %v, want %v", got, tt.expectFire)

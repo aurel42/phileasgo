@@ -160,26 +160,28 @@ type AudioEffectsConfig struct {
 
 // NarratorConfig holds settings for the AI narrator.
 type NarratorConfig struct {
-	AutoNarrate                 bool               `yaml:"auto_narrate"`
-	MinScoreThreshold           float64            `yaml:"min_score_threshold"`
-	Frequency                   int                `yaml:"frequency"` // 1=Rarely...5=Constant
-	PauseDuration               Duration           `yaml:"pause_between_narrations"`
-	RepeatTTL                   Duration           `yaml:"repeat_ttl"`
-	TargetLanguage              string             `yaml:"target_language"`
-	Units                       string             `yaml:"units"`
-	NarrationLengthShortWords   int                `yaml:"narration_length_short_words"` // Target for short narrations (default 50)
-	NarrationLengthLongWords    int                `yaml:"narration_length_long_words"`  // Target for long narrations (default 200)
-	SummaryMaxWords             int                `yaml:"summary_max_words"`            // Max words for the trip summary (default 500)
-	TemperatureBase             float32            `yaml:"temperature_base"`             // Base temperature (default 1.0)
-	TemperatureJitter           float32            `yaml:"temperature_jitter"`           // Jitter range (bell curve distribution)
-	LengthScalingFactor         float64            `yaml:"length_scaling_factor"`        // Scaling factor for word count (default 0.5)
-	Essay                       EssayConfig        `yaml:"essay"`
-	Debriefing                  DebriefingConfig   `yaml:"debriefing"`
-	Screenshot                  ScreenshotConfig   `yaml:"screenshot"`
-	AudioEffects                AudioEffectsConfig `yaml:"audio_effects"`
-	Border                      BorderConfig       `yaml:"border"`
-	TestingInTheStyleOf         string             `yaml:"testing_in_the_style_of"`
-	TestingSecretWordForTonight string             `yaml:"testing_secret_word_for_tonight"`
+	AutoNarrate               bool               `yaml:"auto_narrate"`
+	MinScoreThreshold         float64            `yaml:"min_score_threshold"`
+	Frequency                 int                `yaml:"frequency"` // 1=Rarely, 2=Normal, 3=Active, 4=Hyperactive
+	PauseDuration             Duration           `yaml:"pause_between_narrations"`
+	RepeatTTL                 Duration           `yaml:"repeat_ttl"`
+	TargetLanguage            string             `yaml:"target_language"`
+	Units                     string             `yaml:"units"`
+	NarrationLengthShortWords int                `yaml:"narration_length_short_words"` // Target for short narrations (default 50)
+	NarrationLengthLongWords  int                `yaml:"narration_length_long_words"`  // Target for long narrations (default 200)
+	SummaryMaxWords           int                `yaml:"summary_max_words"`            // Max words for the trip summary (default 500)
+	TemperatureBase           float32            `yaml:"temperature_base"`             // Base temperature (default 1.0)
+	TemperatureJitter         float32            `yaml:"temperature_jitter"`           // Jitter range (bell curve distribution)
+	LengthScalingFactor       float64            `yaml:"length_scaling_factor"`        // Scaling factor for word count (default 0.5)
+	Essay                     EssayConfig        `yaml:"essay"`
+	Debriefing                DebriefingConfig   `yaml:"debriefing"`
+	Screenshot                ScreenshotConfig   `yaml:"screenshot"`
+	AudioEffects              AudioEffectsConfig `yaml:"audio_effects"`
+	Border                    BorderConfig       `yaml:"border"`
+	StyleLibrary              []string           `yaml:"style_library"`
+	ActiveStyle               string             `yaml:"active_style"`
+	SecretWordLibrary         []string           `yaml:"secret_word_library"`
+	ActiveSecretWord          string             `yaml:"active_secret_word"`
 }
 
 // BorderConfig holds settings for border crossing announcements.
@@ -477,8 +479,10 @@ func DefaultConfig() *Config {
 				CooldownAny:    Duration(4 * time.Minute),
 				CooldownRepeat: Duration(15 * time.Minute),
 			},
-			TestingInTheStyleOf:         "",
-			TestingSecretWordForTonight: "",
+			StyleLibrary:      []string{"Ernest Hemingway", "Truman Capote", "Douglas Adams", "Hunter S. Thompson", "J.R.R. Tolkien", "Jane Austen"},
+			ActiveStyle:       "",
+			SecretWordLibrary: []string{},
+			ActiveSecretWord:  "",
 		},
 		Sim: SimConfig{
 			Provider:          "simconnect",

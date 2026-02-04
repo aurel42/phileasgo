@@ -119,6 +119,7 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 		MaxWords:      pd["MaxWords"].(int),
 		Manual:        false,
 		SkipBusyCheck: true,
+		ShowInfoPanel: true,
 	}
 
 	narrative, err := s.GenerateNarrative(ctx, &req)

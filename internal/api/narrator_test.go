@@ -42,12 +42,13 @@ func (m *MockAudioService) Resume()            {}
 
 // MockNarratorService matches simple interface needed by NarratorHandler
 type MockNarratorService struct {
-	active       bool
-	generating   bool
-	currentPOI   *model.POI
-	currentTitle string
-	narrated     int
-	stats        map[string]any
+	active        bool
+	generating    bool
+	currentPOI    *model.POI
+	currentTitle  string
+	showInfoPanel bool
+	narrated      int
+	stats         map[string]any
 }
 
 func (m *MockNarratorService) IsActive() bool     { return m.active }
@@ -63,6 +64,7 @@ func (m *MockNarratorService) ClearCurrentImage()               {} // Added
 func (m *MockNarratorService) NarratedCount() int               { return m.narrated }
 func (m *MockNarratorService) Stats() map[string]any            { return m.stats }
 func (m *MockNarratorService) CurrentType() model.NarrativeType { return "" }
+func (m *MockNarratorService) CurrentShowInfoPanel() bool       { return m.showInfoPanel }
 
 func TestNarratorHandler_HandleStatus_Logging(t *testing.T) {
 	// Setup log capture

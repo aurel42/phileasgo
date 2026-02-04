@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Telemetry } from '../types/telemetry';
 
 interface SettingsPanelProps {
@@ -25,6 +25,78 @@ interface SettingsPanelProps {
     onStreamingModeChange: (val: boolean) => void;
 }
 
+const VictorianListEditor: React.FC<{
+    values: string[];
+    onChange: (newValues: string[]) => void;
+    placeholder?: string;
+}> = ({ values = [], onChange, placeholder }) => {
+    const [inputValue, setInputValue] = useState('');
+
+    const addTag = (val: string) => {
+        const trimmed = val.trim();
+        if (trimmed && !values.includes(trimmed)) {
+            onChange([...values, trimmed]);
+        }
+        setInputValue('');
+    };
+
+    const removeTag = (index: number) => {
+        onChange(values.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div className="v-list-editor">
+            <div className="v-tags">
+                {values.map((v, i) => (
+                    <div key={i} className="v-tag">
+                        <span>{v}</span>
+                        <button onClick={() => removeTag(i)}>&times;</button>
+                    </div>
+                ))}
+            </div>
+            <div className="v-input-row">
+                <input
+                    type="text"
+                    className="settings-input"
+                    placeholder={placeholder}
+                    value={inputValue}
+                    onChange={e => setInputValue(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addTag(inputValue)}
+                />
+                <button className="settings-back-btn" style={{ marginTop: 0, padding: '4px 12px' }} onClick={() => addTag(inputValue)}>+</button>
+            </div>
+        </div>
+    );
+};
+
+// Draft state for all settings that need save/discard
+interface DraftState {
+    // Narrator tab
+    narrationFrequency: number;
+    textLength: number;
+    minPoiScore: number;
+    filterMode: string;
+    targetPoiCount: number;
+    activeStyle: string;
+    styleLibrary: string[];
+    activeSecretWord: string;
+    secretWordLibrary: string[];
+    // Sim tab
+    simSource: string;
+    mockStartLat: number | null;
+    mockStartLon: number | null;
+    mockStartAlt: number | null;
+    mockStartHeading: number | null;
+    mockDurationParked: string;
+    mockDurationTaxi: string;
+    mockDurationHold: string;
+    // Interface tab (local-only, no server sync needed)
+    units: 'km' | 'nm';
+    showCacheLayer: boolean;
+    showVisibilityLayer: boolean;
+    streamingMode: boolean;
+}
+
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     onBack,
     units,
@@ -47,30 +119,145 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     onStreamingModeChange
 }) => {
     const [activeTab, setActiveTab] = useState('sim');
-    const [config, setConfig] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
-    React.useEffect(() => {
+    // Server config (original values)
+    const [serverConfig, setServerConfig] = useState<any>(null);
+
+    // Draft state (local edits)
+    const [draft, setDraft] = useState<DraftState | null>(null);
+
+    // Load config from server
+    useEffect(() => {
         fetch('/api/config')
             .then(r => r.json())
             .then(data => {
-                setConfig(data);
+                setServerConfig(data);
+                // Initialize draft from server + props
+                setDraft({
+                    narrationFrequency,
+                    textLength,
+                    minPoiScore,
+                    filterMode,
+                    targetPoiCount,
+                    activeStyle: data.active_style || '',
+                    styleLibrary: data.style_library || [],
+                    activeSecretWord: data.active_secret_word || '',
+                    secretWordLibrary: data.secret_word_library || [],
+                    simSource: data.sim_source || 'simconnect',
+                    mockStartLat: data.mock_start_lat ?? null,
+                    mockStartLon: data.mock_start_lon ?? null,
+                    mockStartAlt: data.mock_start_alt ?? null,
+                    mockStartHeading: data.mock_start_heading ?? null,
+                    mockDurationParked: data.mock_duration_parked || '',
+                    mockDurationTaxi: data.mock_duration_taxi || '',
+                    mockDurationHold: data.mock_duration_hold || '',
+                    units,
+                    showCacheLayer,
+                    showVisibilityLayer,
+                    streamingMode,
+                });
                 setLoading(false);
             })
             .catch(e => console.error("Failed to fetch settings", e));
     }, []);
 
-    const updateValue = (key: string, val: any) => {
-        // Optimistic local state update for Mock fields
-        if (key.startsWith('mock_') || key === 'teleport_distance') {
-            setConfig((prev: any) => ({ ...prev, [key]: val }));
-        }
+    // Check if draft differs from original
+    const hasChanges = useCallback(() => {
+        if (!draft || !serverConfig) return false;
+        return (
+            draft.narrationFrequency !== narrationFrequency ||
+            draft.textLength !== textLength ||
+            draft.minPoiScore !== minPoiScore ||
+            draft.filterMode !== filterMode ||
+            draft.targetPoiCount !== targetPoiCount ||
+            draft.activeStyle !== (serverConfig.active_style || '') ||
+            JSON.stringify(draft.styleLibrary) !== JSON.stringify(serverConfig.style_library || []) ||
+            draft.activeSecretWord !== (serverConfig.active_secret_word || '') ||
+            JSON.stringify(draft.secretWordLibrary) !== JSON.stringify(serverConfig.secret_word_library || []) ||
+            draft.simSource !== (serverConfig.sim_source || 'simconnect') ||
+            draft.mockStartLat !== (serverConfig.mock_start_lat ?? null) ||
+            draft.mockStartLon !== (serverConfig.mock_start_lon ?? null) ||
+            draft.mockStartAlt !== (serverConfig.mock_start_alt ?? null) ||
+            draft.mockStartHeading !== (serverConfig.mock_start_heading ?? null) ||
+            draft.mockDurationParked !== (serverConfig.mock_duration_parked || '') ||
+            draft.mockDurationTaxi !== (serverConfig.mock_duration_taxi || '') ||
+            draft.mockDurationHold !== (serverConfig.mock_duration_hold || '') ||
+            draft.units !== units ||
+            draft.showCacheLayer !== showCacheLayer ||
+            draft.showVisibilityLayer !== showVisibilityLayer ||
+            draft.streamingMode !== streamingMode
+        );
+    }, [draft, serverConfig, narrationFrequency, textLength, minPoiScore, filterMode, targetPoiCount, units, showCacheLayer, showVisibilityLayer, streamingMode]);
 
-        fetch('/api/config', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ [key]: val })
-        }).catch(e => console.error("Failed to update config", e));
+    // Update draft field
+    const updateDraft = <K extends keyof DraftState>(key: K, value: DraftState[K]) => {
+        setDraft(prev => prev ? { ...prev, [key]: value } : null);
+    };
+
+    // Save all changes
+    const handleSave = async () => {
+        if (!draft) return;
+        setSaving(true);
+
+        // Build payload with server-only fields (not handled by callbacks)
+        const payload: Record<string, any> = {};
+
+        if (draft.activeStyle !== (serverConfig?.active_style || '')) payload.active_style = draft.activeStyle;
+        if (JSON.stringify(draft.styleLibrary) !== JSON.stringify(serverConfig?.style_library || [])) payload.style_library = draft.styleLibrary;
+        if (draft.activeSecretWord !== (serverConfig?.active_secret_word || '')) payload.active_secret_word = draft.activeSecretWord;
+        if (JSON.stringify(draft.secretWordLibrary) !== JSON.stringify(serverConfig?.secret_word_library || [])) payload.secret_word_library = draft.secretWordLibrary;
+        if (draft.simSource !== (serverConfig?.sim_source || 'simconnect')) payload.sim_source = draft.simSource;
+        if (draft.mockStartLat !== (serverConfig?.mock_start_lat ?? null)) payload.mock_start_lat = draft.mockStartLat;
+        if (draft.mockStartLon !== (serverConfig?.mock_start_lon ?? null)) payload.mock_start_lon = draft.mockStartLon;
+        if (draft.mockStartAlt !== (serverConfig?.mock_start_alt ?? null)) payload.mock_start_alt = draft.mockStartAlt;
+        if (draft.mockStartHeading !== (serverConfig?.mock_start_heading ?? null)) payload.mock_start_heading = draft.mockStartHeading;
+        if (draft.mockDurationParked !== (serverConfig?.mock_duration_parked || '')) payload.mock_duration_parked = draft.mockDurationParked;
+        if (draft.mockDurationTaxi !== (serverConfig?.mock_duration_taxi || '')) payload.mock_duration_taxi = draft.mockDurationTaxi;
+        if (draft.mockDurationHold !== (serverConfig?.mock_duration_hold || '')) payload.mock_duration_hold = draft.mockDurationHold;
+
+        try {
+            // Send server-only changes
+            if (Object.keys(payload).length > 0) {
+                await fetch('/api/config', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
+
+            // Apply local-only changes via callbacks (UI state only)
+            if (draft.units !== units) onUnitsChange(draft.units);
+            if (draft.showCacheLayer !== showCacheLayer) onCacheLayerChange(draft.showCacheLayer);
+            if (draft.showVisibilityLayer !== showVisibilityLayer) onVisibilityLayerChange(draft.showVisibilityLayer);
+            if (draft.streamingMode !== streamingMode) onStreamingModeChange(draft.streamingMode);
+
+            // Apply prop-based changes via callbacks (these update parent state AND send to server)
+            if (draft.narrationFrequency !== narrationFrequency) onNarrationFrequencyChange(draft.narrationFrequency);
+            if (draft.textLength !== textLength) onTextLengthChange(draft.textLength);
+            if (draft.minPoiScore !== minPoiScore) onMinPoiScoreChange(draft.minPoiScore);
+            if (draft.filterMode !== filterMode) onFilterModeChange(draft.filterMode);
+            if (draft.targetPoiCount !== targetPoiCount) onTargetPoiCountChange(draft.targetPoiCount);
+
+            // Update server config to match saved values
+            setServerConfig((prev: any) => ({
+                ...prev,
+                ...payload
+            }));
+
+            // Close dialog after successful save
+            onBack();
+        } catch (e) {
+            console.error("Failed to save settings", e);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Discard changes and close dialog
+    const handleDiscard = () => {
+        onBack();
     };
 
     const renderField = (label: string, field: React.ReactNode, restart = false) => (
@@ -88,13 +275,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         { id: 'interface', label: 'Interface' }
     ];
 
-    if (loading) {
+    if (loading || !draft) {
         return (
             <div className="settings-overlay">
                 <div className="settings-loading">Consulting the Archives...</div>
             </div>
         );
     }
+
+    const changed = hasChanges();
 
     return (
         <div className="settings-overlay">
@@ -115,9 +304,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             </div>
                         ))}
                     </div>
-                    <button className="settings-back-btn role-btn" onClick={onBack}>
-                        Return to Map
-                    </button>
+                    <div className="settings-actions">
+                        <button
+                            className={`settings-save-btn ${changed ? 'has-changes' : ''}`}
+                            onClick={handleSave}
+                            disabled={!changed || saving}
+                        >
+                            {saving ? 'Saving...' : 'Save Changes'}
+                        </button>
+                        <button
+                            className="settings-discard-btn"
+                            onClick={handleDiscard}
+                            disabled={saving}
+                        >
+                            {changed ? 'Discard' : 'Close'}
+                        </button>
+                    </div>
                     <div className="settings-footer">
                         * Requires application restart
                     </div>
@@ -130,15 +332,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             {renderField('Simulator Provider', (
                                 <select
                                     className="settings-select"
-                                    value={config?.sim_source || 'simconnect'}
-                                    onChange={e => updateValue('sim_source', e.target.value)}
+                                    value={draft.simSource}
+                                    onChange={e => updateDraft('simSource', e.target.value)}
                                 >
                                     <option value="simconnect">Microsoft Flight Simulator</option>
                                     <option value="mock">Mock Simulator (Internal)</option>
                                 </select>
                             ), true)}
 
-                            {config?.sim_source === 'mock' && (
+                            {draft.simSource === 'mock' && (
                                 <>
                                     <div className="role-header" style={{ marginTop: '24px' }}>Mock Simulator Parameters</div>
                                     <div className="settings-grid">
@@ -146,24 +348,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                             <input
                                                 type="number"
                                                 className="settings-input"
-                                                value={config?.mock_start_lat ?? ''}
-                                                onChange={e => updateValue('mock_start_lat', parseFloat(e.target.value))}
+                                                value={draft.mockStartLat ?? ''}
+                                                onChange={e => updateDraft('mockStartLat', e.target.value === '' ? null : parseFloat(e.target.value))}
                                             />
                                         ))}
                                         {renderField('Start Longitude', (
                                             <input
                                                 type="number"
                                                 className="settings-input"
-                                                value={config?.mock_start_lon ?? ''}
-                                                onChange={e => updateValue('mock_start_lon', parseFloat(e.target.value))}
+                                                value={draft.mockStartLon ?? ''}
+                                                onChange={e => updateDraft('mockStartLon', e.target.value === '' ? null : parseFloat(e.target.value))}
                                             />
                                         ))}
                                         {renderField('Start Altitude (ft)', (
                                             <input
                                                 type="number"
                                                 className="settings-input"
-                                                value={config?.mock_start_alt ?? ''}
-                                                onChange={e => updateValue('mock_start_alt', parseFloat(e.target.value))}
+                                                value={draft.mockStartAlt ?? ''}
+                                                onChange={e => updateDraft('mockStartAlt', e.target.value === '' ? null : parseFloat(e.target.value))}
                                             />
                                         ))}
                                         {renderField('Start Heading (deg)', (
@@ -171,8 +373,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                                 type="number"
                                                 className="settings-input"
                                                 placeholder="Automatic"
-                                                value={config?.mock_start_heading ?? ''}
-                                                onChange={e => updateValue('mock_start_heading', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                                value={draft.mockStartHeading ?? ''}
+                                                onChange={e => updateDraft('mockStartHeading', e.target.value === '' ? null : parseFloat(e.target.value))}
                                             />
                                         ))}
                                     </div>
@@ -182,8 +384,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                                 type="text"
                                                 className="settings-input"
                                                 placeholder="e.g. 30s, 1m"
-                                                value={config?.mock_duration_parked ?? ''}
-                                                onChange={e => updateValue('mock_duration_parked', e.target.value)}
+                                                value={draft.mockDurationParked}
+                                                onChange={e => updateDraft('mockDurationParked', e.target.value)}
                                             />
                                         ))}
                                         {renderField('Taxi Duration', (
@@ -191,8 +393,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                                 type="text"
                                                 className="settings-input"
                                                 placeholder="e.g. 2m"
-                                                value={config?.mock_duration_taxi ?? ''}
-                                                onChange={e => updateValue('mock_duration_taxi', e.target.value)}
+                                                value={draft.mockDurationTaxi}
+                                                onChange={e => updateDraft('mockDurationTaxi', e.target.value)}
                                             />
                                         ))}
                                         {renderField('Hold Duration', (
@@ -200,8 +402,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                                 type="text"
                                                 className="settings-input"
                                                 placeholder="e.g. 10s"
-                                                value={config?.mock_duration_hold ?? ''}
-                                                onChange={e => updateValue('mock_duration_hold', e.target.value)}
+                                                value={draft.mockDurationHold}
+                                                onChange={e => updateDraft('mockDurationHold', e.target.value)}
                                             />
                                         ))}
                                     </div>
@@ -215,49 +417,87 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             <div className="role-header">Narration Preferences</div>
                             {renderField('Narration Frequency', (
                                 <div className="settings-slider-container">
-                                    <span className="role-value">{['Rare', 'Occasional', 'Normal', 'Frequent', 'Constant'][narrationFrequency - 1] || narrationFrequency}</span>
-                                    <input type="range" min="1" max="5" value={narrationFrequency} onChange={e => onNarrationFrequencyChange(parseInt(e.target.value))} />
+                                    <span className="role-value">{['Rarely', 'Normal', 'Active', 'Hyperactive'][draft.narrationFrequency - 1] || draft.narrationFrequency}</span>
+                                    <input type="range" min="1" max="4" value={draft.narrationFrequency} onChange={e => updateDraft('narrationFrequency', parseInt(e.target.value))} />
                                 </div>
                             ))}
                             {renderField('Script Length', (
                                 <div className="settings-slider-container">
-                                    <span className="role-value">{['Short', 'Brief', 'Normal', 'Detailed', 'Long'][textLength - 1] || textLength}</span>
-                                    <input type="range" min="1" max="5" value={textLength} onChange={e => onTextLengthChange(parseInt(e.target.value))} />
+                                    <span className="role-value">{['Short', 'Brief', 'Normal', 'Detailed', 'Long'][draft.textLength - 1] || draft.textLength}</span>
+                                    <input type="range" min="1" max="5" value={draft.textLength} onChange={e => updateDraft('textLength', parseInt(e.target.value))} />
                                 </div>
                             ))}
 
                             <div className="role-header" style={{ marginTop: '24px' }}>POI Selection</div>
-                            {renderField('Minimum POI Score', (
-                                <div className="settings-slider-container">
-                                    <span className="role-value">{Math.round(minPoiScore * 100)}%</span>
-                                    <input type="range" min="0" max="1" step="0.05" value={minPoiScore} onChange={e => onMinPoiScoreChange(parseFloat(e.target.value))} />
-                                </div>
-                            ))}
                             {renderField('POI Filtering Mode', (
-                                <select className="settings-select" value={filterMode} onChange={e => onFilterModeChange(e.target.value)}>
-                                    <option value="fixed">Fixed Count</option>
-                                    <option value="adaptive">Adaptive Radius</option>
+                                <select className="settings-select" value={draft.filterMode} onChange={e => updateDraft('filterMode', e.target.value)}>
+                                    <option value="fixed">Fixed Score</option>
+                                    <option value="adaptive">Adaptive Score</option>
                                 </select>
                             ))}
-                            {filterMode === 'adaptive' ?
+                            {draft.filterMode === 'adaptive' ?
                                 renderField('Target POI Count', (
                                     <div className="settings-slider-container">
-                                        <span className="role-value">{targetPoiCount}</span>
-                                        <input type="range" min="1" max="50" value={targetPoiCount} onChange={e => onTargetPoiCountChange(parseInt(e.target.value))} />
+                                        <span className="role-value">{draft.targetPoiCount}</span>
+                                        <input type="range" min="5" max="50" step="5" value={draft.targetPoiCount} onChange={e => updateDraft('targetPoiCount', parseInt(e.target.value))} />
                                     </div>
                                 )) :
-                                renderField('Teleport Threshold', (
+                                renderField('Score Threshold', (
                                     <div className="settings-slider-container">
-                                        <span className="role-value">{config?.teleport_distance ?? 10} km</span>
+                                        <span className="role-value">{draft.minPoiScore.toFixed(1)}</span>
                                         <input
                                             type="range"
-                                            min="1" max="100"
-                                            value={config?.teleport_distance ?? 10}
-                                            onChange={e => updateValue('teleport_distance', parseInt(e.target.value))}
+                                            min="-10" max="10" step="0.5"
+                                            value={draft.minPoiScore}
+                                            onChange={e => updateDraft('minPoiScore', parseFloat(e.target.value))}
                                         />
                                     </div>
                                 ))
                             }
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Style Library</div>
+                            {renderField('Active Style Influence', (
+                                <select
+                                    className="settings-select"
+                                    value={draft.activeStyle}
+                                    onChange={e => updateDraft('activeStyle', e.target.value)}
+                                >
+                                    <option value="">(Standard Narration)</option>
+                                    {draft.styleLibrary.map((s: string) => (
+                                        <option key={s} value={s}>{s}</option>
+                                    ))}
+                                </select>
+                            ))}
+
+                            {renderField('Library Management', (
+                                <VictorianListEditor
+                                    values={draft.styleLibrary}
+                                    placeholder="Add author to library..."
+                                    onChange={val => updateDraft('styleLibrary', val)}
+                                />
+                            ))}
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Trip Theme</div>
+                            {renderField('Active Theme', (
+                                <select
+                                    className="settings-select"
+                                    value={draft.activeSecretWord}
+                                    onChange={e => updateDraft('activeSecretWord', e.target.value)}
+                                >
+                                    <option value="">(No Theme)</option>
+                                    {draft.secretWordLibrary.map((s: string) => (
+                                        <option key={s} value={s}>{s}</option>
+                                    ))}
+                                </select>
+                            ))}
+
+                            {renderField('Theme Library', (
+                                <VictorianListEditor
+                                    values={draft.secretWordLibrary}
+                                    placeholder="Add theme to library..."
+                                    onChange={val => updateDraft('secretWordLibrary', val)}
+                                />
+                            ))}
                         </div>
                     )}
 
@@ -265,7 +505,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         <div className="settings-group">
                             <div className="role-header">Units & Display</div>
                             {renderField('Measurement Units', (
-                                <select className="settings-select" value={units} onChange={e => onUnitsChange(e.target.value as 'km' | 'nm')}>
+                                <select className="settings-select" value={draft.units} onChange={e => updateDraft('units', e.target.value as 'km' | 'nm')}>
                                     <option value="km">Metric (km/m)</option>
                                     <option value="nm">Nautical (nm/ft)</option>
                                 </select>
@@ -274,25 +514,25 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             <div className="role-header" style={{ marginTop: '24px' }}>Overlay Layers</div>
                             {renderField('Show POI Cache Radius', (
                                 <label className="settings-toggle">
-                                    <input type="checkbox" checked={showCacheLayer} onChange={e => onCacheLayerChange(e.target.checked)} />
+                                    <input type="checkbox" checked={draft.showCacheLayer} onChange={e => updateDraft('showCacheLayer', e.target.checked)} />
                                     <span className="toggle-slider"></span>
-                                    <span className="role-value" style={{ marginLeft: '12px' }}>{showCacheLayer ? 'ENABLED' : 'DISABLED'}</span>
+                                    <span className="role-value" style={{ marginLeft: '12px' }}>{draft.showCacheLayer ? 'ENABLED' : 'DISABLED'}</span>
                                 </label>
                             ))}
                             {renderField('Show Line-of-Sight Coverage', (
                                 <label className="settings-toggle">
-                                    <input type="checkbox" checked={showVisibilityLayer} onChange={e => onVisibilityLayerChange(e.target.checked)} />
+                                    <input type="checkbox" checked={draft.showVisibilityLayer} onChange={e => updateDraft('showVisibilityLayer', e.target.checked)} />
                                     <span className="toggle-slider"></span>
-                                    <span className="role-value" style={{ marginLeft: '12px' }}>{showVisibilityLayer ? 'ENABLED' : 'DISABLED'}</span>
+                                    <span className="role-value" style={{ marginLeft: '12px' }}>{draft.showVisibilityLayer ? 'ENABLED' : 'DISABLED'}</span>
                                 </label>
                             ))}
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Developer Settings</div>
                             {renderField('Streaming Mode (LocalStorage)', (
                                 <label className="settings-toggle">
-                                    <input type="checkbox" checked={streamingMode} onChange={e => onStreamingModeChange(e.target.checked)} />
+                                    <input type="checkbox" checked={draft.streamingMode} onChange={e => updateDraft('streamingMode', e.target.checked)} />
                                     <span className="toggle-slider"></span>
-                                    <span className="role-value" style={{ marginLeft: '12px' }}>{streamingMode ? 'ENABLED' : 'DISABLED'}</span>
+                                    <span className="role-value" style={{ marginLeft: '12px' }}>{draft.streamingMode ? 'ENABLED' : 'DISABLED'}</span>
                                 </label>
                             ))}
                         </div>
@@ -307,17 +547,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     background: var(--bg-color);
                     z-index: 5000;
                     display: flex;
-                    justify-content: center;
-                    align-items: center;
                     font-family: var(--font-main);
                 }
 
                 .settings-container {
-                    width: 900px;
-                    height: 650px;
+                    width: 100%;
+                    height: 100%;
                     background: var(--panel-bg);
-                    border: 3px double rgba(212, 175, 55, 0.3);
-                    box-shadow: 0 20px 50px rgba(0,0,0,0.8);
                     display: flex;
                     overflow: hidden;
                 }
@@ -352,6 +588,57 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                 .settings-tab:hover { color: var(--text-color); }
                 .settings-tab.active { color: var(--accent); }
+
+                .settings-actions {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    margin-top: auto;
+                }
+
+                .settings-save-btn {
+                    background: transparent;
+                    border: 1px solid var(--muted);
+                    color: var(--muted);
+                    padding: 10px;
+                    cursor: not-allowed;
+                    transition: all 0.2s;
+                    font-family: var(--font-display);
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    font-size: 12px;
+                }
+
+                .settings-save-btn.has-changes {
+                    border-color: var(--accent);
+                    color: var(--accent);
+                    cursor: pointer;
+                }
+
+                .settings-save-btn.has-changes:hover {
+                    background: var(--accent);
+                    color: #000;
+                }
+
+                .settings-discard-btn {
+                    background: transparent;
+                    border: 1px solid var(--muted);
+                    color: var(--muted);
+                    padding: 8px;
+                    cursor: not-allowed;
+                    transition: all 0.2s;
+                    font-family: var(--font-main);
+                    font-size: 11px;
+                }
+
+                .settings-discard-btn:not(:disabled) {
+                    cursor: pointer;
+                }
+
+                .settings-discard-btn:not(:disabled):hover {
+                    border-color: #c44;
+                    color: #c44;
+                }
 
                 .settings-back-btn {
                     background: transparent;
@@ -474,6 +761,72 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     color: var(--accent);
                     font-size: 24px;
                     letter-spacing: 2px;
+                }
+
+                .v-list-editor {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    background: rgba(0,0,0,0.1);
+                    padding: 12px;
+                    border: 1px solid rgba(255,255,255,0.05);
+                }
+                .v-tags {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                }
+                .v-tag {
+                    background: rgba(212, 175, 55, 0.1);
+                    border: 1px solid var(--accent);
+                    padding: 4px 10px;
+                    border-radius: 4px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    animation: fadeIn 0.2s ease-out;
+                }
+                .v-tag span {
+                    font-size: 13px;
+                    color: var(--accent);
+                    font-family: var(--font-mono);
+                }
+                .v-tag button {
+                    background: transparent;
+                    border: none;
+                    color: var(--accent);
+                    cursor: pointer;
+                    font-size: 18px;
+                    padding: 0;
+                    line-height: 1;
+                    opacity: 0.6;
+                    transition: opacity 0.2s;
+                }
+                .v-tag button:hover { opacity: 1; }
+                .v-input-row {
+                    display: flex;
+                    gap: 8px;
+                }
+                .v-presets {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-top: 4px;
+                }
+                .v-preset-btn {
+                    background: transparent;
+                    border: 1px dashed rgba(255,255,255,0.1);
+                    color: var(--muted);
+                    font-size: 11px;
+                    padding: 3px 8px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                }
+                .v-preset-btn:hover {
+                    border-color: var(--accent);
+                    color: var(--accent);
+                    background: rgba(255,255,255,0.02);
                 }
             `}</style>
         </div>

@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -46,6 +47,14 @@ type Provider interface {
 	EssayEnabled(ctx context.Context) bool
 	EssayDelayBetweenEssays(ctx context.Context) time.Duration
 	EssayDelayBeforeEssay(ctx context.Context) time.Duration
+
+	// Style Library
+	StyleLibrary(ctx context.Context) []string
+	ActiveStyle(ctx context.Context) string
+
+	// Secret Word (Trip Theme)
+	SecretWordLibrary(ctx context.Context) []string
+	ActiveSecretWord(ctx context.Context) string
 
 	// Raw access (for components that need deep access)
 	AppConfig() *Config
@@ -125,15 +134,15 @@ func (p *UnifiedProvider) MockStartAlt(ctx context.Context) float64 {
 }
 
 func (p *UnifiedProvider) MockStartHeading(ctx context.Context) *float64 {
-	val, ok := p.store.GetState(ctx, KeyMockHeading)
-	if !ok || val == "" {
-		return p.base.Sim.Mock.StartHeading
+	if p.store != nil {
+		if val, ok := p.store.GetState(ctx, KeyMockHeading); ok && val != "" {
+			var h float64
+			if _, err := fmt.Sscanf(val, "%f", &h); err == nil {
+				return &h
+			}
+		}
 	}
-	var h float64
-	if _, err := fmt.Sscanf(val, "%f", &h); err != nil {
-		return p.base.Sim.Mock.StartHeading
-	}
-	return &h
+	return p.base.Sim.Mock.StartHeading
 }
 
 func (p *UnifiedProvider) MockDurationParked(ctx context.Context) time.Duration {
@@ -184,6 +193,22 @@ func (p *UnifiedProvider) EssayDelayBeforeEssay(ctx context.Context) time.Durati
 	return time.Duration(p.base.Narrator.Essay.DelayBeforeEssay)
 }
 
+func (p *UnifiedProvider) StyleLibrary(ctx context.Context) []string {
+	return p.getStringSlice(ctx, KeyStyleLibrary, p.base.Narrator.StyleLibrary)
+}
+
+func (p *UnifiedProvider) ActiveStyle(ctx context.Context) string {
+	return p.getString(ctx, KeyActiveStyle, p.base.Narrator.ActiveStyle)
+}
+
+func (p *UnifiedProvider) SecretWordLibrary(ctx context.Context) []string {
+	return p.getStringSlice(ctx, KeySecretWordLibrary, p.base.Narrator.SecretWordLibrary)
+}
+
+func (p *UnifiedProvider) ActiveSecretWord(ctx context.Context) string {
+	return p.getString(ctx, KeyActiveSecretWord, p.base.Narrator.ActiveSecretWord)
+}
+
 // --- Helpers ---
 
 func (p *UnifiedProvider) getString(ctx context.Context, key, fallback string) string {
@@ -231,6 +256,18 @@ func (p *UnifiedProvider) getDuration(ctx context.Context, key string, fallback 
 		if val, ok := p.store.GetState(ctx, key); ok && val != "" {
 			if dur, err := ParseDuration(val); err == nil {
 				return dur
+			}
+		}
+	}
+	return fallback
+}
+
+func (p *UnifiedProvider) getStringSlice(ctx context.Context, key string, fallback []string) []string {
+	if p.store != nil {
+		if val, ok := p.store.GetState(ctx, key); ok && val != "" {
+			var result []string
+			if err := json.Unmarshal([]byte(val), &result); err == nil {
+				return result
 			}
 		}
 	}

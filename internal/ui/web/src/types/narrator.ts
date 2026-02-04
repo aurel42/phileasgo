@@ -33,4 +33,5 @@ export interface NarratorStatusResponse {
     stats: Record<string, unknown>;
     narration_frequency?: number;
     text_length?: number;
+    show_info_panel?: boolean;
 }

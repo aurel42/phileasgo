@@ -36,6 +36,7 @@ func (m *mockNarratorService) HasStagedAuto() bool              { return m.hasSt
 func (m *mockNarratorService) IsPaused() bool                   { return m.isPaused }
 func (m *mockNarratorService) CurrentTitle() string             { return "" }
 func (m *mockNarratorService) CurrentType() model.NarrativeType { return "" }
+func (m *mockNarratorService) CurrentShowInfoPanel() bool       { return false }
 func (m *mockNarratorService) Remaining() time.Duration {
 	if m.RemainingFunc != nil {
 		return m.RemainingFunc()
@@ -311,7 +312,7 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.AutoNarrate = true
 	cfg.Narrator.MinScoreThreshold = 0.5
-	cfg.Narrator.PauseDuration = config.Duration(30 * time.Second) // Acts as Max for silence rule check
+	cfg.Narrator.PauseDuration = config.Duration(30 * time.Second)
 	cfg.Narrator.Essay.Enabled = true
 	cfg.Narrator.Essay.DelayBetweenEssays = config.Duration(10 * time.Minute)
 	cfg.Narrator.Essay.DelayBeforeEssay = config.Duration(1 * time.Second)
@@ -452,7 +453,7 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 
 func TestNarrationJob_isPlayable(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.Narrator.RepeatTTL = config.Duration(10 * time.Minute)
+	cfg.Narrator.RepeatTTL = config.Duration(600 * time.Second) // 10m
 
 	now := time.Now()
 	tests := []struct {
@@ -664,7 +665,7 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 	cfg.Narrator.AutoNarrate = true
 	cfg.Narrator.MinScoreThreshold = 5.0
 	// Base Config: Cooldown 10s via PauseDuration
-	cfg.Narrator.PauseDuration = config.Duration(10 * time.Second)
+	cfg.Narrator.PauseDuration = config.Duration(10) // 10s
 
 	tests := []struct {
 		name              string

@@ -176,6 +176,7 @@ func (s *AIService) IsPaused() bool                      { return false }
 func (s *AIService) CurrentPOI() *model.POI              { return nil }
 func (s *AIService) CurrentTitle() string                { return "" }
 func (s *AIService) CurrentType() model.NarrativeType    { return "" }
+func (s *AIService) CurrentShowInfoPanel() bool          { return false }
 func (s *AIService) Remaining() time.Duration            { return 0 }
 func (s *AIService) ReplayLast(ctx context.Context) bool { return false }
 func (s *AIService) CurrentImagePath() string            { return "" }

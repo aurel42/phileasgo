@@ -42,6 +42,10 @@ X turn trip summary into a log file
 X target balloon: reduce altitude as we get closer to it to make it easier to spot objects on the ground
 X frontend continues to show paused when sim disconnects
 X frontend: click on configuration pill in main tab opens config page on main tab with no way back
+- tune visibility boost for distance; should result in more deferrals
+- do not request info panel for essay, briefing
+- verify: when flying from MN to CN, to we check the chinese wikipedia?
+
 
 # Trip Themes
 

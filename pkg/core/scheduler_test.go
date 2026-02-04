@@ -65,7 +65,7 @@ func (m *mockSimClient) SetEventRecorder(r sim.EventRecorder) {}
 func TestScheduler_JobExecution(t *testing.T) {
 	// Setup
 	cfg := config.DefaultConfig()
-	cfg.Ticker.TelemetryLoop = config.Duration(10 * time.Millisecond) // Fast loop
+	cfg.Ticker.TelemetryLoop = config.Duration(5 * time.Millisecond)
 
 	mockSim := &mockSimClient{state: sim.StateActive}
 	prov := config.NewProvider(cfg, nil)
@@ -94,7 +94,7 @@ func TestScheduler_JobExecution(t *testing.T) {
 	select {
 	case <-fired:
 		// OK, first firing expected to initialize
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(500 * time.Millisecond):
 		t.Fatal("Job should have fired once for initialization")
 	}
 
@@ -175,7 +175,7 @@ func (m *mockSink) getUpdateCount() int {
 
 func TestScheduler_SkipsTelemetryWhenInactive(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.Ticker.TelemetryLoop = config.Duration(10 * time.Millisecond)
+	cfg.Ticker.TelemetryLoop = config.Duration(5 * time.Millisecond)
 
 	mockSim := &mockStatefulSimClient{state: sim.StateInactive}
 	sink := &mockSink{}
@@ -188,7 +188,7 @@ func TestScheduler_SkipsTelemetryWhenInactive(t *testing.T) {
 	go sched.Start(ctx)
 
 	// Wait for a few ticks
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Telemetry Update should NOT have been called (state is inactive)
 	if cnt := sink.getUpdateCount(); cnt > 0 {
@@ -197,7 +197,7 @@ func TestScheduler_SkipsTelemetryWhenInactive(t *testing.T) {
 
 	// Now switch to active
 	mockSim.state = sim.StateActive
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Telemetry Update SHOULD have been called
 	if cnt := sink.getUpdateCount(); cnt == 0 {

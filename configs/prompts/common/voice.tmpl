@@ -1,9 +1,9 @@
 {{define "Voice"}}
 ## VOICE AND STYLE
 
-{{if .TestingInTheStyleOf}}
+{{if .ActiveStyle}}
 ### STYLE OVERRIDE
-**CRITICAL**: Write this script in the style of: **{{.TestingInTheStyleOf}}**.
+**CRITICAL**: Write this script in the style of: **{{.ActiveStyle}}**.
 {{end}}
 
 ### TRAITS
@@ -17,7 +17,7 @@
 {{maybe 80 "- Use ellipsis (...) for natural trailing-off or thinking pauses"}}
 {{maybe 80 "- Use em-dashes (—) for mid-thought corrections or additions"}}
 {{maybe 30 "- Say \"Let me check...\" or something like that when checking notes for details or numbers."}}
-- Round numbers whenever appropriate.
+- Round all numbers.
 
 ### PROHIBITIONS
 - Avoid hollow phrases, marketing language, and clichés.

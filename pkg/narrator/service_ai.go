@@ -44,8 +44,9 @@ type GenerationRequest struct {
 	Manual        bool
 	SkipBusyCheck bool // If true, handleGenerationState will skip the busy check (assumes caller claimed it)
 
-	ThumbnailURL string // Presentation metadata
-	Summary      string // User-visible summary
+	ThumbnailURL  string // Presentation metadata
+	Summary       string // User-visible summary
+	ShowInfoPanel bool
 }
 
 // ScriptEntry represents a previously generated narration script.

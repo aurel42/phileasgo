@@ -1,5 +1,12 @@
 ﻿Release History
 
+## v0.3.120 (2026-02-04)
+- **Fix**: **Duration Unit Overhaul**. Resolved a systemic double-scaling bug where durations were incorrectly multiplied by seconds/milliseconds twice. All configuration defaults and logic now use standard `time.Duration` units.
+- **Improved**: **Presentation Logic**. Introduced `ShowInfoPanel` metadata to the narration pipeline, ensuring only relevant non-POI narratives (Screenshots, Debriefs) trigger the visual info panel.
+- **Improved**: **Dynamic Style & Theme Injection**. Replaced experimental testing variables with `ActiveStyle` and `ActiveSecretWord` for clean, theme-aware narration scripts.
+- **Fix**: **Coordinate Extraction**. Enhanced coordinate parsing for Regional Essays to ensure consistent map centering.
+- **Fix**: **Wikidata Pipeline**. Improved language code extraction in border regions to prevent invalid sub-tag parsing.
+
 ## v0.3.119 (2026-02-04)
 - **Feature**: **Unified React Settings**. Re-implemented the settings interface entirely in React with a premium Victorian design system (Brass accents, Serif typography, framed layouts).
 - **Consolidation**: **Interface Harmonization**. Unified configuration entry points across all platforms; the standalone browser, OBS overlay, and native GUI now all navigate to the same unified settings page.

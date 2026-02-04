@@ -19,4 +19,8 @@ const (
 	KeyMockDurParked      = "mock_duration_parked"
 	KeyMockDurTaxi        = "mock_duration_taxi"
 	KeyMockDurHold        = "mock_duration_hold"
+	KeyStyleLibrary       = "style_library"
+	KeyActiveStyle        = "active_style"
+	KeySecretWordLibrary  = "secret_word_library"
+	KeyActiveSecretWord   = "active_secret_word"
 )

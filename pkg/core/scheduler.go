@@ -58,7 +58,7 @@ func (s *Scheduler) AddJob(j Job) {
 func (s *Scheduler) Start(ctx context.Context) {
 	interval := s.cfgProv.TelemetryLoop(ctx)
 	if interval <= 0 {
-		// 1Hz for stability; high frequency is unnecessary as SimConnect data updates at 1Hz
+		// 1Hz for stability
 		interval = 1 * time.Second
 	}
 

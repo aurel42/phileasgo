@@ -193,7 +193,7 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 				// Assert PlayPOI called (unless Pipeline prepared next)
 				// ... existing logic below checks this ...
 
-				// Case 1: Pipelining (Active/Busy/Constant + IsPlaying)
+				// Case 1: Pipelining (Active/Hyperactive + IsPlaying)
 				if tt.isPlaying && tt.freq >= 3 {
 					if !mockN.prepareNextCalled {
 						t.Error("PreparePOI: Expected PrepareNextNarrative call for Pipeline")

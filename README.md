@@ -151,7 +151,7 @@ PhileasGo can be controlled directly from your aircraft's transponder, allowing 
 
 - **Squawk-Based Settings**: Set your transponder to codes starting with `7` to change settings on the fly:
     - **Format**: `7[Freq][Len][Boost]`
-    - **Digit 1 (Frequency)**: `0` (Pause), `1-5` (Narration frequency from Rarely to Constant).
+    - **Digit 1 (Frequency)**: `0` (Pause), `1-4` (Narration frequency from Rarely to Hyperactive).
     - **Digit 2 (Narrative Length)**: `1-5` (Scale text length from Shortest to Longest).
     - **Digit 3 (Visibility Boost)**: `1-5` (Scale visibility range from 1.0x to 2.0x).
     - *Example*: Squawking `7231` sets normal frequency, normal length, and no boost. `7055` pauses narration but sets max length and boost for when you resume.

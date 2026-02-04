@@ -124,7 +124,11 @@ func (p *Pipeline) getLangsForLocation(ctx context.Context, lat, lon float64) []
 	for country := range countrySet {
 		langs := p.mapper.GetLanguages(country)
 		for _, l := range langs {
-			langSet[l.Code] = struct{}{}
+			code := l.Code
+			if len(code) > 2 && strings.Contains(code, "-") {
+				code = strings.Split(code, "-")[0]
+			}
+			langSet[code] = struct{}{}
 		}
 	}
 	langSet["en"] = struct{}{}

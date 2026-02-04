@@ -29,14 +29,15 @@ type Orchestrator struct {
 	mu sync.RWMutex
 
 	// Playback State
-	active              bool
-	currentPOI          *model.POI
-	currentTitle        string
-	currentType         model.NarrativeType
-	currentImagePath    string
-	currentThumbnailURL string
-	currentLat          float64
-	currentLon          float64
+	active               bool
+	currentPOI           *model.POI
+	currentTitle         string
+	currentType          model.NarrativeType
+	currentImagePath     string
+	currentThumbnailURL  string
+	currentShowInfoPanel bool
+	currentLat           float64
+	currentLon           float64
 
 	// Replay State
 	lastPOI       *model.POI
@@ -241,6 +242,7 @@ func (o *Orchestrator) setPlaybackState(n *model.Narrative) string {
 	o.currentLon = n.Lon
 	o.currentThumbnailURL = n.ThumbnailURL
 	o.currentTitle = n.Title
+	o.currentShowInfoPanel = n.ShowInfoPanel
 
 	if n.POI != nil {
 		o.lastPOI = n.POI
@@ -269,6 +271,7 @@ func (o *Orchestrator) finalizePlayback() {
 	o.currentType = ""
 	o.currentThumbnailURL = ""
 	o.currentTitle = ""
+	o.currentShowInfoPanel = false
 	o.mu.Unlock()
 
 	// Beacon Check (Switch to next target)
@@ -302,6 +305,14 @@ func (o *Orchestrator) CurrentPOI() *model.POI {
 func (o *Orchestrator) CurrentTitle() string {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
+
+	// For announcements/special types, prioritize the specific title if set
+	if o.currentType != "" && o.currentType != model.NarrativeTypePOI {
+		if o.currentTitle != "" {
+			return o.currentTitle
+		}
+	}
+
 	if o.currentPOI != nil {
 		return o.currentPOI.DisplayName()
 	}
@@ -330,6 +341,11 @@ func (o *Orchestrator) CurrentThumbnailURL() string {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	return o.currentThumbnailURL
+}
+func (o *Orchestrator) CurrentShowInfoPanel() bool {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.currentShowInfoPanel
 }
 func (o *Orchestrator) ClearCurrentImage() {
 	o.mu.Lock()

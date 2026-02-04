@@ -1,0 +1,271 @@
+=== RUN   TestEvictionJob_ShouldFire
+=== RUN   TestEvictionJob_ShouldFire/On_ground_-_no_fire
+=== RUN   TestEvictionJob_ShouldFire/Airborne,_recent_-_no_fire
+=== RUN   TestEvictionJob_ShouldFire/Airborne,_expired_-_fire
+=== RUN   TestEvictionJob_ShouldFire/Airborne,_exactly_5min_-_fire
+--- PASS: TestEvictionJob_ShouldFire (0.00s)
+    --- PASS: TestEvictionJob_ShouldFire/On_ground_-_no_fire (0.00s)
+    --- PASS: TestEvictionJob_ShouldFire/Airborne,_recent_-_no_fire (0.00s)
+    --- PASS: TestEvictionJob_ShouldFire/Airborne,_expired_-_fire (0.00s)
+    --- PASS: TestEvictionJob_ShouldFire/Airborne,_exactly_5min_-_fire (0.00s)
+=== RUN   TestEvictionJob_ShouldFire_NilTelemetry
+--- PASS: TestEvictionJob_ShouldFire_NilTelemetry (0.00s)
+=== RUN   TestEvictionJob_ShouldFire_Concurrent
+--- PASS: TestEvictionJob_ShouldFire_Concurrent (0.00s)
+=== RUN   TestEvictionJob_Name
+--- PASS: TestEvictionJob_Name (0.00s)
+=== RUN   TestEvictionJob_ThresholdCalculation
+=== RUN   TestEvictionJob_ThresholdCalculation/Default_(0)_->_90km
+=== RUN   TestEvictionJob_ThresholdCalculation/80km_->_90km
+=== RUN   TestEvictionJob_ThresholdCalculation/50km_->_60km
+=== RUN   TestEvictionJob_ThresholdCalculation/100km_->_110km
+--- PASS: TestEvictionJob_ThresholdCalculation (0.00s)
+    --- PASS: TestEvictionJob_ThresholdCalculation/Default_(0)_->_90km (0.00s)
+    --- PASS: TestEvictionJob_ThresholdCalculation/80km_->_90km (0.00s)
+    --- PASS: TestEvictionJob_ThresholdCalculation/50km_->_60km (0.00s)
+    --- PASS: TestEvictionJob_ThresholdCalculation/100km_->_110km (0.00s)
+=== RUN   TestNewEvictionJob
+--- PASS: TestNewEvictionJob (0.00s)
+=== RUN   TestEvictionJob_InitialState
+--- PASS: TestEvictionJob_InitialState (0.00s)
+=== RUN   TestBaseJob_LockUnlock
+=== RUN   TestBaseJob_LockUnlock/Unlocked_-_TryLock_succeeds
+=== RUN   TestBaseJob_LockUnlock/Prelocked_-_TryLock_fails
+--- PASS: TestBaseJob_LockUnlock (0.00s)
+    --- PASS: TestBaseJob_LockUnlock/Unlocked_-_TryLock_succeeds (0.00s)
+    --- PASS: TestBaseJob_LockUnlock/Prelocked_-_TryLock_fails (0.00s)
+=== RUN   TestBaseJob_Name
+=== RUN   TestBaseJob_Name/Simple_name
+=== RUN   TestBaseJob_Name/Empty_name
+=== RUN   TestBaseJob_Name/Unicode_name
+--- PASS: TestBaseJob_Name (0.00s)
+    --- PASS: TestBaseJob_Name/Simple_name (0.00s)
+    --- PASS: TestBaseJob_Name/Empty_name (0.00s)
+    --- PASS: TestBaseJob_Name/Unicode_name (0.00s)
+=== RUN   TestDistanceJob_ShouldFire
+=== RUN   TestDistanceJob_ShouldFire/First_run_always_fires
+=== RUN   TestDistanceJob_ShouldFire/Below_threshold_-_no_fire
+=== RUN   TestDistanceJob_ShouldFire/Above_threshold_-_fires
+--- PASS: TestDistanceJob_ShouldFire (0.00s)
+    --- PASS: TestDistanceJob_ShouldFire/First_run_always_fires (0.00s)
+    --- PASS: TestDistanceJob_ShouldFire/Below_threshold_-_no_fire (0.00s)
+    --- PASS: TestDistanceJob_ShouldFire/Above_threshold_-_fires (0.00s)
+=== RUN   TestDistanceJob_Running
+--- PASS: TestDistanceJob_Running (0.00s)
+=== RUN   TestTimeJob_ShouldFire
+=== RUN   TestTimeJob_ShouldFire/First_run_always_fires
+=== RUN   TestTimeJob_ShouldFire/Below_threshold_-_no_fire
+=== RUN   TestTimeJob_ShouldFire/Above_threshold_-_fires
+--- PASS: TestTimeJob_ShouldFire (0.02s)
+    --- PASS: TestTimeJob_ShouldFire/First_run_always_fires (0.00s)
+    --- PASS: TestTimeJob_ShouldFire/Below_threshold_-_no_fire (0.00s)
+    --- PASS: TestTimeJob_ShouldFire/Above_threshold_-_fires (0.02s)
+=== RUN   TestTimeJob_Running
+--- PASS: TestTimeJob_Running (0.01s)
+=== RUN   TestNarrationJob_Frequency_Strategies
+=== RUN   TestNarrationJob_Frequency_Strategies/Rarely:_Playing_->_No_Fire_(Strict_No_Overlap)
+=== RUN   TestNarrationJob_Frequency_Strategies/Rarely:_Not_Playing,_Lone_Wolf_->_Fire
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q1
+=== RUN   TestNarrationJob_Frequency_Strategies/Rarely:_Not_Playing,_NOT_Lone_Wolf_->_No_Fire
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q1
+=== RUN   TestNarrationJob_Frequency_Strategies/Normal:_Playing_->_No_Fire_(Strict_No_Overlap)
+=== RUN   TestNarrationJob_Frequency_Strategies/Normal:_Not_Playing_->_Fire_(Standard)
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q1
+=== RUN   TestNarrationJob_Frequency_Strategies/Active:_Playing,_Lead_Time_Good_(rem_<=_1.0*lat)_->_Fire
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q1
+=== RUN   TestNarrationJob_Frequency_Strategies/Active:_Playing,_Too_Early_(rem_>_1.0*lat)_->_No_Fire
+=== RUN   TestNarrationJob_Frequency_Strategies/Hyperactive:_Playing,_Lead_Time_Good_(rem_<=_2.0*lat)_->_Fire
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q1
+=== RUN   TestNarrationJob_Frequency_Strategies/Hyperactive:_Playing,_Too_Early_(rem_>_2.0*lat)_->_No_Fire
+--- PASS: TestNarrationJob_Frequency_Strategies (0.00s)
+    --- PASS: TestNarrationJob_Frequency_Strategies/Rarely:_Playing_->_No_Fire_(Strict_No_Overlap) (0.00s)
+    --- PASS: TestNarrationJob_Frequency_Strategies/Rarely:_Not_Playing,_Lone_Wolf_->_Fire (0.00s)
+    --- PASS: TestNarrationJob_Frequency_Strategies/Rarely:_Not_Playing,_NOT_Lone_Wolf_->_No_Fire (0.00s)
+    --- PASS: TestNarrationJob_Frequency_Strategies/Normal:_Playing_->_No_Fire_(Strict_No_Overlap) (0.00s)
+    --- PASS: TestNarrationJob_Frequency_Strategies/Normal:_Not_Playing_->_Fire_(Standard) (0.00s)
+    --- PASS: TestNarrationJob_Frequency_Strategies/Active:_Playing,_Lead_Time_Good_(rem_<=_1.0*lat)_->_Fire (0.00s)
+    --- PASS: TestNarrationJob_Frequency_Strategies/Active:_Playing,_Too_Early_(rem_>_1.0*lat)_->_No_Fire (0.00s)
+    --- PASS: TestNarrationJob_Frequency_Strategies/Hyperactive:_Playing,_Lead_Time_Good_(rem_<=_2.0*lat)_->_Fire (0.00s)
+    --- PASS: TestNarrationJob_Frequency_Strategies/Hyperactive:_Playing,_Too_Early_(rem_>_2.0*lat)_->_No_Fire (0.00s)
+=== RUN   TestNarrationJob_EssayConfig
+=== RUN   TestNarrationJob_EssayConfig/Enabled_+_High_Altitude_->_Fire
+    narration_job_config_test.go:66: CanPrepareEssay() = false, want true
+=== RUN   TestNarrationJob_EssayConfig/Disabled_+_High_Altitude_->_No_Fire
+=== RUN   TestNarrationJob_EssayConfig/Enabled_+_Low_Altitude_->_No_Fire
+--- FAIL: TestNarrationJob_EssayConfig (0.00s)
+    --- FAIL: TestNarrationJob_EssayConfig/Enabled_+_High_Altitude_->_Fire (0.00s)
+    --- PASS: TestNarrationJob_EssayConfig/Disabled_+_High_Altitude_->_No_Fire (0.00s)
+    --- PASS: TestNarrationJob_EssayConfig/Enabled_+_Low_Altitude_->_No_Fire (0.00s)
+=== RUN   TestPhase2_CanPreparePOI
+=== RUN   TestPhase2_CanPreparePOI/Idle_State_-_Ready
+=== RUN   TestPhase2_CanPreparePOI/Generating_-_Blocked
+=== RUN   TestPhase2_CanPreparePOI/Playing_(Freq:_Normal/2)_-_Blocked_(No_Pipeline)
+=== RUN   TestPhase2_CanPreparePOI/Playing_(Freq:_Active/3)_-_Pipeline_Ready_(Low_Remaining)
+=== RUN   TestPhase2_CanPreparePOI/Playing_(Freq:_Active/3)_-_Pipeline_Blocked_(High_Remaining)
+--- PASS: TestPhase2_CanPreparePOI (0.00s)
+    --- PASS: TestPhase2_CanPreparePOI/Idle_State_-_Ready (0.00s)
+    --- PASS: TestPhase2_CanPreparePOI/Generating_-_Blocked (0.00s)
+    --- PASS: TestPhase2_CanPreparePOI/Playing_(Freq:_Normal/2)_-_Blocked_(No_Pipeline) (0.00s)
+    --- PASS: TestPhase2_CanPreparePOI/Playing_(Freq:_Active/3)_-_Pipeline_Ready_(Low_Remaining) (0.00s)
+    --- PASS: TestPhase2_CanPreparePOI/Playing_(Freq:_Active/3)_-_Pipeline_Blocked_(High_Remaining) (0.00s)
+=== RUN   TestPhase2_CanPrepareEssay
+--- PASS: TestPhase2_CanPrepareEssay (0.00s)
+=== RUN   TestPhase2_PreparePOI
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q_RUN
+--- PASS: TestPhase2_PreparePOI (0.00s)
+=== RUN   TestNarrationJob_GroundSuppression
+=== RUN   TestNarrationJob_GroundSuppression/Ground:_No_POI_->_No_Essay
+=== RUN   TestNarrationJob_GroundSuppression/Ground:_Low_Score_POI_->_No_Essay
+=== RUN   TestNarrationJob_GroundSuppression/Stage:_Taxi_->_No_Narrate_(even_if_high_score)
+=== RUN   TestNarrationJob_GroundSuppression/Stage:_Climb_->_Narrate_(High_Score)
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=""
+=== RUN   TestNarrationJob_GroundSuppression/Airborne_(Low):_No_POI_->_No_Essay
+=== RUN   TestNarrationJob_GroundSuppression/Airborne_(High):_No_POI_->_Essay
+=== RUN   TestNarrationJob_GroundSuppression/Airborne_(High):_Low_Score_POI_->_Essay
+=== RUN   TestNarrationJob_GroundSuppression/Paused:_High_Score_POI_->_No_Narration
+=== RUN   TestNarrationJob_GroundSuppression/Ground:_High_Score_POI_but_Far_(>5km)_->_No_Narration
+--- PASS: TestNarrationJob_GroundSuppression (0.00s)
+    --- PASS: TestNarrationJob_GroundSuppression/Ground:_No_POI_->_No_Essay (0.00s)
+    --- PASS: TestNarrationJob_GroundSuppression/Ground:_Low_Score_POI_->_No_Essay (0.00s)
+    --- PASS: TestNarrationJob_GroundSuppression/Stage:_Taxi_->_No_Narrate_(even_if_high_score) (0.00s)
+    --- PASS: TestNarrationJob_GroundSuppression/Stage:_Climb_->_Narrate_(High_Score) (0.00s)
+    --- PASS: TestNarrationJob_GroundSuppression/Airborne_(Low):_No_POI_->_No_Essay (0.00s)
+    --- PASS: TestNarrationJob_GroundSuppression/Airborne_(High):_No_POI_->_Essay (0.00s)
+    --- PASS: TestNarrationJob_GroundSuppression/Airborne_(High):_Low_Score_POI_->_Essay (0.00s)
+    --- PASS: TestNarrationJob_GroundSuppression/Paused:_High_Score_POI_->_No_Narration (0.00s)
+    --- PASS: TestNarrationJob_GroundSuppression/Ground:_High_Score_POI_but_Far_(>5km)_->_No_Narration (0.00s)
+=== RUN   TestNarrationJob_EssayRules
+=== RUN   TestNarrationJob_EssayRules/Priority:_High_Score_POI_->_POI_Wins
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q1
+=== RUN   TestNarrationJob_EssayRules/Silence_Rule:_No_POI,_but_Silence_<_2*Max_->_No_Essay
+=== RUN   TestNarrationJob_EssayRules/Silence_Rule:_No_POI,_Silence_>_2*Max_->_Fire_Essay
+=== RUN   TestNarrationJob_EssayRules/Cooldown_Rule:_No_POI,_Silence_OK,_Recent_Essay_->_No_Essay
+=== RUN   TestNarrationJob_EssayRules/Cooldown_Rule:_No_POI,_Silence_OK,_Old_Essay_->_Fire_Essay
+=== RUN   TestNarrationJob_EssayRules/Low_Score_POI_(<Threshold):_Treat_as_Nil_->_Essay_Rules_Apply
+--- PASS: TestNarrationJob_EssayRules (0.00s)
+    --- PASS: TestNarrationJob_EssayRules/Priority:_High_Score_POI_->_POI_Wins (0.00s)
+    --- PASS: TestNarrationJob_EssayRules/Silence_Rule:_No_POI,_but_Silence_<_2*Max_->_No_Essay (0.00s)
+    --- PASS: TestNarrationJob_EssayRules/Silence_Rule:_No_POI,_Silence_>_2*Max_->_Fire_Essay (0.00s)
+    --- PASS: TestNarrationJob_EssayRules/Cooldown_Rule:_No_POI,_Silence_OK,_Recent_Essay_->_No_Essay (0.00s)
+    --- PASS: TestNarrationJob_EssayRules/Cooldown_Rule:_No_POI,_Silence_OK,_Old_Essay_->_Fire_Essay (0.00s)
+    --- PASS: TestNarrationJob_EssayRules/Low_Score_POI_(<Threshold):_Treat_as_Nil_->_Essay_Rules_Apply (0.00s)
+=== RUN   TestNarrationJob_isPlayable
+=== RUN   TestNarrationJob_isPlayable/Never_Played
+=== RUN   TestNarrationJob_isPlayable/Played_Recently_(1m_ago)
+=== RUN   TestNarrationJob_isPlayable/Played_Long_Ago_(20m_ago)
+--- PASS: TestNarrationJob_isPlayable (0.00s)
+    --- PASS: TestNarrationJob_isPlayable/Never_Played (0.00s)
+    --- PASS: TestNarrationJob_isPlayable/Played_Recently_(1m_ago) (0.00s)
+    --- PASS: TestNarrationJob_isPlayable/Played_Long_Ago_(20m_ago) (0.00s)
+=== RUN   TestNarrationJob_AdaptiveMode
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q_LOW
+--- PASS: TestNarrationJob_AdaptiveMode (0.00s)
+=== RUN   TestNarrationJob_DynamicMinScore
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q5
+--- PASS: TestNarrationJob_DynamicMinScore (0.00s)
+=== RUN   TestNarrationJob_PipelineLogic
+=== RUN   TestNarrationJob_PipelineLogic/Not_Playing_(Standard_Trigger)
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q_NEXT
+=== RUN   TestNarrationJob_PipelineLogic/Playing_-_Timing_Good_(Just_in_time)
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q_NEXT
+=== RUN   TestNarrationJob_PipelineLogic/Playing_-_Timing_Early_(Wait_longer)
+=== RUN   TestNarrationJob_PipelineLogic/Playing_-_High_Latency_(Start_earlier)
+2026/02/04 07:00:35 INFO NarrationJob: Triggering POI name=Q_NEXT
+=== RUN   TestNarrationJob_PipelineLogic/Playing_-_Timing_Good_but_Already_Staged_(Blocked)
+=== RUN   TestNarrationJob_PipelineLogic/Staged_Only_(No_playing)_-_Blocked
+--- PASS: TestNarrationJob_PipelineLogic (0.00s)
+    --- PASS: TestNarrationJob_PipelineLogic/Not_Playing_(Standard_Trigger) (0.00s)
+    --- PASS: TestNarrationJob_PipelineLogic/Playing_-_Timing_Good_(Just_in_time) (0.00s)
+    --- PASS: TestNarrationJob_PipelineLogic/Playing_-_Timing_Early_(Wait_longer) (0.00s)
+    --- PASS: TestNarrationJob_PipelineLogic/Playing_-_High_Latency_(Start_earlier) (0.00s)
+    --- PASS: TestNarrationJob_PipelineLogic/Playing_-_Timing_Good_but_Already_Staged_(Blocked) (0.00s)
+    --- PASS: TestNarrationJob_PipelineLogic/Staged_Only_(No_playing)_-_Blocked (0.00s)
+=== RUN   TestNarrationJob_FlightStageRestrictions
+=== RUN   TestNarrationJob_FlightStageRestrictions/Taxi_-_blocked
+=== RUN   TestNarrationJob_FlightStageRestrictions/Take-off_-_blocked
+=== RUN   TestNarrationJob_FlightStageRestrictions/Climb_-_allowed
+=== RUN   TestNarrationJob_FlightStageRestrictions/Cruise_-_allowed
+=== RUN   TestNarrationJob_FlightStageRestrictions/Descend_-_allowed
+=== RUN   TestNarrationJob_FlightStageRestrictions/Landed_-_blocked
+--- PASS: TestNarrationJob_FlightStageRestrictions (0.00s)
+    --- PASS: TestNarrationJob_FlightStageRestrictions/Taxi_-_blocked (0.00s)
+    --- PASS: TestNarrationJob_FlightStageRestrictions/Take-off_-_blocked (0.00s)
+    --- PASS: TestNarrationJob_FlightStageRestrictions/Climb_-_allowed (0.00s)
+    --- PASS: TestNarrationJob_FlightStageRestrictions/Cruise_-_allowed (0.00s)
+    --- PASS: TestNarrationJob_FlightStageRestrictions/Descend_-_allowed (0.00s)
+    --- PASS: TestNarrationJob_FlightStageRestrictions/Landed_-_blocked (0.00s)
+=== RUN   TestNarrationJob_VisibilityBoostAGLCheck
+=== RUN   TestNarrationJob_VisibilityBoostAGLCheck/Low_altitude_(100ft)_-_no_boost
+=== RUN   TestNarrationJob_VisibilityBoostAGLCheck/At_threshold_(500ft)_-_allows_boost
+=== RUN   TestNarrationJob_VisibilityBoostAGLCheck/Above_threshold_(1000ft)_-_allows_boost
+=== RUN   TestNarrationJob_VisibilityBoostAGLCheck/On_ground_(0ft)_-_no_boost
+=== RUN   TestNarrationJob_VisibilityBoostAGLCheck/High_altitude_already_at_max_-_stays_at_max
+--- PASS: TestNarrationJob_VisibilityBoostAGLCheck (0.00s)
+    --- PASS: TestNarrationJob_VisibilityBoostAGLCheck/Low_altitude_(100ft)_-_no_boost (0.00s)
+    --- PASS: TestNarrationJob_VisibilityBoostAGLCheck/At_threshold_(500ft)_-_allows_boost (0.00s)
+    --- PASS: TestNarrationJob_VisibilityBoostAGLCheck/Above_threshold_(1000ft)_-_allows_boost (0.00s)
+    --- PASS: TestNarrationJob_VisibilityBoostAGLCheck/On_ground_(0ft)_-_no_boost (0.00s)
+    --- PASS: TestNarrationJob_VisibilityBoostAGLCheck/High_altitude_already_at_max_-_stays_at_max (0.00s)
+=== RUN   TestNarrationJob_StartAirborne_NoDelay
+--- PASS: TestNarrationJob_StartAirborne_NoDelay (0.00s)
+=== RUN   TestScheduler_TeleportDetection
+2026/02/04 07:00:35 INFO Scheduler: Teleport detected dist_m=5.5500543134577405e+06 threshold_m=100000
+--- PASS: TestScheduler_TeleportDetection (0.00s)
+=== RUN   TestScheduler_JobExecution
+2026/02/04 07:00:35 INFO Scheduler started interval=5ms
+--- PASS: TestScheduler_JobExecution (0.06s)
+=== RUN   TestJob_Concurrency
+--- PASS: TestJob_Concurrency (0.00s)
+=== RUN   TestScheduler_SkipsTelemetryWhenInactive
+2026/02/04 07:00:35 INFO Scheduler stopped
+2026/02/04 07:00:35 INFO Scheduler started interval=5ms
+--- PASS: TestScheduler_SkipsTelemetryWhenInactive (0.20s)
+2026/02/04 07:00:35 INFO Scheduler stopped
+=== RUN   TestTransponderWatcherJob_handleSquawkChange
+=== RUN   TestTransponderWatcherJob_handleSquawkChange/Standard_Control_Squawk_(7331)
+2026/02/04 07:00:35 INFO Transponder: Control Squawk detected squawk=7331 freq=3 len=3 boost=1
+2026/02/04 07:00:35 INFO Narrator stub: Resume requested
+=== RUN   TestTransponderWatcherJob_handleSquawkChange/Max_Frequency_(7455)
+2026/02/04 07:00:35 INFO Transponder: Control Squawk detected squawk=7455 freq=4 len=5 boost=5
+2026/02/04 07:00:35 INFO Narrator stub: Resume requested
+=== RUN   TestTransponderWatcherJob_handleSquawkChange/Low_Limits_(7111)
+2026/02/04 07:00:35 INFO Transponder: Control Squawk detected squawk=7111 freq=1 len=1 boost=1
+2026/02/04 07:00:35 INFO Narrator stub: Resume requested
+=== RUN   TestTransponderWatcherJob_handleSquawkChange/Pause_(7031)
+2026/02/04 07:00:35 INFO Transponder: Control Squawk detected squawk=7031 freq=0 len=3 boost=1
+2026/02/04 07:00:35 INFO Transponder: Frequency 0 detected, pausing narration
+2026/02/04 07:00:35 INFO Narrator stub: Pause requested
+=== RUN   TestTransponderWatcherJob_handleSquawkChange/Invalid_prefix_ignored_(1200)
+--- PASS: TestTransponderWatcherJob_handleSquawkChange (0.05s)
+    --- PASS: TestTransponderWatcherJob_handleSquawkChange/Standard_Control_Squawk_(7331) (0.01s)
+    --- PASS: TestTransponderWatcherJob_handleSquawkChange/Max_Frequency_(7455) (0.01s)
+    --- PASS: TestTransponderWatcherJob_handleSquawkChange/Low_Limits_(7111) (0.01s)
+    --- PASS: TestTransponderWatcherJob_handleSquawkChange/Pause_(7031) (0.00s)
+    --- PASS: TestTransponderWatcherJob_handleSquawkChange/Invalid_prefix_ignored_(1200) (0.00s)
+=== RUN   TestTransponderWatcherJob_ShouldFire
+=== RUN   TestTransponderWatcherJob_ShouldFire/No_Change
+=== RUN   TestTransponderWatcherJob_ShouldFire/Squawk_Change
+=== RUN   TestTransponderWatcherJob_ShouldFire/Ident_Change
+=== RUN   TestTransponderWatcherJob_ShouldFire/Both_Change
+--- PASS: TestTransponderWatcherJob_ShouldFire (0.00s)
+    --- PASS: TestTransponderWatcherJob_ShouldFire/No_Change (0.00s)
+    --- PASS: TestTransponderWatcherJob_ShouldFire/Squawk_Change (0.00s)
+    --- PASS: TestTransponderWatcherJob_ShouldFire/Ident_Change (0.00s)
+    --- PASS: TestTransponderWatcherJob_ShouldFire/Both_Change (0.00s)
+=== RUN   TestTransponderWatcherJob_handleIdentTrigger
+=== RUN   TestTransponderWatcherJob_handleIdentTrigger/Pause_Toggle_(Resume)
+2026/02/04 07:00:35 INFO Transponder: IDENT triggered (rising edge) action=pause_toggle
+=== RUN   TestTransponderWatcherJob_handleIdentTrigger/Pause_Toggle_(Pause)
+2026/02/04 07:00:35 INFO Transponder: IDENT triggered (rising edge) action=pause_toggle
+=== RUN   TestTransponderWatcherJob_handleIdentTrigger/Skip
+2026/02/04 07:00:35 INFO Transponder: IDENT triggered (rising edge) action=skip
+=== RUN   TestTransponderWatcherJob_handleIdentTrigger/Stop
+2026/02/04 07:00:35 INFO Transponder: IDENT triggered (rising edge) action=stop
+--- PASS: TestTransponderWatcherJob_handleIdentTrigger (0.00s)
+    --- PASS: TestTransponderWatcherJob_handleIdentTrigger/Pause_Toggle_(Resume) (0.00s)
+    --- PASS: TestTransponderWatcherJob_handleIdentTrigger/Pause_Toggle_(Pause) (0.00s)
+    --- PASS: TestTransponderWatcherJob_handleIdentTrigger/Skip (0.00s)
+    --- PASS: TestTransponderWatcherJob_handleIdentTrigger/Stop (0.00s)
+FAIL
+FAIL	phileasgo/pkg/core	0.775s
+FAIL

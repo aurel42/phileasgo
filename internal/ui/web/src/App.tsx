@@ -67,41 +67,41 @@ function App() {
 
   // Auto-open panel when narrator starts playing (unless user dismissed it)
   useEffect(() => {
-    if (narratorStatus?.playback_status === 'playing' && narratorStatus?.current_poi && narratorStatus?.current_type === 'poi') {
-      const poiId = narratorStatus.current_poi.wikidata_id;
-      // Don't auto-open if user manually closed the panel for THIS specific POI
-      if (userDismissedRef.current === poiId) {
-        return;
-      }
+    if (narratorStatus?.playback_status === 'playing' && narratorStatus?.show_info_panel) {
+      if (narratorStatus.current_type === 'poi' && narratorStatus.current_poi) {
+        const poiId = narratorStatus.current_poi.wikidata_id;
+        // Don't auto-open if user manually closed the panel for THIS specific POI
+        if (userDismissedRef.current === poiId) {
+          return;
+        }
 
-      // Check if we already auto-opened this specific POI
-      if (lastAutoOpenedIdRef.current === poiId) {
-        return;
-      }
+        // Check if we already auto-opened this specific POI
+        if (lastAutoOpenedIdRef.current === poiId) {
+          return;
+        }
 
+        // DO NOT auto-open if the user has manually selected a POI
+        if (selectedPOI && !autoOpenedRef.current) {
+          return;
+        }
 
-      // DO NOT auto-open if the user has manually selected a POI
-      if (selectedPOI && !autoOpenedRef.current) {
-        return;
-      }
-
-      const poi = pois.find(p => p.wikidata_id === poiId);
-      if (poi && selectedPOI?.wikidata_id !== poiId) {
-        setSelectedPOI(poi);
-        autoOpenedRef.current = true;
-        lastAutoOpenedIdRef.current = poiId;
-      }
-    } else if (narratorStatus?.playback_status === 'playing' && (narratorStatus?.current_type === 'debriefing' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot')) {
-      // Auto-open for non-POI narratives
-      const title = narratorStatus.current_title ||
-        (narratorStatus.current_type === 'debriefing' ? 'Debrief' :
-          narratorStatus.current_type === 'screenshot' ? 'Photograph Analysis' : 'Essay');
-      if (lastAutoOpenedIdRef.current !== title) {
-        lastAutoOpenedIdRef.current = title;
-        // Clear any previous POI selection to ensure the generic panel shows instead
-        setSelectedPOI(null);
-        setShowGenericPanel(true);
-        autoOpenedRef.current = true;
+        const poi = pois.find(p => p.wikidata_id === poiId);
+        if (poi && selectedPOI?.wikidata_id !== poiId) {
+          setSelectedPOI(poi);
+          autoOpenedRef.current = true;
+          lastAutoOpenedIdRef.current = poiId;
+        }
+      } else {
+        // Auto-open for non-POI narratives (Debriefing & Screenshots)
+        const title = narratorStatus.current_title ||
+          (narratorStatus.current_type === 'debriefing' ? 'Debrief' : 'Photograph Analysis');
+        if (lastAutoOpenedIdRef.current !== title) {
+          lastAutoOpenedIdRef.current = title;
+          // Clear any previous POI selection to ensure the generic panel shows instead
+          setSelectedPOI(null);
+          setShowGenericPanel(true);
+          autoOpenedRef.current = true;
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -319,8 +319,8 @@ function App() {
           <div className="config-pill-item">
             <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>FRQ</span>
             <div className="pip-container">
-              {[1, 2, 3, 4, 5].map(v => (
-                <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 3 ? 'high' : ''}`} />
+              {[1, 2, 3, 4].map(v => (
+                <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 2 ? 'high' : ''}`} />
               ))}
             </div>
           </div>

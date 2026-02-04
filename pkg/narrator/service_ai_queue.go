@@ -204,6 +204,7 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 		Manual:        job.Manual,
 		SkipBusyCheck: true,
 		ThumbnailURL:  p.ThumbnailURL,
+		ShowInfoPanel: true,
 	}
 
 	s.mu.Lock()
@@ -260,6 +261,10 @@ func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.J
 	// For screenshots, set raw path for LLM image analysis and API URL for UI
 	if ss, ok := job.Announcement.(*announcement.Screenshot); ok {
 		req.ImagePath = ss.RawPath() // Raw path for LLM GenerateImageText
+	}
+
+	if job.Type == model.NarrativeTypeScreenshot || job.Type == model.NarrativeTypeDebriefing {
+		req.ShowInfoPanel = true
 	}
 
 	return req

@@ -155,12 +155,13 @@ func (s *AIService) constructNarrative(req *GenerationRequest, script, extracted
 		PredictedLatency:  predicted,
 
 		// Context passthrough
-		POI:          req.POI,
-		ImagePath:    imagePath,
-		ThumbnailURL: req.ThumbnailURL,
-		Summary:      req.Summary,
-		Lat:          req.Lat,
-		Lon:          req.Lon,
+		POI:           req.POI,
+		ImagePath:     imagePath,
+		ThumbnailURL:  req.ThumbnailURL,
+		Summary:       req.Summary,
+		Lat:           req.Lat,
+		Lon:           req.Lon,
+		ShowInfoPanel: req.ShowInfoPanel,
 	}
 	if req.EssayTopic != nil {
 		n.EssayTopic = req.EssayTopic.Name

@@ -29,6 +29,7 @@ type Narrative struct {
 	GenerationLatency time.Duration `json:"generation_latency"`
 	PredictedLatency  time.Duration `json:"predicted_latency"`
 	RequestedWords    int           `json:"requested_words"`
+	ShowInfoPanel     bool          `json:"show_info_panel"`
 
 	// Presentation Data (Primary UI drivers)
 	Summary      string `json:"summary,omitempty"`

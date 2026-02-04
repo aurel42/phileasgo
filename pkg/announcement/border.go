@@ -35,7 +35,7 @@ type Border struct {
 }
 
 func NewBorder(cfg *config.Config, geo LocationProvider, dp DataProvider, events EventRecorder) *Border {
-	return &Border{
+	b := &Border{
 		Base:            NewBase("border", model.NarrativeTypeBorder, false, dp, events),
 		geo:             geo,
 		provider:        dp,
@@ -43,6 +43,8 @@ func NewBorder(cfg *config.Config, geo LocationProvider, dp DataProvider, events
 		checkCooldown:   10 * time.Second, // Check every 10s (similar to old 15s)
 		repeatCooldowns: make(map[string]time.Time),
 	}
+	b.SetUIMetadata("Border Crossing", "", "")
+	return b
 }
 
 func (b *Border) ShouldGenerate(t *sim.Telemetry) bool {

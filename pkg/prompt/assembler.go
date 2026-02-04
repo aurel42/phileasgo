@@ -149,9 +149,9 @@ func (a *Assembler) injectPersona(pd Data, session SessionState) {
 	pd["TargetLanguage"] = a.cfg.TargetLanguage(context.Background())
 	pd["MaxWords"] = appCfg.Narrator.NarrationLengthLongWords
 
-	// Testing & Dynamic Style
-	pd["TestingInTheStyleOf"] = appCfg.Narrator.TestingInTheStyleOf
-	pd["TestingSecretWordForTonight"] = appCfg.Narrator.TestingSecretWordForTonight
+	// Dynamic Style & Trip Theme
+	pd["ActiveStyle"] = a.cfg.ActiveStyle(context.Background())
+	pd["ActiveSecretWord"] = a.cfg.ActiveSecretWord(context.Background())
 	// Config values for template context
 	pd["TemperatureBase"] = appCfg.Narrator.TemperatureBase
 	pd["TemperatureJitter"] = appCfg.Narrator.TemperatureJitter
