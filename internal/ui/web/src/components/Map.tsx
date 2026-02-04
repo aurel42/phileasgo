@@ -13,6 +13,8 @@ import { useMapEvents } from 'react-leaflet';
 import { MapBranding } from './MapBranding';
 import { CoverageLayer } from './CoverageLayer';
 import { VictorianToggle } from './VictorianToggle';
+import { useTripEvents } from '../hooks/useTripEvents';
+import { TripReplayOverlay } from './TripReplayOverlay';
 
 // Zoom level calculations:
 // At zoom 13: ~10km visible (min area)
@@ -221,9 +223,14 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
 
     const { data: telemetry, isLoading: isConnecting } = useTelemetry();
     const isConnected = telemetry?.SimState === 'active';
+    const isDisconnected = telemetry?.SimState === 'disconnected';
+
+    // Trip events for replay mode
+    const { data: tripEvents } = useTripEvents();
+    const isReplayMode = isDisconnected && tripEvents && tripEvents.length > 1;
 
     // Prevent rendering fallback map until we are sure we are disconnected
-    const showFallbackMap = !isConnecting && !isConnected;
+    const showFallbackMap = !isConnecting && !isConnected && !isReplayMode;
 
     const { status: narratorStatus } = useNarrator();
 
@@ -387,6 +394,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 />
                 {showFallbackMap && <MapBranding />}
                 {showFallbackMap && <CoverageLayer />}
+                {isReplayMode && tripEvents && <TripReplayOverlay events={tripEvents} durationMs={120000} />}
                 {showCacheLayer && isConnected && <CacheLayer />}
                 {isConnected && <VisibilityLayer enabled={showVisibilityLayer} />}
                 {isConnected && telemetry && throttledPos && (

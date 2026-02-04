@@ -191,6 +191,13 @@ func (m *Manager) NarratedCount() int {
 	return m.narratedCount
 }
 
+// GetEvents returns a copy of the trip events.
+func (m *Manager) GetEvents() []model.TripEvent {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return append([]model.TripEvent(nil), m.events...)
+}
+
 // Reset clears the session state.
 func (m *Manager) Reset() {
 	m.mu.Lock()

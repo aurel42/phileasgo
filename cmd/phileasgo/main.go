@@ -207,7 +207,7 @@ func run(ctx context.Context, configPath string) error {
 	tr.Reset()
 
 	// Server
-	return runServer(ctx, cfgProv, svcs, narratorSvc, simClient, visCalc, tr, st, telH, elevGetter, promptMgr)
+	return runServer(ctx, cfgProv, svcs, narratorSvc, simClient, visCalc, tr, st, telH, elevGetter, promptMgr, sessionMgr)
 }
 
 func initDB(appCfg *config.Config) (*db.DB, store.Store, error) {
@@ -382,7 +382,7 @@ func initElevation(cfg *config.Config) (*terrain.ElevationProvider, *terrain.LOS
 	return provider, terrain.NewLOSChecker(provider)
 }
 
-func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns narrator.Service, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler, elevGetter terrain.ElevationGetter, promptMgr *prompts.Manager) error {
+func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns narrator.Service, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler, elevGetter terrain.ElevationGetter, promptMgr *prompts.Manager, sessionMgr *session.Manager) error {
 	appCfg := cfg.AppConfig()
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
@@ -403,6 +403,7 @@ func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns 
 		api.NewNarratorHandler(ns.AudioService(), ns, st),
 		api.NewImageHandler(appCfg),
 		geoH,
+		api.NewTripHandler(sessionMgr, st),
 		shutdownFunc,
 	)
 

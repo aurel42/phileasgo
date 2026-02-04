@@ -1,8 +1,9 @@
 category_groups:
   Settlements: ["City", "Town", "Village"]
-  Attractions: ["Aquarium", "Attraction", "Monument", "Museum", "Stadium", "Theme Park", "Zoo"]
-  Natural: ["Beach", "Nature", "Park", "Peak", "Volcano", "Water", "Wetland"]
-  Aerodromes: ["Aerodrome", "Military"]
+  Attractions: ["Aquarium", "Attraction", "Monument", "Museum", "Observatory", "Racetrack", "Religious", "Stadium", "Theme Park", "Zoo"]
+  Natural:     ["Beach", "Nature", "Park", "Peak", "Volcano", "Water", "Wetland"]
+  Aerodromes:  ["Aerodrome", "Military"]
+  Structures:  ["Bridge", "Castle", "Dam", "Industry", "Lighthouse", "Railway", "Spaceflight", "Tower"]
 
 categories:
   Aerodrome:
