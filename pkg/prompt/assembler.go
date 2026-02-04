@@ -151,6 +151,7 @@ func (a *Assembler) injectPersona(pd Data, session SessionState) {
 
 	// Testing & Dynamic Style
 	pd["TestingInTheStyleOf"] = appCfg.Narrator.TestingInTheStyleOf
+	pd["TestingSecretWordForTonight"] = appCfg.Narrator.TestingSecretWordForTonight
 	// Config values for template context
 	pd["TemperatureBase"] = appCfg.Narrator.TemperatureBase
 	pd["TemperatureJitter"] = appCfg.Narrator.TemperatureJitter

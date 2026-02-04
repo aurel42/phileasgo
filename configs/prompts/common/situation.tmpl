@@ -7,7 +7,7 @@ The aircraft is {{if .IsOnGround -}}
   {{if ge .GroundSpeed 2.0}}taxiing{{else}}sitting{{end}} on the ground{{- if .POINameUser}} at **{{.POINameUser}}** ({{.POINameNative}}){{end}}.
   We cannot see things "from above" yet.
 {{- else -}}
-  cruising at about {{.AltitudeAGL}} ft AGL, moving at {{.GroundSpeed}} knots in heading {{.Heading}}.
+  cruising at about {{printf "%.0f" .AltitudeAGL}} ft AGL, moving at {{printf "%.0f" .GroundSpeed}} knots in heading {{printf "%.0f" .Heading}}.
 {{- end}}
 Its current position is {{printf "%.4f" .Lat}}, {{printf "%.4f" .Lon}} ({{if .City}}near {{.City}}, {{.Region}} in {{.Country}}{{else}}{{.TargetRegion}} in {{.TargetCountry}}{{end}}).
 
@@ -23,10 +23,10 @@ We are **{{.Movement}}** {{.POINameUser}}.
 - Don't mention the aircraft's position, speed, altitude, or heading.
 - Don't mention where we are going or what we are going to see next.
 - Don't predict where we will be landing.
+{{end}}
 
 {{if .TestingSecretWordForTonight}}
 ### ASSIGNED THEME
 The Theme or Topic for this trip is {{.TestingSecretWordForTonight}}. Incorporate the concept into the script without mentioning it verbatim whenever it makes sense.
-{{end}}
 {{end}}
 {{end}}
