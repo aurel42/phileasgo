@@ -1,7 +1,12 @@
 ﻿Release History
 
+## v0.3.128 (2026-02-04)
+- **Fix**: **Automated POI Info Panel Regression**. Restored the automatic display of the info panel when POIs are narrated by the AI pilot.
+- **Fix**: **Map Interaction Continuity**. Restored map-click to close panel functionality and standardized POI marker layering for better interaction consistency.
+- **Fix**: **Test Suite Log Rotation**. Prevented the test suite from accidentally rotating production `llm.log` files by isolating log paths during testing.
+
 ## v0.3.127 (2026-02-04)
-- **Fix**: **Settings Panel Styling**. Fixed a regression where buttons, menus, and select dropdowns in the configuration UI displayed black text on dark backgrounds. The issue was caused by invalid CSS `var()` function calls with errant spaces that broke style inheritance.
+- **Fix**: **Settings Panel Styling**. Fixed a regression where buttons, menus, and select dropdowns in the configuration UI displayed black text on dark backgrounds.
 
 ## v0.3.126 (2026-02-04)
 - **Fix**: Corrected configuration scope for proximity boost from `narrator` to `scorer`.

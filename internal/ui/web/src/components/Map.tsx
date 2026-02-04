@@ -59,6 +59,7 @@ const AircraftPaneSetup = () => {
 const MapEvents = ({ onInteraction }: { onInteraction: () => void }) => {
     useMapEvents({
         zoomstart: () => onInteraction(),
+        click: () => onInteraction(),
     });
     return null;
 };

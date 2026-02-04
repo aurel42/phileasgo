@@ -81,6 +81,7 @@ func (s *AIService) playPOIAutomated(ctx context.Context, p *model.POI, tel *sim
 			MaxWords:      promptData["MaxWords"].(int),
 			Manual:        false,
 			SkipBusyCheck: true,
+			ShowInfoPanel: true,
 		}
 
 		done = true

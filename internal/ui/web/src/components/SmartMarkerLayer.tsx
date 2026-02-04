@@ -297,10 +297,8 @@ export const SmartMarkerLayer = ({ pois, selectedPOI, currentNarratedId, prepari
 
     // We render into the overlayPane so we move with the map (hardware accelerated panning)
     // and can use stable LayerPoints for simulation.
-    const overlayPane = map.getPanes().overlayPane;
-
-    // Guard: If overlayPane isn't ready (e.g., during initial render), don't render
-    if (!overlayPane) return null;
+    const markerPane = map.getPanes().markerPane;
+    if (!markerPane) return null;
 
     return createPortal(
         <div className="smart-marker-layer" style={{
@@ -316,6 +314,6 @@ export const SmartMarkerLayer = ({ pois, selectedPOI, currentNarratedId, prepari
                 <SmartMarker key={node.id} node={node} onClick={onPOISelect} />
             ))}
         </div>,
-        overlayPane
+        markerPane
     );
 };

@@ -40,9 +40,13 @@ log:
     requests:
         path: "logs/test_requests.log"
         level: "info"
-    gemini:
-        path: "logs/test_gemini.log"
-        level: "debug"
+history:
+    llm:
+        path: "logs/test_llm.log"
+        enabled: true
+    tts:
+        path: "logs/test_tts.log"
+        enabled: true
 db:
     path: ":memory:" # Use in-memory DB for test
 tts:
