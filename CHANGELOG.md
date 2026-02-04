@@ -1,7 +1,10 @@
 ﻿Release History
 
+## v0.3.126 (2026-02-04)
+- **Fix**: Corrected configuration scope for proximity boost from `narrator` to `scorer`.
+
 ## v0.3.125 (2026-02-04)
-- **Feature**: **Proximity Boost**. Added a configurable exponential penalty to the deferral mechanism (`narrator.deferral_proximity_boost_power`), allowing for much more selective narration timing based on distance and visual clarity.
+- **Feature**: **Proximity Boost**. Added a configurable exponential penalty to the deferral mechanism (`scorer.deferral_proximity_boost_power`), allowing for much more selective narration timing based on distance and visual clarity.
 - **Improvement**: **Scorer Tab**. Introduced a dedicated Scorer settings tab with real-time control over the deferral proximity boost.
 - **Refinement**: **Deferral Logic**. Standardized the exponential power calculation across both current and future visibility estimates for consistent decision-making.
 

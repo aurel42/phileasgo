@@ -98,12 +98,12 @@ interface DraftState {
     units: 'km' | 'nm';
     showCacheLayer: boolean;
     showVisibilityLayer: boolean;
+    streamingMode: boolean;
     // Scorer tab
     deferralProximityBoostPower: number;
-    // Interface tab (local-only, no server sync needed)
-    units: 'km' | 'nm';
+}
 
-    export const SettingsPanel: React.FC<SettingsPanelProps> = ({
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     onBack,
     units,
     onUnitsChange,
@@ -123,203 +123,201 @@ interface DraftState {
     onTextLengthChange,
     streamingMode,
     onStreamingModeChange
-    }) => {
-    const[activeTab, setActiveTab] = useState('sim');
-    const[loading, setLoading] = useState(true);
-    const[saving, setSaving] = useState(false);
-    const[librariesExpanded, setLibrariesExpanded] = useState(false);
+}) => {
+    const [activeTab, setActiveTab] = useState('sim');
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [librariesExpanded, setLibrariesExpanded] = useState(false);
 
     // Server config (original values)
-    const[serverConfig, setServerConfig] = useState<any>(null);
+    const [serverConfig, setServerConfig] = useState<any>(null);
 
     // Draft state (local edits)
-    const[draft, setDraft] = useState<DraftState | null>(null);
+    const [draft, setDraft] = useState<DraftState | null>(null);
 
     // Load config from server
     useEffect(() => {
-    fetch('/api/config')
-    .then(r => r.json())
-    .then(data => {
-    setServerConfig(data);
-    // Initialize draft from server + props
-    setDraft({
-    narrationFrequency,
-    textLength,
-    promptUnits: data.units || 'hybrid',
-    minPoiScore,
-    filterMode,
-    targetPoiCount,
-    activeStyle: data.active_style || '',
-    styleLibrary: data.style_library ||[],
-    activeSecretWord: data.active_secret_word || '',
-    secretWordLibrary: data.secret_word_library ||[],
-    activeTargetLanguage: data.active_target_language || 'en-US',
-    targetLanguageLibrary: data.target_language_library ||['en-US'],
-    simSource: data.sim_source || 'simconnect',
-    mockStartLat: data.mock_start_lat ?? null,
-    mockStartLon: data.mock_start_lon ?? null,
-    mockStartAlt: data.mock_start_alt ?? null,
-    mockStartHeading: data.mock_start_heading ?? null,
-    mockDurationParked: data.mock_duration_parked || '',
-    mockDurationTaxi: data.mock_duration_taxi || '',
-    mockDurationHold: data.mock_duration_hold || '',
-    units,
-    showCacheLayer,
-    showVisibilityLayer,
-    showVisibilityLayer,
-    streamingMode,
-    deferralProximityBoostPower: data.deferral_proximity_boost_power ?? 1.0,
-    });
-    setLoading(false);
-    })
-    .catch(e => console.error("Failed to fetch settings", e));
+        fetch('/api/config')
+            .then(r => r.json())
+            .then(data => {
+                setServerConfig(data);
+                // Initialize draft from server + props
+                setDraft({
+                    narrationFrequency,
+                    textLength,
+                    promptUnits: data.units || 'hybrid',
+                    minPoiScore,
+                    filterMode,
+                    targetPoiCount,
+                    activeStyle: data.active_style || '',
+                    styleLibrary: data.style_library || [],
+                    activeSecretWord: data.active_secret_word || '',
+                    secretWordLibrary: data.secret_word_library || [],
+                    activeTargetLanguage: data.active_target_language || 'en-US',
+                    targetLanguageLibrary: data.target_language_library || ['en-US'],
+                    simSource: data.sim_source || 'simconnect',
+                    mockStartLat: data.mock_start_lat ?? null,
+                    mockStartLon: data.mock_start_lon ?? null,
+                    mockStartAlt: data.mock_start_alt ?? null,
+                    mockStartHeading: data.mock_start_heading ?? null,
+                    mockDurationParked: data.mock_duration_parked || '',
+                    mockDurationTaxi: data.mock_duration_taxi || '',
+                    mockDurationHold: data.mock_duration_hold || '',
+                    units,
+                    showCacheLayer,
+                    showVisibilityLayer,
+                    streamingMode,
+                    deferralProximityBoostPower: data.deferral_proximity_boost_power ?? 1.0,
+                });
+                setLoading(false);
+            })
+            .catch(e => console.error("Failed to fetch settings", e));
     }, []);
 
     // Check if draft differs from original
     const hasChanges = useCallback(() => {
-    if (!draft || !serverConfig) return false;
-    return (
-    draft.narrationFrequency !== narrationFrequency ||
-    draft.textLength !== textLength ||
-    draft.promptUnits !== (serverConfig.units || 'hybrid') ||
-    draft.minPoiScore !== minPoiScore ||
-    draft.filterMode !== filterMode ||
-    draft.targetPoiCount !== targetPoiCount ||
-    draft.activeStyle !== (serverConfig.active_style || '') ||
-    JSON.stringify(draft.styleLibrary) !== JSON.stringify(serverConfig.style_library ||[]) ||
-    draft.activeSecretWord !== (serverConfig.active_secret_word || '') ||
-    JSON.stringify(draft.secretWordLibrary) !== JSON.stringify(serverConfig.secret_word_library ||[]) ||
-    draft.activeTargetLanguage !== (serverConfig.active_target_language || 'en-US') ||
-    JSON.stringify(draft.targetLanguageLibrary) !== JSON.stringify(serverConfig.target_language_library ||['en-US']) ||
-    draft.simSource !== (serverConfig.sim_source || 'simconnect') ||
-    draft.mockStartLat !== (serverConfig.mock_start_lat ?? null) ||
-    draft.mockStartLon !== (serverConfig.mock_start_lon ?? null) ||
-    draft.mockStartAlt !== (serverConfig.mock_start_alt ?? null) ||
-    draft.mockStartHeading !== (serverConfig.mock_start_heading ?? null) ||
-    draft.mockDurationParked !== (serverConfig.mock_duration_parked || '') ||
-    draft.mockDurationTaxi !== (serverConfig.mock_duration_taxi || '') ||
-    draft.mockDurationHold !== (serverConfig.mock_duration_hold || '') ||
-    draft.units !== units ||
-    draft.showCacheLayer !== showCacheLayer ||
-    draft.showVisibilityLayer !== showVisibilityLayer ||
-    draft.showVisibilityLayer !== showVisibilityLayer ||
-    draft.streamingMode !== streamingMode ||
-    draft.deferralProximityBoostPower !== (serverConfig.deferral_proximity_boost_power ?? 1.0)
-    );
+        if (!draft || !serverConfig) return false;
+        return (
+            draft.narrationFrequency !== narrationFrequency ||
+            draft.textLength !== textLength ||
+            draft.promptUnits !== (serverConfig.units || 'hybrid') ||
+            draft.minPoiScore !== minPoiScore ||
+            draft.filterMode !== filterMode ||
+            draft.targetPoiCount !== targetPoiCount ||
+            draft.activeStyle !== (serverConfig.active_style || '') ||
+            JSON.stringify(draft.styleLibrary) !== JSON.stringify(serverConfig.style_library || []) ||
+            draft.activeSecretWord !== (serverConfig.active_secret_word || '') ||
+            JSON.stringify(draft.secretWordLibrary) !== JSON.stringify(serverConfig.secret_word_library || []) ||
+            draft.activeTargetLanguage !== (serverConfig.active_target_language || 'en-US') ||
+            JSON.stringify(draft.targetLanguageLibrary) !== JSON.stringify(serverConfig.target_language_library || ['en-US']) ||
+            draft.simSource !== (serverConfig.sim_source || 'simconnect') ||
+            draft.mockStartLat !== (serverConfig.mock_start_lat ?? null) ||
+            draft.mockStartLon !== (serverConfig.mock_start_lon ?? null) ||
+            draft.mockStartAlt !== (serverConfig.mock_start_alt ?? null) ||
+            draft.mockStartHeading !== (serverConfig.mock_start_heading ?? null) ||
+            draft.mockDurationParked !== (serverConfig.mock_duration_parked || '') ||
+            draft.mockDurationTaxi !== (serverConfig.mock_duration_taxi || '') ||
+            draft.mockDurationHold !== (serverConfig.mock_duration_hold || '') ||
+            draft.units !== units ||
+            draft.showCacheLayer !== showCacheLayer ||
+            draft.showVisibilityLayer !== showVisibilityLayer ||
+            draft.streamingMode !== streamingMode ||
+            draft.deferralProximityBoostPower !== (serverConfig.deferral_proximity_boost_power ?? 1.0)
+        );
     }, [draft, serverConfig, narrationFrequency, textLength, minPoiScore, filterMode, targetPoiCount, units, showCacheLayer, showVisibilityLayer, streamingMode]);
 
     // Update draft field
     const updateDraft = <K extends keyof DraftState>(key: K, value: DraftState[K]) => {
-    setDraft(prev => prev?{ ...prev, [key]: value }: null);
+        setDraft(prev => prev ? { ...prev, [key]: value } : null);
     };
 
     // Save all changes
     const handleSave = async () => {
-    if (!draft) return;
-    setSaving(true);
+        if (!draft) return;
+        setSaving(true);
 
-    // Build payload with server-only fields (not handled by callbacks)
-    const payload: Record<string, any> = { };
+        // Build payload with server-only fields (not handled by callbacks)
+        const payload: Record<string, any> = {};
 
-    if (draft.promptUnits !== (serverConfig?.units || 'hybrid')) payload.units = draft.promptUnits;
-    if (draft.activeStyle !== (serverConfig?.active_style || '')) payload.active_style = draft.activeStyle;
-    if (JSON.stringify(draft.styleLibrary) !== JSON.stringify(serverConfig?.style_library ||[])) payload.style_library = draft.styleLibrary;
-    if (draft.activeSecretWord !== (serverConfig?.active_secret_word || '')) payload.active_secret_word = draft.activeSecretWord;
-    if (JSON.stringify(draft.secretWordLibrary) !== JSON.stringify(serverConfig?.secret_word_library ||[])) payload.secret_word_library = draft.secretWordLibrary;
-    if (draft.activeTargetLanguage !== (serverConfig?.active_target_language || 'en-US')) payload.active_target_language = draft.activeTargetLanguage;
-    if (JSON.stringify(draft.targetLanguageLibrary) !== JSON.stringify(serverConfig?.target_language_library ||['en-US'])) payload.target_language_library = draft.targetLanguageLibrary;
-    if (draft.simSource !== (serverConfig?.sim_source || 'simconnect')) payload.sim_source = draft.simSource;
-    if (draft.mockStartLat !== (serverConfig?.mock_start_lat ?? null)) payload.mock_start_lat = draft.mockStartLat;
-    if (draft.mockStartLon !== (serverConfig?.mock_start_lon ?? null)) payload.mock_start_lon = draft.mockStartLon;
-    if (draft.mockStartAlt !== (serverConfig?.mock_start_alt ?? null)) payload.mock_start_alt = draft.mockStartAlt;
-    if (draft.mockStartHeading !== (serverConfig?.mock_start_heading ?? null)) payload.mock_start_heading = draft.mockStartHeading;
-    if (draft.mockDurationParked !== (serverConfig?.mock_duration_parked || '')) payload.mock_duration_parked = draft.mockDurationParked;
-    if (draft.mockDurationTaxi !== (serverConfig?.mock_duration_taxi || '')) payload.mock_duration_taxi = draft.mockDurationTaxi;
-    if (draft.mockDurationHold !== (serverConfig?.mock_duration_hold || '')) payload.mock_duration_hold = draft.mockDurationHold;
-    if (draft.deferralProximityBoostPower !== (serverConfig?.deferral_proximity_boost_power ?? 1.0)) payload.deferral_proximity_boost_power = draft.deferralProximityBoostPower;
+        if (draft.promptUnits !== (serverConfig?.units || 'hybrid')) payload.units = draft.promptUnits;
+        if (draft.activeStyle !== (serverConfig?.active_style || '')) payload.active_style = draft.activeStyle;
+        if (JSON.stringify(draft.styleLibrary) !== JSON.stringify(serverConfig?.style_library || [])) payload.style_library = draft.styleLibrary;
+        if (draft.activeSecretWord !== (serverConfig?.active_secret_word || '')) payload.active_secret_word = draft.activeSecretWord;
+        if (JSON.stringify(draft.secretWordLibrary) !== JSON.stringify(serverConfig?.secret_word_library || [])) payload.secret_word_library = draft.secretWordLibrary;
+        if (draft.activeTargetLanguage !== (serverConfig?.active_target_language || 'en-US')) payload.active_target_language = draft.activeTargetLanguage;
+        if (JSON.stringify(draft.targetLanguageLibrary) !== JSON.stringify(serverConfig?.target_language_library || ['en-US'])) payload.target_language_library = draft.targetLanguageLibrary;
+        if (draft.simSource !== (serverConfig?.sim_source || 'simconnect')) payload.sim_source = draft.simSource;
+        if (draft.mockStartLat !== (serverConfig?.mock_start_lat ?? null)) payload.mock_start_lat = draft.mockStartLat;
+        if (draft.mockStartLon !== (serverConfig?.mock_start_lon ?? null)) payload.mock_start_lon = draft.mockStartLon;
+        if (draft.mockStartAlt !== (serverConfig?.mock_start_alt ?? null)) payload.mock_start_alt = draft.mockStartAlt;
+        if (draft.mockStartHeading !== (serverConfig?.mock_start_heading ?? null)) payload.mock_start_heading = draft.mockStartHeading;
+        if (draft.mockDurationParked !== (serverConfig?.mock_duration_parked || '')) payload.mock_duration_parked = draft.mockDurationParked;
+        if (draft.mockDurationTaxi !== (serverConfig?.mock_duration_taxi || '')) payload.mock_duration_taxi = draft.mockDurationTaxi;
+        if (draft.mockDurationHold !== (serverConfig?.mock_duration_hold || '')) payload.mock_duration_hold = draft.mockDurationHold;
+        if (draft.deferralProximityBoostPower !== (serverConfig?.deferral_proximity_boost_power ?? 1.0)) payload.deferral_proximity_boost_power = draft.deferralProximityBoostPower;
 
-    try {
-    // Send server-only changes
-    if (Object.keys(payload).length > 0) {
-    await fetch('/api/config', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-    });
-    }
+        try {
+            // Send server-only changes
+            if (Object.keys(payload).length > 0) {
+                await fetch('/api/config', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
 
-    // Apply local-only changes via callbacks (UI state only)
-    if (draft.units !== units) onUnitsChange(draft.units);
-    if (draft.showCacheLayer !== showCacheLayer) onCacheLayerChange(draft.showCacheLayer);
-    if (draft.showVisibilityLayer !== showVisibilityLayer) onVisibilityLayerChange(draft.showVisibilityLayer);
-    if (draft.streamingMode !== streamingMode) onStreamingModeChange(draft.streamingMode);
+            // Apply local-only changes via callbacks (UI state only)
+            if (draft.units !== units) onUnitsChange(draft.units);
+            if (draft.showCacheLayer !== showCacheLayer) onCacheLayerChange(draft.showCacheLayer);
+            if (draft.showVisibilityLayer !== showVisibilityLayer) onVisibilityLayerChange(draft.showVisibilityLayer);
+            if (draft.streamingMode !== streamingMode) onStreamingModeChange(draft.streamingMode);
 
-    // Apply prop-based changes via callbacks (these update parent state AND send to server)
-    if (draft.narrationFrequency !== narrationFrequency) onNarrationFrequencyChange(draft.narrationFrequency);
-    if (draft.textLength !== textLength) onTextLengthChange(draft.textLength);
-    if (draft.minPoiScore !== minPoiScore) onMinPoiScoreChange(draft.minPoiScore);
-    if (draft.filterMode !== filterMode) onFilterModeChange(draft.filterMode);
-    if (draft.targetPoiCount !== targetPoiCount) onTargetPoiCountChange(draft.targetPoiCount);
+            // Apply prop-based changes via callbacks (these update parent state AND send to server)
+            if (draft.narrationFrequency !== narrationFrequency) onNarrationFrequencyChange(draft.narrationFrequency);
+            if (draft.textLength !== textLength) onTextLengthChange(draft.textLength);
+            if (draft.minPoiScore !== minPoiScore) onMinPoiScoreChange(draft.minPoiScore);
+            if (draft.filterMode !== filterMode) onFilterModeChange(draft.filterMode);
+            if (draft.targetPoiCount !== targetPoiCount) onTargetPoiCountChange(draft.targetPoiCount);
 
-    // Update server config to match saved values
-    setServerConfig((prev: any) => ({
-    ...prev,
-    ...payload
-    }));
+            // Update server config to match saved values
+            setServerConfig((prev: any) => ({
+                ...prev,
+                ...payload
+            }));
 
-    // Close dialog after successful save
-    onBack();
-    } catch (e) {
-    console.error("Failed to save settings", e);
-    } finally {
-    setSaving(false);
-    }
+            // Close dialog after successful save
+            onBack();
+        } catch (e) {
+            console.error("Failed to save settings", e);
+        } finally {
+            setSaving(false);
+        }
     };
 
     // Discard changes and close dialog
     const handleDiscard = () => {
-    onBack();
+        onBack();
     };
 
     const renderField = (label: string, field: React.ReactNode, restart = false) => (
-    <div className = "settings-field">
-    <div className = "settings-label-row">
-    <span className = "role-label">{label}{restart && ' *'}</span>
-    </div>
-    {field}
-    </div>
+        <div className="settings-field">
+            <div className="settings-label-row">
+                <span className="role-label">{label}{restart && ' *'}</span>
+            </div>
+            {field}
+        </div>
     );
 
     const tabs = [
-    { id: 'sim', label: 'Simulator' },
-    { id: 'narrator', label: 'Narrator' },
-    { id: 'scorer', label: 'Scorer' },
-    { id: 'interface', label: 'Interface' }
+        { id: 'sim', label: 'Simulator' },
+        { id: 'narrator', label: 'Narrator' },
+        { id: 'scorer', label: 'Scorer' },
+        { id: 'interface', label: 'Interface' }
     ];
 
     if (loading || !draft) {
-    return (
-    <div className = "settings-overlay">
-    <div className = "settings-loading">Consulting the Archives...</div>
-    </div>
-    );
+        return (
+            <div className="settings-overlay">
+                <div className="settings-loading">Consulting the Archives...</div>
+            </div>
+        );
     }
 
     const changed = hasChanges();
 
     return (
-    <div className = "settings-overlay">
-    <div className = "settings-container">
-    <div className = "settings-sidebar">
-    <div className = "settings-branding">
-    <div className = "role-title">Phileas</div>
-    <div className = "role-header" style = {{ fontSize: '12px' }}>Configuration</div>
-    </div>
-    <div className = "settings-nav">
-    {tabs.map(tab => (
-    <div
-    key = {tab.id}
-    className = {`settings-tab ${activeTab === tab.id?'active': ''}`}
+        <div className="settings-overlay">
+            <div className="settings-container">
+                <div className="settings-sidebar">
+                    <div className="settings-branding">
+                        <div className="role-title">Phileas</div>
+                        <div className="role-header" style={{ fontSize: '12px' }}>Configuration</div>
+                    </div>
+                    <div className="settings-nav">
+                        {tabs.map(tab => (
+                            <div
+                                key={tab.id}
+                                className={`settings-tab ${activeTab === tab.id ? 'active' : ''}`}
                                 onClick={() => setActiveTab(tab.id)}
                             >
                                 {tab.label}
@@ -328,7 +326,7 @@ interface DraftState {
                     </div>
                     <div className="settings-actions">
                         <button
-                            className={`settings-save-btn ${changed?'has-changes': ''}`}
+                            className={`settings-save-btn ${changed ? 'has-changes' : ''}`}
                             onClick={handleSave}
                             disabled={!changed || saving}
                         >

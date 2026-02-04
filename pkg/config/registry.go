@@ -26,5 +26,5 @@ const (
 	KeyActiveSecretWord            = "active_secret_word"
 	KeyTargetLanguageLibrary       = "target_language_library"
 	KeyActiveTargetLanguage        = "active_target_language"
-	KeyDeferralProximityBoostPower = "deferral_proximity_boost_power"
+	KeyDeferralProximityBoostPower = "scorer.deferral_proximity_boost_power"
 )
