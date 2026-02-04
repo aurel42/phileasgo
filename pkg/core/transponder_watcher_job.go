@@ -16,7 +16,7 @@ import (
 // It also triggers the configured action on IDENT button press.
 type TransponderWatcherJob struct {
 	BaseJob
-	cfg        *config.Config
+	cfg        config.Provider
 	narrator   narrator.Service
 	st         store.Store
 	vis        *visibility.Calculator
@@ -25,7 +25,7 @@ type TransponderWatcherJob struct {
 }
 
 // NewTransponderWatcherJob creates a new transponder watcher job.
-func NewTransponderWatcherJob(cfg *config.Config, n narrator.Service, st store.Store, vis *visibility.Calculator) *TransponderWatcherJob {
+func NewTransponderWatcherJob(cfg config.Provider, n narrator.Service, st store.Store, vis *visibility.Calculator) *TransponderWatcherJob {
 	return &TransponderWatcherJob{
 		BaseJob:   NewBaseJob("TransponderWatcherJob"),
 		cfg:       cfg,
@@ -114,7 +114,7 @@ func (j *TransponderWatcherJob) handleSquawkChange(squawk int) {
 }
 
 func (j *TransponderWatcherJob) handleIdentTrigger() {
-	action := j.cfg.Transponder.IdentAction
+	action := j.cfg.AppConfig().Transponder.IdentAction
 	slog.Info("Transponder: IDENT triggered (rising edge)", "action", action)
 
 	switch action {

@@ -17,7 +17,7 @@ import (
 // ensuring that if the aircraft turns around, data can be re-loaded.
 type EvictionJob struct {
 	BaseJob
-	appCfg  *config.Config
+	cfg     config.Provider
 	poi     *poi.Manager
 	wikiSvc *wikidata.Service
 
@@ -26,13 +26,13 @@ type EvictionJob struct {
 }
 
 func NewEvictionJob(
-	appCfg *config.Config,
+	cfg config.Provider,
 	poiMgr *poi.Manager,
 	wikiSvc *wikidata.Service,
 ) *EvictionJob {
 	return &EvictionJob{
 		BaseJob: NewBaseJob("Eviction"),
-		appCfg:  appCfg,
+		cfg:     cfg,
 		poi:     poiMgr,
 		wikiSvc: wikiSvc,
 	}
@@ -71,7 +71,7 @@ func (j *EvictionJob) Run(ctx context.Context, t *sim.Telemetry) {
 	// 1. Calculate Threshold
 	// "more than max_dist_km + 10km behind us"
 	// Current config default is 80.0km (80000m), so valid threshold is 90.0km
-	maxDist := j.appCfg.Wikidata.Area.MaxDist
+	maxDist := j.cfg.AppConfig().Wikidata.Area.MaxDist
 	if maxDist <= 0 {
 		maxDist = 80000.0 // 80km in meters
 	}

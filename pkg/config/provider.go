@@ -13,7 +13,9 @@ import (
 type Provider interface {
 	// General
 	SimProvider(ctx context.Context) string
+	TeleportDistance(ctx context.Context) float64
 	Units(ctx context.Context) string
+	TelemetryLoop(ctx context.Context) time.Duration
 
 	// Narrator
 	AutoNarrate(ctx context.Context) bool
@@ -37,6 +39,13 @@ type Provider interface {
 	ShowVisibilityLayer(ctx context.Context) bool
 	FilterMode(ctx context.Context) string
 	TargetPOICount(ctx context.Context) int
+	PauseDuration(ctx context.Context) time.Duration
+	LineOfSight(ctx context.Context) bool
+
+	// Essay
+	EssayEnabled(ctx context.Context) bool
+	EssayDelayBetweenEssays(ctx context.Context) time.Duration
+	EssayDelayBeforeEssay(ctx context.Context) time.Duration
 
 	// Raw access (for components that need deep access)
 	AppConfig() *Config
@@ -67,9 +76,16 @@ func (p *UnifiedProvider) SimProvider(ctx context.Context) string {
 	}
 	return p.getString(ctx, KeySimSource, fallback)
 }
+func (p *UnifiedProvider) TeleportDistance(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyTeleportDistance, float64(p.base.Sim.TeleportThreshold))
+}
 
 func (p *UnifiedProvider) Units(ctx context.Context) string {
 	return p.getString(ctx, KeyUnits, p.base.Narrator.Units)
+}
+
+func (p *UnifiedProvider) TelemetryLoop(ctx context.Context) time.Duration {
+	return time.Duration(p.base.Ticker.TelemetryLoop)
 }
 
 func (p *UnifiedProvider) AutoNarrate(ctx context.Context) bool {
@@ -141,11 +157,31 @@ func (p *UnifiedProvider) ShowVisibilityLayer(ctx context.Context) bool {
 }
 
 func (p *UnifiedProvider) FilterMode(ctx context.Context) string {
-	return p.getString(ctx, KeyFilterMode, "adaptive")
+	return p.getString(ctx, KeyFilterMode, "fixed")
 }
 
 func (p *UnifiedProvider) TargetPOICount(ctx context.Context) int {
 	return p.getInt(ctx, KeyTargetPOICount, 5)
+}
+
+func (p *UnifiedProvider) PauseDuration(ctx context.Context) time.Duration {
+	return time.Duration(p.base.Narrator.PauseDuration)
+}
+
+func (p *UnifiedProvider) LineOfSight(ctx context.Context) bool {
+	return p.base.Terrain.LineOfSight
+}
+
+func (p *UnifiedProvider) EssayEnabled(ctx context.Context) bool {
+	return p.base.Narrator.Essay.Enabled
+}
+
+func (p *UnifiedProvider) EssayDelayBetweenEssays(ctx context.Context) time.Duration {
+	return time.Duration(p.base.Narrator.Essay.DelayBetweenEssays)
+}
+
+func (p *UnifiedProvider) EssayDelayBeforeEssay(ctx context.Context) time.Duration {
+	return time.Duration(p.base.Narrator.Essay.DelayBeforeEssay)
 }
 
 // --- Helpers ---

@@ -243,7 +243,8 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 			}
 			pm := &mockPOIManager{best: tt.bestPOI, lat: lat, lon: lon}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			prov := config.NewProvider(cfg, nil)
+			job := NewNarrationJob(prov, mockN, pm, simC, nil, nil)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: tt.altitudeAGL,
@@ -264,8 +265,9 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 				tel.FlightStage = sim.StageCruise
 			}
 
+			ctx := context.Background()
 			// Test Readiness
-			ready := job.CanPreparePOI(tel)
+			ready := job.CanPreparePOI(ctx, tel)
 			// Only assert NOT ready if we are testing a blocker (like Paused)
 			if tt.isPaused && ready {
 				t.Errorf("%s: Expected CanPreparePOI to be false (Paused)", tt.name)
@@ -278,8 +280,8 @@ func TestNarrationJob_GroundSuppression(t *testing.T) {
 			}
 
 			// Fallback to Essay if POI didn't fire (and Essay is ready)
-			if !poiFired && job.CanPrepareEssay(tel) {
-				job.PrepareEssay(context.Background(), tel)
+			if !poiFired && job.CanPrepareEssay(ctx, tel) {
+				job.PrepareEssay(ctx, tel)
 			}
 
 			// Assert Outcomes
@@ -378,7 +380,8 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 			mockN := &mockNarratorService{}
 			pm := &mockPOIManager{best: tt.bestPOI, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			prov := config.NewProvider(cfg, nil)
+			job := NewNarrationJob(prov, mockN, pm, simC, nil, nil)
 
 			// Set State
 			job.lastTime = time.Now().Add(-tt.lastNarrationAgo)
@@ -395,20 +398,21 @@ func TestNarrationJob_EssayRules(t *testing.T) {
 				IsOnGround:  false, // Explicitly set for this test to ensure airborne
 			}
 
+			ctx := context.Background()
 			// 1. Priority Logic Simulation (Mirroring Main Loop)
 			// We track if we *attempted* an action, but final success depends on Mock calls
 			// 1. Priority Logic Simulation (Mirroring Main Loop)
-			if job.CanPreparePOI(tel) {
-				if job.PreparePOI(context.Background(), tel) {
+			if job.CanPreparePOI(ctx, tel) {
+				if job.PreparePOI(ctx, tel) {
 					// POI Triggered, skip Essay for this tick (represented by loop break in main)
 				} else {
 					// Fall through to Essay if POI failed (e.g. no content)
-					if job.CanPrepareEssay(tel) {
-						job.PrepareEssay(context.Background(), tel)
+					if job.CanPrepareEssay(ctx, tel) {
+						job.PrepareEssay(ctx, tel)
 					}
 				}
-			} else if job.CanPrepareEssay(tel) {
-				job.PrepareEssay(context.Background(), tel)
+			} else if job.CanPrepareEssay(ctx, tel) {
+				job.PrepareEssay(ctx, tel)
 			}
 
 			// 2. Verification of Outcomes
@@ -473,11 +477,12 @@ func TestNarrationJob_isPlayable(t *testing.T) {
 		},
 	}
 
-	job := &NarrationJob{cfg: cfg, narrator: &mockNarratorService{}}
+	prov := config.NewProvider(cfg, nil)
+	job := &NarrationJob{cfgProv: prov, narrator: &mockNarratorService{}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			poi := &model.POI{LastPlayed: tt.lastPlayed}
-			if got := job.isPlayable(poi); got != tt.want {
+			if got := job.isPlayable(context.Background(), poi); got != tt.want {
 				t.Errorf("isPlayable() = %v, want %v", got, tt.want)
 			}
 		})
@@ -582,7 +587,8 @@ func TestNarrationJob_AdaptiveMode(t *testing.T) {
 	// POI has score 5.0, which is BELOW strict threshold (10.0)
 	pm := &mockPOIManager{best: &model.POI{Score: 5.0, WikidataID: "Q_LOW"}, lat: 48.0, lon: -123.0}
 	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil)
+	prov := config.NewProvider(cfg, store)
+	job := NewNarrationJob(prov, mockN, pm, simC, store, nil)
 
 	tel := &sim.Telemetry{
 		AltitudeAGL: 3000,
@@ -593,7 +599,7 @@ func TestNarrationJob_AdaptiveMode(t *testing.T) {
 	job.lastTime = time.Time{} // Force ready
 
 	// 1. CanPreparePOI should be TRUE
-	if !job.CanPreparePOI(tel) {
+	if !job.CanPreparePOI(context.Background(), tel) {
 		t.Error("Adaptive Mode: CanPreparePOI returned false for valid low-score POI")
 	}
 
@@ -618,7 +624,8 @@ func TestNarrationJob_DynamicMinScore(t *testing.T) {
 	mockN := &mockNarratorService{}
 	pm := &mockPOIManager{best: &model.POI{Score: 5.0, WikidataID: "Q5"}, lat: 48.0, lon: -123.0}
 	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil)
+	prov := config.NewProvider(cfg, store)
+	job := NewNarrationJob(prov, mockN, pm, simC, store, nil)
 
 	tel := &sim.Telemetry{
 		AltitudeAGL: 3000,
@@ -629,7 +636,7 @@ func TestNarrationJob_DynamicMinScore(t *testing.T) {
 	job.lastTime = time.Time{}
 
 	// 1. CanPreparePOI should be TRUE (System Ready, not checking score yet)
-	if !job.CanPreparePOI(tel) {
+	if !job.CanPreparePOI(context.Background(), tel) {
 		t.Error("Dynamic Score: CanPreparePOI returned false, expected true (ready state)")
 	}
 
@@ -642,7 +649,7 @@ func TestNarrationJob_DynamicMinScore(t *testing.T) {
 	store.SetState(context.Background(), "min_poi_score", "4.0")
 
 	// 2. CanPreparePOI should now be TRUE (5.0 >= 4.0)
-	if !job.CanPreparePOI(tel) {
+	if !job.CanPreparePOI(context.Background(), tel) {
 		t.Error("Dynamic Score: CanPreparePOI returned false, expected true (5.0 >= 4.0)")
 	}
 
@@ -740,7 +747,8 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 
 			pm := &mockPOIManager{best: &model.POI{Score: 10.0, WikidataID: "Q_NEXT"}, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			prov := config.NewProvider(cfg, nil)
+			job := NewNarrationJob(prov, mockN, pm, simC, nil, nil)
 
 			// Force cooldown ready for non-playing case
 			job.lastTime = time.Time{}
@@ -753,7 +761,7 @@ func TestNarrationJob_PipelineLogic(t *testing.T) {
 			}
 
 			// 1. CanPreparePOI
-			fired := job.CanPreparePOI(tel)
+			fired := job.CanPreparePOI(context.Background(), tel)
 			if fired != tt.expectShouldFire {
 				t.Errorf("CanPreparePOI() = %v, want %v", fired, tt.expectShouldFire)
 			}
@@ -820,7 +828,8 @@ func TestNarrationJob_FlightStageRestrictions(t *testing.T) {
 			poi := &model.POI{Score: 10.0, WikidataID: "Q1", Lat: 48.0, Lon: -123.0, Category: "Aerodrome"}
 			pm := &mockPOIManager{best: poi, lat: 48.0, lon: -123.0}
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			prov := config.NewProvider(cfg, nil)
+			job := NewNarrationJob(prov, mockN, pm, simC, nil, nil)
 
 			tel := &sim.Telemetry{
 				Latitude:    48.0,
@@ -828,7 +837,7 @@ func TestNarrationJob_FlightStageRestrictions(t *testing.T) {
 				FlightStage: tt.stage,
 			}
 
-			fired := job.CanPreparePOI(tel)
+			fired := job.CanPreparePOI(context.Background(), tel)
 			if fired != tt.expectShouldFire {
 				t.Errorf("CanPreparePOI() = %v, want %v", fired, tt.expectShouldFire)
 			}
@@ -884,7 +893,7 @@ func TestNarrationJob_VisibilityBoostAGLCheck(t *testing.T) {
 			store.SetState(context.Background(), "visibility_boost", tt.initialBoost)
 
 			job := &NarrationJob{
-				cfg:     cfg,
+				cfgProv: config.NewProvider(cfg, store),
 				store:   store,
 				lastAGL: tt.lastAGL,
 			}
@@ -907,7 +916,8 @@ func TestNarrationJob_StartAirborne_NoDelay(t *testing.T) {
 	mockN := &mockNarratorService{}
 	pm := &mockPOIManager{best: &model.POI{Score: 10.0, WikidataID: "Q_AIR"}, lat: 48.0, lon: -123.0}
 	simC := &mockJobSimClient{state: sim.StateActive}
-	job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+	prov := config.NewProvider(cfg, nil)
+	job := NewNarrationJob(prov, mockN, pm, simC, nil, nil)
 	// Important: We do NOT set job.takeoffTime manually. We test the startup logic.
 	job.lastTime = time.Time{} // Force ready for narration (silence wise)
 
@@ -921,7 +931,7 @@ func TestNarrationJob_StartAirborne_NoDelay(t *testing.T) {
 	}
 
 	// Should fire IMMEDIATELY (no grace period) because we started in the air
-	if !job.CanPreparePOI(tel) {
+	if !job.CanPreparePOI(context.Background(), tel) {
 		t.Error("Started airborne but CanPreparePOI returned false (Grace period incorrectly applied?)")
 	}
 }

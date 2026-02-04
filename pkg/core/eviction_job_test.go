@@ -50,8 +50,8 @@ func TestEvictionJob_ShouldFire(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{}
-			job := NewEvictionJob(cfg, nil, nil)
+			cfgProv := config.NewProvider(&config.Config{}, nil)
+			job := NewEvictionJob(cfgProv, nil, nil)
 
 			// Set last run time to simulate elapsed time
 			if tt.timeSince > 0 {
@@ -69,8 +69,8 @@ func TestEvictionJob_ShouldFire(t *testing.T) {
 }
 
 func TestEvictionJob_ShouldFire_NilTelemetry(t *testing.T) {
-	cfg := &config.Config{}
-	job := NewEvictionJob(cfg, nil, nil)
+	cfgProv := config.NewProvider(&config.Config{}, nil)
+	job := NewEvictionJob(cfgProv, nil, nil)
 	job.lastRunTime = time.Now().Add(-10 * time.Minute)
 
 	// Nil telemetry should still fire (not on ground check passes)
@@ -81,8 +81,8 @@ func TestEvictionJob_ShouldFire_NilTelemetry(t *testing.T) {
 }
 
 func TestEvictionJob_ShouldFire_Concurrent(t *testing.T) {
-	cfg := &config.Config{}
-	job := NewEvictionJob(cfg, nil, nil)
+	cfgProv := config.NewProvider(&config.Config{}, nil)
+	job := NewEvictionJob(cfgProv, nil, nil)
 	job.lastRunTime = time.Now().Add(-10 * time.Minute)
 
 	tel := &sim.Telemetry{IsOnGround: false}
@@ -106,8 +106,8 @@ func TestEvictionJob_ShouldFire_Concurrent(t *testing.T) {
 }
 
 func TestEvictionJob_Name(t *testing.T) {
-	cfg := &config.Config{}
-	job := NewEvictionJob(cfg, nil, nil)
+	prov := config.NewProvider(&config.Config{}, nil)
+	job := NewEvictionJob(prov, nil, nil)
 
 	if got := job.Name(); got != "Eviction" {
 		t.Errorf("Name() = %q, want %q", got, "Eviction")
@@ -163,8 +163,8 @@ type mockWikiEvictable interface {
 // we test ShouldFire thoroughly and document that Run is integration-tested.
 
 func TestNewEvictionJob(t *testing.T) {
-	cfg := &config.Config{}
-	job := NewEvictionJob(cfg, nil, nil)
+	cfgProv := config.NewProvider(&config.Config{}, nil)
+	job := NewEvictionJob(cfgProv, nil, nil)
 
 	if job == nil {
 		t.Fatal("NewEvictionJob returned nil")
@@ -172,15 +172,15 @@ func TestNewEvictionJob(t *testing.T) {
 	if job.Name() != "Eviction" {
 		t.Errorf("Name = %q, want %q", job.Name(), "Eviction")
 	}
-	if job.appCfg != cfg {
+	if job.cfg != cfgProv {
 		t.Error("Config not set correctly")
 	}
 }
 
 // TestEvictionJob_LastRunLocation tests that lastRunLocation is zero initially.
 func TestEvictionJob_InitialState(t *testing.T) {
-	cfg := &config.Config{}
-	job := NewEvictionJob(cfg, nil, nil)
+	cfgProv := config.NewProvider(&config.Config{}, nil)
+	job := NewEvictionJob(cfgProv, nil, nil)
 
 	if job.lastRunLocation != (geo.Point{}) {
 		t.Error("lastRunLocation should be zero initially")

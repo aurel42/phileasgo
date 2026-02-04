@@ -25,13 +25,12 @@ type Pipeline struct {
 	grid       *Grid
 	mapper     *LanguageMapper
 	classifier Classifier
-	cfg        config.WikidataConfig
+	cfgProv    config.Provider
 	logger     *slog.Logger
-	userLang   string
 }
 
 // NewPipeline creates a new Pipeline.
-func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo.Service, p *poi.Manager, gr *Grid, m *LanguageMapper, c Classifier, cfg config.WikidataConfig, log *slog.Logger, lang string) *Pipeline {
+func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo.Service, p *poi.Manager, gr *Grid, m *LanguageMapper, c Classifier, cfgProv config.Provider, log *slog.Logger) *Pipeline {
 	return &Pipeline{
 		store:      st,
 		client:     cl,
@@ -41,9 +40,8 @@ func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo
 		grid:       gr,
 		mapper:     m,
 		classifier: c,
-		cfg:        cfg,
+		cfgProv:    cfgProv,
 		logger:     log,
-		userLang:   lang,
 	}
 }
 
@@ -90,7 +88,7 @@ func (p *Pipeline) ProcessEntities(ctx context.Context, articles []Article, lat,
 	articles = p.filterIgnoredArticles(articles)
 
 	// 2. Compute Allowed Languages for Filter
-	localLangs := p.getLangsForLocation(lat, lon)
+	localLangs := p.getLangsForLocation(ctx, lat, lon)
 
 	// 3. Hydrate & Filter
 	processed, rescuedCount, err = p.processAndHydrate(ctx, articles, lat, lon, localLangs, medians)
@@ -108,7 +106,7 @@ func (p *Pipeline) ProcessEntities(ctx context.Context, articles []Article, lat,
 	return processed, all, rescuedCount, nil
 }
 
-func (p *Pipeline) getLangsForLocation(lat, lon float64) []string {
+func (p *Pipeline) getLangsForLocation(ctx context.Context, lat, lon float64) []string {
 	countrySet := make(map[string]struct{})
 	countrySet[p.geo.GetCountry(lat, lon)] = struct{}{}
 
@@ -130,8 +128,15 @@ func (p *Pipeline) getLangsForLocation(lat, lon float64) []string {
 		}
 	}
 	langSet["en"] = struct{}{}
-	if p.userLang != "" {
-		langSet[p.userLang] = struct{}{}
+
+	userLang := p.cfgProv.TargetLanguage(ctx)
+	if userLang != "" {
+		// Normalize userLang (e.g. "en-US" -> "en")
+		normalizedLang := userLang
+		if len(userLang) > 2 {
+			normalizedLang = strings.Split(userLang, "-")[0]
+		}
+		langSet[normalizedLang] = struct{}{}
 	}
 
 	var localLangs []string

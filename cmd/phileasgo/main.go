@@ -100,7 +100,7 @@ func run(ctx context.Context, configPath string) error {
 		slog.Error("Maintenance tasks failed", "error", err)
 	}
 
-	simClient, err := initializeSimClient(appCfg)
+	simClient, err := initializeSimClient(ctx, cfgProv)
 	if err != nil {
 		return fmt.Errorf("failed to initialize sim client: %w", err)
 	}
@@ -177,7 +177,7 @@ func run(ctx context.Context, configPath string) error {
 	poiScorer := scorer.NewScorer(&appCfg.Scorer, catCfg, visCalc, elevGetter, narratorSvc.LLMProvider().HasProfile("pregrounding"))
 
 	// [NEW] Scoring Job
-	scoringJob := poi.NewScoringJob("POIScoring", svcs.PoiMgr, simClient, poiScorer, &appCfg.Narrator, narratorSvc.IsPOIBusy, slog.Default())
+	scoringJob := poi.NewScoringJob("POIScoring", svcs.PoiMgr, simClient, poiScorer, cfgProv, narratorSvc.IsPOIBusy, slog.Default())
 	sched.AddJob(scoringJob)
 
 	// Startup Probes
@@ -247,7 +247,7 @@ func initCoreServices(st store.Store, cfg config.Provider, tr *tracker.Tracker, 
 	tr.SetFreeTier("wikidata", true)
 	tr.SetFreeTier("wikipedia", true)
 
-	wikiSvc := wikidata.NewService(st, simClient, tr, smartClassifier, reqClient, geoSvc, poiMgr, appCfg.Wikidata, appCfg.Narrator.TargetLanguage)
+	wikiSvc := wikidata.NewService(st, simClient, tr, smartClassifier, reqClient, geoSvc, poiMgr, cfg)
 
 	// River Sentinel Wiring (Phase 3)
 	riverSentinel := rivers.NewSentinel(slog.With("component", "river_sentinel"), "data/ne_50m_rivers_lake_centerlines.geojson")
@@ -412,7 +412,7 @@ func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns 
 
 func setupScheduler(cfg config.Provider, simClient sim.Client, st store.Store, narratorSvc narrator.Service, annMgr *announcement.Manager, pm *prompts.Manager, v *wikidata.Validator, svcs *CoreServices, apiHandler *api.TelemetryHandler, los *terrain.LOSChecker, vis *visibility.Calculator, sessionMgr *session.Manager) *core.Scheduler {
 	appCfg := cfg.AppConfig()
-	sched := core.NewScheduler(appCfg, simClient, apiHandler, svcs.WikiSvc.GeoService())
+	sched := core.NewScheduler(cfg, simClient, apiHandler, svcs.WikiSvc.GeoService())
 	// Session Restoration (Restores session state on startup)
 	sched.AddJob(core.NewSessionRestorationJob(st, sessionMgr, simClient))
 
@@ -455,7 +455,7 @@ func setupScheduler(cfg config.Provider, simClient sim.Client, st store.Store, n
 	}
 
 	// Hook NarrationJob into POI Manager's scoring loop (every 5s) instead of Scheduler
-	narrationJob := core.NewNarrationJob(appCfg, narratorSvc, narratorSvc.POIManager(), simClient, st, los)
+	narrationJob := core.NewNarrationJob(cfg, narratorSvc, narratorSvc.POIManager(), simClient, st, los)
 	svcs.PoiMgr.SetScoringCallback(func(c context.Context, t *sim.Telemetry) {
 		// 1. Process Sync Priority Queue (Manual Overrides)
 		if narratorSvc.HasPendingGeneration() {
@@ -464,13 +464,12 @@ func setupScheduler(cfg config.Provider, simClient sim.Client, st store.Store, n
 		}
 
 		// 3. Auto Narrations
-		// 3. Auto Narrations
-		if narrationJob.CanPreparePOI(t) {
+		if narrationJob.CanPreparePOI(c, t) {
 			if narrationJob.PreparePOI(c, t) {
 				return
 			}
 		}
-		if narrationJob.CanPrepareEssay(t) {
+		if narrationJob.CanPrepareEssay(c, t) {
 			narrationJob.PrepareEssay(c, t)
 			return
 		}
@@ -479,15 +478,15 @@ func setupScheduler(cfg config.Provider, simClient sim.Client, st store.Store, n
 		apiHandler.SetValleyAltitude(altMeters)
 	})
 
-	dynamicJob := core.NewDynamicConfigJob(appCfg, narratorSvc.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc)
+	dynamicJob := core.NewDynamicConfigJob(cfg, narratorSvc.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc)
 	sched.AddJob(dynamicJob)
 	sched.AddResettable(dynamicJob)
 
-	sched.AddJob(core.NewEvictionJob(appCfg, svcs.PoiMgr, svcs.WikiSvc))
+	sched.AddJob(core.NewEvictionJob(cfg, svcs.PoiMgr, svcs.WikiSvc))
 
 	// Transponder Control
 	if appCfg.Transponder.Enabled {
-		sched.AddJob(core.NewTransponderWatcherJob(appCfg, narratorSvc, st, vis))
+		sched.AddJob(core.NewTransponderWatcherJob(cfg, narratorSvc, st, vis))
 	}
 
 	return sched

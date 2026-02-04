@@ -83,16 +83,16 @@ func TestScorer_Calculate(t *testing.T) {
 	s := setupScorer()
 
 	tests := []struct {
-		name            string
-		poi             *model.POI
-		input           *ScoringInput
-		wantVisible     bool
-		wantVisMin      float64 // Visibility score (position-based)
-		wantVisMax      float64
-		wantScoreMin    float64 // Intrinsic score (content-based)
-		wantScoreMax    float64
-		wantLogSubstr   string
-		wantBadges      []string
+		name          string
+		poi           *model.POI
+		input         *ScoringInput
+		wantVisible   bool
+		wantVisMin    float64 // Visibility score (position-based)
+		wantVisMax    float64
+		wantScoreMin  float64 // Intrinsic score (content-based)
+		wantScoreMax  float64
+		wantLogSubstr string
+		wantBadges    []string
 	}{
 		// --- 1. Visibility Tests ---
 		{
@@ -107,7 +107,7 @@ func TestScorer_Calculate(t *testing.T) {
 				},
 			},
 			wantVisible:   true,
-			wantVisMin:    0.5,  // ~0.52 visibility
+			wantVisMin:    0.5, // ~0.52 visibility
 			wantVisMax:    0.6,
 			wantScoreMin:  1.25, // Novelty 1.3 (no content multipliers)
 			wantScoreMax:  1.35,
@@ -161,7 +161,7 @@ func TestScorer_Calculate(t *testing.T) {
 				},
 			},
 			wantVisible:   true,
-			wantVisMin:    1.0,  // 0.52 × 2.0 dimension
+			wantVisMin:    1.0, // 0.52 × 2.0 dimension
 			wantVisMax:    1.1,
 			wantScoreMin:  1.25, // Novelty only
 			wantScoreMax:  1.35,
@@ -334,9 +334,7 @@ func TestScorer_Calculate(t *testing.T) {
 				Telemetry: sim.Telemetry{
 					Latitude: 0.0, Longitude: 0.04, AltitudeMSL: 1000, AltitudeAGL: 1000, Heading: 315,
 				},
-				NarratorConfig: &config.NarratorConfig{
-					RepeatTTL: config.Duration(24 * time.Hour), // 24h cooldown
-				},
+				RepeatTTL: 24 * time.Hour,
 			},
 			wantVisible:  false, // Should remain false (skipped)
 			wantScoreMin: 0.0,
@@ -354,10 +352,10 @@ func TestScorer_Calculate(t *testing.T) {
 					AltitudeMSL: 1000, AltitudeAGL: 1000, Heading: 0,
 				},
 			},
-			wantVisible:   true,
-			wantScoreMin:  1.25, // Novelty only (no length boost)
-			wantScoreMax:  1.35,
-			wantBadges:    []string{"stub"},
+			wantVisible:  true,
+			wantScoreMin: 1.25, // Novelty only (no length boost)
+			wantScoreMax: 1.35,
+			wantBadges:   []string{"stub"},
 		},
 	}
 
@@ -543,11 +541,11 @@ func TestScorer_PregroundingBonus(t *testing.T) {
 
 func TestScorer_StubRescue(t *testing.T) {
 	tests := []struct {
-		name           string
-		category       string
-		articleLen     int
-		pregroundOn    bool
-		wantStubBadge  bool
+		name          string
+		category      string
+		articleLen    int
+		pregroundOn   bool
+		wantStubBadge bool
 	}{
 		{
 			name:          "Stub by Wiki only (statue)",

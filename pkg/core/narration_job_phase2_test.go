@@ -193,8 +193,9 @@ func TestPhase2_CanPreparePOI(t *testing.T) {
 				isGeneratingVal: tt.isGenerating,
 			}
 
+			prov := config.NewProvider(cfg, nil)
 			job := &NarrationJob{
-				cfg:      cfg,
+				cfgProv:  prov,
 				narrator: localMock,
 				poiMgr:   &mockPOIManager{lat: 48.0, lon: -123.0},   // Needed for PreConditions
 				sim:      &mockJobSimClient{state: sim.StateActive}, // Needed for PreConditions
@@ -202,7 +203,7 @@ func TestPhase2_CanPreparePOI(t *testing.T) {
 			}
 
 			// The method we are testing:
-			got := job.CanPreparePOI(&sim.Telemetry{Latitude: 48.0, Longitude: -123.0, FlightStage: sim.StageCruise})
+			got := job.CanPreparePOI(context.Background(), &sim.Telemetry{Latitude: 48.0, Longitude: -123.0, FlightStage: sim.StageCruise})
 			if got != tt.expectCanPrepare {
 				t.Errorf("CanPreparePOI() = %v, want %v", got, tt.expectCanPrepare)
 			}
@@ -217,8 +218,9 @@ func TestPhase2_CanPrepareEssay(t *testing.T) {
 	cfg.Narrator.PauseDuration = config.Duration(10 * time.Second)
 	cfg.Narrator.Essay.DelayBeforeEssay = config.Duration(1 * time.Second)
 
+	prov := config.NewProvider(cfg, nil)
 	job := &NarrationJob{
-		cfg:      cfg,
+		cfgProv:  prov,
 		narrator: &mockNarratorService{},
 		poiMgr:   &mockPOIManager{lat: 48.0, lon: -123.0},
 		sim:      &mockJobSimClient{state: sim.StateActive},
@@ -227,13 +229,13 @@ func TestPhase2_CanPrepareEssay(t *testing.T) {
 
 	// 1. Valid
 	tel := &sim.Telemetry{AltitudeAGL: 3000, Latitude: 48.0, Longitude: -123.0, FlightStage: sim.StageCruise}
-	if !job.CanPrepareEssay(tel) {
+	if !job.CanPrepareEssay(context.Background(), tel) {
 		t.Error("Expected CanPrepareEssay to true")
 	}
 
 	// 2. Low Altitude
 	telInfo := &sim.Telemetry{AltitudeAGL: 1000, Latitude: 48.0, Longitude: -123.0, FlightStage: sim.StageCruise}
-	if job.CanPrepareEssay(telInfo) {
+	if job.CanPrepareEssay(context.Background(), telInfo) {
 		t.Error("Expected CanPrepareEssay to be false (Low Altitude)")
 	}
 }
@@ -250,7 +252,8 @@ func TestPhase2_PreparePOI(t *testing.T) {
 	simC := &mockJobSimClient{state: sim.StateActive}
 	store := NewMockStore()
 
-	job := NewNarrationJob(cfg, mockN, pm, simC, store, nil)
+	prov := config.NewProvider(cfg, store)
+	job := NewNarrationJob(prov, mockN, pm, simC, store, nil)
 
 	tel := &sim.Telemetry{
 		AltitudeAGL: 3000,

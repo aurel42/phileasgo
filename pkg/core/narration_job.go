@@ -26,7 +26,7 @@ type POIProvider interface {
 // NarrationJob triggers AI narration for the best available POI.
 type NarrationJob struct {
 	BaseJob
-	cfg        *config.Config
+	cfgProv    config.Provider
 	narrator   narrator.Service
 	poiMgr     POIProvider
 	sim        sim.Client
@@ -42,10 +42,10 @@ type NarrationJob struct {
 	lastAGL float64 // Last known AGL for visibility boost check
 }
 
-func NewNarrationJob(cfg *config.Config, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker) *NarrationJob {
+func NewNarrationJob(cfgProv config.Provider, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker) *NarrationJob {
 	j := &NarrationJob{
 		BaseJob:    NewBaseJob("Narration"),
-		cfg:        cfg,
+		cfgProv:    cfgProv,
 		narrator:   n,
 		poiMgr:     pm,
 		sim:        simC,
@@ -97,9 +97,9 @@ func (j *NarrationJob) checkNarratorReady() bool {
 
 // CanPreparePOI checks if the system is ready to prepare a POI narration (Manual or Auto).
 // This includes checking frequency rules (pipelining) and narrator state.
-func (j *NarrationJob) CanPreparePOI(t *sim.Telemetry) bool {
+func (j *NarrationJob) CanPreparePOI(ctx context.Context, t *sim.Telemetry) bool {
 	// 1. Pre-flight checks
-	if !j.checkPreConditions(t) {
+	if !j.checkPreConditions(ctx, t) {
 		return false
 	}
 	if !j.checkFlightStagePOI(t) {
@@ -118,13 +118,13 @@ func (j *NarrationJob) CanPreparePOI(t *sim.Telemetry) bool {
 	}
 
 	// 3. Frequency & Pipeline Logic
-	return j.checkFrequencyRules()
+	return j.checkFrequencyRules(ctx)
 }
 
 // CanPrepareEssay checks if the system is ready for an essay.
-func (j *NarrationJob) CanPrepareEssay(t *sim.Telemetry) bool {
+func (j *NarrationJob) CanPrepareEssay(ctx context.Context, t *sim.Telemetry) bool {
 	// 1. Pre-flight
-	if !j.checkPreConditions(t) {
+	if !j.checkPreConditions(ctx, t) {
 		return false
 	}
 	// 2. State Check - essays require complete silence and no staged content
@@ -132,7 +132,7 @@ func (j *NarrationJob) CanPrepareEssay(t *sim.Telemetry) bool {
 		return false
 	}
 	// 3. Essay Logic
-	return j.checkEssayEligible(t)
+	return j.checkEssayEligible(ctx, t)
 }
 
 // PreparePOI triggers the finding and playing of a POI.
@@ -144,7 +144,7 @@ func (j *NarrationJob) PreparePOI(ctx context.Context, t *sim.Telemetry) bool {
 	defer j.Unlock()
 
 	// Pick best (first visible)
-	best := j.getVisibleCandidate(t)
+	best := j.getVisibleCandidate(ctx, t)
 	if best == nil {
 		// No candidates? Boost visibility for next time.
 		// Only if we passed all the readiness checks (which we did to get here).
@@ -153,7 +153,7 @@ func (j *NarrationJob) PreparePOI(ctx context.Context, t *sim.Telemetry) bool {
 	}
 
 	// Re-verify playability
-	if !j.isPlayable(best) {
+	if !j.isPlayable(ctx, best) {
 		// If best is not playable, we technically found something but rejected it.
 		// Should we boost? Probably yes, effectively "nothing playable found".
 		j.incrementVisibilityBoost(ctx)
@@ -209,8 +209,8 @@ func (j *NarrationJob) checkFlightStagePOI(t *sim.Telemetry) bool {
 
 // checkFrequencyRules determines if we can fire based on frequency settings (1-5).
 // Handles pipeline/overlap logic.
-func (j *NarrationJob) checkFrequencyRules() bool {
-	freq := j.getNarrationFrequency()
+func (j *NarrationJob) checkFrequencyRules(ctx context.Context) bool {
+	freq := j.cfgProv.NarrationFrequency(ctx)
 	isPlaying := j.narrator.IsPlaying()
 
 	// Strategies 1 (Rarely) & 2 (Normal): No Overlap
@@ -272,8 +272,8 @@ func (j *NarrationJob) checkFrequencyRules() bool {
 }
 
 // checkPreConditions validates global switches, location consistency, sim state, and ground proximity.
-func (j *NarrationJob) checkPreConditions(t *sim.Telemetry) bool {
-	if !j.cfg.Narrator.AutoNarrate {
+func (j *NarrationJob) checkPreConditions(ctx context.Context, t *sim.Telemetry) bool {
+	if !j.cfgProv.AutoNarrate(ctx) {
 		slog.Debug("NarrationJob: AutoNarrate disabled")
 		return false
 	}
@@ -292,49 +292,49 @@ func (j *NarrationJob) checkPreConditions(t *sim.Telemetry) bool {
 	return true
 }
 
-func (j *NarrationJob) isPlayable(p *model.POI) bool {
+func (j *NarrationJob) isPlayable(ctx context.Context, p *model.POI) bool {
 	// Check if already in pipeline (Generating, Queued, Playing)
 	// This prevents the "double trigger" issue where a POI is selected again while generating/queued
 	if j.narrator.IsPOIBusy(p.WikidataID) {
 		return false
 	}
-	return !p.IsOnCooldown(time.Duration(j.cfg.Narrator.RepeatTTL))
+	return !p.IsOnCooldown(j.cfgProv.RepeatTTL(ctx))
 }
 
 // hasEligiblePOI returns true if there is at least one visible POI candidate.
 // This is used by checkEssayEligible to ensure essays are gap-fillers only.
-func (j *NarrationJob) hasEligiblePOI(t *sim.Telemetry) bool {
-	return j.getVisibleCandidate(t) != nil
+func (j *NarrationJob) hasEligiblePOI(ctx context.Context, t *sim.Telemetry) bool {
+	return j.getVisibleCandidate(ctx, t) != nil
 }
 
 // checkEssayEligible returns true if conditions for essay narration are met.
 // Essays are gap-fillers: they only fire when there are NO visible POIs.
-func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
-	if !j.cfg.Narrator.Essay.Enabled {
+func (j *NarrationJob) checkEssayEligible(ctx context.Context, t *sim.Telemetry) bool {
+	if !j.cfgProv.EssayEnabled(ctx) {
 		return false
 	}
 
 	// Disable Essay in "Rarely" mode
-	if j.getNarrationFrequency() == 1 {
+	if j.cfgProv.NarrationFrequency(ctx) == 1 {
 		return false
 	}
 
 	// PRIORITY RULE: Essays only fire when there are NO visible POIs
 	// This is the core "gap filler" logic from v0.2.121
-	if j.hasEligiblePOI(t) {
+	if j.hasEligiblePOI(ctx, t) {
 		return false
 	}
 
 	// Essay-specific cooldown (DelayBetweenEssays)
 	if !j.lastEssayTime.IsZero() {
-		if time.Since(j.lastEssayTime) < time.Duration(j.cfg.Narrator.Essay.DelayBetweenEssays) {
+		if time.Since(j.lastEssayTime) < j.cfgProv.EssayDelayBetweenEssays(ctx) {
 			return false
 		}
 	}
 
 	// Global delay before essay (Time since last narration)
 	// Must be quiet for at least DelayBeforeEssay
-	delayBeforeEssay := time.Duration(j.cfg.Narrator.Essay.DelayBeforeEssay)
+	delayBeforeEssay := j.cfgProv.EssayDelayBeforeEssay(ctx)
 	if time.Since(j.lastTime) < delayBeforeEssay {
 		return false
 	}
@@ -346,7 +346,7 @@ func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 	}
 
 	// Silence rule: at least 2x PauseDuration (Legacy check, maybe redundant now but safer to keep)
-	minSilence := time.Duration(j.cfg.Narrator.PauseDuration) * 2
+	minSilence := j.cfgProv.PauseDuration(ctx) * 2
 	if time.Since(j.lastTime) < minSilence {
 		return false
 	}
@@ -362,13 +362,13 @@ func (j *NarrationJob) checkEssayEligible(t *sim.Telemetry) bool {
 
 // getVisibleCandidate returns the highest-scoring POI that has line-of-sight.
 // If LOS is disabled or no checker is available, falls back to GetBestCandidate.
-func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
+func (j *NarrationJob) getVisibleCandidate(ctx context.Context, t *sim.Telemetry) *model.POI {
 	// If LOS is disabled or checker unavailable, use simple best candidate
-	if !j.cfg.Terrain.LineOfSight || j.losChecker == nil {
-		return j.getBestCandidateFallback(t)
+	if !j.cfgProv.LineOfSight(ctx) || j.losChecker == nil {
+		return j.getBestCandidateFallback(ctx, t)
 	}
 
-	minScore := j.getPOIQueryThreshold()
+	minScore := j.getPOIQueryThreshold(ctx)
 	candidates := j.poiMgr.GetNarrationCandidates(1000, minScore)
 	if len(candidates) == 0 {
 		if j.lastCheckedCount != -1 {
@@ -391,12 +391,12 @@ func (j *NarrationJob) getVisibleCandidate(t *sim.Telemetry) *model.POI {
 		}
 
 		// Also skip if not playable
-		if !j.isPlayable(poi) {
+		if !j.isPlayable(ctx, poi) {
 			continue
 		}
 
 		// RARELY FILTER (Frequency 1): Ensure we only pick "Lone Wolves"
-		if !j.isRarelyEligible(poi, t) {
+		if !j.isRarelyEligible(ctx, poi, t) {
 			continue
 		}
 
@@ -443,9 +443,9 @@ func (j *NarrationJob) selectBestCandidate(visibleCandidates []*model.POI) *mode
 	return best
 }
 
-func (j *NarrationJob) getBestCandidateFallback(t *sim.Telemetry) *model.POI {
-	slog.Debug("NarrationJob: LOS disabled or no checker", "los_enabled", j.cfg.Terrain.LineOfSight, "checker_nil", j.losChecker == nil)
-	minScore := j.getPOIQueryThreshold()
+func (j *NarrationJob) getBestCandidateFallback(ctx context.Context, t *sim.Telemetry) *model.POI {
+	slog.Debug("NarrationJob: LOS disabled or no checker", "los_enabled", j.cfgProv.LineOfSight(ctx), "checker_nil", j.losChecker == nil)
+	minScore := j.getPOIQueryThreshold(ctx)
 	// Get more candidates to filter out deferred ones
 	cands := j.poiMgr.GetNarrationCandidates(10, minScore)
 	for _, poi := range cands {
@@ -456,16 +456,16 @@ func (j *NarrationJob) getBestCandidateFallback(t *sim.Telemetry) *model.POI {
 	return nil
 }
 
-func (j *NarrationJob) getPOIQueryThreshold() *float64 {
-	if j.getFilterMode() != "adaptive" {
-		val := j.getMinScore()
+func (j *NarrationJob) getPOIQueryThreshold(ctx context.Context) *float64 {
+	if j.cfgProv.FilterMode(ctx) != "adaptive" {
+		val := j.cfgProv.MinScoreThreshold(ctx)
 		return &val
 	}
 	return nil
 }
 
-func (j *NarrationJob) isRarelyEligible(poi *model.POI, t *sim.Telemetry) bool {
-	if j.getNarrationFrequency() != 1 {
+func (j *NarrationJob) isRarelyEligible(ctx context.Context, poi *model.POI, t *sim.Telemetry) bool {
+	if j.cfgProv.NarrationFrequency(ctx) != 1 {
 		return true
 	}
 	analyzer, ok := j.poiMgr.(prompt.POIAnalyzer)
@@ -522,66 +522,6 @@ func (j *NarrationJob) isLocationConsistent(t *sim.Telemetry) bool {
 
 	dist := geo.Distance(geo.Point{Lat: t.Latitude, Lon: t.Longitude}, geo.Point{Lat: lastLat, Lon: lastLon})
 	return dist <= 10000 // 10km
-}
-
-func (j *NarrationJob) getNarrationFrequency() int {
-	fallback := j.cfg.Narrator.Frequency
-	if fallback < 1 {
-		fallback = 3 // Default to Active if not set
-	}
-
-	if j.store == nil {
-		return fallback
-	}
-
-	val, ok := j.store.GetState(context.Background(), "narration_frequency")
-	if !ok || val == "" {
-		return fallback
-	}
-
-	parsed, err := strconv.Atoi(val)
-	if err != nil {
-		return fallback
-	}
-
-	// Clamp to 1-4
-	if parsed < 1 {
-		return 1
-	}
-	if parsed > 4 {
-		return 4
-	}
-	return parsed
-}
-
-// Helpers for Dynamic Config Reading
-func (j *NarrationJob) getFilterMode() string {
-	if j.store == nil {
-		return "fixed"
-	}
-	val, ok := j.store.GetState(context.Background(), "filter_mode")
-	if !ok || val == "" {
-		return "fixed"
-	}
-	return val
-}
-
-func (j *NarrationJob) getMinScore() float64 {
-	fallback := j.cfg.Narrator.MinScoreThreshold
-
-	if j.store == nil {
-		return fallback
-	}
-	val, ok := j.store.GetState(context.Background(), "min_poi_score")
-	if !ok || val == "" {
-		return fallback
-	}
-
-	parsed, err := strconv.ParseFloat(val, 64)
-	if err != nil {
-		return fallback
-	}
-	return parsed
 }
 
 func (j *NarrationJob) incrementVisibilityBoost(ctx context.Context) {

@@ -68,7 +68,8 @@ func TestScheduler_JobExecution(t *testing.T) {
 	cfg.Ticker.TelemetryLoop = config.Duration(10 * time.Millisecond) // Fast loop
 
 	mockSim := &mockSimClient{state: sim.StateActive}
-	sched := NewScheduler(cfg, mockSim, nil, &mockSchedGeoProvider{})
+	prov := config.NewProvider(cfg, nil)
+	sched := NewScheduler(prov, mockSim, nil, &mockSchedGeoProvider{})
 
 	// job fired latch
 	var firedCount int32
@@ -178,7 +179,8 @@ func TestScheduler_SkipsTelemetryWhenInactive(t *testing.T) {
 
 	mockSim := &mockStatefulSimClient{state: sim.StateInactive}
 	sink := &mockSink{}
-	sched := NewScheduler(cfg, mockSim, sink, &mockSchedGeoProvider{})
+	prov := config.NewProvider(cfg, nil)
+	sched := NewScheduler(prov, mockSim, sink, &mockSchedGeoProvider{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

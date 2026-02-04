@@ -11,6 +11,7 @@ const (
 	KeyShowCacheLayer     = "show_cache_layer"
 	KeyShowVisibility     = "show_visibility_layer"
 	KeySimSource          = "sim_source"
+	KeyTeleportDistance   = "teleport_distance"
 	KeyMockLat            = "mock_start_lat"
 	KeyMockLon            = "mock_start_lon"
 	KeyMockAlt            = "mock_start_alt"

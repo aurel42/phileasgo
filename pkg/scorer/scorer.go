@@ -16,10 +16,10 @@ import (
 
 // ScoringInput holds usage-time data for scoring.
 type ScoringInput struct {
-	Telemetry       sim.Telemetry          `json:"telemetry"`
-	CategoryHistory []string               `json:"category_history"`
-	NarratorConfig  *config.NarratorConfig `json:"narrator_config"`
-	BoostFactor     float64                `json:"boost_factor"` // Multiplier for visibility range (1.0 - 1.5)
+	Telemetry       sim.Telemetry `json:"telemetry"`
+	CategoryHistory []string      `json:"category_history"`
+	RepeatTTL       time.Duration `json:"repeat_ttl"`
+	BoostFactor     float64       `json:"boost_factor"` // Multiplier for visibility range (1.0 - 1.5)
 
 	// [GAP FIX] IsPOIBusy allows the Scorer to skip POIs that are currently
 	// generating or playing, preventing their scores from being zeroed out.
@@ -133,7 +133,7 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 	}
 
 	// Skip recently played POIs (on cooldown / Blue marker)
-	if input.NarratorConfig != nil && poi.IsOnCooldown(time.Duration(input.NarratorConfig.RepeatTTL)) {
+	if poi.IsOnCooldown(input.RepeatTTL) {
 		return
 	}
 

@@ -46,6 +46,7 @@ type ConfigResponse struct {
 	ShowInfoBar         bool     `json:"show_info_bar"`
 	ShowLogLine         bool     `json:"show_log_line"`
 	LLMProvider         string   `json:"llm_provider"`
+	TeleportDistance    float64  `json:"teleport_distance"`
 	MockStartLat        float64  `json:"mock_start_lat"`
 	MockStartLon        float64  `json:"mock_start_lon"`
 	MockStartAlt        float64  `json:"mock_start_alt"`
@@ -66,6 +67,7 @@ type ConfigRequest struct {
 	TargetPOICount      *int     `json:"target_poi_count,omitempty"`
 	NarrationFrequency  *int     `json:"narration_frequency,omitempty"`
 	TextLength          *int     `json:"text_length,omitempty"`
+	TeleportDistance    *float64 `json:"teleport_distance,omitempty"`
 	MockStartLat        *float64 `json:"mock_start_lat,omitempty"`
 	MockStartLon        *float64 `json:"mock_start_lon,omitempty"`
 	MockStartAlt        *float64 `json:"mock_start_alt,omitempty"`
@@ -135,6 +137,7 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		ShowInfoBar:         h.appCfg.Overlay.InfoBar,
 		ShowLogLine:         h.appCfg.Overlay.LogLine,
 		LLMProvider:         h.getPrimaryLLMProvider(),
+		TeleportDistance:    h.cfgProv.TeleportDistance(ctx),
 		MockStartLat:        h.cfgProv.MockStartLat(ctx),
 		MockStartLon:        h.cfgProv.MockStartLon(ctx),
 		MockStartAlt:        h.cfgProv.MockStartAlt(ctx),
@@ -162,81 +165,104 @@ func (h *ConfigHandler) HandleSetConfig(w http.ResponseWriter, r *http.Request) 
 
 	ctx := context.Background()
 
-	// Update Fields
+	// Core updates (return error to client if they fail)
+	if err := h.applyCoreUpdates(ctx, &req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Other updates (logged but don't block)
+	h.applyUIUpdates(ctx, &req)
+	h.applyThresholdUpdates(ctx, &req)
+	h.applyMockUpdates(ctx, &req, body)
+
+	// Return updated config
+	h.HandleGetConfig(w, r)
+}
+
+func (h *ConfigHandler) applyCoreUpdates(ctx context.Context, req *ConfigRequest) error {
 	if req.SimSource != "" {
 		if err := h.updateSimSource(ctx, req.SimSource); err != nil {
 			slog.Error("Failed to save sim_source", "error", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+			return err
 		}
 	}
 
 	if req.Units != "" {
 		if err := h.updateUnits(ctx, req.Units); err != nil {
 			slog.Error("Failed to save units", "error", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+			return err
 		}
 	}
 
-	if req.ShowCacheLayer != nil {
-		h.updateBoolState(ctx, "show_cache_layer", *req.ShowCacheLayer)
-	}
-
-	if req.ShowVisibilityLayer != nil {
-		h.updateBoolState(ctx, "show_visibility_layer", *req.ShowVisibilityLayer)
-	}
-
-	if req.MinPOIScore != nil {
-		h.updateFloatState(ctx, "min_poi_score", *req.MinPOIScore)
-	}
 	if req.FilterMode != "" {
 		h.updateFilterMode(ctx, req.FilterMode)
 	}
+
+	return nil
+}
+
+func (h *ConfigHandler) applyUIUpdates(ctx context.Context, req *ConfigRequest) {
+	if req.ShowCacheLayer != nil {
+		h.updateBoolState(ctx, config.KeyShowCacheLayer, *req.ShowCacheLayer)
+	}
+
+	if req.ShowVisibilityLayer != nil {
+		h.updateBoolState(ctx, config.KeyShowVisibility, *req.ShowVisibilityLayer)
+	}
+}
+
+func (h *ConfigHandler) applyThresholdUpdates(ctx context.Context, req *ConfigRequest) {
+	if req.MinPOIScore != nil {
+		h.updateFloatState(ctx, config.KeyMinPOIScore, *req.MinPOIScore)
+	}
 	if req.TargetPOICount != nil {
-		h.updateIntState(ctx, "target_poi_count", *req.TargetPOICount)
+		h.updateIntState(ctx, config.KeyTargetPOICount, *req.TargetPOICount)
 	}
 	if req.NarrationFrequency != nil {
-		h.updateIntState(ctx, "narration_frequency", *req.NarrationFrequency)
+		h.updateIntState(ctx, config.KeyNarrationFrequency, *req.NarrationFrequency)
 	}
 	if req.TextLength != nil {
-		h.updateIntState(ctx, "text_length", *req.TextLength)
+		h.updateIntState(ctx, config.KeyTextLength, *req.TextLength)
 	}
+	if req.TeleportDistance != nil {
+		h.updateFloatState(ctx, config.KeyTeleportDistance, *req.TeleportDistance)
+	}
+}
+
+func (h *ConfigHandler) applyMockUpdates(ctx context.Context, req *ConfigRequest, body []byte) {
 	if req.MockStartLat != nil {
-		h.updateFloatState(ctx, "mock_start_lat", *req.MockStartLat)
+		h.updateFloatState(ctx, config.KeyMockLat, *req.MockStartLat)
 	}
 	if req.MockStartLon != nil {
-		h.updateFloatState(ctx, "mock_start_lon", *req.MockStartLon)
+		h.updateFloatState(ctx, config.KeyMockLon, *req.MockStartLon)
 	}
 	if req.MockStartAlt != nil {
-		h.updateFloatState(ctx, "mock_start_alt", *req.MockStartAlt)
+		h.updateFloatState(ctx, config.KeyMockAlt, *req.MockStartAlt)
 	}
 	if req.MockStartHeading != nil {
-		h.updateFloatState(ctx, "mock_start_heading", *req.MockStartHeading)
+		h.updateFloatState(ctx, config.KeyMockHeading, *req.MockStartHeading)
 	} else if req.MockStartHeading == nil && containsJSONKey(body, "mock_start_heading") {
 		// Explicit null means random (heading removed)
-		_ = h.store.DeleteState(ctx, "mock_start_heading")
+		_ = h.store.DeleteState(ctx, config.KeyMockHeading)
 	}
 
 	if req.MockDurationParked != "" {
-		_ = h.store.SetState(ctx, "mock_duration_parked", req.MockDurationParked)
+		_ = h.store.SetState(ctx, config.KeyMockDurParked, req.MockDurationParked)
 	}
 	if req.MockDurationTaxi != "" {
-		_ = h.store.SetState(ctx, "mock_duration_taxi", req.MockDurationTaxi)
+		_ = h.store.SetState(ctx, config.KeyMockDurTaxi, req.MockDurationTaxi)
 	}
 	if req.MockDurationHold != "" {
-		_ = h.store.SetState(ctx, "mock_duration_hold", req.MockDurationHold)
+		_ = h.store.SetState(ctx, config.KeyMockDurHold, req.MockDurationHold)
 	}
-
-	// Return updated config
-	h.HandleGetConfig(w, r)
 }
 
 func (h *ConfigHandler) updateSimSource(ctx context.Context, val string) error {
 	if val != "mock" && val != "simconnect" {
 		return io.ErrUnexpectedEOF // Hacky error reuse or create custom
 	}
-	if err := h.store.SetState(ctx, "sim_source", val); err != nil {
+	if err := h.store.SetState(ctx, config.KeySimSource, val); err != nil {
 		return err
 	}
 	slog.Debug("Config updated", "sim_source", val)
@@ -247,7 +273,7 @@ func (h *ConfigHandler) updateUnits(ctx context.Context, val string) error {
 	if val != "km" && val != "nm" {
 		return io.ErrUnexpectedEOF
 	}
-	if err := h.store.SetState(ctx, "units", val); err != nil {
+	if err := h.store.SetState(ctx, config.KeyUnits, val); err != nil {
 		return err
 	}
 	slog.Debug("Config updated", "units", val)
@@ -286,10 +312,10 @@ func (h *ConfigHandler) updateIntState(ctx context.Context, key string, val int)
 
 func (h *ConfigHandler) updateFilterMode(ctx context.Context, val string) {
 	if val == "fixed" || val == "adaptive" {
-		if err := h.store.SetState(ctx, "filter_mode", val); err != nil {
-			slog.Error("Failed to save state", "key", "filter_mode", "error", err)
+		if err := h.store.SetState(ctx, config.KeyFilterMode, val); err != nil {
+			slog.Error("Failed to save state", "key", config.KeyFilterMode, "error", err)
 		} else {
-			slog.Debug("Config updated", "filter_mode", val)
+			slog.Debug("Config updated", config.KeyFilterMode, val)
 		}
 	}
 }

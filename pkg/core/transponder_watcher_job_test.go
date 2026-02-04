@@ -25,7 +25,8 @@ func TestTransponderWatcherJob_handleSquawkChange(t *testing.T) {
 	st := store.NewSQLiteStore(database)
 	cfg := config.DefaultConfig()
 	n := narrator.NewStubService()
-	job := NewTransponderWatcherJob(cfg, n, st, nil)
+	prov := config.NewProvider(cfg, st)
+	job := NewTransponderWatcherJob(prov, n, st, nil)
 
 	tests := []struct {
 		name         string
@@ -106,7 +107,7 @@ func TestTransponderWatcherJob_handleSquawkChange(t *testing.T) {
 }
 
 func TestTransponderWatcherJob_ShouldFire(t *testing.T) {
-	job := NewTransponderWatcherJob(nil, nil, nil, nil)
+	job := NewTransponderWatcherJob(config.NewProvider(&config.Config{}, nil), nil, nil, nil)
 	job.lastSquawk = 1200
 	job.lastIdent = false
 
@@ -200,7 +201,8 @@ func TestTransponderWatcherJob_handleIdentTrigger(t *testing.T) {
 			mn := &MockNarrator{StubService: narrator.NewStubService()}
 			mn.paused = tt.initialPause
 
-			job := NewTransponderWatcherJob(cfg, mn, nil, nil)
+			prov := config.NewProvider(cfg, nil)
+			job := NewTransponderWatcherJob(prov, mn, nil, nil)
 
 			// Simulate trigger
 			tel := &sim.Telemetry{Ident: true}

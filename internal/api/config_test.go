@@ -56,8 +56,8 @@ func TestHandleGetConfig(t *testing.T) {
 			wantTTSEngine:   "edge-tts",
 			wantSimSource:   "simconnect", // default fallback
 			wantCacheLayer:  false,
-			wantFilterMode:  "adaptive",   // new default
-			wantTargetCount: 5,            // new default
+			wantFilterMode:  "fixed", // restored default
+			wantTargetCount: 5,       // new default
 			wantTextLength:  3,
 		},
 		{

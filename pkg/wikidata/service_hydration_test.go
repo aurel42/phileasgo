@@ -3,6 +3,7 @@ package wikidata
 import (
 	"context"
 	"errors"
+	"phileasgo/pkg/config"
 	"testing"
 )
 
@@ -39,8 +40,8 @@ func TestHydrateCandidates_Filtering(t *testing.T) {
 	}
 
 	pl := &Pipeline{
-		client:   mockClient,
-		userLang: "de",
+		client:  mockClient,
+		cfgProv: config.NewProvider(&config.Config{Narrator: config.NarratorConfig{TargetLanguage: "de"}}, nil),
 	}
 
 	candidates := []Article{

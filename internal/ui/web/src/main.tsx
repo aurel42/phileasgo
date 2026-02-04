@@ -1,10 +1,11 @@
-import { StrictMode } from 'react'
+import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
-import App from './App.tsx'
-import OverlayPage from './OverlayPage.tsx'
+
+const App = lazy(() => import('./App.tsx'))
+const OverlayPage = lazy(() => import('./OverlayPage.tsx'))
 
 const queryClient = new QueryClient()
 
@@ -19,11 +20,13 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <HashRouter>
-        <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/settings" element={<App />} />
-          <Route path="/overlay" element={<OverlayPage />} />
-        </Routes>
+        <Suspense fallback={<div style={{ background: '#060606', height: '100vh' }} />}>
+          <Routes>
+            <Route path="/" element={<App />} />
+            <Route path="/settings" element={<App />} />
+            <Route path="/overlay" element={<OverlayPage />} />
+          </Routes>
+        </Suspense>
       </HashRouter>
     </QueryClientProvider>
   </StrictMode>,

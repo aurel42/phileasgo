@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/sim"
 	"testing"
@@ -48,7 +49,8 @@ func TestNarrationJob_EssayConfig(t *testing.T) {
 			// Update config for this run
 			cfg.Narrator.Essay.Enabled = tt.essayEnabled
 			simC := &mockJobSimClient{state: sim.StateActive}
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			prov := config.NewProvider(cfg, nil)
+			job := NewNarrationJob(prov, mockN, pm, simC, nil, nil)
 
 			tel := &sim.Telemetry{
 				AltitudeAGL: tt.altitudeAGL,
@@ -60,7 +62,7 @@ func TestNarrationJob_EssayConfig(t *testing.T) {
 			// Force cooldown ready for non-playing case
 			job.lastTime = time.Now().Add(-10 * time.Minute)
 
-			if got := job.CanPrepareEssay(tel); got != tt.expectFire {
+			if got := job.CanPrepareEssay(context.Background(), tel); got != tt.expectFire {
 				t.Errorf("CanPrepareEssay() = %v, want %v", got, tt.expectFire)
 			}
 		})

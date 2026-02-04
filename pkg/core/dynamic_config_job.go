@@ -18,7 +18,7 @@ import (
 // DynamicConfigJob triggers AI-suggested Wikidata categories based on location.
 type DynamicConfigJob struct {
 	BaseJob
-	appCfg     *config.Config
+	appCfg     config.Provider
 	llm        llm.Provider
 	prompts    *prompts.Manager
 	validator  *wikidata.Validator
@@ -32,7 +32,7 @@ type DynamicConfigJob struct {
 }
 
 func NewDynamicConfigJob(
-	appCfg *config.Config,
+	appCfg config.Provider,
 	llmProv llm.Provider,
 	prompts *prompts.Manager,
 	validator *wikidata.Validator,

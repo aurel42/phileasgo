@@ -251,7 +251,7 @@ func TestFetchTile_CacheOptimization(t *testing.T) {
 		Retries:   2,
 		BaseDelay: 10 * time.Millisecond,
 		MaxDelay:  50 * time.Millisecond,
-	}), geoSvc, poi.NewManager(config.NewProvider(&config.Config{}, nil), st, nil), config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}, "en")
+	}), geoSvc, poi.NewManager(config.NewProvider(&config.Config{}, nil), st, nil), config.NewProvider(&config.Config{Wikidata: config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}}, nil))
 	svc.client = mockClient
 	svc.classifier = &MockClassifier{
 		ClassifyBatchFunc: func(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult {
@@ -471,9 +471,8 @@ func TestProcessTileData(t *testing.T) {
 				NewGrid(), // Grid (extracted from new scheduler)
 				NewLanguageMapper(st, nil, slog.Default()), // Mapper
 				cl,
-				config.WikidataConfig{},
+				config.NewProvider(&config.Config{}, nil),
 				slog.Default(),
-				"en",
 			)
 
 			// EXECUTE
@@ -527,7 +526,7 @@ func TestBuildCheapQuery(t *testing.T) {
 func TestGetNeighborhoodStats(t *testing.T) {
 	svc := &Service{
 		recentTiles: make(map[string]TileWrapper),
-		cfg:         config.WikidataConfig{Rescue: config.RescueConfig{PromoteByDimension: config.PromoteByDimensionConfig{RadiusKM: 20}}},
+		cfgProv:     config.NewProvider(&config.Config{Wikidata: config.WikidataConfig{Rescue: config.RescueConfig{PromoteByDimension: config.PromoteByDimensionConfig{RadiusKM: 20}}}}, nil),
 	}
 
 	// Grid setup for coordinates

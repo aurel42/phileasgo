@@ -1,456 +1,481 @@
-import { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import type { Telemetry } from '../types/telemetry';
 
 interface SettingsPanelProps {
-    telemetry?: Telemetry;
+    isGui: boolean;
+    onBack: () => void;
+    telemetry: Telemetry | null;
     units: 'km' | 'nm';
-    onUnitsChange: (units: 'km' | 'nm') => void;
+    onUnitsChange: (val: 'km' | 'nm') => void;
     showCacheLayer: boolean;
-    onCacheLayerChange: (show: boolean) => void;
+    onCacheLayerChange: (val: boolean) => void;
     showVisibilityLayer: boolean;
-    onVisibilityLayerChange: (show: boolean) => void;
+    onVisibilityLayerChange: (val: boolean) => void;
     minPoiScore: number;
-    onMinPoiScoreChange: (score: number) => void;
+    onMinPoiScoreChange: (val: number) => void;
     filterMode: string;
-    onFilterModeChange: (mode: string) => void;
+    onFilterModeChange: (val: string) => void;
     targetPoiCount: number;
-    onTargetPoiCountChange: (count: number) => void;
+    onTargetPoiCountChange: (val: number) => void;
     narrationFrequency: number;
-    onNarrationFrequencyChange: (freq: number) => void;
+    onNarrationFrequencyChange: (val: number) => void;
     textLength: number;
-    onTextLengthChange: (length: number) => void;
+    onTextLengthChange: (val: number) => void;
     streamingMode: boolean;
-    onStreamingModeChange: (streaming: boolean) => void;
-    isGui?: boolean;
-    onBack?: () => void;
+    onStreamingModeChange: (val: boolean) => void;
 }
 
-export const SettingsPanel = ({
-    telemetry,
-    units, onUnitsChange,
-    showCacheLayer, onCacheLayerChange,
-    showVisibilityLayer, onVisibilityLayerChange,
-    minPoiScore, onMinPoiScoreChange,
-    filterMode, onFilterModeChange,
-    targetPoiCount, onTargetPoiCountChange,
-    narrationFrequency, onNarrationFrequencyChange,
-    textLength, onTextLengthChange,
-    isGui, onBack
-}: SettingsPanelProps) => {
-    const [simSource, setSimSource] = useState<string>('mock');
-    const [mockLat, setMockLat] = useState<number>(0);
-    const [mockLon, setMockLon] = useState<number>(0);
-    const [mockAlt, setMockAlt] = useState<number>(0);
-    const [mockHeading, setMockHeading] = useState<number | null>(null);
-    const [mockDurParked, setMockDurParked] = useState<string>('120s');
-    const [mockDurTaxi, setMockDurTaxi] = useState<string>('120s');
-    const [mockDurHold, setMockDurHold] = useState<string>('30s');
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({
+    onBack,
+    units,
+    onUnitsChange,
+    showCacheLayer,
+    onCacheLayerChange,
+    showVisibilityLayer,
+    onVisibilityLayerChange,
+    minPoiScore,
+    onMinPoiScoreChange,
+    filterMode,
+    onFilterModeChange,
+    targetPoiCount,
+    onTargetPoiCountChange,
+    narrationFrequency,
+    onNarrationFrequencyChange,
+    textLength,
+    onTextLengthChange,
+    streamingMode,
+    onStreamingModeChange
+}) => {
+    const [activeTab, setActiveTab] = useState('sim');
+    const [config, setConfig] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
+    React.useEffect(() => {
         fetch('/api/config')
             .then(r => r.json())
             .then(data => {
-                setSimSource(data.sim_source || 'mock');
-                setMockLat(data.mock_start_lat || 0);
-                setMockLon(data.mock_start_lon || 0);
-                setMockAlt(data.mock_start_alt || 0);
-                setMockHeading(data.mock_start_heading); // Can be null (random)
-                setMockDurParked(data.mock_duration_parked || '120s');
-                setMockDurTaxi(data.mock_duration_taxi || '120s');
-                setMockDurHold(data.mock_duration_hold || '30s');
+                setConfig(data);
+                setLoading(false);
             })
-            .catch(e => console.error("Failed to fetch config", e));
+            .catch(e => console.error("Failed to fetch settings", e));
     }, []);
 
-    const handleSimSourceChange = (source: string) => {
-        setSimSource(source);
+    const updateValue = (key: string, val: any) => {
+        // Optimistic local state update for Mock fields
+        if (key.startsWith('mock_') || key === 'teleport_distance') {
+            setConfig((prev: any) => ({ ...prev, [key]: val }));
+        }
+
         fetch('/api/config', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sim_source: source })
+            body: JSON.stringify({ [key]: val })
         }).catch(e => console.error("Failed to update config", e));
     };
 
-    return (
-        <div className="hud-container" style={{ padding: '24px', height: '100vh', boxSizing: 'border-box', overflowY: 'auto' }}>
-            {!isGui && (
-                <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-start' }}>
-                    <button
-                        className="role-btn"
-                        onClick={onBack}
-                        style={{
-                            padding: '8px 16px',
-                            background: 'var(--card-bg)',
-                            color: 'var(--accent)',
-                            border: '3px double rgba(212, 175, 55, 0.5)',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontFamily: 'var(--font-display)',
-                            fontSize: '12px',
-                            letterSpacing: '0.1em',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
-                        }}
-                    >
-                        <span>⚓</span> BACK TO NAVIGATOR
-                    </button>
-                </div>
-            )}
-
-            <div className="config-group" style={{ maxWidth: '600px', width: '100%' }}>
-                <div className="role-header" style={{ fontSize: '14px', marginBottom: '8px' }}>SIMULATION SOURCE*</div>
-                <div className="radio-group">
-                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="sim-source"
-                            checked={simSource === 'mock'}
-                            onChange={() => handleSimSourceChange('mock')}
-                        /> Mock Sim
-                    </label>
-                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="sim-source"
-                            checked={simSource === 'simconnect'}
-                            onChange={() => handleSimSourceChange('simconnect')}
-                        /> SimConnect
-                    </label>
-                </div>
-                <div className="role-text-sm" style={{ fontSize: '12px', opacity: 0.7, marginTop: '4px' }}>
-                    * Restart required after changing
-                </div>
-
-                {simSource === 'mock' && (
-                    <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(212, 175, 55, 0.05)', borderLeft: '4px solid var(--accent)', borderRadius: '4px' }}>
-                        <div className="role-header" style={{ fontSize: '14px', marginBottom: '12px' }}>MOCK SIMULATION SETTINGS*</div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                            <div>
-                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '4px' }}>START LATITUDE</label>
-                                <input
-                                    type="number"
-                                    step="0.0001"
-                                    value={mockLat}
-                                    onChange={(e) => {
-                                        const v = parseFloat(e.target.value);
-                                        setMockLat(v);
-                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_start_lat: v }) });
-                                    }}
-                                    className="role-num-sm"
-                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
-                                />
-                            </div>
-                            <div>
-                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '4px' }}>START LONGITUDE</label>
-                                <input
-                                    type="number"
-                                    step="0.0001"
-                                    value={mockLon}
-                                    onChange={(e) => {
-                                        const v = parseFloat(e.target.value);
-                                        setMockLon(v);
-                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_start_lon: v }) });
-                                    }}
-                                    className="role-num-sm"
-                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
-                                />
-                            </div>
-                            <div>
-                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '4px' }}>START ALTITUDE (FT)</label>
-                                <input
-                                    type="number"
-                                    value={mockAlt}
-                                    onChange={(e) => {
-                                        const v = parseFloat(e.target.value);
-                                        setMockAlt(v);
-                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_start_alt: v }) });
-                                    }}
-                                    className="role-num-sm"
-                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
-                                />
-                            </div>
-                            <div>
-                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '4px' }}>START HEADING (DEG)</label>
-                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        max="359"
-                                        disabled={mockHeading === null}
-                                        value={mockHeading === null ? '' : mockHeading}
-                                        onChange={(e) => {
-                                            const v = parseFloat(e.target.value);
-                                            setMockHeading(v);
-                                            fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_start_heading: v }) });
-                                        }}
-                                        className="role-num-sm"
-                                        placeholder="Random"
-                                        style={{ flex: 1, background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px', opacity: mockHeading === null ? 0.5 : 1 }}
-                                    />
-                                    <button
-                                        onClick={() => {
-                                            const newVal = mockHeading === null ? 0 : null;
-                                            setMockHeading(newVal);
-                                            fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_start_heading: newVal }) });
-                                        }}
-                                        style={{ fontSize: '10px', padding: '4px 8px', background: 'rgba(212,175,55,0.1)', color: 'var(--accent)', border: '1px solid var(--accent)', cursor: 'pointer' }}
-                                    >
-                                        {mockHeading === null ? 'FIX' : 'RANDOM'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                            <div>
-                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '2px', fontSize: '10px' }}>PARKED DUR.</label>
-                                <input
-                                    type="text"
-                                    value={mockDurParked}
-                                    onChange={(e) => {
-                                        setMockDurParked(e.target.value);
-                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_duration_parked: e.target.value }) });
-                                    }}
-                                    className="role-num-sm"
-                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
-                                />
-                            </div>
-                            <div>
-                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '2px', fontSize: '10px' }}>TAXI DUR.</label>
-                                <input
-                                    type="text"
-                                    value={mockDurTaxi}
-                                    onChange={(e) => {
-                                        setMockDurTaxi(e.target.value);
-                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_duration_taxi: e.target.value }) });
-                                    }}
-                                    className="role-num-sm"
-                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
-                                />
-                            </div>
-                            <div>
-                                <label className="role-text-sm" style={{ display: 'block', marginBottom: '2px', fontSize: '10px' }}>HOLD DUR.</label>
-                                <input
-                                    type="text"
-                                    value={mockDurHold}
-                                    onChange={(e) => {
-                                        setMockDurHold(e.target.value);
-                                        fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mock_duration_hold: e.target.value }) });
-                                    }}
-                                    className="role-num-sm"
-                                    style={{ width: '100%', background: 'var(--card-bg)', color: 'var(--accent)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '4px' }}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>RANGE RING UNITS</div>
-                <div className="radio-group">
-                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="units"
-                            checked={units === 'km'}
-                            onChange={() => onUnitsChange('km')}
-                        /> Kilometers (km)
-                    </label>
-                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="units"
-                            checked={units === 'nm'}
-                            onChange={() => onUnitsChange('nm')}
-                        /> Nautical Miles (nm)
-                    </label>
-                </div>
-
-                {/* Debug Layers Moved Down */}
-
-                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>POI FILTERING MODE</div>
-                <div className="radio-group">
-                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="filter-mode"
-                            checked={filterMode === 'fixed'}
-                            onChange={() => onFilterModeChange('fixed')}
-                        /> Fixed Score
-                    </label>
-                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="filter-mode"
-                            checked={filterMode === 'adaptive'}
-                            onChange={() => onFilterModeChange('adaptive')}
-                        /> Adaptive (Target Count)
-                    </label>
-                </div>
-
-                {filterMode === 'fixed' ? (
-                    <>
-                        <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>POI SCORE THRESHOLD</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                            <input
-                                type="range"
-                                min="-10"
-                                max="10"
-                                step="0.5"
-                                value={minPoiScore}
-                                onChange={(e) => onMinPoiScoreChange(parseFloat(e.target.value))}
-                                style={{ flex: 1 }}
-                            />
-                            <span className="role-num-sm" style={{ minWidth: '24px', textAlign: 'right' }}>{minPoiScore.toFixed(1)}</span>
-                        </div>
-                        <div className="role-text-sm" style={{ fontSize: '12px', opacity: 0.7, marginTop: '4px' }}>
-                            Show POIs with score higher than this value
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>TARGET POI COUNT</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                            <input
-                                type="range"
-                                min="1"
-                                max="50"
-                                step="1"
-                                value={targetPoiCount}
-                                onChange={(e) => onTargetPoiCountChange(parseInt(e.target.value))}
-                                style={{ flex: 1 }}
-                            />
-                            <span className="role-num-sm" style={{ minWidth: '24px', textAlign: 'right' }}>{targetPoiCount}</span>
-                        </div>
-                        <div className="role-text-sm" style={{ fontSize: '12px', opacity: 0.7, marginTop: '4px' }}>
-                            Dynamic visibility threshold to show approximately {targetPoiCount} POIs
-                        </div>
-                    </>
-                )}
-
-                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>NARRATION FREQUENCY</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <input
-                            type="range"
-                            min="1"
-                            max="5"
-                            step="1"
-                            value={narrationFrequency}
-                            onChange={(e) => onNarrationFrequencyChange(parseInt(e.target.value))}
-                            style={{ flex: 1 }}
-                        />
-                        <span className="role-num-sm" style={{ minWidth: '12px', textAlign: 'right' }}>{narrationFrequency}</span>
-                    </div>
-                    <div className="role-text-sm" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.7 }}>
-                        <span>Rarely</span>
-                        <span>Normal</span>
-                        <span>Active</span>
-                        <span>Busy</span>
-                        <span>Constant</span>
-                    </div>
-                </div>
-
-                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>TEXT LENGTH</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <input
-                            type="range"
-                            min="1"
-                            max="5"
-                            step="1"
-                            value={textLength}
-                            onChange={(e) => onTextLengthChange(parseInt(e.target.value))}
-                            style={{ flex: 1 }}
-                        />
-                        <span className="role-num-sm" style={{ minWidth: '12px', textAlign: 'right' }}>{textLength}</span>
-                    </div>
-                    <div className="role-text-sm" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', opacity: 0.7 }}>
-                        <span>Shortest</span>
-                        <span>Shorter</span>
-                        <span>Normal</span>
-                        <span>Longer</span>
-                        <span>Longest</span>
-                    </div>
-                </div>
-
-
-                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px' }}>DEBUG LAYERS</div>
-                <div className="radio-group">
-                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                            type="checkbox"
-                            checked={showCacheLayer}
-                            onChange={(e) => onCacheLayerChange(e.target.checked)}
-                        /> Show Cache Layer
-                    </label>
-                    <label className="role-text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                            type="checkbox"
-                            checked={showVisibilityLayer}
-                            onChange={(e) => onVisibilityLayerChange(e.target.checked)}
-                        /> Show Visibility Overlay
-                    </label>
-                </div>
-
-                <div className="role-header" style={{ fontSize: '14px', marginTop: '16px', marginBottom: '8px', color: '#ff4444' }}>DANGER ZONE</div>
-                <button
-                    className="role-btn"
-                    onClick={() => {
-                        if (confirm('Are you sure you want to RESET history for POIs within 100km? This cannot be undone.')) {
-                            fetch('/api/pois/reset-last-played', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    lat: telemetry?.Latitude || 0,
-                                    lon: telemetry?.Longitude || 0
-                                })
-                            }).then(res => {
-                                if (res.ok) alert('History reset successfully. Marker colors will update shortly.');
-                                else alert('Failed to reset history.');
-                            }).catch(e => console.error(e));
-                        }
-                    }}
-                    style={{
-                        marginTop: '4px',
-                        padding: '6px 12px',
-                        background: 'rgba(255, 152, 0, 0.1)',
-                        color: '#f57c00',
-                        border: '1px solid #f57c00',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        width: '100%',
-                        transition: 'all 0.2s'
-                    }}
-                    onMouseOver={(e) => { e.currentTarget.style.background = '#f57c00'; e.currentTarget.style.color = 'white'; }}
-                    onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 152, 0, 0.1)'; e.currentTarget.style.color = '#f57c00'; }}
-                >
-                    RESET HISTORY (100km)
-                </button>
-                <button
-                    className="role-btn"
-                    onClick={() => { if (confirm('Are you sure you want to SHUTDOWN the server?')) fetch('/api/shutdown', { method: 'POST' }) }}
-                    style={{
-                        marginTop: '8px',
-                        padding: '6px 12px',
-                        background: 'rgba(211, 47, 47, 0.1)',
-                        color: '#ff4444',
-                        border: '1px solid #d32f2f',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        width: '100%',
-                        transition: 'all 0.2s'
-                    }}
-                    onMouseOver={(e) => { e.currentTarget.style.background = '#d32f2f'; e.currentTarget.style.color = 'white'; }}
-                    onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(211, 47, 47, 0.1)'; e.currentTarget.style.color = '#ff4444'; }}
-                >
-                    SHUTDOWN SERVER
-                </button>
+    const renderField = (label: string, field: React.ReactNode, restart = false) => (
+        <div className="settings-field">
+            <div className="settings-label-row">
+                <span className="role-label">{label}{restart && ' *'}</span>
             </div>
+            {field}
+        </div>
+    );
+
+    const tabs = [
+        { id: 'sim', label: 'Simulator' },
+        { id: 'narrator', label: 'Narrator' },
+        { id: 'interface', label: 'Interface' }
+    ];
+
+    if (loading) {
+        return (
+            <div className="settings-overlay">
+                <div className="settings-loading">Consulting the Archives...</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="settings-overlay">
+            <div className="settings-container">
+                <div className="settings-sidebar">
+                    <div className="settings-branding">
+                        <div className="role-title">Phileas</div>
+                        <div className="role-header" style={{ fontSize: '12px' }}>Configuration</div>
+                    </div>
+                    <div className="settings-nav">
+                        {tabs.map(tab => (
+                            <div
+                                key={tab.id}
+                                className={`settings-tab ${activeTab === tab.id ? 'active' : ''}`}
+                                onClick={() => setActiveTab(tab.id)}
+                            >
+                                {tab.label}
+                            </div>
+                        ))}
+                    </div>
+                    <button className="settings-back-btn role-btn" onClick={onBack}>
+                        Return to Map
+                    </button>
+                    <div className="settings-footer">
+                        * Requires application restart
+                    </div>
+                </div>
+
+                <div className="settings-content">
+                    {activeTab === 'sim' && (
+                        <div className="settings-group">
+                            <div className="role-header">Source & Connection</div>
+                            {renderField('Simulator Provider', (
+                                <select
+                                    className="settings-select"
+                                    value={config?.sim_source || 'simconnect'}
+                                    onChange={e => updateValue('sim_source', e.target.value)}
+                                >
+                                    <option value="simconnect">Microsoft Flight Simulator</option>
+                                    <option value="mock">Mock Simulator (Internal)</option>
+                                </select>
+                            ), true)}
+
+                            {config?.sim_source === 'mock' && (
+                                <>
+                                    <div className="role-header" style={{ marginTop: '24px' }}>Mock Simulator Parameters</div>
+                                    <div className="settings-grid">
+                                        {renderField('Start Latitude', (
+                                            <input
+                                                type="number"
+                                                className="settings-input"
+                                                value={config?.mock_start_lat ?? ''}
+                                                onChange={e => updateValue('mock_start_lat', parseFloat(e.target.value))}
+                                            />
+                                        ))}
+                                        {renderField('Start Longitude', (
+                                            <input
+                                                type="number"
+                                                className="settings-input"
+                                                value={config?.mock_start_lon ?? ''}
+                                                onChange={e => updateValue('mock_start_lon', parseFloat(e.target.value))}
+                                            />
+                                        ))}
+                                        {renderField('Start Altitude (ft)', (
+                                            <input
+                                                type="number"
+                                                className="settings-input"
+                                                value={config?.mock_start_alt ?? ''}
+                                                onChange={e => updateValue('mock_start_alt', parseFloat(e.target.value))}
+                                            />
+                                        ))}
+                                        {renderField('Start Heading (deg)', (
+                                            <input
+                                                type="number"
+                                                className="settings-input"
+                                                placeholder="Automatic"
+                                                value={config?.mock_start_heading ?? ''}
+                                                onChange={e => updateValue('mock_start_heading', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                            />
+                                        ))}
+                                    </div>
+                                    <div className="settings-grid">
+                                        {renderField('Parked Duration', (
+                                            <input
+                                                type="text"
+                                                className="settings-input"
+                                                placeholder="e.g. 30s, 1m"
+                                                value={config?.mock_duration_parked ?? ''}
+                                                onChange={e => updateValue('mock_duration_parked', e.target.value)}
+                                            />
+                                        ))}
+                                        {renderField('Taxi Duration', (
+                                            <input
+                                                type="text"
+                                                className="settings-input"
+                                                placeholder="e.g. 2m"
+                                                value={config?.mock_duration_taxi ?? ''}
+                                                onChange={e => updateValue('mock_duration_taxi', e.target.value)}
+                                            />
+                                        ))}
+                                        {renderField('Hold Duration', (
+                                            <input
+                                                type="text"
+                                                className="settings-input"
+                                                placeholder="e.g. 10s"
+                                                value={config?.mock_duration_hold ?? ''}
+                                                onChange={e => updateValue('mock_duration_hold', e.target.value)}
+                                            />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'narrator' && (
+                        <div className="settings-group">
+                            <div className="role-header">Narration Preferences</div>
+                            {renderField('Narration Frequency', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{['Rare', 'Occasional', 'Normal', 'Frequent', 'Constant'][narrationFrequency - 1] || narrationFrequency}</span>
+                                    <input type="range" min="1" max="5" value={narrationFrequency} onChange={e => onNarrationFrequencyChange(parseInt(e.target.value))} />
+                                </div>
+                            ))}
+                            {renderField('Script Length', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{['Short', 'Brief', 'Normal', 'Detailed', 'Long'][textLength - 1] || textLength}</span>
+                                    <input type="range" min="1" max="5" value={textLength} onChange={e => onTextLengthChange(parseInt(e.target.value))} />
+                                </div>
+                            ))}
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>POI Selection</div>
+                            {renderField('Minimum POI Score', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{Math.round(minPoiScore * 100)}%</span>
+                                    <input type="range" min="0" max="1" step="0.05" value={minPoiScore} onChange={e => onMinPoiScoreChange(parseFloat(e.target.value))} />
+                                </div>
+                            ))}
+                            {renderField('POI Filtering Mode', (
+                                <select className="settings-select" value={filterMode} onChange={e => onFilterModeChange(e.target.value)}>
+                                    <option value="fixed">Fixed Count</option>
+                                    <option value="adaptive">Adaptive Radius</option>
+                                </select>
+                            ))}
+                            {filterMode === 'adaptive' ?
+                                renderField('Target POI Count', (
+                                    <div className="settings-slider-container">
+                                        <span className="role-value">{targetPoiCount}</span>
+                                        <input type="range" min="1" max="50" value={targetPoiCount} onChange={e => onTargetPoiCountChange(parseInt(e.target.value))} />
+                                    </div>
+                                )) :
+                                renderField('Teleport Threshold', (
+                                    <div className="settings-slider-container">
+                                        <span className="role-value">{config?.teleport_distance ?? 10} km</span>
+                                        <input
+                                            type="range"
+                                            min="1" max="100"
+                                            value={config?.teleport_distance ?? 10}
+                                            onChange={e => updateValue('teleport_distance', parseInt(e.target.value))}
+                                        />
+                                    </div>
+                                ))
+                            }
+                        </div>
+                    )}
+
+                    {activeTab === 'interface' && (
+                        <div className="settings-group">
+                            <div className="role-header">Units & Display</div>
+                            {renderField('Measurement Units', (
+                                <select className="settings-select" value={units} onChange={e => onUnitsChange(e.target.value as 'km' | 'nm')}>
+                                    <option value="km">Metric (km/m)</option>
+                                    <option value="nm">Nautical (nm/ft)</option>
+                                </select>
+                            ))}
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Overlay Layers</div>
+                            {renderField('Show POI Cache Radius', (
+                                <label className="settings-toggle">
+                                    <input type="checkbox" checked={showCacheLayer} onChange={e => onCacheLayerChange(e.target.checked)} />
+                                    <span className="toggle-slider"></span>
+                                    <span className="role-value" style={{ marginLeft: '12px' }}>{showCacheLayer ? 'ENABLED' : 'DISABLED'}</span>
+                                </label>
+                            ))}
+                            {renderField('Show Line-of-Sight Coverage', (
+                                <label className="settings-toggle">
+                                    <input type="checkbox" checked={showVisibilityLayer} onChange={e => onVisibilityLayerChange(e.target.checked)} />
+                                    <span className="toggle-slider"></span>
+                                    <span className="role-value" style={{ marginLeft: '12px' }}>{showVisibilityLayer ? 'ENABLED' : 'DISABLED'}</span>
+                                </label>
+                            ))}
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Developer Settings</div>
+                            {renderField('Streaming Mode (LocalStorage)', (
+                                <label className="settings-toggle">
+                                    <input type="checkbox" checked={streamingMode} onChange={e => onStreamingModeChange(e.target.checked)} />
+                                    <span className="toggle-slider"></span>
+                                    <span className="role-value" style={{ marginLeft: '12px' }}>{streamingMode ? 'ENABLED' : 'DISABLED'}</span>
+                                </label>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <style>{`
+                .settings-overlay {
+                    position: fixed;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    background: var(--bg-color);
+                    z-index: 5000;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    font-family: var(--font-main);
+                }
+
+                .settings-container {
+                    width: 900px;
+                    height: 650px;
+                    background: var(--panel-bg);
+                    border: 3px double rgba(212, 175, 55, 0.3);
+                    box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+                    display: flex;
+                    overflow: hidden;
+                }
+
+                .settings-sidebar {
+                    width: 250px;
+                    background: rgba(0,0,0,0.2);
+                    border-right: 1px solid rgba(255,255,255,0.05);
+                    padding: 32px;
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .settings-branding {
+                    margin-bottom: 48px;
+                }
+
+                .settings-nav {
+                    flex: 1;
+                }
+
+                .settings-tab {
+                    font-family: var(--font-display);
+                    font-size: 16px;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    color: var(--muted);
+                    padding: 12px 0;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .settings-tab:hover { color: var(--text-color); }
+                .settings-tab.active { color: var(--accent); }
+
+                .settings-back-btn {
+                    background: transparent;
+                    border: 1px solid var(--accent);
+                    color: var(--accent);
+                    padding: 10px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    margin-top: 24px;
+                }
+
+                .settings-back-btn:hover {
+                    background: var(--accent);
+                    color: #000;
+                }
+
+                .settings-footer {
+                    margin-top: 24px;
+                    font-size: 11px;
+                    color: var(--muted);
+                    font-style: italic;
+                }
+
+                .settings-content {
+                    flex: 1;
+                    padding: 48px;
+                    overflow-y: auto;
+                    color: var(--text-color);
+                }
+
+                .settings-group {
+                    animation: fadeIn 0.3s ease-out;
+                }
+
+                .settings-field {
+                    margin-bottom: 24px;
+                }
+
+                .settings-label-row {
+                    margin-bottom: 8px;
+                }
+
+                .settings-select, .settings-input {
+                    display: block;
+                    width: 100%;
+                    background: #2a2a2a;
+                    border: 1px solid #444;
+                    color: var(--text-color);
+                    padding: 8px 12px;
+                    border-radius: 4px;
+                    font-family: var(--font-mono);
+                    font-size: 14px;
+                }
+
+                .settings-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 0 24px;
+                }
+
+                .settings-slider-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 16px;
+                }
+
+                .settings-slider-container input {
+                    flex: 1;
+                    height: 4px;
+                    appearance: none;
+                    background: #444;
+                    border-radius: 2px;
+                }
+
+                .settings-slider-container input::-webkit-slider-thumb {
+                    appearance: none;
+                    width: 16px; height: 16px;
+                    background: var(--accent);
+                    border-radius: 50%;
+                    cursor: pointer;
+                }
+
+                .settings-toggle {
+                    display: flex;
+                    align-items: center;
+                    cursor: pointer;
+                }
+
+                .settings-toggle input { display: none; }
+                .toggle-slider {
+                    width: 40px; height: 20px;
+                    background: #444;
+                    border-radius: 10px;
+                    position: relative;
+                    transition: 0.3s;
+                }
+
+                .toggle-slider::after {
+                    content: '';
+                    position: absolute;
+                    width: 14px; height: 14px;
+                    background: #888;
+                    border-radius: 50%;
+                    top: 3px; left: 3px;
+                    transition: 0.3s;
+                }
+
+                input:checked + .toggle-slider { background: var(--accent); }
+                input:checked + .toggle-slider::after { left: 23px; background: #000; }
+
+                .role-value { color: var(--accent); font-family: var(--font-mono); }
+
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+
+                .settings-loading {
+                    font-family: var(--font-display);
+                    color: var(--accent);
+                    font-size: 24px;
+                    letter-spacing: 2px;
+                }
+            `}</style>
         </div>
     );
 };

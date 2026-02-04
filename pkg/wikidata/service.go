@@ -39,7 +39,7 @@ type Service struct {
 	scheduler  *Scheduler
 	tracker    *tracker.Tracker
 	classifier Classifier
-	cfg        config.WikidataConfig
+	cfgProv    config.Provider
 	logger     *slog.Logger
 
 	// In-memory cache to avoid spamming the DB for tiles we verified recently
@@ -56,7 +56,6 @@ type Service struct {
 	// Configuration
 	// Configuration
 	// Configuration
-	userLang string
 
 	// Core logic pipeline
 	pipeline *Pipeline
@@ -77,20 +76,14 @@ type WikipediaProvider interface {
 }
 
 // NewService creates a new Wikidata Service.
-func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Classifier, rc *request.Client, geoSvc *geo.Service, poiMgr *poi.Manager, cfg config.WikidataConfig, userLang string) *Service {
-	// Normalize userLang (e.g. "en-US" -> "en")
-	normalizedLang := userLang
-	if len(userLang) > 2 {
-		normalizedLang = strings.Split(userLang, "-")[0]
-	}
-
+func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Classifier, rc *request.Client, geoSvc *geo.Service, poiMgr *poi.Manager, cfgProv config.Provider) *Service {
 	client := NewClient(rc, slog.With("component", "wikidata_client"))
 	wiki := wikipedia.NewClient(rc)
-	sched := NewScheduler(float64(cfg.Area.MaxDist) / 1000.0) // Config is meters, Scheduler wants KM
+	sched := NewScheduler(float64(cfgProv.AppConfig().Wikidata.Area.MaxDist) / 1000.0) // Config is meters, Scheduler wants KM
 	logger := slog.With("component", "wikidata")
 	mapper := NewLanguageMapper(st, rc, slog.With("component", "mapper"))
 
-	pipeline := NewPipeline(st, client, wiki, geoSvc, poiMgr, sched.grid, mapper, cl, cfg, logger, normalizedLang)
+	pipeline := NewPipeline(st, client, wiki, geoSvc, poiMgr, sched.grid, mapper, cl, cfgProv, logger)
 
 	svc := &Service{
 		pipeline:      pipeline,
@@ -103,11 +96,10 @@ func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Cl
 		scheduler:     sched,
 		tracker:       tr,
 		classifier:    cl,
-		cfg:           cfg,
+		cfgProv:       cfgProv,
 		logger:        logger,
 		recentTiles:   make(map[string]TileWrapper),
 		inflightTiles: make(map[string]bool),
-		userLang:      normalizedLang,
 		mapper:        mapper,
 	}
 	return svc
@@ -121,7 +113,7 @@ type TileWrapper struct {
 // Start begins the background fetch loop.
 func (s *Service) Start(ctx context.Context) {
 	// Use configured interval (default 5s)
-	interval := time.Duration(s.cfg.FetchInterval)
+	interval := time.Duration(s.cfgProv.AppConfig().Wikidata.FetchInterval)
 	if interval <= 0 {
 		interval = 5 * time.Second
 	}
@@ -426,8 +418,8 @@ func (s *Service) EvictFarTiles(lat, lon, thresholdKm float64) int {
 
 func (s *Service) getNeighborhoodStats(tile HexTile) rescue.MedianStats {
 	radiusKm := 20.0 // Default
-	if s.cfg.Rescue.PromoteByDimension.RadiusKM > 0 {
-		radiusKm = float64(s.cfg.Rescue.PromoteByDimension.RadiusKM)
+	if s.cfgProv.AppConfig().Wikidata.Rescue.PromoteByDimension.RadiusKM > 0 {
+		radiusKm = float64(s.cfgProv.AppConfig().Wikidata.Rescue.PromoteByDimension.RadiusKM)
 	}
 
 	centerLat, centerLon := s.gridCenter(tile)

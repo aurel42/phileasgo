@@ -30,6 +30,13 @@ interface Config {
 }
 
 import { useGeography } from '../hooks/useGeography';
+import { TelemetryBox } from './overlay/TelemetryBox';
+import { PositionBox } from './overlay/PositionBox';
+import { PipelineBox } from './overlay/PipelineBox';
+import { DataServicesBox } from './overlay/DataServicesBox';
+import { StatsBox } from './overlay/StatsBox';
+import { BrandingBox } from './overlay/BrandingBox';
+import { ConfigBox } from './overlay/ConfigBox';
 
 export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => {
     const [stats, setStats] = useState<Stats | null>(null);
@@ -102,238 +109,18 @@ export const OverlayTelemetryBar = ({ telemetry }: OverlayTelemetryBarProps) => 
         );
     }
 
-
-
     return (
         <div className="overlay-telemetry-bar">
-            {/* Wrapper for boxes to control width independent of log line */}
             <div className="stats-row">
+                <TelemetryBox telemetry={telemetry} />
+                <PositionBox telemetry={telemetry} location={location} />
+                <PipelineBox stats={stats} />
+                <DataServicesBox stats={stats} />
+                <StatsBox stats={stats} />
+                <BrandingBox version={version} />
+                <ConfigBox telemetry={telemetry} config={config} />
+            </div>
 
-                {/* 1. HDG @ GS (Telemetry Card) - GRID LAYOUT */}
-                <div className="stat-box" style={{ alignItems: 'flex-start', minWidth: '140px' }}>
-                    <div className="stat-value" style={{
-                        display: 'grid',
-                        gridTemplateColumns: '30px 1fr 34px', // Increased unit width for 'deg.' and 'kts'
-                        columnGap: '8px',
-                        rowGap: '2px',
-                        textAlign: 'right', // Align numbers to right
-                        alignItems: 'baseline'
-                    }}>
-                        {/* HDG */}
-                        <div className="role-label-overlay" style={{ textAlign: 'left' }}>HDG</div>
-                        <div className="role-num-lg" style={{ fontSize: '20px' }}>{Math.round(telemetry.Heading)}</div>
-                        <div className="role-label-overlay" style={{ fontSize: '14px', textAlign: 'left' }}>deg.</div>
-
-                        {/* GS */}
-                        <div className="role-label-overlay" style={{ textAlign: 'left' }}>GS</div>
-                        <div className="role-num-lg" style={{ fontSize: '20px' }}>{Math.round(telemetry.GroundSpeed)}</div>
-                        <div className="role-label-overlay" style={{ fontSize: '14px', textAlign: 'left' }}>kts</div>
-
-                        {/* AGL */}
-                        <div className="role-label-overlay" style={{ textAlign: 'left' }}>AGL</div>
-                        <div className="role-num-lg" style={{ fontSize: '20px' }}>{Math.round(telemetry.AltitudeAGL)}</div>
-                        <div className="role-label-overlay" style={{ fontSize: '14px', textAlign: 'left' }}>ft</div>
-
-                        {/* MSL */}
-                        <div className="role-label-overlay" style={{ textAlign: 'left' }}>MSL</div>
-                        <div className="role-num-lg" style={{ fontSize: '20px' }}>{Math.round(telemetry.AltitudeMSL)}</div>
-                        <div className="role-label-overlay" style={{ fontSize: '14px', textAlign: 'left' }}>ft</div>
-                    </div>
-                </div>
-
-                {/* 2. Position Card */}
-                <div className="stat-box" style={{ minWidth: (location?.city || location?.country) ? '220px' : '180px' }}>
-                    {(location?.city || location?.country) ? (
-                        <>
-                            <div className="role-text-lg" style={{ textAlign: 'center' }}>
-                                {location.city ? (
-                                    location.city === 'Unknown' ? (
-                                        <span>Far from civilization</span>
-                                    ) : (
-                                        <>
-                                            <span className="role-label-overlay" style={{ marginRight: '6px' }}>near</span>
-                                            {location.city}
-                                        </>
-                                    )
-                                ) : (
-                                    <span>{location.country}</span>
-                                )}
-                            </div>
-                            <div className="role-text-sm" style={{ textAlign: 'center', marginTop: '4px' }}>
-                                {location.city_country_code && location.country_code && location.city_country_code !== location.country_code ? (
-                                    <>
-                                        <div>{location.city_region ? `${location.city_region}, ` : ''}{location.city_country}</div>
-                                        <div style={{ color: 'var(--accent)', marginTop: '2px' }}>in {location.country}</div>
-                                    </>
-                                ) : (
-                                    <>{location.region ? `${location.region}, ` : ''}{location.city ? location.country : (location.region ? '' : '')}</>
-                                )}
-                            </div>
-                            <div className="role-num-sm" style={{ color: 'var(--muted)', marginTop: '8px', textAlign: 'center' }}>
-                                {telemetry.Latitude.toFixed(4)}, {telemetry.Longitude.toFixed(4)}
-                            </div>
-                        </>
-                    ) : (
-                        <div className="stat-value" style={{ textAlign: 'center' }}>
-                            <span className="role-label-overlay">LAT </span><span className="role-num-sm">{telemetry.Latitude.toFixed(4)}</span> <br />
-                            <span className="role-label-overlay">LON </span><span className="role-num-sm">{telemetry.Longitude.toFixed(4)}</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* 3. LLM Pipeline Card */}
-                <div className="stat-box" style={{ minWidth: '180px', alignItems: 'flex-start' }}>
-                    <div className="stat-value" style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'max-content 1fr max-content',
-                        columnGap: '8px',
-                        rowGap: '2px',
-                        textAlign: 'left',
-                        alignItems: 'baseline',
-                        width: '100%'
-                    }}>
-                        {(() => {
-                            if (!stats?.providers) return null;
-                            const fallbackOrder = (stats as any).llm_fallback || [];
-                            const toRoman = (num: number) => ["I", "II", "III", "IV", "V"][num] || (num + 1).toString();
-
-                            return Object.entries(stats.providers)
-                                .filter(([key]) => fallbackOrder.includes(key))
-                                .sort(([keyA], [keyB]) => fallbackOrder.indexOf(keyA) - fallbackOrder.indexOf(keyB))
-                                .map(([key, data], idx) => {
-                                    if (!data) return null;
-                                    if (data.api_success === 0 && data.api_errors === 0) return null;
-                                    const label = key.toUpperCase().replace('-', ' ');
-                                    return (
-                                        <div key={key} style={{ display: 'contents' }}>
-                                            <div style={{ display: 'flex', alignItems: 'baseline' }}>
-                                                <span className="roman-numeral">{toRoman(idx)}</span>
-                                                <div className="role-header" style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>
-                                                    {label}
-                                                </div>
-                                            </div>
-                                            <div className="role-num-sm" style={{ textAlign: 'right', paddingRight: '4px' }}>
-                                                <span style={{ color: 'var(--success)' }}>{data.api_success}</span>
-                                                <span style={{ color: 'var(--muted)', margin: '0 4px', fontSize: '10px' }}>◆</span>
-                                                <span style={{ color: 'var(--error)' }}>{data.api_errors}</span>
-                                            </div>
-                                            <div style={{ width: '12px', fontSize: '14px' }}>{data.free_tier === false ? '£' : ''}</div>
-                                        </div>
-                                    );
-                                });
-                        })()}
-                    </div>
-                </div>
-
-                {/* 3b. Data Services Card */}
-                <div className="stat-box" style={{ minWidth: '160px', alignItems: 'flex-start' }}>
-                    <div className="stat-value" style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'max-content 1fr max-content',
-                        columnGap: '8px',
-                        rowGap: '2px',
-                        textAlign: 'left',
-                        alignItems: 'baseline',
-                        width: '100%'
-                    }}>
-                        {(() => {
-                            if (!stats?.providers) return null;
-                            const fallbackOrder = (stats as any).llm_fallback || [];
-
-                            return Object.entries(stats.providers)
-                                .filter(([key]) => !fallbackOrder.includes(key))
-                                .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-                                .map(([key, data]) => {
-                                    if (!data) return null;
-                                    if (data.api_success === 0 && data.api_errors === 0) return null;
-                                    const label = key.toUpperCase().replace('-', ' ');
-                                    return (
-                                        <div key={key} style={{ display: 'contents' }}>
-                                            <div className="role-header" style={{ fontSize: '14px', whiteSpace: 'nowrap' }}>{label}</div>
-                                            <div className="role-num-sm" style={{ textAlign: 'right', paddingRight: '4px' }}>
-                                                <span style={{ color: 'var(--success)' }}>{data.api_success}</span>
-                                                <span style={{ color: 'var(--muted)', margin: '0 4px', fontSize: '10px' }}>◆</span>
-                                                <span style={{ color: 'var(--error)' }}>{data.api_errors}</span>
-                                            </div>
-                                            <div style={{ width: '12px', fontSize: '14px' }}>{data.free_tier === false ? '£' : ''}</div>
-                                        </div>
-                                    );
-                                });
-                        })()}
-                    </div>
-                </div>
-
-                {/* 4. Stats Card - GRID LAYOUT */}
-                <div className="stat-box" style={{ minWidth: '140px', alignItems: 'flex-start' }}>
-                    <div className="stat-value" style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'max-content 1fr 24px', // Align with Telemetry Card logic
-                        columnGap: '8px',
-                        rowGap: '2px',
-                        alignItems: 'baseline'
-                    }}>
-                        {/* MEM RSS */}
-                        <div className="role-label-overlay">MEM (RSS)</div>
-                        <div className="role-num-sm" style={{ textAlign: 'right' }}>{stats?.system?.memory_alloc_mb || 0}</div>
-                        <div className="role-label-overlay" style={{ fontSize: '12px' }}>MB</div>
-
-                        {/* MEM MAX */}
-                        <div className="role-label-overlay">MEM (max)</div>
-                        <div className="role-num-sm" style={{ textAlign: 'right' }}>{stats?.system?.memory_max_mb || 0}</div>
-                        <div className="role-label-overlay" style={{ fontSize: '12px' }}>MB</div>
-
-                        {/* POIS */}
-                        <div className="role-label-overlay">Tracked</div>
-                        <div className="role-num-sm" style={{ textAlign: 'right' }}>{stats?.tracking?.active_pois || 0}</div>
-                        <div className="role-label-overlay" style={{ fontSize: '12px' }}>POIs</div>
-                    </div>
-                </div>
-
-                {/* 5. Branding Card */}
-                <div className="stat-box branding-box" style={{ minWidth: '120px' }}>
-                    <div className="role-title" style={{ fontSize: '18px', lineHeight: '1.1', textAlign: 'center' }}>
-                        PHILEAS<br />
-                        TOUR GUIDE
-                    </div>
-                    {/* Use role-num-sm purely without overrides, maybe color muted */}
-                    <div className="role-num-sm" style={{ textAlign: 'center', marginTop: '6px', color: '#bbb' }}>
-                        {version}
-                    </div>
-                </div>
-
-                <div className="stat-box config-box">
-                    <div className="overlay-config-status" style={{ display: 'grid', gridTemplateColumns: 'min-content min-content', gap: '4px 12px', alignItems: 'center' }}>
-                        {/* Row 1: SIM */}
-                        <span className="role-label-overlay" style={{ textAlign: 'left' }}>SIM</span>
-                        <span style={{ fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                            {telemetry.SimState === 'active' ? ((telemetry.IsOnGround === false && telemetry.GroundSpeed < 1) ? '🟠' : '🟢') : telemetry.SimState === 'inactive' ? '🟠' : '🔴'}
-                        </span>
-
-                        {/* Row 2: MODE */}
-                        <span className="role-label-overlay" style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>{config.filter_mode === 'adaptive' ? 'ADAPTIVE' : 'FIXED'}</span>
-                        <span className="icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{config.filter_mode === 'adaptive' ? '⚡' : '🎯'}</span>
-
-                        {/* Row 3: FRQ */}
-                        <span className="role-label-overlay" style={{ textAlign: 'left' }}>FRQ</span>
-                        <div className="pips" style={{ display: 'flex', gap: '2px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                            {[1, 2, 3, 4, 5].map(v => (
-                                <div key={v} className={`pip ${v <= (config.narration_frequency || 0) ? 'active' : ''} ${v > 3 && v <= (config.narration_frequency || 0) ? 'high' : ''}`} />
-                            ))}
-                        </div>
-
-                        {/* Row 4: LEN */}
-                        <span className="role-label-overlay" style={{ textAlign: 'left' }}>LEN</span>
-                        <div className="pips" style={{ display: 'flex', gap: '2px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                            {[1, 2, 3, 4, 5].map(v => (
-                                <div key={v} className={`pip ${v <= (config.text_length || 0) ? 'active' : ''} ${v > 4 && v <= (config.text_length || 0) ? 'high' : ''}`} />
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-            </div> {/* End of stats-row */}
-
-            {/* Log Line (Outside of flow, absolute positioned in CSS) */}
             {config.show_log_line && (
                 <div className="log-line role-label-overlay" style={{ fontStyle: 'italic', fontSize: '16px', lineHeight: '30px' }}>
                     {logLine}

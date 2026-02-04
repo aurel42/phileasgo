@@ -159,7 +159,8 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 			simC := &mockJobSimClient{state: sim.StateActive}
 
 			// Note: We pass nil for store, so it falls back to cfg.Frequency
-			job := NewNarrationJob(cfg, mockN, pm, simC, nil, nil)
+			prov := config.NewProvider(cfg, nil)
+			job := NewNarrationJob(prov, mockN, pm, simC, nil, nil)
 
 			// Force cooldown ready for non-playing case
 			job.lastTime = time.Now().Add(-10 * time.Minute)
@@ -173,7 +174,7 @@ func TestNarrationJob_Frequency_Strategies(t *testing.T) {
 			}
 
 			// 1. Check if we can prepare a POI narration (Frequency/Pipeline logic)
-			canPrepare := job.CanPreparePOI(tel)
+			canPrepare := job.CanPreparePOI(context.Background(), tel)
 
 			// Special Check: If we are testing Frequency/Pipeline rules (tt.remaining set),
 			// we expect CanPrepare to match strictly.

@@ -1,5 +1,11 @@
 ﻿Release History
 
+## v0.3.119 (2026-02-04)
+- **Feature**: **Unified React Settings**. Re-implemented the settings interface entirely in React with a premium Victorian design system (Brass accents, Serif typography, framed layouts).
+- **Consolidation**: **Interface Harmonization**. Unified configuration entry points across all platforms; the standalone browser, OBS overlay, and native GUI now all navigate to the same unified settings page.
+- **Improvement**: **Mock Simulator Support**. Added full configuration support for the internal Mock Simulator (start coordinates, durations, etc.) and global Teleport Threshold directly in the unified UI.
+- **Refactor**: **Lean Wrapper**. Eliminated redundant configuration management and communication logic from the Go-based PhileasGUI wrapper.
+
 ## v0.3.118 (2026-02-03)
 - **Fix**: **Screenshot Panel State Leak**. Fixed an issue where the previous POI's info panel would appear instead of the screenshot panel. The root cause was that `selectedPOI` state was not cleared when transitioning to non-POI narratives (screenshots, essays, debriefs).
 

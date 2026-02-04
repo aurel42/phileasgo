@@ -18,7 +18,7 @@ type TelemetrySink interface {
 
 // Scheduler manages the central heartbeat and scheduled jobs.
 type Scheduler struct {
-	cfg              *config.Config
+	cfgProv          config.Provider
 	sim              sim.Client
 	sink             TelemetrySink
 	jobs             []Job
@@ -28,9 +28,9 @@ type Scheduler struct {
 }
 
 // NewScheduler creates a new Scheduler.
-func NewScheduler(cfg *config.Config, simClient sim.Client, sink TelemetrySink, g LocationProvider) *Scheduler {
+func NewScheduler(cfgProv config.Provider, simClient sim.Client, sink TelemetrySink, g LocationProvider) *Scheduler {
 	s := &Scheduler{
-		cfg:              cfg,
+		cfgProv:          cfgProv,
 		sim:              simClient,
 		sink:             sink,
 		jobs:             []Job{},
@@ -56,7 +56,7 @@ func (s *Scheduler) AddJob(j Job) {
 
 // Start runs the main loop. It blocks until context is cancelled.
 func (s *Scheduler) Start(ctx context.Context) {
-	interval := time.Duration(s.cfg.Ticker.TelemetryLoop)
+	interval := s.cfgProv.TelemetryLoop(ctx)
 	if interval <= 0 {
 		// 1Hz for stability; high frequency is unnecessary as SimConnect data updates at 1Hz
 		interval = 1 * time.Second
@@ -116,7 +116,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 		}
 	} else {
 		distM := geo.Distance(s.lastTickPos, currPos)
-		thresholdM := float64(s.cfg.Sim.TeleportThreshold)
+		thresholdM := s.cfgProv.TeleportDistance(ctx)
 		if thresholdM <= 0 {
 			thresholdM = 80000.0 // Default 80km
 		}

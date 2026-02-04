@@ -222,7 +222,8 @@ func (p *Pipeline) rescueFromBatch(candidates []Article, lat, lon float64, media
 	localMax := rescue.AnalyzeTile(lat, lon, rescueCandidates)
 
 	// Determine rescued
-	rescued := rescue.Batch(rescueCandidates, localMax, medians, p.cfg.Rescue.PromoteByDimension.MinHeight, p.cfg.Rescue.PromoteByDimension.MinLength, p.cfg.Rescue.PromoteByDimension.MinArea)
+	cfg := p.cfgProv.AppConfig().Wikidata.Rescue.PromoteByDimension
+	rescued := rescue.Batch(rescueCandidates, localMax, medians, cfg.MinHeight, cfg.MinLength, cfg.MinArea)
 
 	// Concise Logging
 	p.logRescueStats(lat, lon, localMax, medians, rescueCandidates, rescued)

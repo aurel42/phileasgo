@@ -2,13 +2,17 @@ import { Map } from './components/Map';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { InfoPanel } from './components/InfoPanel';
 import { POIInfoPanel } from './components/POIInfoPanel';
-import { SettingsPanel } from './components/SettingsPanel';
 import { PlaybackControls } from './components/PlaybackControls';
 import { useTelemetry } from './hooks/useTelemetry';
 import { useTrackedPOIs } from './hooks/usePOIs';
 import type { POI } from './hooks/usePOIs';
 import { useNarrator } from './hooks/useNarrator';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+
+const SettingsPanel = lazy(() => import('./components/SettingsPanel').then(m => ({ default: m.SettingsPanel })));
+
+
+
 
 type Units = 'km' | 'nm';
 
@@ -18,7 +22,8 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isGui = new URLSearchParams(location.search || window.location.search).get('gui') === 'true';
+  const isGui = new URLSearchParams(window.location.search).get('gui') === 'true';
+
 
   // Streaming mode state (persisted to localStorage)
   const [streamingMode, setStreamingMode] = useState(() => {
@@ -133,7 +138,7 @@ function App() {
     autoOpenedRef.current = false;
   }, [selectedPOI]);
 
-  // Helper to update config via API
+  // Fetch config on mount and poll for updates (to handle multi-tab/GUI changes)
   const updateConfig = useCallback((key: string, value: string | number | boolean) => {
     // Optimistic update
     if (key === 'units') setUnits(value as Units);
@@ -146,16 +151,14 @@ function App() {
     if (key === 'text_length') setTextLength(value as number);
 
     fetch('/api/config', {
-      method: 'PUT', // Changed from POST to PUT for consistency with existing handlers
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [key]: value })
     }).catch(e => {
       console.error("Failed to save config", e);
-      // Revert on error would be ideal here
     });
   }, []);
 
-  // Fetch config on mount and poll for updates (to handle multi-tab/GUI changes)
   useEffect(() => {
     const fetchConfig = () => {
       fetch('/api/config')
@@ -195,9 +198,6 @@ function App() {
       }
     }
   }, [narratorStatus?.narration_frequency, narratorStatus?.text_length, narrationFrequency, textLength]);
-
-
-
 
   // Handler to update visibility layer config
   const handleVisibilityLayerChange = useCallback((show: boolean) => {
@@ -242,35 +242,36 @@ function App() {
 
   if (isSettings) {
     return (
-      <SettingsPanel
-        isGui={isGui}
-        onBack={() => navigate('/')}
-        telemetry={telemetry}
-        units={units}
-        onUnitsChange={(val) => updateConfig('units', val)}
-        showCacheLayer={showCacheLayer}
-        onCacheLayerChange={(val) => updateConfig('show_cache_layer', val)}
-        showVisibilityLayer={showVisibilityLayer}
-        onVisibilityLayerChange={handleVisibilityLayerChange}
-        minPoiScore={minPoiScore}
-        onMinPoiScoreChange={handleMinPoiScoreChange}
-        filterMode={filterMode}
-        onFilterModeChange={handleFilterModeChange}
-        targetPoiCount={targetCount}
-        onTargetPoiCountChange={handleTargetCountChange}
-        narrationFrequency={narrationFrequency}
-        onNarrationFrequencyChange={(val) => updateConfig('narration_frequency', val)}
-        textLength={textLength}
-        onTextLengthChange={(val) => updateConfig('text_length', val)}
-        streamingMode={streamingMode}
-        onStreamingModeChange={(val) => {
-          setStreamingMode(val);
-          localStorage.setItem('streamingMode', String(val));
-        }}
-      />
+      <Suspense fallback={<div style={{ background: '#060606', height: '100vh' }} />}>
+        <SettingsPanel
+          isGui={isGui}
+          onBack={() => navigate('/')}
+          telemetry={telemetry ?? null}
+          units={units}
+          onUnitsChange={(val) => updateConfig('units', val)}
+          showCacheLayer={showCacheLayer}
+          onCacheLayerChange={(val) => updateConfig('show_cache_layer', val)}
+          showVisibilityLayer={showVisibilityLayer}
+          onVisibilityLayerChange={handleVisibilityLayerChange}
+          minPoiScore={minPoiScore}
+          onMinPoiScoreChange={handleMinPoiScoreChange}
+          filterMode={filterMode}
+          onFilterModeChange={handleFilterModeChange}
+          targetPoiCount={targetCount}
+          onTargetPoiCountChange={handleTargetCountChange}
+          narrationFrequency={narrationFrequency}
+          onNarrationFrequencyChange={(val) => updateConfig('narration_frequency', val)}
+          textLength={textLength}
+          onTextLengthChange={(val) => updateConfig('text_length', val)}
+          streamingMode={streamingMode}
+          onStreamingModeChange={(val) => {
+            setStreamingMode(val);
+            localStorage.setItem('streamingMode', String(val));
+          }}
+        />
+      </Suspense>
     );
   }
-
   return (
     <div className="app-container">
       <div className="map-container">
@@ -285,7 +286,7 @@ function App() {
         />
 
         {/* Config Pill Overlay */}
-        <div className="config-pill" style={{
+        <div className="config-pill" onClick={() => navigate('/settings')} style={{
           position: 'absolute',
           top: '20px',
           right: '20px',
@@ -294,7 +295,7 @@ function App() {
           color: 'inherit',
           background: 'var(--panel-bg)',
           boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
-          cursor: 'default'
+          cursor: 'pointer'
         }}>
           {/* Sim Status Item */}
           <div className="config-pill-item" style={{ marginRight: '8px', paddingRight: '12px', borderRight: '1px solid rgba(255,255,255,0.1)' }}>

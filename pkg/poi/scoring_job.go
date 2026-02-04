@@ -38,7 +38,7 @@ type ScoringJob struct {
 	manager ScoringManager
 	sim     sim.Client
 	scorer  *scorer.Scorer
-	cfg     *config.NarratorConfig
+	cfg     config.Provider
 	busyFn  func(qid string) bool
 	lastRun time.Time
 }
@@ -49,7 +49,7 @@ func NewScoringJob(
 	manager ScoringManager,
 	simClient sim.Client,
 	sc *scorer.Scorer,
-	cfg *config.NarratorConfig,
+	cfg config.Provider,
 	busyFn func(qid string) bool,
 	logger *slog.Logger, // Optional
 ) *ScoringJob {
@@ -153,7 +153,7 @@ func (j *ScoringJob) performScoringPass(ctx context.Context) {
 	input := scorer.ScoringInput{
 		Telemetry:       telemetry,
 		CategoryHistory: history,
-		NarratorConfig:  j.cfg,
+		RepeatTTL:       j.cfg.RepeatTTL(ctx),
 		BoostFactor:     boostFactor,
 		IsPOIBusy:       j.busyFn,
 	}

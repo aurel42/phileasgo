@@ -35,8 +35,16 @@ func (p *Pipeline) hydrateCandidates(ctx context.Context, candidates []Article, 
 
 		p.processSitelinks(&cand, data.Sitelinks, allowedCodes)
 
-		if t, ok := cand.LocalTitles[p.userLang]; ok {
-			cand.TitleUser = t
+		userLang := p.cfgProv.TargetLanguage(ctx)
+		if userLang != "" {
+			// Normalize userLang (e.g. "en-US" -> "en")
+			normalizedLang := userLang
+			if len(userLang) > 2 {
+				normalizedLang = strings.Split(userLang, "-")[0]
+			}
+			if t, ok := cand.LocalTitles[normalizedLang]; ok {
+				cand.TitleUser = t
+			}
 		}
 
 		if lbl, ok := data.Labels["en"]; ok {
