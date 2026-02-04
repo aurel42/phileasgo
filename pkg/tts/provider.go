@@ -4,6 +4,12 @@ import (
 	"context"
 )
 
+// LanguageProvider allows TTS providers to get the current target language dynamically.
+// This enables language changes from the config dialog to take effect without restart.
+type LanguageProvider interface {
+	ActiveTargetLanguage(ctx context.Context) string
+}
+
 // Provider defines the interface for Text-To-Speech engines.
 type Provider interface {
 	// Synthesize generates audio from text and writes it to outputPath.

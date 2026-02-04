@@ -166,7 +166,7 @@ function App() {
         .then(data => {
           // Only update if changed to avoid unnecessary re-renders? 
           // React state updates are cheap if value is same (bailout), but let's just set them.
-          setUnits(data.units || 'km');
+          setUnits(data.range_ring_units || 'km');
           setShowCacheLayer(data.show_cache_layer || false);
           setShowVisibilityLayer(data.show_visibility_layer || false);
           setMinPoiScore(data.min_poi_score ?? 0.5);
@@ -248,7 +248,7 @@ function App() {
           onBack={() => navigate('/')}
           telemetry={telemetry ?? null}
           units={units}
-          onUnitsChange={(val) => updateConfig('units', val)}
+          onUnitsChange={(val) => updateConfig('range_ring_units', val)}
           showCacheLayer={showCacheLayer}
           onCacheLayerChange={(val) => updateConfig('show_cache_layer', val)}
           showVisibilityLayer={showVisibilityLayer}

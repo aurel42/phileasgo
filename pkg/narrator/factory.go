@@ -80,7 +80,8 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 }
 
 // NewTTSProvider returns a TTS provider based on configuration.
-func NewTTSProvider(cfg *config.TTSConfig, targetLang string, t *tracker.Tracker) (tts.Provider, error) {
+// langProv provides dynamic access to the target language (for providers that need it).
+func NewTTSProvider(cfg *config.TTSConfig, langProv tts.LanguageProvider, t *tracker.Tracker) (tts.Provider, error) {
 	var prov tts.Provider
 	var err error
 	var free bool
@@ -96,7 +97,7 @@ func NewTTSProvider(cfg *config.TTSConfig, targetLang string, t *tracker.Tracker
 		prov = fishaudio.NewProvider(cfg.FishAudio, t)
 		free = cfg.FishAudio.FreeTier
 	case "azure", "azure-speech":
-		prov = azure.NewProvider(cfg.AzureSpeech, targetLang, t)
+		prov = azure.NewProvider(cfg.AzureSpeech, langProv, t)
 		free = cfg.AzureSpeech.FreeTier
 	default:
 		return nil, fmt.Errorf("unknown tts engine: %s", cfg.Engine)

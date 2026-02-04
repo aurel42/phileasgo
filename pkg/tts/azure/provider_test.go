@@ -1,11 +1,21 @@
 package azure
 
 import (
+	"context"
 	"testing"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/tracker"
 )
+
+// mockLangProvider is a test helper that implements tts.LanguageProvider
+type mockLangProvider struct {
+	lang string
+}
+
+func (m *mockLangProvider) ActiveTargetLanguage(ctx context.Context) string {
+	return m.lang
+}
 
 func TestProvider_Structure(t *testing.T) {
 	// Since we can't easily mock the external Azure API call without dependency injection for http.Client
@@ -38,7 +48,8 @@ func TestProvider_Structure(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewProvider(tt.cfg, "en-US", tt.tracker)
+			langProv := &mockLangProvider{lang: "en-US"}
+			p := NewProvider(tt.cfg, langProv, tt.tracker)
 			if p == nil {
 				t.Fatal("NewProvider returned nil")
 			}
@@ -57,7 +68,8 @@ func TestProvider_Structure(t *testing.T) {
 // var _ tts.Provider = (*Provider)(nil)
 
 func TestBuildSSML(t *testing.T) {
-	p := NewProvider(config.AzureSpeechConfig{VoiceID: "test-voice"}, "en-US", nil)
+	langProv := &mockLangProvider{lang: "en-US"}
+	p := NewProvider(config.AzureSpeechConfig{VoiceID: "test-voice"}, langProv, nil)
 
 	tests := []struct {
 		name     string
@@ -96,7 +108,7 @@ func TestBuildSSML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotSSML := p.buildSSML("test-voice", tt.input)
+			gotSSML := p.buildSSML(context.Background(), "test-voice", tt.input)
 
 			// We check if the result contains the expected content
 			// Since we wrap it in <speak> and <voice>, we can just check substring

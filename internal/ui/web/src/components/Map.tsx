@@ -12,6 +12,7 @@ import { useNarrator } from '../hooks/useNarrator';
 import { useMapEvents } from 'react-leaflet';
 import { MapBranding } from './MapBranding';
 import { CoverageLayer } from './CoverageLayer';
+import { VictorianToggle } from './VictorianToggle';
 
 // Zoom level calculations:
 // At zoom 13: ~10km visible (min area)
@@ -421,22 +422,11 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
             {/* Auto Zoom Selector Control - Only when Connected */}
             {isConnected && (
                 <div style={{ position: 'absolute', bottom: '16px', left: '16px', zIndex: 1000 }}>
-                    <div className="length-selector" style={{ display: 'flex', alignItems: 'center', background: 'var(--panel-bg)', boxShadow: '0 4px 10px rgba(0,0,0,0.5)', padding: '4px' }}>
-                        <span className="role-btn" style={{ fontWeight: 700, color: 'var(--muted)', marginRight: '8px', marginLeft: '4px' }}>AUTOZOOM</span>
-                        <div style={{ display: 'flex', background: 'rgba(0, 0, 0, 0.3)', borderRadius: '4px', padding: '2px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                            <button
-                                className={`length-btn role-btn ${autoZoom ? 'active' : ''}`}
-                                onClick={() => setAutoZoom(true)}
-                            >
-                                ON
-                            </button>
-                            <button
-                                className={`length-btn role-btn ${!autoZoom ? 'active' : ''}`}
-                                onClick={() => setAutoZoom(false)}
-                            >
-                                OFF
-                            </button>
-                        </div>
+                    <div style={{ background: 'var(--panel-bg)', boxShadow: '0 4px 10px rgba(0,0,0,0.5)', padding: '6px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <VictorianToggle
+                            checked={autoZoom}
+                            onChange={setAutoZoom}
+                        />
                     </div>
                 </div>
             )}

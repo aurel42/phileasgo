@@ -43,6 +43,8 @@ func TestUnifiedProvider(t *testing.T) {
 	baseCfg.Narrator.Frequency = 10
 	baseCfg.Narrator.RepeatTTL = Duration(3600 * time.Second)
 	baseCfg.Narrator.TargetLanguage = "en-US"
+	baseCfg.Narrator.ActiveTargetLanguage = "en-US"
+	baseCfg.Narrator.TargetLanguageLibrary = []string{"en-US", "de-DE"}
 	baseCfg.Sim.Mock.StartLat = 45.0
 	baseCfg.Sim.Mock.StartLon = 5.0
 	baseCfg.Sim.Mock.StartAlt = 1000.0
@@ -91,6 +93,12 @@ func TestUnifiedProvider(t *testing.T) {
 		}
 		if p.TargetLanguage(ctx) != "en-US" {
 			t.Errorf("expected en-US, got %s", p.TargetLanguage(ctx))
+		}
+		if p.ActiveTargetLanguage(ctx) != "en-US" {
+			t.Errorf("expected en-US, got %s", p.ActiveTargetLanguage(ctx))
+		}
+		if len(p.TargetLanguageLibrary(ctx)) != 2 {
+			t.Errorf("expected 2 languages, got %d", len(p.TargetLanguageLibrary(ctx)))
 		}
 		if p.TextLengthScale(ctx) != 3 {
 			t.Errorf("expected 3, got %d", p.TextLengthScale(ctx))
@@ -178,9 +186,12 @@ func TestUnifiedProvider(t *testing.T) {
 		store.SetState(ctx, KeyTargetPOICount, "10")
 		store.SetState(ctx, KeyActiveStyle, "style2")
 		store.SetState(ctx, KeyActiveSecretWord, "word2")
+		store.SetState(ctx, KeyActiveTargetLanguage, "fr-FR")
 
 		styles, _ := json.Marshal([]string{"s1", "s2", "s3"})
 		store.SetState(ctx, KeyStyleLibrary, string(styles))
+		langs, _ := json.Marshal([]string{"fr-FR", "pl-PL"})
+		store.SetState(ctx, KeyTargetLanguageLibrary, string(langs))
 
 		if p.SimProvider(ctx) != "mock" {
 			t.Errorf("expected mock, got %s", p.SimProvider(ctx))
@@ -232,6 +243,12 @@ func TestUnifiedProvider(t *testing.T) {
 		}
 		if p.ActiveSecretWord(ctx) != "word2" {
 			t.Errorf("expected word2, got %s", p.ActiveSecretWord(ctx))
+		}
+		if p.ActiveTargetLanguage(ctx) != "fr-FR" {
+			t.Errorf("expected fr-FR, got %s", p.ActiveTargetLanguage(ctx))
+		}
+		if len(p.TargetLanguageLibrary(ctx)) != 2 {
+			t.Errorf("expected 2 languages, got %d", len(p.TargetLanguageLibrary(ctx)))
 		}
 		if len(p.StyleLibrary(ctx)) != 3 {
 			t.Errorf("expected 3 styles, got %d", len(p.StyleLibrary(ctx)))

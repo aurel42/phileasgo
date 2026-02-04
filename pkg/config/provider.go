@@ -15,7 +15,8 @@ type Provider interface {
 	// General
 	SimProvider(ctx context.Context) string
 	TeleportDistance(ctx context.Context) float64
-	Units(ctx context.Context) string
+	Units(ctx context.Context) string         // Prompt template units (imperial/hybrid/metric)
+	RangeRingUnits(ctx context.Context) string // Map display units (km/nm)
 	TelemetryLoop(ctx context.Context) time.Duration
 
 	// Narrator
@@ -24,6 +25,8 @@ type Provider interface {
 	NarrationFrequency(ctx context.Context) int
 	RepeatTTL(ctx context.Context) time.Duration
 	TargetLanguage(ctx context.Context) string
+	ActiveTargetLanguage(ctx context.Context) string
+	TargetLanguageLibrary(ctx context.Context) []string
 	TextLengthScale(ctx context.Context) int
 
 	// Mock Sim
@@ -93,6 +96,12 @@ func (p *UnifiedProvider) Units(ctx context.Context) string {
 	return p.getString(ctx, KeyUnits, p.base.Narrator.Units)
 }
 
+// RangeRingUnits returns the map display units (km or nm) for the frontend.
+// This is stored separately from the prompt template units.
+func (p *UnifiedProvider) RangeRingUnits(ctx context.Context) string {
+	return p.getString(ctx, KeyRangeRingUnits, "km")
+}
+
 func (p *UnifiedProvider) TelemetryLoop(ctx context.Context) time.Duration {
 	return time.Duration(p.base.Ticker.TelemetryLoop)
 }
@@ -115,6 +124,14 @@ func (p *UnifiedProvider) RepeatTTL(ctx context.Context) time.Duration {
 
 func (p *UnifiedProvider) TargetLanguage(ctx context.Context) string {
 	return p.base.Narrator.TargetLanguage
+}
+
+func (p *UnifiedProvider) ActiveTargetLanguage(ctx context.Context) string {
+	return p.getString(ctx, KeyActiveTargetLanguage, p.base.Narrator.ActiveTargetLanguage)
+}
+
+func (p *UnifiedProvider) TargetLanguageLibrary(ctx context.Context) []string {
+	return p.getStringSlice(ctx, KeyTargetLanguageLibrary, p.base.Narrator.TargetLanguageLibrary)
 }
 
 func (p *UnifiedProvider) TextLengthScale(ctx context.Context) int {

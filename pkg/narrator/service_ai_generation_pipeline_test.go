@@ -18,7 +18,8 @@ func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
 	// Setup service with mocks
 	cfg := config.NewProvider(&config.Config{
 		Narrator: config.NarratorConfig{
-			TargetLanguage: "en",
+			ActiveTargetLanguage:  "en",
+			TargetLanguageLibrary: []string{"en"},
 		},
 	}, nil)
 	mockTTS := &MockTTS{Format: "mp3"}

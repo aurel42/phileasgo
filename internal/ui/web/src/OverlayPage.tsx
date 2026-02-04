@@ -49,7 +49,7 @@ const OverlayPage = () => {
                 .then(r => r.json())
                 .then(data => {
                     if (data) {
-                        if (data.units) setUnits(data.units);
+                        if (data.range_ring_units) setUnits(data.range_ring_units);
                         if (typeof data.min_poi_score === 'number') setMinPoiScore(data.min_poi_score);
                         if (typeof data.show_map_box === 'boolean') setShowMapBox(data.show_map_box);
                         if (typeof data.show_poi_info === 'boolean') setShowPOIInfo(data.show_poi_info);

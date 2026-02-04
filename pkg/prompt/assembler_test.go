@@ -63,7 +63,8 @@ func TestAssembler_NewPromptData(t *testing.T) {
 	a := &Assembler{
 		cfg: config.NewProvider(&config.Config{
 			Narrator: config.NarratorConfig{
-				TargetLanguage: "en-US",
+				ActiveTargetLanguage:  "en-US",
+				TargetLanguageLibrary: []string{"en-US"},
 			},
 		}, nil),
 	}
@@ -112,7 +113,8 @@ func TestAssembler_ForPOI_NilTelemetry(t *testing.T) {
 	a := &Assembler{
 		cfg: config.NewProvider(&config.Config{
 			Narrator: config.NarratorConfig{
-				TargetLanguage: "en-US",
+				ActiveTargetLanguage:  "en-US",
+				TargetLanguageLibrary: []string{"en-US"},
 			},
 		}, nil),
 		geoSvc:    &MockGeo{Country: "Test", City: "TestCity"},

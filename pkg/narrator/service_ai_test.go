@@ -92,7 +92,8 @@ func TestAIService_PlayPOI(t *testing.T) {
 			// Mocks
 			cfg := config.NewProvider(&config.Config{
 				Narrator: config.NarratorConfig{
-					TargetLanguage: "en",
+					ActiveTargetLanguage:  "en",
+					TargetLanguageLibrary: []string{"en"},
 				},
 			}, nil)
 			mockLLM := &MockLLM{Response: "Generated Script", Err: tt.llmErr}
@@ -273,8 +274,9 @@ func TestAIService_NavUnits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.NewProvider(&config.Config{
 				Narrator: config.NarratorConfig{
-					Units:          tt.units,
-					TargetLanguage: "en",
+					Units:                 tt.units,
+					ActiveTargetLanguage:  "en",
+					TargetLanguageLibrary: []string{"en"},
 				},
 			}, nil)
 			mockLLM := &MockLLM{Response: "Script"}

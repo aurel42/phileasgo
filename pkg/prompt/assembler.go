@@ -139,14 +139,14 @@ func (a *Assembler) injectPersona(pd Data, session SessionState) {
 	pd["TourGuideName"] = "Ava"
 	pd["Persona"] = "Intelligent, fascinating"
 	pd["Accent"] = "Neutral"
-	pd["Language"] = a.cfg.TargetLanguage(context.Background())
+	pd["Language"] = a.cfg.ActiveTargetLanguage(context.Background())
 	pd["FemalePersona"] = "Intelligent, fascinating"
 	pd["FemaleAccent"] = "Neutral"
 	pd["PassengerMale"] = "Andrew"
 	pd["MaleAccent"] = "Neutral"
 	pd["TripSummary"] = a.formatTripLog(session.Events)
 	pd["LastSentence"] = session.LastSentence
-	pd["TargetLanguage"] = a.cfg.TargetLanguage(context.Background())
+	pd["TargetLanguage"] = a.cfg.ActiveTargetLanguage(context.Background())
 	pd["MaxWords"] = appCfg.Narrator.NarrationLengthLongWords
 
 	// Dynamic Style & Trip Theme
@@ -159,7 +159,7 @@ func (a *Assembler) injectPersona(pd Data, session SessionState) {
 	pd["TextLengthScale"] = a.cfg.TextLengthScale(context.Background())
 	pd["UnitSetting"] = a.cfg.Units(context.Background())
 
-	targetLang := appCfg.Narrator.TargetLanguage
+	targetLang := a.cfg.ActiveTargetLanguage(context.Background())
 	langCode := "en"
 	langName := "English"
 	parts := strings.Split(targetLang, "-")

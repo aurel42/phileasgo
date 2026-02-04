@@ -45,6 +45,8 @@ X frontend: click on configuration pill in main tab opens config page on main ta
 - tune visibility boost for distance; should result in more deferrals
 X do not request info panel for essay, briefing
 X verify: when flying from MN to CN, to we check the chinese wikipedia?
+X regression: essay titles are missing, are now only the category
+- need a way to tune deferrals, either by boosting close-up visibility (power function?) or by changing the deferral threshold
 
 # Trip Themes
 

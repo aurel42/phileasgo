@@ -144,6 +144,7 @@ func TestHandleSetConfig(t *testing.T) {
 	ptrInt := func(i int) *int { return &i }
 	ptrBool := func(b bool) *bool { return &b }
 	ptrFloat := func(f float64) *float64 { return &f }
+	ptrString := func(s string) *string { return &s }
 
 	tests := []struct {
 		name    string
@@ -159,9 +160,21 @@ func TestHandleSetConfig(t *testing.T) {
 		},
 		{
 			name:    "Update Units",
-			req:     ConfigRequest{Units: "nm"},
+			req:     ConfigRequest{Units: "hybrid"},
 			wantKey: "units",
+			wantVal: "hybrid",
+		},
+		{
+			name:    "Update Range Ring Units",
+			req:     ConfigRequest{RangeRingUnits: "nm"},
+			wantKey: "range_ring_units",
 			wantVal: "nm",
+		},
+		{
+			name:    "Update Active Target Language",
+			req:     ConfigRequest{ActiveTargetLanguage: ptrString("de-DE")},
+			wantKey: "active_target_language",
+			wantVal: "de-DE",
 		},
 		{
 			name:    "Update Filter Mode",
@@ -251,7 +264,7 @@ func TestHandleSetConfig(t *testing.T) {
 	})
 
 	t.Run("Invalid Units", func(t *testing.T) {
-		body, _ := json.Marshal(ConfigRequest{Units: "invalid"})
+		body, _ := json.Marshal(ConfigRequest{Units: "km"}) // km is now invalid for Units (must be imperial/hybrid/metric)
 		req := httptest.NewRequest("POST", "/api/config", bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
 		h.HandleConfig(w, req)

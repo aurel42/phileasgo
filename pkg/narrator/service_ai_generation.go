@@ -137,6 +137,10 @@ func (s *AIService) constructNarrative(req *GenerationRequest, script, extracted
 	if finalTitle == "" {
 		finalTitle = extractedTitle
 	}
+	// For essays, prefer the LLM-generated title over the generic topic name
+	if req.Type == model.NarrativeTypeEssay && extractedTitle != "" {
+		finalTitle = extractedTitle
+	}
 
 	// For screenshots, we preserve the raw path in ImagePath
 	imagePath := req.ImagePath

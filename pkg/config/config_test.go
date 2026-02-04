@@ -175,7 +175,7 @@ func TestLoad(t *testing.T) {
 		{
 			name: "Invalid_Locale",
 			setup: func() {
-				err := os.WriteFile(configPath, []byte("narrator:\n  target_language: invalid\n"), 0o644)
+				err := os.WriteFile(configPath, []byte("narrator:\n  active_target_language: invalid\n"), 0o644)
 				if err != nil {
 					t.Fatalf("failed to setup test file: %v", err)
 				}

@@ -21,20 +21,20 @@ type Provider struct {
 	key      string
 	region   string
 	voiceID  string
-	language string
+	langProv tts.LanguageProvider
 	client   *http.Client
 	url      string
 	tracker  *tracker.Tracker
 }
 
 // NewProvider creates a new Azure Speech TTS provider.
-func NewProvider(cfg config.AzureSpeechConfig, lang string, t *tracker.Tracker) *Provider {
+func NewProvider(cfg config.AzureSpeechConfig, langProv tts.LanguageProvider, t *tracker.Tracker) *Provider {
 	url := fmt.Sprintf("https://%s.tts.speech.microsoft.com/cognitiveservices/v1", cfg.Region)
 	return &Provider{
 		key:      cfg.Key,
 		region:   cfg.Region,
 		voiceID:  cfg.VoiceID,
-		language: lang,
+		langProv: langProv,
 		client:   &http.Client{},
 		url:      url,
 		tracker:  t,
@@ -53,7 +53,7 @@ func (p *Provider) Synthesize(ctx context.Context, text, voiceID, outputPath str
 	}
 
 	// 2. Build & Validate SSML
-	ssml := p.buildSSML(vid, text)
+	ssml := p.buildSSML(ctx, vid, text)
 
 	// 3. Execute Request
 
@@ -153,9 +153,12 @@ func validateSSML(ssml string) error {
 	return nil
 }
 
-func (p *Provider) buildSSML(vid, text string) string {
+func (p *Provider) buildSSML(ctx context.Context, vid, text string) string {
 	// 0. Pre-emptive Repair: Fix common hallucinations (e.g. xml:ID)
 	text = repairSSML(text)
+
+	// Get language dynamically from provider (allows runtime changes via config dialog)
+	language := p.langProv.ActiveTargetLanguage(ctx)
 
 	// We use "narration-friendly" style as requested.
 	// We do NOT escape XML here because the LLM is instructed to produce valid SSML/XML-safe text.
@@ -176,7 +179,7 @@ func (p *Provider) buildSSML(vid, text string) string {
 
 	ssml := fmt.Sprintf(
 		`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='%s'><voice name='%s'>%s</voice></speak>`,
-		p.language, vid, processedText,
+		language, vid, processedText,
 	)
 
 	// Validate SSML (catch LLM errors like malformed tags)
@@ -185,7 +188,7 @@ func (p *Provider) buildSSML(vid, text string) string {
 		cleanText := stripTags(text)
 		return fmt.Sprintf(
 			`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='%s'><voice name='%s'>%s</voice></speak>`,
-			p.language, vid, cleanText,
+			language, vid, cleanText,
 		)
 	}
 	return ssml

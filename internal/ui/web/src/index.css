@@ -732,3 +732,41 @@ body {
   letter-spacing: 0.05em;
   margin-right: 6px;
 }
+
+/* --- Victorian Toggle Switches --- */
+.settings-toggle {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.settings-toggle input { display: none; }
+
+.toggle-slider {
+    width: 40px; height: 20px;
+    background: #444;
+    border-radius: 10px;
+    position: relative;
+    transition: 0.3s;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.toggle-slider::after {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #888;
+    border-radius: 50%;
+    top: 2px; left: 2px;
+    transition: 0.3s;
+}
+
+input:checked + .toggle-slider { background: var(--accent); }
+input:checked + .toggle-slider::after { left: 23px; background: #000; }
+
+.v-toggle-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}

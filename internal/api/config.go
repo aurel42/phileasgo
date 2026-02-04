@@ -30,59 +30,65 @@ func NewConfigHandler(st store.Store, cfg config.Provider) *ConfigHandler {
 
 // ConfigResponse represents the config API response.
 type ConfigResponse struct {
-	SimSource           string   `json:"sim_source"`
-	Units               string   `json:"units"`
-	TTSEngine           string   `json:"tts_engine"`
-	ShowCacheLayer      bool     `json:"show_cache_layer"`
-	ShowVisibilityLayer bool     `json:"show_visibility_layer"`
-	MinPOIScore         float64  `json:"min_poi_score"`
-	Volume              float64  `json:"volume"`
-	FilterMode          string   `json:"filter_mode"`
-	TargetPOICount      int      `json:"target_poi_count"`
-	NarrationFrequency  int      `json:"narration_frequency"`
-	TextLength          int      `json:"text_length"`
-	ShowMapBox          bool     `json:"show_map_box"`
-	ShowPOIInfo         bool     `json:"show_poi_info"`
-	ShowInfoBar         bool     `json:"show_info_bar"`
-	ShowLogLine         bool     `json:"show_log_line"`
-	LLMProvider         string   `json:"llm_provider"`
-	TeleportDistance    float64  `json:"teleport_distance"`
-	MockStartLat        float64  `json:"mock_start_lat"`
-	MockStartLon        float64  `json:"mock_start_lon"`
-	MockStartAlt        float64  `json:"mock_start_alt"`
-	MockStartHeading    *float64 `json:"mock_start_heading"`
-	MockDurationParked  string   `json:"mock_duration_parked"`
-	MockDurationTaxi    string   `json:"mock_duration_taxi"`
-	MockDurationHold    string   `json:"mock_duration_hold"`
-	StyleLibrary        []string `json:"style_library"`
-	ActiveStyle         string   `json:"active_style"`
-	SecretWordLibrary   []string `json:"secret_word_library"`
-	ActiveSecretWord    string   `json:"active_secret_word"`
+	SimSource             string   `json:"sim_source"`
+	Units                 string   `json:"units"`                  // Prompt template units (imperial/hybrid/metric) - not used by frontend
+	RangeRingUnits        string   `json:"range_ring_units"`       // Map display units (km/nm) - used by frontend
+	TTSEngine             string   `json:"tts_engine"`
+	ShowCacheLayer        bool     `json:"show_cache_layer"`
+	ShowVisibilityLayer   bool     `json:"show_visibility_layer"`
+	MinPOIScore           float64  `json:"min_poi_score"`
+	Volume                float64  `json:"volume"`
+	FilterMode            string   `json:"filter_mode"`
+	TargetPOICount        int      `json:"target_poi_count"`
+	NarrationFrequency    int      `json:"narration_frequency"`
+	TextLength            int      `json:"text_length"`
+	ShowMapBox            bool     `json:"show_map_box"`
+	ShowPOIInfo           bool     `json:"show_poi_info"`
+	ShowInfoBar           bool     `json:"show_info_bar"`
+	ShowLogLine           bool     `json:"show_log_line"`
+	LLMProvider           string   `json:"llm_provider"`
+	TeleportDistance      float64  `json:"teleport_distance"`
+	MockStartLat          float64  `json:"mock_start_lat"`
+	MockStartLon          float64  `json:"mock_start_lon"`
+	MockStartAlt          float64  `json:"mock_start_alt"`
+	MockStartHeading      *float64 `json:"mock_start_heading"`
+	MockDurationParked    string   `json:"mock_duration_parked"`
+	MockDurationTaxi      string   `json:"mock_duration_taxi"`
+	MockDurationHold      string   `json:"mock_duration_hold"`
+	StyleLibrary          []string `json:"style_library"`
+	ActiveStyle           string   `json:"active_style"`
+	SecretWordLibrary     []string `json:"secret_word_library"`
+	ActiveSecretWord      string   `json:"active_secret_word"`
+	TargetLanguageLibrary []string `json:"target_language_library"`
+	ActiveTargetLanguage  string   `json:"active_target_language"`
 }
 
 // ConfigRequest represents the config API request for updates.
 type ConfigRequest struct {
-	SimSource           string   `json:"sim_source,omitempty"`
-	Units               string   `json:"units,omitempty"`
-	ShowCacheLayer      *bool    `json:"show_cache_layer,omitempty"`      // Pointer to detect false vs missing
-	ShowVisibilityLayer *bool    `json:"show_visibility_layer,omitempty"` // Pointer to detect false vs missing
-	MinPOIScore         *float64 `json:"min_poi_score,omitempty"`
-	FilterMode          string   `json:"filter_mode,omitempty"`
-	TargetPOICount      *int     `json:"target_poi_count,omitempty"`
-	NarrationFrequency  *int     `json:"narration_frequency,omitempty"`
-	TextLength          *int     `json:"text_length,omitempty"`
-	TeleportDistance    *float64 `json:"teleport_distance,omitempty"`
-	MockStartLat        *float64 `json:"mock_start_lat,omitempty"`
-	MockStartLon        *float64 `json:"mock_start_lon,omitempty"`
-	MockStartAlt        *float64 `json:"mock_start_alt,omitempty"`
-	MockStartHeading    *float64 `json:"mock_start_heading,omitempty"`
-	MockDurationParked  string   `json:"mock_duration_parked,omitempty"`
-	MockDurationTaxi    string   `json:"mock_duration_taxi,omitempty"`
-	MockDurationHold    string   `json:"mock_duration_hold,omitempty"`
-	StyleLibrary        []string `json:"style_library,omitempty"`
-	ActiveStyle         *string  `json:"active_style,omitempty"`       // Pointer to detect empty string vs missing
-	SecretWordLibrary   []string `json:"secret_word_library,omitempty"`
-	ActiveSecretWord    *string  `json:"active_secret_word,omitempty"` // Pointer to detect empty string vs missing
+	SimSource             string   `json:"sim_source,omitempty"`
+	Units                 string   `json:"units,omitempty"`            // Prompt template units (imperial/hybrid/metric)
+	RangeRingUnits        string   `json:"range_ring_units,omitempty"` // Map display units (km/nm)
+	ShowCacheLayer        *bool    `json:"show_cache_layer,omitempty"` // Pointer to detect false vs missing
+	ShowVisibilityLayer   *bool    `json:"show_visibility_layer,omitempty"` // Pointer to detect false vs missing
+	MinPOIScore           *float64 `json:"min_poi_score,omitempty"`
+	FilterMode            string   `json:"filter_mode,omitempty"`
+	TargetPOICount        *int     `json:"target_poi_count,omitempty"`
+	NarrationFrequency    *int     `json:"narration_frequency,omitempty"`
+	TextLength            *int     `json:"text_length,omitempty"`
+	TeleportDistance      *float64 `json:"teleport_distance,omitempty"`
+	MockStartLat          *float64 `json:"mock_start_lat,omitempty"`
+	MockStartLon          *float64 `json:"mock_start_lon,omitempty"`
+	MockStartAlt          *float64 `json:"mock_start_alt,omitempty"`
+	MockStartHeading      *float64 `json:"mock_start_heading,omitempty"`
+	MockDurationParked    string   `json:"mock_duration_parked,omitempty"`
+	MockDurationTaxi      string   `json:"mock_duration_taxi,omitempty"`
+	MockDurationHold      string   `json:"mock_duration_hold,omitempty"`
+	StyleLibrary          []string `json:"style_library,omitempty"`
+	ActiveStyle           *string  `json:"active_style,omitempty"` // Pointer to detect empty string vs missing
+	SecretWordLibrary     []string `json:"secret_word_library,omitempty"`
+	ActiveSecretWord      *string  `json:"active_secret_word,omitempty"` // Pointer to detect empty string vs missing
+	TargetLanguageLibrary []string `json:"target_language_library,omitempty"`
+	ActiveTargetLanguage  *string  `json:"active_target_language,omitempty"`
 }
 
 // HandleConfig is a unified handler for all config-related methods, facilitating CORS/OPTIONS.
@@ -129,34 +135,37 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 	}
 
 	return ConfigResponse{
-		SimSource:           h.cfgProv.SimProvider(ctx),
-		Units:               h.cfgProv.Units(ctx),
-		TTSEngine:           h.appCfg.TTS.Engine,
-		ShowCacheLayer:      h.cfgProv.ShowCacheLayer(ctx),
-		ShowVisibilityLayer: h.cfgProv.ShowVisibilityLayer(ctx),
-		MinPOIScore:         h.cfgProv.MinScoreThreshold(ctx),
-		Volume:              volume, // Volume is not migrated to cfgProv
-		FilterMode:          h.cfgProv.FilterMode(ctx),
-		TargetPOICount:      h.cfgProv.TargetPOICount(ctx),
-		NarrationFrequency:  h.cfgProv.NarrationFrequency(ctx),
-		TextLength:          h.cfgProv.TextLengthScale(ctx),
-		ShowMapBox:          h.appCfg.Overlay.MapBox,
-		ShowPOIInfo:         h.appCfg.Overlay.POIInfo,
-		ShowInfoBar:         h.appCfg.Overlay.InfoBar,
-		ShowLogLine:         h.appCfg.Overlay.LogLine,
-		LLMProvider:         h.getPrimaryLLMProvider(),
-		TeleportDistance:    h.cfgProv.TeleportDistance(ctx),
-		MockStartLat:        h.cfgProv.MockStartLat(ctx),
-		MockStartLon:        h.cfgProv.MockStartLon(ctx),
-		MockStartAlt:        h.cfgProv.MockStartAlt(ctx),
-		MockStartHeading:    h.cfgProv.MockStartHeading(ctx),
-		MockDurationParked:  h.cfgProv.MockDurationParked(ctx).String(),
-		MockDurationTaxi:    h.cfgProv.MockDurationTaxi(ctx).String(),
-		MockDurationHold:    h.cfgProv.MockDurationHold(ctx).String(),
-		StyleLibrary:        h.cfgProv.StyleLibrary(ctx),
-		ActiveStyle:         h.cfgProv.ActiveStyle(ctx),
-		SecretWordLibrary:   h.cfgProv.SecretWordLibrary(ctx),
-		ActiveSecretWord:    h.cfgProv.ActiveSecretWord(ctx),
+		SimSource:             h.cfgProv.SimProvider(ctx),
+		Units:                 h.cfgProv.Units(ctx),         // Prompt template units (imperial/hybrid/metric) - backend only
+		RangeRingUnits:        h.cfgProv.RangeRingUnits(ctx), // Map display units (km/nm) - frontend only
+		TTSEngine:             h.appCfg.TTS.Engine,
+		ShowCacheLayer:        h.cfgProv.ShowCacheLayer(ctx),
+		ShowVisibilityLayer:   h.cfgProv.ShowVisibilityLayer(ctx),
+		MinPOIScore:           h.cfgProv.MinScoreThreshold(ctx),
+		Volume:                volume, // Volume is not migrated to cfgProv
+		FilterMode:            h.cfgProv.FilterMode(ctx),
+		TargetPOICount:        h.cfgProv.TargetPOICount(ctx),
+		NarrationFrequency:    h.cfgProv.NarrationFrequency(ctx),
+		TextLength:            h.cfgProv.TextLengthScale(ctx),
+		ShowMapBox:            h.appCfg.Overlay.MapBox,
+		ShowPOIInfo:           h.appCfg.Overlay.POIInfo,
+		ShowInfoBar:           h.appCfg.Overlay.InfoBar,
+		ShowLogLine:           h.appCfg.Overlay.LogLine,
+		LLMProvider:           h.getPrimaryLLMProvider(),
+		TeleportDistance:      h.cfgProv.TeleportDistance(ctx),
+		MockStartLat:          h.cfgProv.MockStartLat(ctx),
+		MockStartLon:          h.cfgProv.MockStartLon(ctx),
+		MockStartAlt:          h.cfgProv.MockStartAlt(ctx),
+		MockStartHeading:      h.cfgProv.MockStartHeading(ctx),
+		MockDurationParked:    h.cfgProv.MockDurationParked(ctx).String(),
+		MockDurationTaxi:      h.cfgProv.MockDurationTaxi(ctx).String(),
+		MockDurationHold:      h.cfgProv.MockDurationHold(ctx).String(),
+		StyleLibrary:          h.cfgProv.StyleLibrary(ctx),
+		ActiveStyle:           h.cfgProv.ActiveStyle(ctx),
+		SecretWordLibrary:     h.cfgProv.SecretWordLibrary(ctx),
+		ActiveSecretWord:      h.cfgProv.ActiveSecretWord(ctx),
+		TargetLanguageLibrary: h.cfgProv.TargetLanguageLibrary(ctx),
+		ActiveTargetLanguage:  h.cfgProv.ActiveTargetLanguage(ctx),
 	}
 }
 
@@ -188,6 +197,7 @@ func (h *ConfigHandler) HandleSetConfig(w http.ResponseWriter, r *http.Request) 
 	h.applyThresholdUpdates(ctx, &req)
 	h.applyMockUpdates(ctx, &req, body)
 	h.applyStyleUpdates(ctx, &req)
+	h.applyLanguageUpdates(ctx, &req)
 
 	// Return updated config
 	h.HandleGetConfig(w, r)
@@ -222,6 +232,11 @@ func (h *ConfigHandler) applyUIUpdates(ctx context.Context, req *ConfigRequest) 
 
 	if req.ShowVisibilityLayer != nil {
 		h.updateBoolState(ctx, config.KeyShowVisibility, *req.ShowVisibilityLayer)
+	}
+
+	if req.RangeRingUnits != "" && (req.RangeRingUnits == "km" || req.RangeRingUnits == "nm") {
+		_ = h.store.SetState(ctx, config.KeyRangeRingUnits, req.RangeRingUnits)
+		slog.Debug("Config updated", "range_ring_units", req.RangeRingUnits)
 	}
 }
 
@@ -296,6 +311,20 @@ func (h *ConfigHandler) applyStyleUpdates(ctx context.Context, req *ConfigReques
 	}
 }
 
+func (h *ConfigHandler) applyLanguageUpdates(ctx context.Context, req *ConfigRequest) {
+	if req.TargetLanguageLibrary != nil {
+		jsonBytes, err := json.Marshal(req.TargetLanguageLibrary)
+		if err == nil {
+			_ = h.store.SetState(ctx, config.KeyTargetLanguageLibrary, string(jsonBytes))
+			slog.Debug("Config updated", config.KeyTargetLanguageLibrary, string(jsonBytes))
+		}
+	}
+	if req.ActiveTargetLanguage != nil {
+		_ = h.store.SetState(ctx, config.KeyActiveTargetLanguage, *req.ActiveTargetLanguage)
+		slog.Debug("Config updated", config.KeyActiveTargetLanguage, *req.ActiveTargetLanguage)
+	}
+}
+
 func (h *ConfigHandler) updateSimSource(ctx context.Context, val string) error {
 	if val != "mock" && val != "simconnect" {
 		return io.ErrUnexpectedEOF // Hacky error reuse or create custom
@@ -308,7 +337,7 @@ func (h *ConfigHandler) updateSimSource(ctx context.Context, val string) error {
 }
 
 func (h *ConfigHandler) updateUnits(ctx context.Context, val string) error {
-	if val != "km" && val != "nm" {
+	if val != "imperial" && val != "hybrid" && val != "metric" {
 		return io.ErrUnexpectedEOF
 	}
 	if err := h.store.SetState(ctx, config.KeyUnits, val); err != nil {

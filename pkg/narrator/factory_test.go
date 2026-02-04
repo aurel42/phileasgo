@@ -1,6 +1,7 @@
 package narrator
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -9,6 +10,15 @@ import (
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
 )
+
+// mockLangProvider is a test helper that implements tts.LanguageProvider
+type mockLangProvider struct {
+	lang string
+}
+
+func (m *mockLangProvider) ActiveTargetLanguage(ctx context.Context) string {
+	return m.lang
+}
 
 func TestNewLLMProvider(t *testing.T) {
 	t.Setenv("TEST_MODE", "true")
@@ -70,6 +80,7 @@ func TestNewLLMProvider(t *testing.T) {
 
 func TestNewTTSProvider(t *testing.T) {
 	tracker := tracker.New()
+	langProv := &mockLangProvider{lang: "en-US"}
 
 	tests := []struct {
 		name    string
@@ -122,7 +133,7 @@ func TestNewTTSProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewTTSProvider(tt.cfg, "en-US", tracker)
+			_, err := NewTTSProvider(tt.cfg, langProv, tracker)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewTTSProvider() error = %v, wantErr %v", err, tt.wantErr)
 			}

@@ -133,7 +133,7 @@ func (p *Pipeline) getLangsForLocation(ctx context.Context, lat, lon float64) []
 	}
 	langSet["en"] = struct{}{}
 
-	userLang := p.cfgProv.TargetLanguage(ctx)
+	userLang := p.cfgProv.ActiveTargetLanguage(ctx)
 	if userLang != "" {
 		// Normalize userLang (e.g. "en-US" -> "en")
 		normalizedLang := userLang

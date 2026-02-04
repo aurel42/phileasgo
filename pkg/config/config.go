@@ -165,7 +165,9 @@ type NarratorConfig struct {
 	Frequency                 int                `yaml:"frequency"` // 1=Rarely, 2=Normal, 3=Active, 4=Hyperactive
 	PauseDuration             Duration           `yaml:"pause_between_narrations"`
 	RepeatTTL                 Duration           `yaml:"repeat_ttl"`
-	TargetLanguage            string             `yaml:"target_language"`
+	TargetLanguage            string             `yaml:"target_language"` // Deprecated: use ActiveTargetLanguage
+	ActiveTargetLanguage      string             `yaml:"active_target_language"`
+	TargetLanguageLibrary     []string           `yaml:"target_language_library"`
 	Units                     string             `yaml:"units"`
 	NarrationLengthShortWords int                `yaml:"narration_length_short_words"` // Target for short narrations (default 50)
 	NarrationLengthLongWords  int                `yaml:"narration_length_long_words"`  // Target for long narrations (default 200)
@@ -449,6 +451,8 @@ func DefaultConfig() *Config {
 			PauseDuration:             Duration(4 * time.Second),
 			RepeatTTL:                 Duration(30 * 24 * time.Hour), // 30d
 			TargetLanguage:            "en-US",
+			ActiveTargetLanguage:      "en-US",
+			TargetLanguageLibrary:     []string{"en-US", "en-GB", "de-DE", "fr-FR", "es-ES", "pl-PL"},
 			Units:                     "hybrid",
 			NarrationLengthShortWords: 50,
 			NarrationLengthLongWords:  200,
@@ -561,9 +565,24 @@ func Load(path string) (*Config, error) {
 	// Expand environment variables in paths
 	expandPaths(cfg)
 
-	// Validate TargetLanguage format (xx-YY)
-	if !isValidLocale(cfg.Narrator.TargetLanguage) {
-		return nil, fmt.Errorf("invalid target_language format '%s': must be 'xx-YY' (e.g. 'en-US', 'de-DE')", cfg.Narrator.TargetLanguage)
+	// Migration: TargetLanguage -> ActiveTargetLanguage
+	if cfg.Narrator.ActiveTargetLanguage == "" && cfg.Narrator.TargetLanguage != "" {
+		cfg.Narrator.ActiveTargetLanguage = cfg.Narrator.TargetLanguage
+	}
+
+	// Double check ActiveTargetLanguage is not empty
+	if cfg.Narrator.ActiveTargetLanguage == "" {
+		cfg.Narrator.ActiveTargetLanguage = "en-US"
+	}
+
+	// Ensure TargetLanguageLibrary is not empty
+	if len(cfg.Narrator.TargetLanguageLibrary) == 0 {
+		cfg.Narrator.TargetLanguageLibrary = []string{"en-US", "en-GB", "de-DE", "fr-FR", "es-ES", "pl-PL"}
+	}
+
+	// Validate ActiveTargetLanguage format (xx-YY)
+	if !isValidLocale(cfg.Narrator.ActiveTargetLanguage) {
+		return nil, fmt.Errorf("invalid active_target_language format '%s': must be 'xx-YY' (e.g. 'en-US', 'de-DE')", cfg.Narrator.ActiveTargetLanguage)
 	}
 
 	return cfg, nil

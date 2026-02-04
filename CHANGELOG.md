@@ -1,6 +1,10 @@
 ﻿Release History
 
-## v0.3.121 (2026-02-04)
+## v0.3.122 (2026-02-04)
+- **Feature**: **Multi-Language Support**. Introduced dynamic target language selection and a configurable language library, allowing for runtime switching without application restarts.
+- **Refactor**: **Unified Units**. Separated prompt template units (imperial/hybrid/metric) from map display units (km/nm) to ensure independent control.
+- **Improvement**: **Library Management UI**. Added an expandable section in the Settings Panel for managing styles, themes, and language libraries.
+
 - **Fix**: **POI Deferral System**. Repaired a critical bug in the deferral logic that hardcoded "Medium" size for all future visibility predictions, which effectively suppressed deferrals for large landmarks. Deferrals now correctly account for the POI's actual size.
 - **Unification**: **Visibility Blind Spots**. Unified the airframe blind spot logic across the map overlay and narrator. Objects in the blind spot now consistently return zero visibility, ensuring the narrator remains silent when a landmark is physically obscured.
 - **Improvement**: **Scoring Accuracy**. Standardized the application of size penalties and dimension multipliers in the deferral calculator to ensure perfectly stable decision-making as landmarks approach.

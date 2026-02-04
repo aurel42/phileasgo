@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { VictorianToggle } from './VictorianToggle';
 import type { Telemetry } from '../types/telemetry';
 
 interface SettingsPanelProps {
@@ -74,6 +75,7 @@ interface DraftState {
     // Narrator tab
     narrationFrequency: number;
     textLength: number;
+    promptUnits: string; // imperial/hybrid/metric - affects prompt templates
     minPoiScore: number;
     filterMode: string;
     targetPoiCount: number;
@@ -81,6 +83,8 @@ interface DraftState {
     styleLibrary: string[];
     activeSecretWord: string;
     secretWordLibrary: string[];
+    activeTargetLanguage: string;
+    targetLanguageLibrary: string[];
     // Sim tab
     simSource: string;
     mockStartLat: number | null;
@@ -121,6 +125,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     const [activeTab, setActiveTab] = useState('sim');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [librariesExpanded, setLibrariesExpanded] = useState(false);
 
     // Server config (original values)
     const [serverConfig, setServerConfig] = useState<any>(null);
@@ -138,6 +143,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 setDraft({
                     narrationFrequency,
                     textLength,
+                    promptUnits: data.units || 'hybrid',
                     minPoiScore,
                     filterMode,
                     targetPoiCount,
@@ -145,6 +151,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     styleLibrary: data.style_library || [],
                     activeSecretWord: data.active_secret_word || '',
                     secretWordLibrary: data.secret_word_library || [],
+                    activeTargetLanguage: data.active_target_language || 'en-US',
+                    targetLanguageLibrary: data.target_language_library || ['en-US'],
                     simSource: data.sim_source || 'simconnect',
                     mockStartLat: data.mock_start_lat ?? null,
                     mockStartLon: data.mock_start_lon ?? null,
@@ -169,6 +177,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         return (
             draft.narrationFrequency !== narrationFrequency ||
             draft.textLength !== textLength ||
+            draft.promptUnits !== (serverConfig.units || 'hybrid') ||
             draft.minPoiScore !== minPoiScore ||
             draft.filterMode !== filterMode ||
             draft.targetPoiCount !== targetPoiCount ||
@@ -176,6 +185,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             JSON.stringify(draft.styleLibrary) !== JSON.stringify(serverConfig.style_library || []) ||
             draft.activeSecretWord !== (serverConfig.active_secret_word || '') ||
             JSON.stringify(draft.secretWordLibrary) !== JSON.stringify(serverConfig.secret_word_library || []) ||
+            draft.activeTargetLanguage !== (serverConfig.active_target_language || 'en-US') ||
+            JSON.stringify(draft.targetLanguageLibrary) !== JSON.stringify(serverConfig.target_language_library || ['en-US']) ||
             draft.simSource !== (serverConfig.sim_source || 'simconnect') ||
             draft.mockStartLat !== (serverConfig.mock_start_lat ?? null) ||
             draft.mockStartLon !== (serverConfig.mock_start_lon ?? null) ||
@@ -208,6 +219,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         if (JSON.stringify(draft.styleLibrary) !== JSON.stringify(serverConfig?.style_library || [])) payload.style_library = draft.styleLibrary;
         if (draft.activeSecretWord !== (serverConfig?.active_secret_word || '')) payload.active_secret_word = draft.activeSecretWord;
         if (JSON.stringify(draft.secretWordLibrary) !== JSON.stringify(serverConfig?.secret_word_library || [])) payload.secret_word_library = draft.secretWordLibrary;
+        if (draft.activeTargetLanguage !== (serverConfig?.active_target_language || 'en-US')) payload.active_target_language = draft.activeTargetLanguage;
+        if (JSON.stringify(draft.targetLanguageLibrary) !== JSON.stringify(serverConfig?.target_language_library || ['en-US'])) payload.target_language_library = draft.targetLanguageLibrary;
         if (draft.simSource !== (serverConfig?.sim_source || 'simconnect')) payload.sim_source = draft.simSource;
         if (draft.mockStartLat !== (serverConfig?.mock_start_lat ?? null)) payload.mock_start_lat = draft.mockStartLat;
         if (draft.mockStartLon !== (serverConfig?.mock_start_lon ?? null)) payload.mock_start_lon = draft.mockStartLon;
@@ -428,6 +441,27 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 </div>
                             ))}
 
+                            <div className="role-header" style={{ marginTop: '24px' }}>Language</div>
+                            {renderField('Active Language', (
+                                <select
+                                    className="settings-select"
+                                    value={draft.activeTargetLanguage}
+                                    onChange={e => updateDraft('activeTargetLanguage', e.target.value)}
+                                >
+                                    {draft.targetLanguageLibrary.map((lang: string) => (
+                                        <option key={lang} value={lang}>{lang}</option>
+                                    ))}
+                                </select>
+                            ))}
+
+                            {librariesExpanded && renderField('Language Library', (
+                                <VictorianListEditor
+                                    values={draft.targetLanguageLibrary}
+                                    placeholder="Add language (e.g. de-DE)..."
+                                    onChange={val => updateDraft('targetLanguageLibrary', val)}
+                                />
+                            ))}
+
                             <div className="role-header" style={{ marginTop: '24px' }}>POI Selection</div>
                             {renderField('POI Filtering Mode', (
                                 <select className="settings-select" value={draft.filterMode} onChange={e => updateDraft('filterMode', e.target.value)}>
@@ -469,7 +503,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 </select>
                             ))}
 
-                            {renderField('Library Management', (
+                            {librariesExpanded && renderField('Style Library', (
                                 <VictorianListEditor
                                     values={draft.styleLibrary}
                                     placeholder="Add author to library..."
@@ -491,50 +525,54 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 </select>
                             ))}
 
-                            {renderField('Theme Library', (
+                            {librariesExpanded && renderField('Theme Library', (
                                 <VictorianListEditor
                                     values={draft.secretWordLibrary}
                                     placeholder="Add theme to library..."
                                     onChange={val => updateDraft('secretWordLibrary', val)}
                                 />
                             ))}
+
+                            <div
+                                className="role-header"
+                                style={{ marginTop: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                onClick={() => setLibrariesExpanded(!librariesExpanded)}
+                            >
+                                <span style={{ fontSize: '10px', opacity: 0.6 }}>{librariesExpanded ? '▼' : '▶'}</span>
+                                Library Management
+                            </div>
                         </div>
                     )}
 
                     {activeTab === 'interface' && (
                         <div className="settings-group">
                             <div className="role-header">Units & Display</div>
-                            {renderField('Measurement Units', (
+                            {/* DO NOT CHANGE: This specifically controls the range ring spacing and units on the map */}
+                            {renderField('Range Ring Units', (
                                 <select className="settings-select" value={draft.units} onChange={e => updateDraft('units', e.target.value as 'km' | 'nm')}>
-                                    <option value="km">Metric (km/m)</option>
-                                    <option value="nm">Nautical (nm/ft)</option>
+                                    <option value="km">km</option>
+                                    <option value="nm">nm</option>
                                 </select>
                             ))}
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Overlay Layers</div>
-                            {renderField('Show POI Cache Radius', (
-                                <label className="settings-toggle">
-                                    <input type="checkbox" checked={draft.showCacheLayer} onChange={e => updateDraft('showCacheLayer', e.target.checked)} />
-                                    <span className="toggle-slider"></span>
-                                    <span className="role-value" style={{ marginLeft: '12px' }}>{draft.showCacheLayer ? 'ENABLED' : 'DISABLED'}</span>
-                                </label>
-                            ))}
-                            {renderField('Show Line-of-Sight Coverage', (
-                                <label className="settings-toggle">
-                                    <input type="checkbox" checked={draft.showVisibilityLayer} onChange={e => updateDraft('showVisibilityLayer', e.target.checked)} />
-                                    <span className="toggle-slider"></span>
-                                    <span className="role-value" style={{ marginLeft: '12px' }}>{draft.showVisibilityLayer ? 'ENABLED' : 'DISABLED'}</span>
-                                </label>
-                            ))}
+                            <VictorianToggle
+                                label="Show POI Cache Radius"
+                                checked={draft.showCacheLayer}
+                                onChange={val => updateDraft('showCacheLayer', val)}
+                            />
+                            <VictorianToggle
+                                label="Show Line-of-Sight Coverage"
+                                checked={draft.showVisibilityLayer}
+                                onChange={val => updateDraft('showVisibilityLayer', val)}
+                            />
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Developer Settings</div>
-                            {renderField('Streaming Mode (LocalStorage)', (
-                                <label className="settings-toggle">
-                                    <input type="checkbox" checked={draft.streamingMode} onChange={e => updateDraft('streamingMode', e.target.checked)} />
-                                    <span className="toggle-slider"></span>
-                                    <span className="role-value" style={{ marginLeft: '12px' }}>{draft.streamingMode ? 'ENABLED' : 'DISABLED'}</span>
-                                </label>
-                            ))}
+                            <VictorianToggle
+                                label="Streaming Mode (LocalStorage)"
+                                checked={draft.streamingMode}
+                                onChange={val => updateDraft('streamingMode', val)}
+                            />
                         </div>
                     )}
                 </div>
@@ -726,28 +764,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     align-items: center;
                     cursor: pointer;
                 }
-
-                .settings-toggle input { display: none; }
-                .toggle-slider {
-                    width: 40px; height: 20px;
-                    background: #444;
-                    border-radius: 10px;
-                    position: relative;
-                    transition: 0.3s;
-                }
-
-                .toggle-slider::after {
-                    content: '';
-                    position: absolute;
-                    width: 14px; height: 14px;
-                    background: #888;
-                    border-radius: 50%;
-                    top: 3px; left: 3px;
-                    transition: 0.3s;
-                }
-
-                input:checked + .toggle-slider { background: var(--accent); }
-                input:checked + .toggle-slider::after { left: 23px; background: #000; }
 
                 .role-value { color: var(--accent); font-family: var(--font-mono); }
 

@@ -12,7 +12,8 @@ func TestAIService_AnnouncementFallback(t *testing.T) {
 	pm, _ := prompts.NewManager(t.TempDir())
 	cfg := config.NewProvider(&config.Config{
 		Narrator: config.NarratorConfig{
-			TargetLanguage: "en",
+			ActiveTargetLanguage:  "en",
+			TargetLanguageLibrary: []string{"en"},
 		},
 	}, nil)
 

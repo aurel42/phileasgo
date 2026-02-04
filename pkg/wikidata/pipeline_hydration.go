@@ -35,7 +35,7 @@ func (p *Pipeline) hydrateCandidates(ctx context.Context, candidates []Article, 
 
 		p.processSitelinks(&cand, data.Sitelinks, allowedCodes)
 
-		userLang := p.cfgProv.TargetLanguage(ctx)
+		userLang := p.cfgProv.ActiveTargetLanguage(ctx)
 		if userLang != "" {
 			// Normalize userLang (e.g. "en-US" -> "en")
 			normalizedLang := userLang

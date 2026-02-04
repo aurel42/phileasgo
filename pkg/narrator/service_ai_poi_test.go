@@ -26,7 +26,8 @@ func TestAIService_RescueScript(t *testing.T) {
 		prompts: pm,
 		cfg: config.NewProvider(&config.Config{
 			Narrator: config.NarratorConfig{
-				TargetLanguage: "en-US",
+				ActiveTargetLanguage:  "en-US",
+				TargetLanguageLibrary: []string{"en-US"},
 			},
 		}, nil),
 		sessionMgr: session.NewManager(nil),

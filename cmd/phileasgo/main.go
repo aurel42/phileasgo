@@ -284,7 +284,7 @@ func initNarrator(ctx context.Context, cfg config.Provider, svcs *CoreServices, 
 		slog.Debug("Configured LLM temperature", "base", appCfg.Narrator.TemperatureBase, "jitter", appCfg.Narrator.TemperatureJitter)
 	}
 
-	ttsProv, err := narrator.NewTTSProvider(&appCfg.TTS, appCfg.Narrator.TargetLanguage, tr)
+	ttsProv, err := narrator.NewTTSProvider(&appCfg.TTS, cfg, tr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize TTS provider: %w", err)
 	}
