@@ -209,9 +209,6 @@ func (sess *DefaultSession) calculateIntrinsicScore(poi *model.POI) (score float
 
 // determineDeferral checks if we should defer this POI because we'll have a better view later.
 // Returns true if the POI should be deferred (excluded from selection).
-// Deferral conditions:
-// - Max Future Visibility > Current Visibility * Threshold
-// - POI is not urgent (TimeToBehind > 5 min or -1)
 func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVisibility float64) bool {
 	// Don't defer urgent POIs (about to disappear)
 	if poi.TimeToBehind > 0 && poi.TimeToBehind < 300 { // < 5 minutes
@@ -224,8 +221,6 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 	}
 
 	poiPoint := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
-
-	// Prepare parameters for visibility calc
 	altAGL := sess.input.Telemetry.AltitudeAGL
 	isOnGround := sess.input.Telemetry.IsOnGround
 	boost := sess.input.BoostFactor
@@ -240,11 +235,24 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 		distMeters := geo.Distance(pos, poiPoint)
 		distNM := distMeters / 1852.0
 
-		// Use the same lowestElev for simplicity (or we could recalculate if we had a grid)
-		visScore := sess.scorer.visCalc.CalculateVisibility(heading, altAGL, bearingToPOI, distNM, isOnGround, boost)
+		// Use consistent scoring logic for future visibility
+		// We use CalculateVisibilityForSize which returns a simple 0-1 score
+		// And we manually apply the same penalties as calculateVisibilityScore
+		futureScore := sess.scorer.visCalc.CalculateVisibilityForSize(heading, altAGL, altAGL, bearingToPOI, distNM, visibility.SizeType(poi.Size), isOnGround, boost)
 
-		if visScore > maxFutureVis {
-			maxFutureVis = visScore
+		// Apply same multipliers as current score for parity
+		// 1. Size Penalty
+		sizePenalty := map[string]float64{"S": 1.0, "M": 1.0, "L": 0.85, "XL": 0.7}
+		if penalty, ok := sizePenalty[poi.Size]; ok && penalty < 1.0 {
+			futureScore *= penalty
+		}
+		// 2. Dimension Multiplier
+		if poi.DimensionMultiplier > 1.0 {
+			futureScore *= poi.DimensionMultiplier
+		}
+
+		if futureScore > maxFutureVis {
+			maxFutureVis = futureScore
 		}
 	}
 
@@ -253,8 +261,6 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 		threshold = 1.1 // Default: defer if 10% better visibility later
 	}
 
-	// If current is 0 (blind spot/far), and future is >0, this naturally returns true (defer).
-	// If current is 0.5, defer if future > 0.55
 	return maxFutureVis > currentVisibility*threshold
 }
 

@@ -29,13 +29,13 @@ X marker badges for interesting states (e.g. deferred)
 X change wp prose in prompt from truncated to wrapped
 X regression: restore telemetry loop to 1Hz
 X overlay info panel: allow adaptive font size for the title if it's too long to fit
-- POI script: tell the LLM how far away we are and whether the POI is ahead or to the side?
-- debug "patient" mode, and rework urgent/patient/deferral logic
+X POI script: tell the LLM how far away we are and whether the POI is ahead or to the side?
+X debug "patient" mode, and rework urgent/patient/deferral logic
 X regression: AP status line no longer visible
 X Flight Stage state machine needs tuning: take-off triggers after landing; take-off only when accelerating, landing only when decelerating?
 X Flight Stage: refine conditions for stages based on previos stages (e.g. hold only after taxi), remember timestamps for flight stages?!
-- rich history: clean up templates for clarity; shorter, more precise language, NO examples
-- improve situational/positional awareness of the LLM, describe distance and direction better.
+X rich history: clean up templates for clarity; shorter, more precise language, NO examples
+X improve situational/positional awareness of the LLM, describe distance and direction better.
 X the label of the range rings sometimes periodically jumps between two range rings, needs hysteresis? Depends on window size, ofc.
 X move session persistence to a better place than in a "heartbeat"
 X turn trip summary into a log file
@@ -43,9 +43,8 @@ X target balloon: reduce altitude as we get closer to it to make it easier to sp
 X frontend continues to show paused when sim disconnects
 X frontend: click on configuration pill in main tab opens config page on main tab with no way back
 - tune visibility boost for distance; should result in more deferrals
-- do not request info panel for essay, briefing
-- verify: when flying from MN to CN, to we check the chinese wikipedia?
-
+X do not request info panel for essay, briefing
+X verify: when flying from MN to CN, to we check the chinese wikipedia?
 
 # Trip Themes
 

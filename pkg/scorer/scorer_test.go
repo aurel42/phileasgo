@@ -139,12 +139,11 @@ func TestScorer_Calculate(t *testing.T) {
 					AltitudeMSL: 1000, AltitudeAGL: 1000, Heading: 0,
 				},
 			},
-			wantVisible:   true,
-			wantVisMin:    0.09, // Blind spot penalty x0.1
-			wantVisMax:    0.11,
-			wantScoreMin:  1.25, // Novelty 1.3
-			wantScoreMax:  1.35,
-			wantLogSubstr: "Blind Spot: x0.1 (Hidden by airframe)",
+			wantVisible:   false, // Now invisible because 0.0 visibility score returns true for visScore <= 0
+			wantVisMin:    0.0,
+			wantVisMax:    0.0,
+			wantScoreMin:  0.0,
+			wantLogSubstr: "Blind Spot: x0.0 (Hidden by airframe)",
 		},
 
 		// --- 2. Dimension Multiplier (affects visibility, not intrinsic) ---

@@ -173,8 +173,8 @@ func (c *Calculator) calculateSingleScore(heading, altAGL, bearing, distNM float
 
 		// Check Blind Spot
 		if isBlindSpot(altAGL, distNM, relBearing) {
-			score *= 0.1
-			details += "\nBlind Spot: x0.1 (Hidden by airframe)"
+			score = 0.0
+			details += "\nBlind Spot: x0.0 (Hidden by airframe)"
 			return score, details
 		}
 

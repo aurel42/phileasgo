@@ -82,8 +82,8 @@ func TestCalculator(t *testing.T) {
 			name:    "Blind Spot (Under Nose)",
 			heading: 0, alt: 1000, bearing: 0, dist: 0.05, size: SizeM,
 			// 1000ft -> BlindRadius ~ 0.07nm (New Formula). 0.05 < 0.07.
-			// Penalty x0.1
-			wantScore: 0.099, // Base ~0.99 * 0.1
+			// Penalty x0.0
+			wantScore: 0.0,
 			wantLog:   "Blind Spot",
 		},
 

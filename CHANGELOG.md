@@ -1,7 +1,13 @@
 ﻿Release History
 
+## v0.3.121 (2026-02-04)
+- **Fix**: **POI Deferral System**. Repaired a critical bug in the deferral logic that hardcoded "Medium" size for all future visibility predictions, which effectively suppressed deferrals for large landmarks. Deferrals now correctly account for the POI's actual size.
+- **Unification**: **Visibility Blind Spots**. Unified the airframe blind spot logic across the map overlay and narrator. Objects in the blind spot now consistently return zero visibility, ensuring the narrator remains silent when a landmark is physically obscured.
+- **Improvement**: **Scoring Accuracy**. Standardized the application of size penalties and dimension multipliers in the deferral calculator to ensure perfectly stable decision-making as landmarks approach.
+
+
 ## v0.3.120 (2026-02-04)
-- **Fix**: **Duration Unit Overhaul**. Resolved a systemic double-scaling bug where durations were incorrectly multiplied by seconds/milliseconds twice. All configuration defaults and logic now use standard `time.Duration` units.
+- **Fix**: **Duration Unit Overhaul**. Resolved a systemic double-scaling bug introduced with the config refactor in v0.3.119.
 - **Improved**: **Presentation Logic**. Introduced `ShowInfoPanel` metadata to the narration pipeline, ensuring only relevant non-POI narratives (Screenshots, Debriefs) trigger the visual info panel.
 - **Improved**: **Dynamic Style & Theme Injection**. Replaced experimental testing variables with `ActiveStyle` and `ActiveSecretWord` for clean, theme-aware narration scripts.
 - **Fix**: **Coordinate Extraction**. Enhanced coordinate parsing for Regional Essays to ensure consistent map centering.
