@@ -1,9 +1,17 @@
 ﻿Release History
 
+## v0.3.130 (2026-02-04)
+- **Fix**: **Settings Persistence**. Fixed an issue where the "2nd-pass script generation" toggle in the settings dialog would not persist across application restarts.
+- **Improvement**: **Merged Proximate POIs**. Increased spatial merge tolerances to better handle duplicate Wikidata entities with slightly different coordinates (e.g., school campuses).
+- **Refactor**: **Unified Config in Wikidata Service**. Migrated the Wikidata service and its pipeline to use the unified configuration provider for real-time reactivity to setting changes.
+- **Improvement**: **Map Auto-Zoom Defaults**. Set the default auto-zoom to a 20x20km bounding box (10km radius) when no active POIs are present, preventing over-zooming.
+- **Improvement**: **Settings UI Tab Reordering**. Moved the Narrator tab to the front of the settings panel for easier access to secondary-pass and style settings.
+- **Improvement**: **Robust Audio Synthesis**. Implemented a mandatory 1KB minimum size check for synthesized audio files and a 3-pass retry mechanism to prevent silent narrations from transient API or connection failures.
+
+
 ## v0.3.129 (2026-02-04)
-- **Feature**: **Two-Pass Script Generation**. Introduced an optional second refinement pass for AI-generated scripts to significantly improve quality and adherence to constraints.
-- **Improvement**: **Context Propagation**. Added full context propagation for the refinement phase, ensuring persona and thematic consistency across secondary LLM passes.
-- **Refactor**: **Template Modernization**. Removed redundant `macros.tmpl` in favor of a cleaner, modular template structure using direct `Identity`, `Voice`, `Constraints`, and `Situation` includes.
+- **Feature**: **Two-Pass Script Generation**. Introduced an optional second refinement pass for AI-generated scripts to improve quality and adherence to constraints.
+- **Refactor**: Removed redundant `macros.tmpl`.
 
 ## v0.3.128 (2026-02-04)
 - **Fix**: **Automated POI Info Panel Regression**. Restored the automatic display of the info panel when POIs are narrated by the AI pilot.

@@ -35,7 +35,18 @@ func (s *AIService) synthesizeAudio(ctx context.Context, script, safeID string) 
 	if err != nil {
 		return "", "", err
 	}
-	return outputPath, format, nil
+
+	// Ensure we use the full path with the correct format extension for verification
+	fullPath := outputPath
+	if !strings.HasSuffix(strings.ToLower(fullPath), "."+format) {
+		fullPath += "." + format
+	}
+
+	if err := tts.VerifyAudioFile(fullPath); err != nil {
+		return "", "", fmt.Errorf("audio verification failed: %w", err)
+	}
+
+	return fullPath, format, nil
 }
 
 func (s *AIService) handleTTSError(err error) {

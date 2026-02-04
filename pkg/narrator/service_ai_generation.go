@@ -57,16 +57,36 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 	// 5. Rescue Script (if too long)
 	script = s.performRescueIfNeeded(ctx, req, script)
 
-	// 5. TTS Synthesis
+	// 5. TTS Synthesis (with retries)
 	safeID := req.SafeID
 	if safeID == "" {
 		safeID = "gen_" + time.Now().Format("150405")
 	}
 
-	audioPath, format, err := s.synthesizeAudio(ctx, script, safeID)
-	if err != nil {
-		s.handleTTSError(err)
-		return nil, fmt.Errorf("TTS synthesis failed: %w", err)
+	var audioPath, format string
+	var synthErr error
+
+	for attempt := 1; attempt <= 3; attempt++ {
+		audioPath, format, synthErr = s.synthesizeAudio(ctx, script, safeID)
+		if synthErr == nil {
+			break
+		}
+
+		slog.Warn("Narrator: TTS synthesis attempt failed",
+			"attempt", attempt,
+			"error", synthErr,
+			"poi", req.Title,
+		)
+
+		if attempt < 3 {
+			// Fast retry for transient issues
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+
+	if synthErr != nil {
+		s.handleTTSError(synthErr)
+		return nil, fmt.Errorf("TTS synthesis failed after retries: %w", synthErr)
 	}
 
 	return s.constructNarrative(req, script, extractedTitle, audioPath, format, startTime, predicted), nil

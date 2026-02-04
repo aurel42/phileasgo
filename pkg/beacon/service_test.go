@@ -82,16 +82,16 @@ func TestSetTarget_SpawnsBeacons(t *testing.T) {
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:            true,
-		FormationEnabled:   true,
-		FormationDistance:  config.Distance(2000),
-		FormationCount:     3,
-		MinSpawnAltitude:   config.Distance(304.8),
-		AltitudeFloor:      config.Distance(609.6),
-		TargetSinkDistFar:  config.Distance(4000),
-		TargetSinkDistNear: config.Distance(1000),
-		TargetFloorAGL:     config.Distance(30.48),
-		MaxTargets:         2,
+		Enabled:                 true,
+		FormationEnabled:        true,
+		FormationDistance:       config.Distance(2000),
+		FormationCount:          3,
+		MinSpawnAltitude:        config.Distance(304.8),
+		AltitudeFloor:           config.Distance(609.6),
+		TargetSinkDistanceFar:   config.Distance(5000),
+		TargetSinkDistanceClose: config.Distance(2000),
+		TargetFloorAGL:          config.Distance(30.48),
+		MaxTargets:              2,
 	}
 
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
@@ -131,16 +131,16 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:            true,
-		FormationEnabled:   true,
-		FormationDistance:  config.Distance(2000),
-		FormationCount:     3,
-		MinSpawnAltitude:   config.Distance(304.8),
-		AltitudeFloor:      config.Distance(609.6),
-		TargetSinkDistFar:  config.Distance(4000),
-		TargetSinkDistNear: config.Distance(1000),
-		TargetFloorAGL:     config.Distance(30.48),
-		MaxTargets:         2,
+		Enabled:                 true,
+		FormationEnabled:        true,
+		FormationDistance:       config.Distance(2000),
+		FormationCount:          3,
+		MinSpawnAltitude:        config.Distance(304.8),
+		AltitudeFloor:           config.Distance(609.6),
+		TargetSinkDistanceFar:   config.Distance(5000),
+		TargetSinkDistanceClose: config.Distance(2000),
+		TargetFloorAGL:          config.Distance(30.48),
+		MaxTargets:              2,
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
@@ -191,16 +191,16 @@ func TestSetTarget_LowAGL(t *testing.T) {
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:            true,
-		FormationEnabled:   true,
-		FormationDistance:  config.Distance(2000),
-		FormationCount:     3,
-		MinSpawnAltitude:   config.Distance(304.8),
-		AltitudeFloor:      config.Distance(609.6),
-		TargetSinkDistFar:  config.Distance(4000),
-		TargetSinkDistNear: config.Distance(1000),
-		TargetFloorAGL:     config.Distance(30.48),
-		MaxTargets:         2,
+		Enabled:                 true,
+		FormationEnabled:        true,
+		FormationDistance:       config.Distance(2000),
+		FormationCount:          3,
+		MinSpawnAltitude:        config.Distance(304.8),
+		AltitudeFloor:           config.Distance(609.6),
+		TargetSinkDistanceFar:   config.Distance(5000),
+		TargetSinkDistanceClose: config.Distance(2000),
+		TargetFloorAGL:          config.Distance(30.48),
+		MaxTargets:              2,
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
@@ -232,16 +232,16 @@ func TestSetTarget_HighAGL(t *testing.T) {
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:            true,
-		FormationEnabled:   true,
-		FormationDistance:  config.Distance(2000),
-		FormationCount:     3,
-		MinSpawnAltitude:   config.Distance(304.8),
-		AltitudeFloor:      config.Distance(609.6),
-		TargetSinkDistFar:  config.Distance(4000),
-		TargetSinkDistNear: config.Distance(1000),
-		TargetFloorAGL:     config.Distance(30.48),
-		MaxTargets:         2,
+		Enabled:                 true,
+		FormationEnabled:        true,
+		FormationDistance:       config.Distance(2000),
+		FormationCount:          3,
+		MinSpawnAltitude:        config.Distance(304.8),
+		AltitudeFloor:           config.Distance(609.6),
+		TargetSinkDistanceFar:   config.Distance(5000),
+		TargetSinkDistanceClose: config.Distance(2000),
+		TargetFloorAGL:          config.Distance(30.48),
+		MaxTargets:              2,
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 
@@ -274,16 +274,16 @@ func TestUpdateLoop_AltitudeLock(t *testing.T) {
 		},
 	}
 	cfg := &config.BeaconConfig{
-		Enabled:            true,
-		FormationEnabled:   true,
-		FormationDistance:  config.Distance(2000),
-		FormationCount:     3,
-		MinSpawnAltitude:   config.Distance(304.8),
-		AltitudeFloor:      config.Distance(609.6),
-		TargetSinkDistFar:  config.Distance(4000),
-		TargetSinkDistNear: config.Distance(1000),
-		TargetFloorAGL:     config.Distance(30.48),
-		MaxTargets:         2,
+		Enabled:                 true,
+		FormationEnabled:        true,
+		FormationDistance:       config.Distance(2000),
+		FormationCount:          3,
+		MinSpawnAltitude:        config.Distance(304.8),
+		AltitudeFloor:           config.Distance(609.6),
+		TargetSinkDistanceFar:   config.Distance(100),
+		TargetSinkDistanceClose: config.Distance(50),
+		TargetFloorAGL:          config.Distance(30.48),
+		MaxTargets:              2,
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
 

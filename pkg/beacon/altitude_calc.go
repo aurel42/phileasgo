@@ -6,8 +6,8 @@ import (
 
 func (s *Service) calculateTargetAltitude(tel *simconnect.TelemetryData, pLat, pLon, pBaseAlt, distMeters float64) float64 {
 	// Pre-calc limit constants for sinking logic
-	sinkDistFar := float64(s.config.TargetSinkDistFar)   // e.g. 4000
-	sinkDistNear := float64(s.config.TargetSinkDistNear) // e.g. 1000
+	sinkDistFar := float64(s.config.TargetSinkDistanceFar)    // e.g. 5000
+	sinkDistNear := float64(s.config.TargetSinkDistanceClose) // e.g. 2000
 	targetFloorFt := float64(s.config.TargetFloorAGL) * 3.28084
 	minSpawnAltFt := float64(s.config.MinSpawnAltitude) * 3.28084
 

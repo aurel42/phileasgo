@@ -290,44 +290,43 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
         });
 
         // 2. Determine optimal zoom level
-        let targetZoom = DEFAULT_ZOOM;
         const lat = throttledPos.lat;
         const lon = throttledPos.lon;
+
+        // Default to a 10km radius (20x20km) bounding box
+        const degPerKm = 1 / 111.11;
+        let latBuffer = 10 * degPerKm;
+        let lonBuffer = 10 * degPerKm / Math.cos(lat * Math.PI / 180);
+        let targetZoom = DEFAULT_ZOOM;
 
         if (nonBluePois.length > 0) {
             const maxLatDiff = Math.max(...nonBluePois.map(p => Math.abs(p.lat - lat)));
             const maxLonDiff = Math.max(...nonBluePois.map(p => Math.abs(p.lon - lon)));
 
-            let latBuffer = Math.max(maxLatDiff, 0.01);
-            let lonBuffer = Math.max(maxLonDiff, 0.01);
+            latBuffer = Math.max(maxLatDiff, 0.01);
+            lonBuffer = Math.max(maxLonDiff, 0.01);
 
             // Refinement: Adjust bounding box based on map aspect ratio
-            // If map is higher than wide (narrow side panel), favor latitude (portrait)
-            // If map is wider than high, favor longitude (landscape)
-            // CRITICAL: If a POI is active (green), we MUST keep its dimension in the buffer
-            // even if it would otherwise be zeroed out.
             const playingPoi = displayPois.find(p => p.wikidata_id === currentNarratedId);
             const activePoiLatDiff = playingPoi ? Math.abs(playingPoi.lat - lat) : 0;
             const activePoiLonDiff = playingPoi ? Math.abs(playingPoi.lon - lon) : 0;
 
             const mapSize = map.getSize();
             if (mapSize.y > mapSize.x) {
-                // Portrait: Keep lon enough for active POI
                 lonBuffer = activePoiLonDiff;
             } else if (mapSize.x > mapSize.y) {
-                // Landscape: Keep lat enough for active POI
                 latBuffer = activePoiLatDiff;
             }
-
-            const symmetricBounds = L.latLngBounds(
-                [lat - latBuffer, lon - lonBuffer],
-                [lat + latBuffer, lon + lonBuffer]
-            );
-
-            targetZoom = map.getBoundsZoom(symmetricBounds, false, L.point(60, 60));
-            targetZoom = Math.min(targetZoom, MAX_ZOOM);
-            targetZoom = Math.max(targetZoom, MIN_ZOOM);
         }
+
+        const symmetricBounds = L.latLngBounds(
+            [lat - latBuffer, lon - lonBuffer],
+            [lat + latBuffer, lon + lonBuffer]
+        );
+
+        targetZoom = map.getBoundsZoom(symmetricBounds, false, L.point(60, 60));
+        targetZoom = Math.min(targetZoom, MAX_ZOOM);
+        targetZoom = Math.max(targetZoom, MIN_ZOOM);
 
         // 3. Apply heading-based offset
         const mapSize = map.getSize();

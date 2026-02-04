@@ -205,7 +205,7 @@ func (s *AIService) handlePOIJob(ctx context.Context, job *generation.Job) *Gene
 		SkipBusyCheck: true,
 		ThumbnailURL:  p.ThumbnailURL,
 		ShowInfoPanel: true,
-		TwoPass:       s.cfg.AppConfig().Narrator.TwoPassScriptGeneration,
+		TwoPass:       s.cfg.TwoPassScriptGeneration(ctx),
 	}
 
 	s.mu.Lock()
@@ -276,7 +276,7 @@ func (s *AIService) handleAnnouncementJob(ctx context.Context, job *generation.J
 		req.ShowInfoPanel = true
 	}
 
-	req.TwoPass = s.cfg.AppConfig().Narrator.TwoPassScriptGeneration && job.Announcement.TwoPass()
+	req.TwoPass = s.cfg.TwoPassScriptGeneration(ctx) && job.Announcement.TwoPass()
 
 	return req
 }

@@ -126,7 +126,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     streamingMode,
     onStreamingModeChange
 }) => {
-    const [activeTab, setActiveTab] = useState('sim');
+    const [activeTab, setActiveTab] = useState('narrator');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [librariesExpanded, setLibrariesExpanded] = useState(false);
@@ -294,8 +294,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     );
 
     const tabs = [
-        { id: 'sim', label: 'Simulator' },
         { id: 'narrator', label: 'Narrator' },
+        { id: 'sim', label: 'Simulator' },
         { id: 'scorer', label: 'Scorer' },
         { id: 'interface', label: 'Interface' }
     ];

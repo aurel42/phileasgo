@@ -185,16 +185,19 @@ func (p *Pipeline) postProcessArticles(rawArticles []Article, lat, lon float64, 
 			continue
 		}
 
-		if a.Category != "" {
-			// Already classified or ignored by category
+		isClassified := a.Category != ""
+		meetsSitelinks := false
+		if isClassified {
 			minLinks := p.getSitelinksMin(a.Category)
-			if a.Sitelinks >= minLinks {
-				processed = append(processed, *a)
-			} else {
-				logging.Trace(p.logger, "Pipeline: Dropped low sitelinks", "qid", a.QID, "sitelinks", a.Sitelinks, "min", minLinks)
-			}
+			meetsSitelinks = a.Sitelinks >= minLinks
+		}
+
+		if isClassified && meetsSitelinks {
+			processed = append(processed, *a)
 		} else {
-			// Candidate for rescue
+			// Candidate for rescue:
+			// 1. Not classified (no category yet)
+			// 2. Classified but dropped because of low sitelinks
 			candidates = append(candidates, *a)
 		}
 	}

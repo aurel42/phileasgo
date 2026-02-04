@@ -4,6 +4,12 @@ import (
 	"context"
 )
 
+const (
+	// MinAudioSize is the minimum size of a synthesized audio file (1KB).
+	// Files smaller than this are likely failed synthesis attempts.
+	MinAudioSize = 1024
+)
+
 // LanguageProvider allows TTS providers to get the current target language dynamically.
 // This enables language changes from the config dialog to take effect without restart.
 type LanguageProvider interface {

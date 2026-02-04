@@ -27,4 +27,5 @@ const (
 	KeyTargetLanguageLibrary       = "target_language_library"
 	KeyActiveTargetLanguage        = "active_target_language"
 	KeyDeferralProximityBoostPower = "scorer.deferral_proximity_boost_power"
+	KeyTwoPassScriptGeneration     = "narrator.two_pass_script_generation"
 )

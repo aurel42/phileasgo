@@ -82,7 +82,7 @@ func (s *AIService) playPOIAutomated(ctx context.Context, p *model.POI, tel *sim
 			Manual:        false,
 			SkipBusyCheck: true,
 			ShowInfoPanel: true,
-			TwoPass:       s.cfg.AppConfig().Narrator.TwoPassScriptGeneration,
+			TwoPass:       s.cfg.TwoPassScriptGeneration(genCtx),
 			PromptData:    promptData,
 		}
 
@@ -123,7 +123,7 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 		Manual:        false,
 		SkipBusyCheck: true,
 		ShowInfoPanel: true,
-		TwoPass:       s.cfg.AppConfig().Narrator.TwoPassScriptGeneration,
+		TwoPass:       s.cfg.TwoPassScriptGeneration(ctx),
 		PromptData:    pd,
 	}
 

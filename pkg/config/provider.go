@@ -28,6 +28,7 @@ type Provider interface {
 	ActiveTargetLanguage(ctx context.Context) string
 	TargetLanguageLibrary(ctx context.Context) []string
 	TextLengthScale(ctx context.Context) int
+	TwoPassScriptGeneration(ctx context.Context) bool
 
 	// Mock Sim
 	MockStartLat(ctx context.Context) float64
@@ -137,6 +138,10 @@ func (p *UnifiedProvider) TargetLanguageLibrary(ctx context.Context) []string {
 
 func (p *UnifiedProvider) TextLengthScale(ctx context.Context) int {
 	return p.getInt(ctx, KeyTextLength, 3) // Default 3 (Normal)
+}
+
+func (p *UnifiedProvider) TwoPassScriptGeneration(ctx context.Context) bool {
+	return p.getBool(ctx, KeyTwoPassScriptGeneration, p.base.Narrator.TwoPassScriptGeneration)
 }
 
 func (p *UnifiedProvider) MockStartLat(ctx context.Context) float64 {

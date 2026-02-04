@@ -62,6 +62,7 @@ type ConfigResponse struct {
 	TargetLanguageLibrary       []string `json:"target_language_library"`
 	ActiveTargetLanguage        string   `json:"active_target_language"`
 	DeferralProximityBoostPower float64  `json:"deferral_proximity_boost_power"`
+	TwoPassScriptGeneration     bool     `json:"two_pass_script_generation"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -91,6 +92,7 @@ type ConfigRequest struct {
 	TargetLanguageLibrary       []string `json:"target_language_library,omitempty"`
 	ActiveTargetLanguage        *string  `json:"active_target_language,omitempty"`
 	DeferralProximityBoostPower *float64 `json:"deferral_proximity_boost_power,omitempty"`
+	TwoPassScriptGeneration     *bool    `json:"two_pass_script_generation,omitempty"`
 }
 
 // HandleConfig is a unified handler for all config-related methods, facilitating CORS/OPTIONS.
@@ -169,6 +171,7 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		TargetLanguageLibrary:       h.cfgProv.TargetLanguageLibrary(ctx),
 		ActiveTargetLanguage:        h.cfgProv.ActiveTargetLanguage(ctx),
 		DeferralProximityBoostPower: h.cfgProv.DeferralProximityBoostPower(ctx),
+		TwoPassScriptGeneration:     h.cfgProv.TwoPassScriptGeneration(ctx),
 	}
 }
 
@@ -261,6 +264,9 @@ func (h *ConfigHandler) applyThresholdUpdates(ctx context.Context, req *ConfigRe
 	}
 	if req.DeferralProximityBoostPower != nil {
 		h.updateFloatState(ctx, config.KeyDeferralProximityBoostPower, *req.DeferralProximityBoostPower)
+	}
+	if req.TwoPassScriptGeneration != nil {
+		h.updateBoolState(ctx, config.KeyTwoPassScriptGeneration, *req.TwoPassScriptGeneration)
 	}
 }
 
