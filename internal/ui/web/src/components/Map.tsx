@@ -264,15 +264,15 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
     const [throttledPos, setThrottledPos] = useState<{ lat: number, lon: number, heading: number } | null>(null);
     const lastThrottleRef = useRef(0);
 
-    // Centralized Throttling (2s)
+    // Centralized Throttling (2s) - Skip during replay mode to prevent map jumping
     useEffect(() => {
-        if (!telemetry) return;
+        if (!telemetry || isReplayMode) return; // Don't update during replay
         const now = Date.now();
         if (now - lastThrottleRef.current > 2000) {
             setThrottledPos({ lat: telemetry.Latitude, lon: telemetry.Longitude, heading: telemetry.Heading });
             lastThrottleRef.current = now;
         }
-    }, [telemetry]);
+    }, [telemetry, isReplayMode]);
 
     // Use default center if no telemetry
     const center: [number, number] = throttledPos ? [throttledPos.lat, throttledPos.lon] : [52.52, 13.40];
@@ -405,7 +405,8 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 {isReplayMode && tripEvents && <TripReplayOverlay events={tripEvents} durationMs={replayDuration} isPlaying={isReplayMode} />}
                 {showCacheLayer && isConnected && <CacheLayer />}
                 {isConnected && <VisibilityLayer enabled={showVisibilityLayer} />}
-                {isConnected && telemetry && throttledPos && (
+                {/* Hide aircraft elements during replay mode to prevent telemetry-based map updates */}
+                {isConnected && telemetry && throttledPos && !isReplayMode && (
                     <>
                         {/* We use TELEMETRY (real-time) for Ring positions? No, rings should probably move with the plane. 
                             Actually, stick to throttled for everything visual related to the plane position to avoid jitter. */}

@@ -455,8 +455,8 @@ func (m *Manager) isPlayable(p *model.POI) bool {
 	return !p.IsOnCooldown(m.config.RepeatTTL(context.Background()))
 }
 
-// CountScoredAbove returns the number of tracked POIs with a score strictly greater than the threshold.
-// It stops counting once the limit is reached to save resources.
+// CountScoredAbove returns the number of tracked POIs with a combined score (intrinsic × visibility)
+// strictly greater than the threshold. It stops counting once the limit is reached to save resources.
 func (m *Manager) CountScoredAbove(threshold float64, limit int) int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -469,7 +469,10 @@ func (m *Manager) CountScoredAbove(threshold float64, limit int) int {
 			continue
 		}
 
-		if p.Score > threshold {
+		// Use combined score to match narration selection logic.
+		// Invisible or behind POIs (Visibility=0) won't contribute to competition.
+		combinedScore := p.Score * p.Visibility
+		if combinedScore > threshold {
 			count++
 			if count >= limit {
 				return limit

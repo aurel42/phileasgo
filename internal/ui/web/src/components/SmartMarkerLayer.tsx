@@ -79,14 +79,12 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
         zIndex = 20000 + baseLatZ; // Standard Unplayed
     }
 
-    // Opacity Logic
+    // Opacity Logic: Use visibility directly (0.0-1.0)
     let opacity = 1.0;
-    if (poi.is_visible === false) { // Explicit check as it might be undefined/true
-        opacity = 0.5;
-    } else if (poi.visibility !== undefined) {
-        // Map 0.0-1.0 to 0.5-1.0
-        const vis = Math.max(0, Math.min(1.0, poi.visibility));
-        opacity = 0.5 + (vis * 0.5);
+    if (poi.visibility !== undefined) {
+        opacity = Math.max(0.1, Math.min(1.0, poi.visibility)); // Clamp to 0.1-1.0 (minimum visibility for usability)
+    } else if (poi.is_visible === false) {
+        opacity = 0.1; // Invisible POIs get minimum opacity
     }
 
     const badges: string[] = [];

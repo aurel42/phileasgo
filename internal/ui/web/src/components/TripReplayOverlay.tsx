@@ -305,7 +305,8 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         };
     }, [validEvents, path]);
 
-    // Fit map to bounding box on mount
+    // Fit map to static bounding box on mount (departure to destination)
+    // No dynamic zooming during animation - keeps map stable throughout playback
     useEffect(() => {
         if (path.length < 2) return;
 
@@ -313,7 +314,7 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         if (departure) bounds.extend(departure);
         if (destination) bounds.extend(destination);
 
-        map.fitBounds(bounds, { padding: [50, 50] });
+        map.fitBounds(bounds, { padding: [50, 50], animate: false });
     }, [map, path, departure, destination]);
 
     // Animation loop - continues for a cooldown period after trip ends to let POI lifecycle complete
@@ -365,37 +366,6 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
 
     // POIs to show (events up to current segment)
     const visiblePOIs = validEvents.slice(0, segmentIndex + 1).filter(e => e.type !== 'transition');
-
-    // Dynamic zoom: recalculate bounds when reaching a new event
-    const prevSegmentRef = useRef(-1);
-
-    // Skip flyToBounds for the first N segments to prevent rapid early zooms
-    // that cause the Polyline SVG to desync from the map tiles
-    const MIN_SEGMENT_FOR_FLYBOUNDS = 10;
-
-    useEffect(() => {
-        if (segmentIndex > prevSegmentRef.current && departure) {
-            prevSegmentRef.current = segmentIndex;
-
-            // Skip early segments to avoid rapid zoom animations
-            if (segmentIndex < MIN_SEGMENT_FOR_FLYBOUNDS) {
-                console.log(`[TripReplay] segmentIndex=${segmentIndex}, skipping flyToBounds (< ${MIN_SEGMENT_FOR_FLYBOUNDS})`);
-                return;
-            }
-
-            // Create bounds from departure to current position
-            const bounds = L.latLngBounds([departure, position]);
-
-            console.log(`[TripReplay] segmentIndex=${segmentIndex}, calling flyToBounds`);
-
-            // Add some padding and animate the zoom
-            map.flyToBounds(bounds, {
-                padding: [80, 80],
-                duration: 0.8, // Smooth 800ms animation
-                maxZoom: 12,   // Don't zoom in too close
-            });
-        }
-    }, [segmentIndex, departure, position, map]);
 
     // Track birth times for each POI (when it first appeared)
     const birthTimesRef = useRef<Map<string, number>>(new Map());
@@ -612,8 +582,8 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
             )}
 
 
-            {/* Animated plane at tip */}
-            <Marker position={position} icon={planeIcon} interactive={false} />
+            {/* Animated plane at tip - highest z-level */}
+            <Marker position={position} icon={planeIcon} interactive={false} zIndexOffset={10000} />
         </>
     );
 };

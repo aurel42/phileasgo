@@ -49,14 +49,13 @@ X regression: essay titles are missing, are now only the category
 X regression: POIs no longer open info panels
 X Trip Themes
 - letsgoo announcement frequently way too long
-- Morgan Freeman voice broken
+X Morgan Freeman voice broken
 X add reinforcement of target language to 2nd pass
-- reconsider basing MaxWords on the Wikipedia article length, doesn't work with Chinese articles
-- regression: screenshot announcements no longer repeatable?
-- regression: screenshot announcement played no audio?
+X reconsider basing MaxWords on the Wikipedia article length, doesn't work with Chinese articles
 
 # Trip Planning
 - can we pre-plan a whole trip? Generate a flight plan?
 
 # Trip Summary / Improved Debriefing
-- we're collecting POIs and timestamps now.
+X PoC implementation
+- remove zoom or fix track de-syncing

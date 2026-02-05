@@ -491,23 +491,46 @@ func TestManager_CountScoredAbove_Competition(t *testing.T) {
 	now := time.Now()
 
 	// Scenario:
-	// P1: Score 10, Playable -> Should count
-	// P2: Score 10, Played Recently (Cooldown) -> Should NOT count (Silent)
+	// P1: Score 10, Visibility 1.0, Playable -> Combined 10, should count
+	// P2: Score 10, Visibility 1.0, Played Recently (Cooldown) -> Should NOT count (Silent)
+	// P3: Score 10, Visibility 0.0, Playable -> Combined 0, should NOT count (behind/invisible)
+	// P4: Score 10, Visibility 0.5, Playable -> Combined 5, should count (threshold 4)
 	pois := []*model.POI{
-		{WikidataID: "P1", NameEn: "P1", Score: 10.0, IsVisible: true},
-		{WikidataID: "P2", NameEn: "P2", Score: 10.0, IsVisible: true, LastPlayed: now},
+		{WikidataID: "P1", NameEn: "P1", Score: 10.0, Visibility: 1.0, IsVisible: true},
+		{WikidataID: "P2", NameEn: "P2", Score: 10.0, Visibility: 1.0, IsVisible: true, LastPlayed: now},
+		{WikidataID: "P3", NameEn: "P3", Score: 10.0, Visibility: 0.0, IsVisible: false}, // Behind aircraft
+		{WikidataID: "P4", NameEn: "P4", Score: 10.0, Visibility: 0.5, IsVisible: true},  // Partially visible
 	}
 
 	for _, p := range pois {
 		_ = mgr.TrackPOI(ctx, p)
 	}
 
-	// Any score > 5.0
-	// Without fix: would return 2
-	// With fix: should return 1
+	// Test 1: Threshold 5.0
+	// P1: 10*1.0=10 > 5 ✓
+	// P2: On cooldown ✗
+	// P3: 10*0.0=0 > 5 ✗
+	// P4: 10*0.5=5 > 5 ✗ (not strictly greater)
 	count := mgr.CountScoredAbove(5.0, 100)
 	if count != 1 {
-		t.Errorf("CountScoredAbove expected 1 (only playable), got %d", count)
+		t.Errorf("CountScoredAbove(5.0) expected 1, got %d", count)
+	}
+
+	// Test 2: Threshold 4.0
+	// P1: 10 > 4 ✓
+	// P2: Cooldown ✗
+	// P3: 0 > 4 ✗
+	// P4: 5 > 4 ✓
+	count = mgr.CountScoredAbove(4.0, 100)
+	if count != 2 {
+		t.Errorf("CountScoredAbove(4.0) expected 2, got %d", count)
+	}
+
+	// Test 3: Zero visibility POI never counts
+	count = mgr.CountScoredAbove(0.0, 100)
+	// P1: 10 > 0 ✓, P4: 5 > 0 ✓ (P2 cooldown, P3 combined=0 not > 0)
+	if count != 2 {
+		t.Errorf("CountScoredAbove(0.0) expected 2, got %d", count)
 	}
 }
 
