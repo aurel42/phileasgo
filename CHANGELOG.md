@@ -1,5 +1,12 @@
 ﻿Release History
 
+## v0.3.138 (2026-02-05)
+- **Feature**: **Beacon Customization**. Integrated all beacon parameters (formation count, distance, altitude floor, and sink distances) into the unified configuration provider and settings panel.
+- **Improvement**: **Trip Replay Marker Suppression**. Suppressed dynamic aerodrome markers within 5km of departure/destination airports to avoid overlap with static terminal icons.
+- **Improvement**: **Prompt Polish**. Refined `Let's Go` templates for more engaging takeoff announcements and updated `Situation` context for better environmental awareness.
+- **Refactor**: **Beacon Service Reliability**. Updated the beacon update loop to be context-aware and synchronized with the latest telemetry.
+
+
 ## v0.3.137 (2026-02-05)
 - **Feature**: **Credit Roll**. Trip replay now displays POI names in a scrolling credit roll as markers appear, using role-title font with dual-outline styling.
 - **Fix**: **Duplicate Airport Markers**. Suppressed dynamic POI markers for aerodromes near departure/destination airports to avoid duplication with static anchor icons.

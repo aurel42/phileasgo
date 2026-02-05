@@ -63,6 +63,16 @@ type ConfigResponse struct {
 	ActiveTargetLanguage        string   `json:"active_target_language"`
 	DeferralProximityBoostPower float64  `json:"deferral_proximity_boost_power"`
 	TwoPassScriptGeneration     bool     `json:"two_pass_script_generation"`
+	// Beacon
+	BeaconEnabled           bool    `json:"beacon_enabled"`
+	BeaconFormationEnabled  bool    `json:"beacon_formation_enabled"`
+	BeaconFormationDistance float64 `json:"beacon_formation_distance"`
+	BeaconFormationCount    int     `json:"beacon_formation_count"`
+	BeaconMinSpawnAltitude  float64 `json:"beacon_min_spawn_altitude"`
+	BeaconAltitudeFloor     float64 `json:"beacon_altitude_floor"`
+	BeaconSinkDistanceFar   float64 `json:"beacon_sink_distance_far"`
+	BeaconSinkDistanceClose float64 `json:"beacon_sink_distance_close"`
+	BeaconMaxTargets        int     `json:"beacon_max_targets"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -93,6 +103,16 @@ type ConfigRequest struct {
 	ActiveTargetLanguage        *string  `json:"active_target_language,omitempty"`
 	DeferralProximityBoostPower *float64 `json:"deferral_proximity_boost_power,omitempty"`
 	TwoPassScriptGeneration     *bool    `json:"two_pass_script_generation,omitempty"`
+	// Beacon
+	BeaconEnabled           *bool    `json:"beacon_enabled,omitempty"`
+	BeaconFormationEnabled  *bool    `json:"beacon_formation_enabled,omitempty"`
+	BeaconFormationDistance *float64 `json:"beacon_formation_distance,omitempty"`
+	BeaconFormationCount    *int     `json:"beacon_formation_count,omitempty"`
+	BeaconMinSpawnAltitude  *float64 `json:"beacon_min_spawn_altitude,omitempty"`
+	BeaconAltitudeFloor     *float64 `json:"beacon_altitude_floor,omitempty"`
+	BeaconSinkDistanceFar   *float64 `json:"beacon_sink_distance_far,omitempty"`
+	BeaconSinkDistanceClose *float64 `json:"beacon_sink_distance_close,omitempty"`
+	BeaconMaxTargets        *int     `json:"beacon_max_targets,omitempty"`
 }
 
 // HandleConfig is a unified handler for all config-related methods, facilitating CORS/OPTIONS.
@@ -172,6 +192,15 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		ActiveTargetLanguage:        h.cfgProv.ActiveTargetLanguage(ctx),
 		DeferralProximityBoostPower: h.cfgProv.DeferralProximityBoostPower(ctx),
 		TwoPassScriptGeneration:     h.cfgProv.TwoPassScriptGeneration(ctx),
+		BeaconEnabled:               h.cfgProv.BeaconEnabled(ctx),
+		BeaconFormationEnabled:      h.cfgProv.BeaconFormationEnabled(ctx),
+		BeaconFormationDistance:     float64(h.cfgProv.BeaconFormationDistance(ctx)),
+		BeaconFormationCount:        h.cfgProv.BeaconFormationCount(ctx),
+		BeaconMinSpawnAltitude:      float64(h.cfgProv.BeaconMinSpawnAltitude(ctx)),
+		BeaconAltitudeFloor:         float64(h.cfgProv.BeaconAltitudeFloor(ctx)),
+		BeaconSinkDistanceFar:       float64(h.cfgProv.BeaconSinkDistanceFar(ctx)),
+		BeaconSinkDistanceClose:     float64(h.cfgProv.BeaconSinkDistanceClose(ctx)),
+		BeaconMaxTargets:            h.cfgProv.BeaconMaxTargets(ctx),
 	}
 }
 
@@ -204,6 +233,7 @@ func (h *ConfigHandler) HandleSetConfig(w http.ResponseWriter, r *http.Request) 
 	h.applyMockUpdates(ctx, &req, body)
 	h.applyStyleUpdates(ctx, &req)
 	h.applyLanguageUpdates(ctx, &req)
+	h.applyBeaconUpdates(ctx, &req)
 
 	// Return updated config
 	h.HandleGetConfig(w, r)
@@ -334,6 +364,36 @@ func (h *ConfigHandler) applyLanguageUpdates(ctx context.Context, req *ConfigReq
 	if req.ActiveTargetLanguage != nil {
 		_ = h.store.SetState(ctx, config.KeyActiveTargetLanguage, *req.ActiveTargetLanguage)
 		slog.Debug("Config updated", config.KeyActiveTargetLanguage, *req.ActiveTargetLanguage)
+	}
+}
+
+func (h *ConfigHandler) applyBeaconUpdates(ctx context.Context, req *ConfigRequest) {
+	if req.BeaconEnabled != nil {
+		h.updateBoolState(ctx, config.KeyBeaconEnabled, *req.BeaconEnabled)
+	}
+	if req.BeaconFormationEnabled != nil {
+		h.updateBoolState(ctx, config.KeyBeaconFormationEnabled, *req.BeaconFormationEnabled)
+	}
+	if req.BeaconFormationDistance != nil {
+		h.updateFloatState(ctx, config.KeyBeaconFormationDistance, *req.BeaconFormationDistance)
+	}
+	if req.BeaconFormationCount != nil {
+		h.updateIntState(ctx, config.KeyBeaconFormationCount, *req.BeaconFormationCount)
+	}
+	if req.BeaconMinSpawnAltitude != nil {
+		h.updateFloatState(ctx, config.KeyBeaconMinSpawnAltitude, *req.BeaconMinSpawnAltitude)
+	}
+	if req.BeaconAltitudeFloor != nil {
+		h.updateFloatState(ctx, config.KeyBeaconAltitudeFloor, *req.BeaconAltitudeFloor)
+	}
+	if req.BeaconSinkDistanceFar != nil {
+		h.updateFloatState(ctx, config.KeyBeaconSinkDistanceFar, *req.BeaconSinkDistanceFar)
+	}
+	if req.BeaconSinkDistanceClose != nil {
+		h.updateFloatState(ctx, config.KeyBeaconSinkDistanceClose, *req.BeaconSinkDistanceClose)
+	}
+	if req.BeaconMaxTargets != nil {
+		h.updateIntState(ctx, config.KeyBeaconMaxTargets, *req.BeaconMaxTargets)
 	}
 }
 

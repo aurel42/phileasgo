@@ -13,6 +13,21 @@ import (
 	"phileasgo/pkg/sim/simconnect"
 )
 
+type mockStateStore struct{}
+
+func (m *mockStateStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
+func (m *mockStateStore) SetState(ctx context.Context, key, val string) error     { return nil }
+func (m *mockStateStore) DeleteState(ctx context.Context, key string) error       { return nil }
+
+// Helper to create a provider for tests
+func testProv(cfg *config.BeaconConfig) config.Provider {
+	full := config.DefaultConfig()
+	if cfg != nil {
+		full.Beacon = *cfg
+	}
+	return config.NewProvider(full, &mockStateStore{})
+}
+
 // MockClient implements ObjectClient for testing
 type MockClient struct {
 	// Telemetry to return
@@ -94,7 +109,7 @@ func TestSetTarget_SpawnsBeacons(t *testing.T) {
 		MaxTargets:              2,
 	}
 
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	// Set Target
 	err := svc.SetTarget(context.Background(), 45.0, -72.0) // Target East
@@ -142,7 +157,7 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 		TargetFloorAGL:          config.Distance(30.48),
 		MaxTargets:              2,
 	}
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	if err := svc.SetTarget(context.Background(), 45.0, -72.0); err != nil {
 		t.Fatalf("SetTarget failed: %v", err)
@@ -159,7 +174,7 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 		OnGround:    0,
 	}
 
-	svc.updateStep(mockTel)
+	svc.updateStep(context.Background(), mockTel)
 
 	// Check Moves
 	if len(mock.Moves) == 0 {
@@ -175,7 +190,7 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 	// User at -72.03 -> approx 2.3km away (< 3.0km)
 	mockTel.Longitude = -72.03
 
-	svc.updateStep(mockTel)
+	svc.updateStep(context.Background(), mockTel)
 
 	// Check Removes
 	// Should remove 3 formation balloons
@@ -202,7 +217,7 @@ func TestSetTarget_LowAGL(t *testing.T) {
 		TargetFloorAGL:          config.Distance(30.48),
 		MaxTargets:              2,
 	}
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	// Set Target
 	err := svc.SetTarget(context.Background(), 45.0, -72.0)
@@ -243,7 +258,7 @@ func TestSetTarget_HighAGL(t *testing.T) {
 		TargetFloorAGL:          config.Distance(30.48),
 		MaxTargets:              2,
 	}
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	// Set Target
 	err := svc.SetTarget(context.Background(), 45.0, -72.0)
@@ -285,7 +300,7 @@ func TestUpdateLoop_AltitudeLock(t *testing.T) {
 		TargetFloorAGL:          config.Distance(30.48),
 		MaxTargets:              2,
 	}
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	// 1. Spawn High (3000ft AGL) -> Logic follows MSL
 	if err := svc.SetTarget(context.Background(), 45.0, -72.0); err != nil {
@@ -301,7 +316,7 @@ func TestUpdateLoop_AltitudeLock(t *testing.T) {
 		AltitudeAGL: 2500,
 		Heading:     90,
 	}
-	svc.updateStep(mockTel)
+	svc.updateStep(context.Background(), mockTel)
 
 	// Check latest target pos (ID 1)
 	found := false
@@ -322,7 +337,7 @@ func TestUpdateLoop_AltitudeLock(t *testing.T) {
 	// E.g. 1500 MSL / 1500 AGL
 	mockTel.AltitudeMSL = 1500
 	mockTel.AltitudeAGL = 1500
-	svc.updateStep(mockTel)
+	svc.updateStep(context.Background(), mockTel)
 
 	// Target should LOCK at previous (2500), NOT update to 1500
 	found = false
@@ -342,7 +357,7 @@ func TestUpdateLoop_AltitudeLock(t *testing.T) {
 	// 4. Climb back above 2000ft AGL -> Follow
 	mockTel.AltitudeMSL = 4000
 	mockTel.AltitudeAGL = 4000
-	svc.updateStep(mockTel)
+	svc.updateStep(context.Background(), mockTel)
 
 	found = false
 	for i := len(mock.Moves) - 1; i >= 0; i-- {
@@ -395,7 +410,7 @@ func TestSetTarget_OnGround(t *testing.T) {
 		FormationEnabled: true,
 		MinSpawnAltitude: config.Distance(304.8),
 	}
-	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), cfg)
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	// Set Target while on ground
 	err := svc.SetTarget(context.Background(), 45.0, -72.0)

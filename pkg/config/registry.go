@@ -28,4 +28,16 @@ const (
 	KeyActiveTargetLanguage        = "active_target_language"
 	KeyDeferralProximityBoostPower = "scorer.deferral_proximity_boost_power"
 	KeyTwoPassScriptGeneration     = "narrator.two_pass_script_generation"
+
+	// Beacon settings
+	KeyBeaconEnabled           = "beacon.enabled"
+	KeyBeaconFormationEnabled  = "beacon.formation_enabled"
+	KeyBeaconFormationDistance = "beacon.formation_distance"
+	KeyBeaconFormationCount    = "beacon.formation_count"
+	KeyBeaconMinSpawnAltitude  = "beacon.min_spawn_altitude"
+	KeyBeaconAltitudeFloor     = "beacon.altitude_floor"
+	KeyBeaconSinkDistanceFar   = "beacon.target_sink_distance_far"
+	KeyBeaconSinkDistanceClose = "beacon.target_sink_distance_close"
+	KeyBeaconTargetFloorAGL    = "beacon.target_floor_agl"
+	KeyBeaconMaxTargets        = "beacon.max_targets"
 )

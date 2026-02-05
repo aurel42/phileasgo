@@ -51,7 +51,7 @@ type ObjectClient interface {
 type Service struct {
 	client ObjectClient
 	logger *slog.Logger
-	config *config.BeaconConfig
+	prov   config.Provider
 
 	dllPath string
 	handle  uintptr // Independent SimConnect handle
@@ -79,11 +79,11 @@ type SpawnedBeacon struct {
 }
 
 // NewService creates a new Beacon Service.
-func NewService(client ObjectClient, logger *slog.Logger, cfg *config.BeaconConfig) *Service {
+func NewService(client ObjectClient, logger *slog.Logger, prov config.Provider) *Service {
 	return &Service{
 		client: client,
 		logger: logger,
-		config: cfg,
+		prov:   prov,
 	}
 }
 
@@ -146,14 +146,14 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64) error {
 
 	// 3. Setup altitude and spawn
 	title := titlesToTry[0]
-	spawnFormation := s.setupTargetAltitude(&tel)
+	spawnFormation := s.setupTargetAltitude(ctx, &tel)
 
 	// 4. Spawn Beacons
 	s.spawnTargetBalloon(title, lat, lon)
-	s.enforceTargetQuota()
+	s.enforceTargetQuota(ctx)
 
 	if spawnFormation {
-		s.spawnFormationBalloons(title, &tel)
+		s.spawnFormationBalloons(ctx, title, &tel)
 	} else {
 		s.formationActive = false
 	}
@@ -177,10 +177,10 @@ func (s *Service) clearFormationAndDuplicates(lat, lon float64) {
 	s.spawnedBeacons = newSpawned
 }
 
-func (s *Service) setupTargetAltitude(tel *sim.Telemetry) bool {
+func (s *Service) setupTargetAltitude(ctx context.Context, tel *sim.Telemetry) bool {
 	s.targetAlt = tel.AltitudeMSL
-	minSpawnAltFt := float64(s.config.MinSpawnAltitude) * 3.28084
-	spawnFormation := s.config.FormationEnabled
+	minSpawnAltFt := float64(s.prov.BeaconMinSpawnAltitude(ctx)) * 3.28084
+	spawnFormation := s.prov.BeaconFormationEnabled(ctx)
 
 	if tel.AltitudeAGL < minSpawnAltFt {
 		s.targetAlt = tel.AltitudeMSL + minSpawnAltFt
@@ -209,14 +209,15 @@ func (s *Service) spawnTargetBalloon(title string, lat, lon float64) {
 	}
 }
 
-func (s *Service) enforceTargetQuota() {
+func (s *Service) enforceTargetQuota(ctx context.Context) {
 	targetCount := 0
 	for _, b := range s.spawnedBeacons {
 		if b.IsTarget {
 			targetCount++
 		}
 	}
-	for targetCount > s.config.MaxTargets {
+	maxTargets := s.prov.BeaconMaxTargets(ctx)
+	for targetCount > maxTargets {
 		for i, b := range s.spawnedBeacons {
 			if b.IsTarget {
 				_ = s.client.RemoveObject(b.ID, reqIDRemove)
@@ -228,19 +229,20 @@ func (s *Service) enforceTargetQuota() {
 	}
 }
 
-func (s *Service) spawnFormationBalloons(title string, tel *sim.Telemetry) {
-	if s.config.FormationCount <= 0 {
+func (s *Service) spawnFormationBalloons(ctx context.Context, title string, tel *sim.Telemetry) {
+	formationCount := s.prov.BeaconFormationCount(ctx)
+	if formationCount <= 0 {
 		s.formationActive = false
 		return
 	}
 
 	bearingRad, _ := s.calculateBearing(tel.Latitude, tel.Longitude, s.targetLat, s.targetLon)
 	bearingDeg := bearingRad * 180.0 / math.Pi
-	distKm := float64(s.config.FormationDistance) / 1000.0
+	distKm := float64(s.prov.BeaconFormationDistance(ctx)) / 1000.0
 	latRad := tel.Latitude * (math.Pi / 180.0)
 	fLat, fLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, distKm)
 
-	offsets := computeFormationOffsets(s.config.FormationCount)
+	offsets := computeFormationOffsets(formationCount)
 	baseReqID := uint32(200)
 	for i, offset := range offsets {
 		absAlt := s.targetAlt + offset
@@ -435,7 +437,8 @@ func (s *Service) runDispatchIteration() bool {
 		if data.RequestID == reqIDHighFreq {
 			dataPtr := unsafe.Pointer(uintptr(ppData) + unsafe.Sizeof(simconnect.RecvSimobjectData{}))
 			tel := (*simconnect.TelemetryData)(dataPtr)
-			s.updateStep(tel)
+			// Independent update has no obvious ctx, use Background
+			s.updateStep(context.Background(), tel)
 		}
 	}
 	if recv.ID == simconnect.RECV_ID_QUIT {
@@ -445,7 +448,7 @@ func (s *Service) runDispatchIteration() bool {
 	return true
 }
 
-func (s *Service) updateStep(tel *simconnect.TelemetryData) {
+func (s *Service) updateStep(ctx context.Context, tel *simconnect.TelemetryData) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -455,10 +458,10 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 
 	// 1. Check for formation cleanup
 	bearingRad, distKm := s.calculateBearing(tel.Latitude, tel.Longitude, s.targetLat, s.targetLon)
-	s.checkFormationCleanup(distKm)
+	s.checkFormationCleanup(ctx, distKm)
 
 	// 2. Update aircraft-relative state
-	altFloorFt := float64(s.config.AltitudeFloor) * 3.28084
+	altFloorFt := float64(s.prov.BeaconAltitudeFloor(ctx)) * 3.28084
 	if tel.AltitudeAGL >= altFloorFt {
 		s.targetAlt = tel.AltitudeMSL
 		s.isHoldingAlt = false
@@ -467,11 +470,11 @@ func (s *Service) updateStep(tel *simconnect.TelemetryData) {
 	}
 
 	// 3. Update all beacons
-	s.updateAllBeacons(tel, bearingRad)
+	s.updateAllBeacons(ctx, tel, bearingRad)
 }
 
-func (s *Service) checkFormationCleanup(distKm float64) {
-	triggerDistKm := (float64(s.config.FormationDistance) / 1000.0) * 1.5
+func (s *Service) checkFormationCleanup(ctx context.Context, distKm float64) {
+	triggerDistKm := (float64(s.prov.BeaconFormationDistance(ctx)) / 1000.0) * 1.5
 	if s.formationActive && distKm < triggerDistKm {
 		s.logger.Info("Target Distance < Trigger Distance. Despawning formation.", "dist_km", distKm, "trigger_km", triggerDistKm)
 		var kept []SpawnedBeacon
@@ -487,9 +490,10 @@ func (s *Service) checkFormationCleanup(distKm float64) {
 	}
 }
 
-func (s *Service) updateAllBeacons(tel *simconnect.TelemetryData, bearingRad float64) {
+func (s *Service) updateAllBeacons(ctx context.Context, tel *simconnect.TelemetryData, bearingRad float64) {
 	latRad := tel.Latitude * math.Pi / 180.0
-	formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, float64(s.config.FormationDistance)/1000.0)
+	formDistance := float64(s.prov.BeaconFormationDistance(ctx))
+	formLat, formLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, formDistance/1000.0)
 
 	kept := []SpawnedBeacon{}
 	for _, b := range s.spawnedBeacons {
@@ -503,7 +507,7 @@ func (s *Service) updateAllBeacons(tel *simconnect.TelemetryData, bearingRad flo
 		var absAlt float64
 		var lat, lon float64
 		if b.IsTarget {
-			absAlt = s.calculateTargetAltitude(tel, b.Lat, b.Lon, b.BaseAlt, bDistKm*1000.0) + b.AltOffset
+			absAlt = s.calculateTargetAltitude(ctx, tel, b.Lat, b.Lon, b.BaseAlt, bDistKm*1000.0) + b.AltOffset
 			lat, lon = b.Lat, b.Lon
 		} else {
 			absAlt = s.targetAlt + b.AltOffset

@@ -157,6 +157,32 @@ const calculateHeading = (from: [number, number], to: [number, number]): number 
     return (bearing + 360) % 360;
 };
 
+// Helper to check if a POI is an airport near departure/destination (within 5km)
+const isAirportNearTerminal = (poi: TripEvent, departure: [number, number] | null, destination: [number, number] | null): boolean => {
+    // Check if this is an airport/aerodrome by icon or category
+    const icon = poi.metadata?.icon?.toLowerCase() || '';
+    const poiCategory = poi.metadata?.poi_category?.toLowerCase() || '';
+    const isAirport = icon === 'airfield' || poiCategory === 'aerodrome';
+    if (!isAirport) return false;
+
+    const lat = poi.metadata?.poi_lat ? parseFloat(poi.metadata.poi_lat) : poi.lat;
+    const lon = poi.metadata?.poi_lon ? parseFloat(poi.metadata.poi_lon) : poi.lon;
+    const threshold = 0.045; // ~5km in degrees
+
+    // Check distance from departure or destination
+    if (departure) {
+        const dLat = Math.abs(lat - departure[0]);
+        const dLon = Math.abs(lon - departure[1]);
+        if (dLat < threshold && dLon < threshold) return true;
+    }
+    if (destination) {
+        const dLat = Math.abs(lat - destination[0]);
+        const dLon = Math.abs(lon - destination[1]);
+        if (dLat < threshold && dLon < threshold) return true;
+    }
+    return false;
+};
+
 // Interpolate position along a polyline based on progress (0-1)
 const interpolatePosition = (
     points: [number, number][],
@@ -453,56 +479,31 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         return p;
     });
 
-    // POIs to show (events up to current segment)
-    const visiblePOIs = validEvents.slice(0, segmentIndex + 1).filter(e => e.type !== 'transition');
+    // POIs to show (events up to current segment, plus anticipation)
+    const visiblePOIs = validEvents.slice(0, segmentIndex + 2);
 
     // Track birth times for each POI (when it first appeared)
     const birthTimesRef = useRef<Map<string, number>>(new Map());
     const currentTime = Date.now();
+    const totalPOIs = useMemo(() => validEvents.filter(e => e.type !== 'transition').length, [validEvents]);
+    const shrinkTarget = useMemo(() => getShrinkTarget(totalPOIs), [totalPOIs]);
 
     // Compute smart POI layout using d3-force with lifecycle-aware growth/shrink/color
     const poiNodes = useMemo(() => {
         const now = currentTime;
 
-        // Calculate dynamic shrink target based on total POI count
-        const totalPOIs = validEvents.filter(e => e.type !== 'transition').length;
-        const shrinkTarget = getShrinkTarget(totalPOIs);
+        const poiNodeList = (visiblePOIs
+            .map((poi): ReplayNode | null => {
+                const globalIndex = validEvents.indexOf(poi);
+                if (poi.type === 'transition' || isAirportNearTerminal(poi, departure, destination)) {
+                    return null;
+                }
 
-        // Helper to check if a POI is an airport near departure/destination (within 5km)
-        const isAirportNearTerminal = (poi: TripEvent): boolean => {
-            // Check if this is an airport/aerodrome by icon or category
-            const icon = poi.metadata?.icon?.toLowerCase() || '';
-            const poiCategory = poi.metadata?.poi_category?.toLowerCase() || '';
-            const isAirport = icon === 'airfield' || poiCategory === 'aerodrome';
-            if (!isAirport) return false;
-
-            const lat = poi.metadata?.poi_lat ? parseFloat(poi.metadata.poi_lat) : poi.lat;
-            const lon = poi.metadata?.poi_lon ? parseFloat(poi.metadata.poi_lon) : poi.lon;
-            const threshold = 0.045; // ~5km in degrees
-
-            // Check distance from departure or destination
-            if (departure) {
-                const dLat = Math.abs(lat - departure[0]);
-                const dLon = Math.abs(lon - departure[1]);
-                if (dLat < threshold && dLon < threshold) return true;
-            }
-            if (destination) {
-                const dLat = Math.abs(lat - destination[0]);
-                const dLon = Math.abs(lon - destination[1]);
-                if (dLat < threshold && dLon < threshold) return true;
-            }
-            return false;
-        };
-
-        // Filter out airport POIs near terminals (they have static markers already)
-        const poiNodeList: ReplayNode[] = visiblePOIs
-            .filter((poi) => !isAirportNearTerminal(poi))
-            .map((poi, i) => {
                 const lat = poi.metadata?.poi_lat ? parseFloat(poi.metadata.poi_lat) : poi.lat;
                 const lon = poi.metadata?.poi_lon ? parseFloat(poi.metadata.poi_lon) : poi.lon;
                 const projected = map.latLngToLayerPoint([lat, lon]);
                 const icon = poi.metadata?.icon && poi.metadata.icon.length > 0 ? poi.metadata.icon : 'attraction';
-                const nodeId = `poi-${i}`;
+                const nodeId = `poi-${globalIndex}`;
 
                 // Track birth time - first time we see this marker
                 if (!birthTimesRef.current.has(nodeId)) {
@@ -525,15 +526,16 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
                     icon,
                     anchorX: projected.x,
                     anchorY: projected.y,
-                    x: projected.x + (Math.sin(i) * 1),
-                    y: projected.y + (Math.cos(i) * 1),
-                    r: physicsRadius, // Scale the physics radius
+                    x: projected.x + (Math.sin(globalIndex) * 1),
+                    y: projected.y + (Math.cos(globalIndex) * 1),
+                    r: physicsRadius,
                     isTrackPoint: false,
-                    scale, // Pass scale to renderer
-                    color, // Pass color to renderer
+                    scale,
+                    color,
                     birthTime,
                 };
-            });
+            })
+            .filter((node) => node !== null) as ReplayNode[]);
 
         if (poiNodeList.length === 0) return [];
 
@@ -630,18 +632,19 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         // Return only non-track nodes (the ones we want to render)
         return allNodes.filter(n => !n.isTrackPoint);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [visiblePOIs, map, drawnPath, position, tick, departure, destination]); // tick forces recalc for lifecycle animation
+    }, [visiblePOIs, map, drawnPath, position, tick, departure, destination, shrinkTarget]); // tick forces recalc for lifecycle animation
 
     // Credit roll trigger - check for POIs hitting the green phase
     useEffect(() => {
         const now = Date.now();
         const newCredits: CreditItem[] = [];
 
-        visiblePOIs.forEach((poi, i) => {
+        visiblePOIs.forEach((poi) => {
             // Only credit narration-type events
-            if (poi.type !== 'narration') return;
+            if (poi.type !== 'narration' || isAirportNearTerminal(poi, departure, destination)) return;
 
-            const nodeId = `poi-${i}`;
+            const globalIndex = validEvents.indexOf(poi);
+            const nodeId = `poi-${globalIndex}`;
             const birthTime = birthTimesRef.current.get(nodeId);
             if (!birthTime) return;
 

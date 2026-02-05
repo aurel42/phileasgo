@@ -305,7 +305,7 @@ func initNarrator(ctx context.Context, cfg config.Provider, svcs *CoreServices, 
 	// Initialize Beacon Service if enabled in config
 	if appCfg.Beacon.Enabled {
 		if bc, ok := simClient.(beacon.ObjectClient); ok {
-			beaconSvc = beacon.NewService(bc, slog.With("component", "beacon"), &appCfg.Beacon)
+			beaconSvc = beacon.NewService(bc, slog.With("component", "beacon"), cfg)
 			if elProv != nil {
 				beaconSvc.SetElevationProvider(elProv)
 			}

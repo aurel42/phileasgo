@@ -61,6 +61,18 @@ type Provider interface {
 	SecretWordLibrary(ctx context.Context) []string
 	ActiveSecretWord(ctx context.Context) string
 
+	// Beacon
+	BeaconEnabled(ctx context.Context) bool
+	BeaconFormationEnabled(ctx context.Context) bool
+	BeaconFormationDistance(ctx context.Context) Distance
+	BeaconFormationCount(ctx context.Context) int
+	BeaconMinSpawnAltitude(ctx context.Context) Distance
+	BeaconAltitudeFloor(ctx context.Context) Distance
+	BeaconSinkDistanceFar(ctx context.Context) Distance
+	BeaconSinkDistanceClose(ctx context.Context) Distance
+	BeaconTargetFloorAGL(ctx context.Context) Distance
+	BeaconMaxTargets(ctx context.Context) int
+
 	// Raw access (for components that need deep access)
 	AppConfig() *Config
 }
@@ -236,6 +248,46 @@ func (p *UnifiedProvider) ActiveSecretWord(ctx context.Context) string {
 	return p.getString(ctx, KeyActiveSecretWord, p.base.Narrator.ActiveSecretWord)
 }
 
+func (p *UnifiedProvider) BeaconEnabled(ctx context.Context) bool {
+	return p.getBool(ctx, KeyBeaconEnabled, p.base.Beacon.Enabled)
+}
+
+func (p *UnifiedProvider) BeaconFormationEnabled(ctx context.Context) bool {
+	return p.getBool(ctx, KeyBeaconFormationEnabled, p.base.Beacon.FormationEnabled)
+}
+
+func (p *UnifiedProvider) BeaconFormationDistance(ctx context.Context) Distance {
+	return p.getDistance(ctx, KeyBeaconFormationDistance, p.base.Beacon.FormationDistance)
+}
+
+func (p *UnifiedProvider) BeaconFormationCount(ctx context.Context) int {
+	return p.getInt(ctx, KeyBeaconFormationCount, p.base.Beacon.FormationCount)
+}
+
+func (p *UnifiedProvider) BeaconMinSpawnAltitude(ctx context.Context) Distance {
+	return p.getDistance(ctx, KeyBeaconMinSpawnAltitude, p.base.Beacon.MinSpawnAltitude)
+}
+
+func (p *UnifiedProvider) BeaconAltitudeFloor(ctx context.Context) Distance {
+	return p.getDistance(ctx, KeyBeaconAltitudeFloor, p.base.Beacon.AltitudeFloor)
+}
+
+func (p *UnifiedProvider) BeaconSinkDistanceFar(ctx context.Context) Distance {
+	return p.getDistance(ctx, KeyBeaconSinkDistanceFar, p.base.Beacon.TargetSinkDistanceFar)
+}
+
+func (p *UnifiedProvider) BeaconSinkDistanceClose(ctx context.Context) Distance {
+	return p.getDistance(ctx, KeyBeaconSinkDistanceClose, p.base.Beacon.TargetSinkDistanceClose)
+}
+
+func (p *UnifiedProvider) BeaconTargetFloorAGL(ctx context.Context) Distance {
+	return p.getDistance(ctx, KeyBeaconTargetFloorAGL, p.base.Beacon.TargetFloorAGL)
+}
+
+func (p *UnifiedProvider) BeaconMaxTargets(ctx context.Context) int {
+	return p.getInt(ctx, KeyBeaconMaxTargets, p.base.Beacon.MaxTargets)
+}
+
 // --- Helpers ---
 
 func (p *UnifiedProvider) getString(ctx context.Context, key, fallback string) string {
@@ -283,6 +335,17 @@ func (p *UnifiedProvider) getDuration(ctx context.Context, key string, fallback 
 		if val, ok := p.store.GetState(ctx, key); ok && val != "" {
 			if dur, err := ParseDuration(val); err == nil {
 				return dur
+			}
+		}
+	}
+	return fallback
+}
+
+func (p *UnifiedProvider) getDistance(ctx context.Context, key string, fallback Distance) Distance {
+	if p.store != nil {
+		if val, ok := p.store.GetState(ctx, key); ok && val != "" {
+			if d, err := ParseDistance(val); err == nil {
+				return Distance(d)
 			}
 		}
 	}

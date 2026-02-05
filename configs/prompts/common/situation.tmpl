@@ -23,10 +23,13 @@ We are **{{.Movement}}** {{.POINameUser}}.
 - Do not mention the aircraft's speed, altitude, or heading. These information are only provided as context.
 - Do not mention where we are going or what we are going to see next.
 - Do not predict where we will be landing.
+- Again: do not mention the aircraft's speed or altitude.
 {{end}}
 
 {{if .ActiveSecretWord}}
 ### ASSIGNED THEME
-The Theme or Topic for this trip is {{.ActiveSecretWord}}. Incorporate the concept into the script without mentioning it verbatim whenever it makes sense.
+The Theme or Topic for this trip is {{.ActiveSecretWord}}. 
+Incorporate the concept into the script without mentioning it verbatim whenever it makes sense.
+Again, do not mention the theme "{{.ActiveSecretWord}}" verbatim.
 {{end}}
 {{end}}

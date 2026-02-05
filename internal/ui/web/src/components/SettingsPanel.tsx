@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { VictorianToggle } from './VictorianToggle';
 import type { Telemetry } from '../types/telemetry';
+import { DualRangeSlider } from './DualRangeSlider';
 
 interface SettingsPanelProps {
     isGui: boolean;
@@ -103,6 +104,17 @@ interface DraftState {
     deferralProximityBoostPower: number;
     // Narrator refinement
     twoPassScriptGeneration: boolean;
+    // Beacon tab
+    beaconEnabled: boolean;
+    beaconFormationEnabled: boolean;
+    beaconFormationDistance: number;
+    beaconFormationCount: number;
+    beaconMinSpawnAltitude: number;
+    beaconAltitudeFloor: number;
+    beaconSinkDistanceFar: number;
+    beaconSinkDistanceClose: number;
+    beaconTargetFloorAGL: number;
+    beaconMaxTargets: number;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -171,6 +183,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     streamingMode,
                     deferralProximityBoostPower: data.deferral_proximity_boost_power ?? 1.0,
                     twoPassScriptGeneration: data.two_pass_script_generation ?? false,
+                    beaconEnabled: data.beacon_enabled ?? true,
+                    beaconFormationEnabled: data.beacon_formation_enabled ?? true,
+                    beaconFormationDistance: data.beacon_formation_distance ?? 2000,
+                    beaconFormationCount: data.beacon_formation_count ?? 3,
+                    beaconMinSpawnAltitude: data.beacon_min_spawn_altitude ?? 304.8,
+                    beaconAltitudeFloor: data.beacon_altitude_floor ?? 609.6,
+                    beaconSinkDistanceFar: data.beacon_sink_distance_far ?? 5000,
+                    beaconSinkDistanceClose: data.beacon_sink_distance_close ?? 2000,
+                    beaconTargetFloorAGL: data.beacon_target_floor_agl ?? 30.48,
+                    beaconMaxTargets: data.beacon_max_targets ?? 2,
                 });
                 setLoading(false);
             })
@@ -205,8 +227,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.showCacheLayer !== showCacheLayer ||
             draft.showVisibilityLayer !== showVisibilityLayer ||
             draft.streamingMode !== streamingMode ||
-            draft.deferralProximityBoostPower !== (serverConfig.deferral_proximity_boost_power ?? 1.0) ||
-            draft.twoPassScriptGeneration !== (serverConfig.two_pass_script_generation ?? false)
+            draft.twoPassScriptGeneration !== (serverConfig.two_pass_script_generation ?? false) ||
+            draft.beaconEnabled !== (serverConfig.beacon_enabled ?? true) ||
+            draft.beaconFormationEnabled !== (serverConfig.beacon_formation_enabled ?? true) ||
+            draft.beaconFormationDistance !== (serverConfig.beacon_formation_distance ?? 2000) ||
+            draft.beaconFormationCount !== (serverConfig.beacon_formation_count ?? 3) ||
+            draft.beaconMinSpawnAltitude !== (serverConfig.beacon_min_spawn_altitude ?? 304.8) ||
+            draft.beaconAltitudeFloor !== (serverConfig.beacon_altitude_floor ?? 609.6) ||
+            draft.beaconSinkDistanceFar !== (serverConfig.beacon_sink_distance_far ?? 5000) ||
+            draft.beaconSinkDistanceClose !== (serverConfig.beacon_sink_distance_close ?? 2000) ||
+            draft.beaconTargetFloorAGL !== (serverConfig.beacon_target_floor_agl ?? 30.48) ||
+            draft.beaconMaxTargets !== (serverConfig.beacon_max_targets ?? 2)
         );
     }, [draft, serverConfig, narrationFrequency, textLength, minPoiScore, filterMode, targetPoiCount, units, showCacheLayer, showVisibilityLayer, streamingMode]);
 
@@ -240,6 +271,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         if (draft.mockDurationHold !== (serverConfig?.mock_duration_hold || '')) payload.mock_duration_hold = draft.mockDurationHold;
         if (draft.deferralProximityBoostPower !== (serverConfig?.deferral_proximity_boost_power ?? 1.0)) payload.deferral_proximity_boost_power = draft.deferralProximityBoostPower;
         if (draft.twoPassScriptGeneration !== (serverConfig?.two_pass_script_generation ?? false)) payload.two_pass_script_generation = draft.twoPassScriptGeneration;
+        if (draft.beaconEnabled !== (serverConfig?.beacon_enabled ?? true)) payload.beacon_enabled = draft.beaconEnabled;
+        if (draft.beaconFormationEnabled !== (serverConfig?.beacon_formation_enabled ?? true)) payload.beacon_formation_enabled = draft.beaconFormationEnabled;
+        if (draft.beaconFormationDistance !== (serverConfig?.beacon_formation_distance ?? 2000)) payload.beacon_formation_distance = draft.beaconFormationDistance;
+        if (draft.beaconFormationCount !== (serverConfig?.beacon_formation_count ?? 3)) payload.beacon_formation_count = draft.beaconFormationCount;
+        if (draft.beaconMinSpawnAltitude !== (serverConfig?.beacon_min_spawn_altitude ?? 304.8)) payload.beacon_min_spawn_altitude = draft.beaconMinSpawnAltitude;
+        if (draft.beaconAltitudeFloor !== (serverConfig?.beacon_altitude_floor ?? 609.6)) payload.beacon_altitude_floor = draft.beaconAltitudeFloor;
+        if (draft.beaconSinkDistanceFar !== (serverConfig?.beacon_sink_distance_far ?? 5000)) payload.beacon_sink_distance_far = draft.beaconSinkDistanceFar;
+        if (draft.beaconSinkDistanceClose !== (serverConfig?.beacon_sink_distance_close ?? 2000)) payload.beacon_sink_distance_close = draft.beaconSinkDistanceClose;
+        if (draft.beaconTargetFloorAGL !== (serverConfig?.beacon_target_floor_agl ?? 30.48)) payload.beacon_target_floor_agl = draft.beaconTargetFloorAGL;
+        if (draft.beaconMaxTargets !== (serverConfig?.beacon_max_targets ?? 2)) payload.beacon_max_targets = draft.beaconMaxTargets;
 
         try {
             // Send server-only changes
@@ -296,6 +337,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     const tabs = [
         { id: 'narrator', label: 'Narrator' },
         { id: 'sim', label: 'Simulator' },
+        { id: 'beacon', label: 'Beacons' },
         { id: 'scorer', label: 'Scorer' },
         { id: 'interface', label: 'Interface' }
     ];
@@ -616,6 +658,99 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
                                 Higher values prioritize perfect viewing moments over immediate narration by punishing distance more heavily.
                             </div>
+                        </div>
+                    )}
+                    {activeTab === 'beacon' && (
+                        <div className="settings-group">
+                            <div className="role-header">Target Beacons</div>
+                            <VictorianToggle
+                                label="Enable Visual Beacons"
+                                checked={draft.beaconEnabled}
+                                onChange={val => updateDraft('beaconEnabled', val)}
+                            />
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Formation Settings</div>
+                            <VictorianToggle
+                                label="Formation Companions"
+                                checked={draft.beaconFormationEnabled}
+                                onChange={val => updateDraft('beaconFormationEnabled', val)}
+                            />
+                            {renderField('Companion Distance', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{draft.beaconFormationDistance}m</span>
+                                    <input
+                                        type="range"
+                                        min="500" max="10000" step="500"
+                                        value={draft.beaconFormationDistance}
+                                        onChange={e => updateDraft('beaconFormationDistance', parseInt(e.target.value))}
+                                    />
+                                </div>
+                            ))}
+                            {renderField('Companion Count', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{draft.beaconFormationCount}</span>
+                                    <input
+                                        type="range"
+                                        min="1" max="5"
+                                        value={draft.beaconFormationCount}
+                                        onChange={e => updateDraft('beaconFormationCount', parseInt(e.target.value))}
+                                    />
+                                </div>
+                            ))}
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Altitude & Sinking</div>
+                            <div className="settings-grid">
+                                {renderField('Min Spawn (ft)', (
+                                    <input
+                                        type="number"
+                                        className="settings-input"
+                                        value={Math.round(draft.beaconMinSpawnAltitude * 3.28084)}
+                                        onChange={e => updateDraft('beaconMinSpawnAltitude', parseFloat(e.target.value) / 3.28084)}
+                                    />
+                                ))}
+                                {renderField('Altitude Floor (ft)', (
+                                    <input
+                                        type="number"
+                                        className="settings-input"
+                                        value={Math.round(draft.beaconAltitudeFloor * 3.28084)}
+                                        onChange={e => updateDraft('beaconAltitudeFloor', parseFloat(e.target.value) / 3.28084)}
+                                    />
+                                ))}
+                            </div>
+                            {renderField('Target Ground Floor (ft)', (
+                                <input
+                                    type="number"
+                                    className="settings-input"
+                                    value={Math.round(draft.beaconTargetFloorAGL * 3.28084)}
+                                    onChange={e => updateDraft('beaconTargetFloorAGL', parseFloat(e.target.value) / 3.28084)}
+                                />
+                            ))}
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Behavior & Limits</div>
+                            {renderField('Target Sink Distances (Close/Far)', (
+                                <DualRangeSlider
+                                    min={500}
+                                    max={10000}
+                                    step={100}
+                                    minVal={draft.beaconSinkDistanceClose}
+                                    maxVal={draft.beaconSinkDistanceFar}
+                                    onChange={(minVal, maxVal) => {
+                                        updateDraft('beaconSinkDistanceClose', minVal);
+                                        updateDraft('beaconSinkDistanceFar', maxVal);
+                                    }}
+                                />
+                            ))}
+                            {renderField('Max Active Beacons', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{draft.beaconMaxTargets}</span>
+                                    <input
+                                        type="range"
+                                        min="1" max="20"
+                                        value={draft.beaconMaxTargets}
+                                        onChange={e => updateDraft('beaconMaxTargets', parseInt(e.target.value))}
+                                    />
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>

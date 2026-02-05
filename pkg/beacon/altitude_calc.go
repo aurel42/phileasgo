@@ -1,15 +1,16 @@
 package beacon
 
 import (
+	"context"
 	"phileasgo/pkg/sim/simconnect"
 )
 
-func (s *Service) calculateTargetAltitude(tel *simconnect.TelemetryData, pLat, pLon, pBaseAlt, distMeters float64) float64 {
+func (s *Service) calculateTargetAltitude(ctx context.Context, tel *simconnect.TelemetryData, pLat, pLon, pBaseAlt, distMeters float64) float64 {
 	// Pre-calc limit constants for sinking logic
-	sinkDistFar := float64(s.config.TargetSinkDistanceFar)    // e.g. 5000
-	sinkDistNear := float64(s.config.TargetSinkDistanceClose) // e.g. 2000
-	targetFloorFt := float64(s.config.TargetFloorAGL) * 3.28084
-	minSpawnAltFt := float64(s.config.MinSpawnAltitude) * 3.28084
+	sinkDistFar := float64(s.prov.BeaconSinkDistanceFar(ctx))
+	sinkDistNear := float64(s.prov.BeaconSinkDistanceClose(ctx))
+	targetFloorFt := float64(s.prov.BeaconTargetFloorAGL(ctx)) * 3.28084
+	minSpawnAltFt := float64(s.prov.BeaconMinSpawnAltitude(ctx)) * 3.28084
 
 	// Only sink if we are above the safety spawn altitude (safety first)
 	// AND we are within range
