@@ -8,7 +8,7 @@ import type { TripEvent } from '../hooks/useTripEvents';
 interface TripReplayOverlayProps {
     events: TripEvent[];
     durationMs: number; // Total animation duration
-    isSimActive?: boolean; // If true, we should stop and clean up
+    isPlaying?: boolean; // If false, we should stop and clean up
 }
 
 // Marker constants (match SmartMarkerLayer)
@@ -268,7 +268,7 @@ const SmartReplayMarker = ({ node }: { node: ReplayNode }) => {
     );
 };
 
-export const TripReplayOverlay = ({ events, durationMs, isSimActive }: TripReplayOverlayProps) => {
+export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayOverlayProps) => {
     const map = useMap();
     const [progress, setProgress] = useState(0);
     const startTimeRef = useRef<number | null>(null);
@@ -325,7 +325,7 @@ export const TripReplayOverlay = ({ events, durationMs, isSimActive }: TripRepla
     const [tick, setTick] = useState(0); // Force re-renders for lifecycle animation
 
     useEffect(() => {
-        if (path.length < 2 || isSimActive) return;
+        if (path.length < 2 || !isPlaying) return;
 
         startTimeRef.current = Date.now();
 
@@ -348,13 +348,12 @@ export const TripReplayOverlay = ({ events, durationMs, isSimActive }: TripRepla
         };
 
         animationRef.current = requestAnimationFrame(animate);
-
         return () => {
             if (animationRef.current) {
                 cancelAnimationFrame(animationRef.current);
             }
         };
-    }, [path.length, durationMs, isSimActive]);
+    }, [path.length, durationMs, isPlaying]);
 
     if (path.length < 2) {
         return null; // Not enough data to draw

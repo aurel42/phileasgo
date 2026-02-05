@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.133 (2026-02-05)
+- **Feature**: **Synchronized Trip Replay**. Integrated the trip replay animation with the debriefing audio playback. Replays now trigger automatically during the debriefing phase and synchronize their timing with the actual narration duration.
+- **Fix**: **Double Audio Extension**. Resolved a bug where narration audio paths were being incorrectly appended with a double `.mp3.mp3` extension, which caused playback failures for some TTS providers.
+
 ## v0.3.132 (2026-02-05)
 - **Feature**: **Trip Replay**. Implemented a trip replay function.
 

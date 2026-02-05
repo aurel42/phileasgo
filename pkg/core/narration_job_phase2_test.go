@@ -116,6 +116,7 @@ func (m *mockPhase2NarratorService) TriggerIdentAction()                {}
 func (m *mockPhase2NarratorService) CurrentNarrative() *model.Narrative { return nil }
 func (m *mockPhase2NarratorService) CurrentImagePath() string           { return "" }
 func (m *mockPhase2NarratorService) IsPOIBusy(poiID string) bool        { return false }
+func (m *mockPhase2NarratorService) CurrentDuration() time.Duration     { return 0 }
 func (m *mockPhase2NarratorService) GenerateNarrative(ctx context.Context, req *narrator.GenerationRequest) (*model.Narrative, error) {
 	return nil, nil
 }

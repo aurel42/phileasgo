@@ -227,12 +227,19 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
 
     // Trip events for replay mode
     const { data: tripEvents } = useTripEvents();
-    const isReplayMode = isDisconnected && tripEvents && tripEvents.length > 1;
+
+    const { status: narratorStatus } = useNarrator();
+
+    // Determine if we are in debriefing replay mode
+    const isDebriefing = narratorStatus?.current_type === 'debriefing';
+    const isIdleReplay = isDisconnected && tripEvents && tripEvents.length > 1;
+    const isReplayMode = isIdleReplay || isDebriefing;
+
+    // Default duration for idle replay is 2 mins, otherwise use actual audio duration
+    const replayDuration = isDebriefing ? (narratorStatus?.current_duration_ms || 120000) : 120000;
 
     // Prevent rendering fallback map until we are sure we are disconnected
     const showFallbackMap = !isConnecting && !isConnected && !isReplayMode;
-
-    const { status: narratorStatus } = useNarrator();
 
     // Determine the currently narrated POI
     const currentNarratedPoi = narratorStatus?.playback_status !== 'idle' ? narratorStatus?.current_poi : null;
@@ -394,7 +401,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 />
                 {showFallbackMap && <MapBranding />}
                 {showFallbackMap && <CoverageLayer />}
-                {isReplayMode && tripEvents && <TripReplayOverlay events={tripEvents} durationMs={120000} isSimActive={isConnected} />}
+                {isReplayMode && tripEvents && <TripReplayOverlay events={tripEvents} durationMs={replayDuration} isPlaying={isReplayMode} />}
                 {showCacheLayer && isConnected && <CacheLayer />}
                 {isConnected && <VisibilityLayer enabled={showVisibilityLayer} />}
                 {isConnected && telemetry && throttledPos && (

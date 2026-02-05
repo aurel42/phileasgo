@@ -4,10 +4,10 @@ import (
 	"context" // Added
 	"encoding/json"
 	"log/slog"
-
 	"net/http"
 	"reflect"
 	"sync"
+	"time" // Moved here
 
 	"net/url"
 	"phileasgo/pkg/logging"
@@ -39,7 +39,8 @@ type NarratorController interface {
 	CurrentShowInfoPanel() bool  // Added
 	CurrentType() model.NarrativeType
 	CurrentImagePath() string
-	ClearCurrentImage() // Added
+	ClearCurrentImage()             // Added
+	CurrentDuration() time.Duration // Added
 	NarratedCount() int
 	Stats() map[string]any
 }
@@ -86,6 +87,7 @@ type NarratorStatusResponse struct {
 	NarrationFrequency int            `json:"narration_frequency"`
 	TextLength         int            `json:"text_length"`
 	ShowInfoPanel      bool           `json:"show_info_panel"`
+	CurrentDurationMs  int64          `json:"current_duration_ms"` // Added
 }
 
 // HandlePlay handles POST /api/narrator/play
@@ -156,6 +158,7 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		NarrationFrequency: freq,
 		TextLength:         textLen,
 		ShowInfoPanel:      h.narrator.CurrentShowInfoPanel(),
+		CurrentDurationMs:  h.narrator.CurrentDuration().Milliseconds(),
 	}
 
 	// Check if state changed

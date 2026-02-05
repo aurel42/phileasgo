@@ -34,4 +34,5 @@ export interface NarratorStatusResponse {
     narration_frequency?: number;
     text_length?: number;
     show_info_panel?: boolean;
+    current_duration_ms?: number;
 }

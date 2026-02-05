@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,6 +39,7 @@ type Orchestrator struct {
 	currentShowInfoPanel bool
 	currentLat           float64
 	currentLon           float64
+	currentDuration      time.Duration
 
 	// Replay State
 	lastPOI       *model.POI
@@ -231,18 +233,25 @@ func (o *Orchestrator) PlayNarrative(ctx context.Context, n *model.Narrative) er
 }
 
 func (o *Orchestrator) setPlaybackState(n *model.Narrative) string {
+	ext := "." + n.Format
+	audioFile := n.AudioPath
+	if !strings.HasSuffix(strings.ToLower(audioFile), ext) {
+		audioFile += ext
+	}
+
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
 	o.active = true
-	o.currentPOI = n.POI
-	o.currentImagePath = n.ImagePath
+	o.currentTitle = n.Title
 	o.currentType = n.Type
+	o.currentDuration = n.Duration
+	o.currentThumbnailURL = n.ThumbnailURL
+	o.currentShowInfoPanel = n.ShowInfoPanel
+	o.currentImagePath = n.ImagePath
+	o.currentPOI = n.POI
 	o.currentLat = n.Lat
 	o.currentLon = n.Lon
-	o.currentThumbnailURL = n.ThumbnailURL
-	o.currentTitle = n.Title
-	o.currentShowInfoPanel = n.ShowInfoPanel
 
 	if n.POI != nil {
 		o.lastPOI = n.POI
@@ -253,7 +262,7 @@ func (o *Orchestrator) setPlaybackState(n *model.Narrative) string {
 		o.lastLon = n.Lon
 	}
 
-	return n.AudioPath + "." + n.Format
+	return audioFile
 }
 
 func (o *Orchestrator) finalizePlayback() {
@@ -272,6 +281,7 @@ func (o *Orchestrator) finalizePlayback() {
 	o.currentThumbnailURL = ""
 	o.currentTitle = ""
 	o.currentShowInfoPanel = false
+	o.currentDuration = 0
 	o.mu.Unlock()
 
 	// Beacon Check (Switch to next target)
@@ -351,6 +361,11 @@ func (o *Orchestrator) ClearCurrentImage() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.currentImagePath = ""
+}
+func (o *Orchestrator) CurrentDuration() time.Duration {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.currentDuration
 }
 
 // IsPOIBusy returns true if the POI is currently generating or queued.

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"phileasgo/pkg/logging"
 	"phileasgo/pkg/model"
@@ -64,6 +65,7 @@ func (m *MockNarratorService) ClearCurrentImage()               {} // Added
 func (m *MockNarratorService) NarratedCount() int               { return m.narrated }
 func (m *MockNarratorService) Stats() map[string]any            { return m.stats }
 func (m *MockNarratorService) CurrentType() model.NarrativeType { return "" }
+func (m *MockNarratorService) CurrentDuration() time.Duration   { return 0 }
 func (m *MockNarratorService) CurrentShowInfoPanel() bool       { return m.showInfoPanel }
 
 func TestNarratorHandler_HandleStatus_Logging(t *testing.T) {

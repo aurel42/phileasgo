@@ -65,6 +65,8 @@ type Service interface {
 	CurrentType() model.NarrativeType
 	// CurrentShowInfoPanel returns true if the current narration should show the info panel.
 	CurrentShowInfoPanel() bool
+	// CurrentDuration returns the total duration of the current narrative.
+	CurrentDuration() time.Duration
 	// Explanation: We need Remaining() to calculate pipeline trigger
 	// Remaining returns the estimated remaining duration of the current playback.
 	Remaining() time.Duration
@@ -305,6 +307,11 @@ func (s *StubService) CurrentType() model.NarrativeType {
 // CurrentShowInfoPanel returns false for the stub.
 func (s *StubService) CurrentShowInfoPanel() bool {
 	return false
+}
+
+// CurrentDuration returns the duration (stub: 0).
+func (s *StubService) CurrentDuration() time.Duration {
+	return 0
 }
 
 // Remaining returns the remaining duration (stub: 0).

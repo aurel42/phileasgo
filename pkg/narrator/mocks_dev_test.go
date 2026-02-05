@@ -470,6 +470,7 @@ func (m *MockAIService) IsPaused() bool                                         
 func (m *MockAIService) CurrentPOI() *model.POI                                      { return nil }
 func (m *MockAIService) CurrentTitle() string                                        { return "" }
 func (m *MockAIService) CurrentType() model.NarrativeType                            { return "" }
+func (m *MockAIService) CurrentDuration() time.Duration                              { return 0 }
 func (m *MockAIService) Remaining() time.Duration                                    { return 0 }
 func (m *MockAIService) ReplayLast(ctx context.Context) bool                         { return false }
 func (m *MockAIService) CurrentImagePath() string                                    { return "" }
