@@ -8,13 +8,14 @@ import type { TripEvent } from '../hooks/useTripEvents';
 interface TripReplayOverlayProps {
     events: TripEvent[];
     durationMs: number; // Total animation duration
+    isSimActive?: boolean; // If true, we should stop and clean up
 }
 
 // Marker constants (match SmartMarkerLayer)
 const MARKER_SIZE = 28;
 const MARKER_RADIUS = MARKER_SIZE / 2;
 const COLLISION_PADDING = 3; // Reduced for tighter packing
-const TRACK_REPULSION_RADIUS = 5; // Subtle push from track
+const TRACK_REPULSION_RADIUS = 2; // Subtle push from track
 const ANCHOR_STRENGTH = 0.15; // How strongly markers are pulled toward their anchor (higher = less jumping)
 
 // Lifecycle timing (in milliseconds)
@@ -24,7 +25,7 @@ const SHRINK_DURATION = 2000;      // 14-16s: Shrink from 100% to shrinkTarget
 
 // Dynamic shrink target based on marker count (logarithmic scaling)
 const SHRINK_MAX = 1.0;   // 100% - when 1 marker
-const SHRINK_MIN = 0.2;   // 20% - when many markers
+const SHRINK_MIN = 0.5;   // 50% - when many markers
 const SHRINK_LOG_BASE = 64; // Count at which we hit minimum size
 
 // Calculate the dynamic shrink target based on total marker count
@@ -267,11 +268,19 @@ const SmartReplayMarker = ({ node }: { node: ReplayNode }) => {
     );
 };
 
-export const TripReplayOverlay = ({ events, durationMs }: TripReplayOverlayProps) => {
+export const TripReplayOverlay = ({ events, durationMs, isSimActive }: TripReplayOverlayProps) => {
     const map = useMap();
     const [progress, setProgress] = useState(0);
     const startTimeRef = useRef<number | null>(null);
     const animationRef = useRef<number | null>(null);
+
+    // Stop all map animations when this component unmounts (important for flyToBounds)
+    useEffect(() => {
+        return () => {
+            console.log("TripReplayOverlay: Cleaning up and stopping map animations");
+            map.stop(); // Stops any ongoing flyToBounds
+        };
+    }, [map]);
 
     // Filter events with valid coordinates
     const validEvents = useMemo(() => {
@@ -316,7 +325,7 @@ export const TripReplayOverlay = ({ events, durationMs }: TripReplayOverlayProps
     const [tick, setTick] = useState(0); // Force re-renders for lifecycle animation
 
     useEffect(() => {
-        if (path.length < 2) return;
+        if (path.length < 2 || isSimActive) return;
 
         startTimeRef.current = Date.now();
 
@@ -345,7 +354,7 @@ export const TripReplayOverlay = ({ events, durationMs }: TripReplayOverlayProps
                 cancelAnimationFrame(animationRef.current);
             }
         };
-    }, [path.length, durationMs]);
+    }, [path.length, durationMs, isSimActive]);
 
     if (path.length < 2) {
         return null; // Not enough data to draw
@@ -361,6 +370,24 @@ export const TripReplayOverlay = ({ events, durationMs }: TripReplayOverlayProps
 
     // POIs to show (events up to current segment)
     const visiblePOIs = validEvents.slice(0, segmentIndex + 1).filter(e => e.type !== 'transition');
+
+    // Dynamic zoom: recalculate bounds when reaching a new event
+    const prevSegmentRef = useRef(-1);
+    useEffect(() => {
+        if (segmentIndex > prevSegmentRef.current && departure) {
+            prevSegmentRef.current = segmentIndex;
+
+            // Create bounds from departure to current position
+            const bounds = L.latLngBounds([departure, position]);
+
+            // Add some padding and animate the zoom
+            map.flyToBounds(bounds, {
+                padding: [80, 80],
+                duration: 0.8, // Smooth 800ms animation
+                maxZoom: 12,   // Don't zoom in too close
+            });
+        }
+    }, [segmentIndex, departure, position, map]);
 
     // Track birth times for each POI (when it first appeared)
     const birthTimesRef = useRef<Map<string, number>>(new Map());
@@ -415,14 +442,15 @@ export const TripReplayOverlay = ({ events, durationMs }: TripReplayOverlayProps
         if (poiNodeList.length === 0) return [];
 
         // Add track points as fixed repulsion barriers (sample every few points to reduce computation)
+        // We use the full path so POIs stay clear of both the past and future course
         const trackNodes: ReplayNode[] = [];
-        const sampleInterval = Math.max(1, Math.floor(drawnPath.length / 30)); // ~30 sample points
-        for (let i = 0; i < drawnPath.length; i += sampleInterval) {
-            const projected = map.latLngToLayerPoint(drawnPath[i]);
+        const sampleInterval = Math.max(1, Math.floor(path.length / 50)); // ~50 sample points for better coverage of full path
+        for (let i = 0; i < path.length; i += sampleInterval) {
+            const projected = map.latLngToLayerPoint(path[i]);
             trackNodes.push({
                 id: `track-${i}`,
-                lat: drawnPath[i][0],
-                lon: drawnPath[i][1],
+                lat: path[i][0],
+                lon: path[i][1],
                 icon: '',
                 anchorX: projected.x,
                 anchorY: projected.y,
@@ -461,7 +489,7 @@ export const TripReplayOverlay = ({ events, durationMs }: TripReplayOverlayProps
             .force('y', d3.forceY<ReplayNode>(d => d.anchorY).strength(d => d.isTrackPoint ? 0 : ANCHOR_STRENGTH))
             .stop();
 
-        for (let i = 0; i < 500; ++i) {
+        for (let i = 0; i < 100; ++i) { // Reduced from 500 to 100 for performance - enough for incremental updates
             simulation.tick();
         }
 

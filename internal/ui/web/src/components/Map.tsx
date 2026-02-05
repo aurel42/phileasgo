@@ -394,7 +394,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 />
                 {showFallbackMap && <MapBranding />}
                 {showFallbackMap && <CoverageLayer />}
-                {isReplayMode && tripEvents && <TripReplayOverlay events={tripEvents} durationMs={120000} />}
+                {isReplayMode && tripEvents && <TripReplayOverlay events={tripEvents} durationMs={120000} isSimActive={isConnected} />}
                 {showCacheLayer && isConnected && <CacheLayer />}
                 {isConnected && <VisibilityLayer enabled={showVisibilityLayer} />}
                 {isConnected && telemetry && throttledPos && (

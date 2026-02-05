@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.132 (2026-02-05)
+- **Feature**: **Trip Replay**. Implemented a trip replay function.
+
 ## v0.3.131 (2026-02-04)
 - **Fix**: **Visibility Overlay Regression**. The visibility rings are now correctly hidden when the simulator is disconnected or when coordinates are invalid.
 
