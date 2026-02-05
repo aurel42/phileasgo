@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.137 (2026-02-05)
+- **Feature**: **Credit Roll**. Trip replay now displays POI names in a scrolling credit roll as markers appear, using role-title font with dual-outline styling.
+- **Fix**: **Duplicate Airport Markers**. Suppressed dynamic POI markers for aerodromes near departure/destination airports to avoid duplication with static anchor icons.
+- **Improvement**: **POI Metadata**. Added `poi_category` to trip event metadata for richer client-side filtering.
+
 ## v0.3.136 (2026-02-05)
 - **Fix**: **Trip Replay Map Errors**. Resolved JavaScript errors that occurred when opening the Settings dialog during trip replay playback.
 - **Fix**: **Trip Replay Trail Stability**. Prevented rapid zoom animations at the start of replays that caused the flight trail to temporarily desync from the map.

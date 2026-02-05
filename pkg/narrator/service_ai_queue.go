@@ -167,6 +167,7 @@ func (s *AIService) summarizeAndLogEvent(ctx context.Context, n *model.Narrative
 		event.Metadata["icon"] = n.POI.Icon
 		event.Metadata["poi_lat"] = fmt.Sprintf("%.6f", n.POI.Lat)
 		event.Metadata["poi_lon"] = fmt.Sprintf("%.6f", n.POI.Lon)
+		event.Metadata["poi_category"] = n.POI.Category
 	}
 
 	s.session().AddEvent(&event)
