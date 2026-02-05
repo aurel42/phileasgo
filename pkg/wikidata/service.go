@@ -40,6 +40,7 @@ type Service struct {
 	tracker    *tracker.Tracker
 	classifier Classifier
 	cfgProv    config.Provider
+	density    *DensityManager
 	logger     *slog.Logger
 
 	// In-memory cache to avoid spamming the DB for tiles we verified recently
@@ -76,14 +77,14 @@ type WikipediaProvider interface {
 }
 
 // NewService creates a new Wikidata Service.
-func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Classifier, rc *request.Client, geoSvc *geo.Service, poiMgr *poi.Manager, cfgProv config.Provider) *Service {
+func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Classifier, rc *request.Client, geoSvc *geo.Service, poiMgr *poi.Manager, dm *DensityManager, cfgProv config.Provider) *Service {
 	client := NewClient(rc, slog.With("component", "wikidata_client"))
 	wiki := wikipedia.NewClient(rc)
 	sched := NewScheduler(float64(cfgProv.AppConfig().Wikidata.Area.MaxDist) / 1000.0) // Config is meters, Scheduler wants KM
 	logger := slog.With("component", "wikidata")
 	mapper := NewLanguageMapper(st, rc, slog.With("component", "mapper"))
 
-	pipeline := NewPipeline(st, client, wiki, geoSvc, poiMgr, sched.grid, mapper, cl, cfgProv, logger)
+	pipeline := NewPipeline(st, client, wiki, geoSvc, poiMgr, sched.grid, mapper, cl, dm, cfgProv, logger)
 
 	svc := &Service{
 		pipeline:      pipeline,
@@ -96,6 +97,7 @@ func NewService(st store.Store, sim SimStateProvider, tr *tracker.Tracker, cl Cl
 		scheduler:     sched,
 		tracker:       tr,
 		classifier:    cl,
+		density:       dm,
 		cfgProv:       cfgProv,
 		logger:        logger,
 		recentTiles:   make(map[string]TileWrapper),

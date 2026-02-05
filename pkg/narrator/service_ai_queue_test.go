@@ -94,13 +94,14 @@ func TestAIService_RecordNarration(t *testing.T) {
 	pm, _ := prompts.NewManager(tmpDir)
 
 	sess := session.NewManager(nil)
+	mockLLM := &MockLLM{Response: "Summary: Test"}
 	svc := &AIService{
 		sessionMgr: sess,
 		cfg:        config.NewProvider(config.DefaultConfig(), nil),
 		prompts:    pm,
-		llm:        &MockLLM{Response: "Summary: Test"},
+		llm:        mockLLM,
 	}
-	svc.promptAssembler = prompt.NewAssembler(svc.cfg, nil, svc.prompts, nil, nil, nil, svc.llm, nil, nil)
+	svc.promptAssembler = prompt.NewAssembler(svc.cfg, nil, pm, nil, nil, nil, mockLLM, nil, nil, nil)
 
 	n := &model.Narrative{
 		Title:  "Test Title",

@@ -31,7 +31,7 @@ func setupDeferralScorer() *Scorer {
 
 	// Mock other dependencies
 	catCfg := &config.CategoriesConfig{Categories: map[string]config.Category{}}
-	return NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, false)
+	return NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, nil, false)
 }
 
 func TestDefaultSession_DetermineDeferral(t *testing.T) {

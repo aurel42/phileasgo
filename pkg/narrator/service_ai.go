@@ -18,6 +18,7 @@ import (
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/tts"
+	"phileasgo/pkg/wikidata"
 )
 
 // GenerationRequest represents a standardized request to generate a narrative.
@@ -72,6 +73,7 @@ type AIService struct {
 	langRes       LanguageResolver
 	categoriesCfg *config.CategoriesConfig // For pregrounding checks
 	sessionMgr    *session.Manager
+	density       *wikidata.DensityManager
 
 	mu           sync.RWMutex
 	running      bool
@@ -127,6 +129,7 @@ func NewAIService(
 	avoid []string,
 	tr *tracker.Tracker,
 	sessMgr *session.Manager,
+	density *wikidata.DensityManager,
 ) *AIService {
 	s := &AIService{
 		cfg:             cfg,
@@ -147,6 +150,7 @@ func NewAIService(
 		avoid:           avoid,
 		fallbackTracker: tr,
 		sessionMgr:      sessMgr,
+		density:         density,
 		genQ:            generation.NewManager(),
 	}
 	// Initial default window
@@ -162,6 +166,7 @@ func NewAIService(
 		llm,
 		categoriesCfg,
 		langRes,
+		density,
 	)
 
 	return s
@@ -214,7 +219,7 @@ func (s *AIService) AudioService() audio.Service {
 
 func (s *AIService) initAssembler() {
 	if s.promptAssembler == nil {
-		s.promptAssembler = prompt.NewAssembler(s.cfg, s.st, s.prompts, s.geoSvc, s.wikipedia, s.poiMgr, s.llm, s.categoriesCfg, nil)
+		s.promptAssembler = prompt.NewAssembler(s.cfg, s.st, s.prompts, s.geoSvc, s.wikipedia, s.poiMgr, s.llm, s.categoriesCfg, s.langRes, s.density)
 	}
 }
 

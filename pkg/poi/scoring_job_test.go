@@ -148,7 +148,7 @@ func TestScoringJob_Run(t *testing.T) {
 	scCfg := &config.ScorerConfig{DeferralEnabled: false}
 	catCfg := &config.CategoriesConfig{}
 
-	sc := scorer.NewScorer(scCfg, catCfg, visCalc, elev, false)
+	sc := scorer.NewScorer(scCfg, catCfg, visCalc, elev, nil, false)
 
 	prov := config.NewProvider(&config.Config{}, nil)
 	job := NewScoringJob("TestScoring", mockMgr, mockSim, sc, prov, nil, nil)

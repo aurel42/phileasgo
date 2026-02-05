@@ -9,11 +9,16 @@ import (
 )
 
 type mockProvider struct {
-	enqueued chan bool
-	done     chan bool
+	enqueued  chan bool
+	done      chan bool
+	onEnqueue func(ctx context.Context, a Item, t *sim.Telemetry, onComplete func(*model.Narrative))
 }
 
 func (m *mockProvider) EnqueueAnnouncement(ctx context.Context, a Item, t *sim.Telemetry, onComplete func(*model.Narrative)) {
+	if m.onEnqueue != nil {
+		m.onEnqueue(ctx, a, t, onComplete)
+		return
+	}
 	m.enqueued <- true
 	// Simulate async result
 	go func() {
@@ -140,5 +145,39 @@ func TestManager_ImmediatePlay(t *testing.T) {
 	// Status should be Triggered immediately if ShouldPlay was true (immediate play optimization)
 	if a.Status() != StatusTriggered {
 		t.Errorf("expected StatusTriggered after result for immediate play, got %s", a.Status())
+	}
+}
+
+func TestManager_GenerationFailure(t *testing.T) {
+	provider := &mockProvider{
+		enqueued: make(chan bool, 10),
+		done:     make(chan bool, 10),
+	}
+	mgr := NewManager(provider, provider)
+
+	a := &testAnnouncement{
+		Base: NewBase("a3", model.NarrativeTypePOI, true, &mockDP{}, &mockDP{}),
+		gen:  true,
+	}
+	mgr.Register(a)
+
+	// Simulate failure in provider
+	provider.onEnqueue = func(ctx context.Context, item Item, tel *sim.Telemetry, onComplete func(*model.Narrative)) {
+		provider.enqueued <- true
+		go func() {
+			onComplete(nil) // FAILURE
+			provider.done <- true
+		}()
+	}
+
+	mgr.Tick(context.Background(), &sim.Telemetry{})
+	<-provider.enqueued
+	<-provider.done
+
+	// Wait for processing
+	time.Sleep(10 * time.Millisecond)
+
+	if a.Status() != StatusIdle {
+		t.Errorf("expected StatusIdle after failure, got %s", a.Status())
 	}
 }

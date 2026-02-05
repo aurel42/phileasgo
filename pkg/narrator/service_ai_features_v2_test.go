@@ -17,12 +17,8 @@ func TestScreenshotCoordinatesPersistence(t *testing.T) {
 	pm, _ := prompts.NewManager(t.TempDir())
 
 	// Setup minimalist service (mocks only where needed)
-	svc := NewAIService(config.NewProvider(&config.Config{}, nil),
-		&MockLLM{Response: "Script"},
-		&MockTTS{Format: "mp3"},
-		pm,
-		&MockPOIProvider{},
-		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil))
+	cfg := config.NewProvider(&config.Config{}, nil) // Define cfg here
+	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
 
 	// User Aircraft Location
 	userLat := 45.0

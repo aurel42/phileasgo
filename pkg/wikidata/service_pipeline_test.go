@@ -262,21 +262,22 @@ func TestFindBestLocalCandidate(t *testing.T) {
 		{
 			name: "Tie-Breaker Priority",
 			article: &Article{
-				LocalTitles: map[string]string{"en": "Eiffel", "fr": "Tour Eiffel"},
+				LocalTitles: map[string]string{"pl": "Eiffel", "it": "Torre Eiffel"},
 			},
 			lengths: map[string]map[string]int{
-				"en": {"Eiffel": 200},
-				"fr": {"Tour Eiffel": 200},
+				"pl": {"Eiffel": 200},
+				"it": {"Torre Eiffel": 200},
 			},
-			localLangs: []string{"fr", "en"}, // Prefer FR
-			wantLang:   "fr",
-			wantTitle:  "Tour Eiffel",
+			localLangs: []string{"it", "pl"}, // Prefer IT
+			wantLang:   "it",
+			wantTitle:  "Torre Eiffel",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotLang, gotTitle, _ := findBestLocalCandidate(tt.article, tt.lengths, tt.localLangs)
+			p := newTestPipeline(&mockStore{})
+			gotLang, gotTitle, _, _ := p.findBestLocalCandidate(tt.article, tt.lengths, tt.localLangs)
 			if gotLang != tt.wantLang {
 				t.Errorf("gotLang %q, want %q", gotLang, tt.wantLang)
 			}

@@ -25,6 +25,10 @@ func (m *Manager) Enqueue(n *model.Narrative, priority bool) {
 	defer m.mu.Unlock()
 
 	// Max queue size check (e.g. 5)
+	if n == nil {
+		slog.Warn("PlaybackQueue: Attempted to enqueue nil narrative")
+		return
+	}
 	if len(m.queue) >= 5 && !priority {
 		slog.Info("PlaybackQueue: Queue full, dropping low priority item", "title", n.Title)
 		return

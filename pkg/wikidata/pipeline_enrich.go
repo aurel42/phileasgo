@@ -17,7 +17,7 @@ func (p *Pipeline) enrichAndSave(ctx context.Context, articles []Article, localL
 	var rejectedQIDs []string
 
 	for i := range articles {
-		if poi := constructPOI(&articles[i], lengths, localLangs, userLang, p.getIcon); poi != nil {
+		if poi := p.constructPOI(&articles[i], lengths, localLangs, userLang, p.getIcon); poi != nil {
 			candidates = append(candidates, poi)
 		} else {
 			rejectedQIDs = append(rejectedQIDs, articles[i].QID)
@@ -82,8 +82,8 @@ func (p *Pipeline) fetchArticleLengths(ctx context.Context, articles []Article, 
 	return lengths
 }
 
-func constructPOI(a *Article, lengths map[string]map[string]int, localLangs []string, userLang string, iconGetter func(string) string) *model.POI {
-	bestURL, bestNameLocal, maxLength := determineBestArticle(a, lengths, localLangs, userLang)
+func (p *Pipeline) constructPOI(a *Article, lengths map[string]map[string]int, localLangs []string, userLang string, iconGetter func(string) string) *model.POI {
+	bestURL, bestNameLocal, rawLength := p.determineBestArticle(a, lengths, localLangs, userLang)
 	nameEn := a.TitleEn
 	nameUser := a.TitleUser
 
@@ -102,7 +102,7 @@ func constructPOI(a *Article, lengths map[string]map[string]int, localLangs []st
 		NameLocal:           bestNameLocal,
 		NameUser:            nameUser,
 		WPURL:               bestURL,
-		WPArticleLength:     maxLength,
+		WPArticleLength:     rawLength,
 		TriggerQID:          "",
 		CreatedAt:           time.Now(),
 		DimensionMultiplier: a.DimensionMultiplier,
@@ -112,9 +112,12 @@ func constructPOI(a *Article, lengths map[string]map[string]int, localLangs []st
 	return poi
 }
 
-func determineBestArticle(a *Article, lengths map[string]map[string]int, localLangs []string, userLang string) (url, nameLocal string, length int) {
+func (p *Pipeline) determineBestArticle(a *Article, lengths map[string]map[string]int, localLangs []string, userLang string) (url, nameLocal string, rawLength int) {
 	lenEn := lengths["en"][a.TitleEn]
+	adjLenEn := p.density.GetAdjustedLength(lenEn, "https://en.wikipedia.org/wiki/"+p.replaceSpace(a.TitleEn))
+
 	lenUser := 0
+	adjLenUser := 0
 	primaryLocal := ""
 	if len(localLangs) > 0 {
 		primaryLocal = localLangs[0]
@@ -122,56 +125,63 @@ func determineBestArticle(a *Article, lengths map[string]map[string]int, localLa
 
 	if userLang != "en" && (primaryLocal == "" || userLang != primaryLocal) {
 		lenUser = lengths[userLang][a.TitleUser]
+		adjLenUser = p.density.GetAdjustedLength(lenUser, fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", userLang, p.replaceSpace(a.TitleUser)))
 	}
 
-	bestLocalLang, bestLocalTitle, maxLocalLen := findBestLocalCandidate(a, lengths, localLangs)
+	bestLocalLang, bestLocalTitle, maxRawLocalLen, maxAdjLocalLen := p.findBestLocalCandidate(a, lengths, localLangs)
 
-	maxLength := maxLocalLen
+	maxAdjLength := maxAdjLocalLen
+	rawLength = maxRawLocalLen
 	var bestURL string
 
 	if bestLocalTitle != "" {
-		bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", bestLocalLang, replaceSpace(bestLocalTitle))
+		bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", bestLocalLang, p.replaceSpace(bestLocalTitle))
 	}
 
-	if lenEn > maxLength {
-		maxLength = lenEn
-		bestURL = fmt.Sprintf("https://en.wikipedia.org/wiki/%s", replaceSpace(a.TitleEn))
+	if adjLenEn > maxAdjLength {
+		maxAdjLength = adjLenEn
+		rawLength = lenEn
+		bestURL = fmt.Sprintf("https://en.wikipedia.org/wiki/%s", p.replaceSpace(a.TitleEn))
 	}
-	if lenUser > maxLength {
-		maxLength = lenUser
-		bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", userLang, replaceSpace(a.TitleUser))
+	if adjLenUser > maxAdjLength {
+		rawLength = lenUser
+		bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", userLang, p.replaceSpace(a.TitleUser))
 	}
 
 	if bestURL == "" {
 		switch {
 		case a.TitleUser != "":
-			bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", userLang, replaceSpace(a.TitleUser))
+			bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", userLang, p.replaceSpace(a.TitleUser))
 		case a.TitleEn != "":
-			bestURL = fmt.Sprintf("https://en.wikipedia.org/wiki/%s", replaceSpace(a.TitleEn))
+			bestURL = fmt.Sprintf("https://en.wikipedia.org/wiki/%s", p.replaceSpace(a.TitleEn))
 		case bestLocalTitle != "":
-			bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", bestLocalLang, replaceSpace(bestLocalTitle))
+			bestURL = fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", bestLocalLang, p.replaceSpace(bestLocalTitle))
 		default:
 			bestURL = "https://www.wikidata.org/wiki/" + a.QID
 		}
 	}
 
-	return bestURL, bestLocalTitle, maxLength
+	return bestURL, bestLocalTitle, rawLength
 }
 
-func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, localLangs []string) (bestLang, bestTitle string, maxLen int) {
+func (p *Pipeline) findBestLocalCandidate(a *Article, lengths map[string]map[string]int, localLangs []string) (bestLang, bestTitle string, maxRawLen, maxAdjLen int) {
 	prefMap := make(map[string]int)
 	for i, l := range localLangs {
 		prefMap[l] = len(localLangs) - i
 	}
 
 	for lang, title := range a.LocalTitles {
-		l := lengths[lang][title]
-		if l > maxLen {
-			maxLen = l
+		url := fmt.Sprintf("https://%s.wikipedia.org/wiki/%s", lang, p.replaceSpace(title))
+		rawLen := lengths[lang][title]
+		adjLen := p.density.GetAdjustedLength(rawLen, url)
+
+		if adjLen > maxAdjLen {
+			maxAdjLen = adjLen
+			maxRawLen = rawLen
 			bestLang = lang
 			bestTitle = title
 		}
-		if l == maxLen && maxLen > 0 {
+		if adjLen == maxAdjLen && maxAdjLen > 0 {
 			if prefMap[lang] > prefMap[bestLang] {
 				bestLang = lang
 				bestTitle = title
@@ -197,7 +207,7 @@ func findBestLocalCandidate(a *Article, lengths map[string]map[string]int, local
 	return
 }
 
-func replaceSpace(s string) string {
+func (p *Pipeline) replaceSpace(s string) string {
 	return strings.ReplaceAll(s, " ", "_")
 }
 

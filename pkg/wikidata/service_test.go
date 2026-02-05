@@ -247,11 +247,12 @@ func TestFetchTile_CacheOptimization(t *testing.T) {
 		t.Fatalf("Failed to create geo service: %v", err)
 	}
 
+	dm, _ := NewDensityManager("../../configs/languages.yaml")
 	svc := NewService(st, &mockSim{}, tracker.New(), &MockClassifier{}, request.New(st, tracker.New(), request.ClientConfig{
 		Retries:   2,
 		BaseDelay: 10 * time.Millisecond,
 		MaxDelay:  50 * time.Millisecond,
-	}), geoSvc, poi.NewManager(config.NewProvider(&config.Config{}, nil), st, nil), config.NewProvider(&config.Config{Wikidata: config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}}, nil))
+	}), geoSvc, poi.NewManager(config.NewProvider(&config.Config{}, nil), st, nil), dm, config.NewProvider(&config.Config{Wikidata: config.WikidataConfig{Area: config.AreaConfig{MaxDist: 100}}}, nil))
 	svc.client = mockClient
 	svc.classifier = &MockClassifier{
 		ClassifyBatchFunc: func(ctx context.Context, entities map[string]EntityMetadata) map[string]*model.ClassificationResult {
@@ -462,6 +463,7 @@ func TestProcessTileData(t *testing.T) {
 			}
 
 			// Construct Pipeline directly
+			dm, _ := NewDensityManager("../../configs/languages.yaml")
 			pl := NewPipeline(
 				st,
 				mockClient,
@@ -471,6 +473,7 @@ func TestProcessTileData(t *testing.T) {
 				NewGrid(), // Grid (extracted from new scheduler)
 				NewLanguageMapper(st, nil, slog.Default()), // Mapper
 				cl,
+				dm,
 				config.NewProvider(&config.Config{}, nil),
 				slog.Default(),
 			)

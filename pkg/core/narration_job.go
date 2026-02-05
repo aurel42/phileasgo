@@ -34,9 +34,16 @@ type NarrationJob struct {
 	losChecker *terrain.LOSChecker
 	lastTime   time.Time
 
-	wasBusy          bool
-	lastEssayTime    time.Time
-	lastCheckedCount int
+	wasBusy            bool
+	lastEssayTime      time.Time
+	lastCandidateCount int
+	lastLat            float64
+	lastLon            float64
+	lastAlt            float64
+	lastIsPlaying      bool
+	lastIsGenerating   bool
+	lastMinScore       float64
+	cachedBest         *model.POI
 
 	// Flight tracking
 	lastAGL float64 // Last known AGL for visibility boost check
@@ -44,14 +51,15 @@ type NarrationJob struct {
 
 func NewNarrationJob(cfgProv config.Provider, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker) *NarrationJob {
 	j := &NarrationJob{
-		BaseJob:    NewBaseJob("Narration"),
-		cfgProv:    cfgProv,
-		narrator:   n,
-		poiMgr:     pm,
-		sim:        simC,
-		store:      st,
-		losChecker: los,
-		lastTime:   time.Now(),
+		BaseJob:            NewBaseJob("Narration"),
+		cfgProv:            cfgProv,
+		narrator:           n,
+		poiMgr:             pm,
+		sim:                simC,
+		store:              st,
+		losChecker:         los,
+		lastTime:           time.Now(),
+		lastCandidateCount: -1,
 	}
 
 	return j
@@ -143,6 +151,7 @@ func (j *NarrationJob) PreparePOI(ctx context.Context, t *sim.Telemetry) bool {
 	}
 	defer j.Unlock()
 
+	j.cachedBest = nil
 	// Pick best (first visible)
 	best := j.getVisibleCandidate(ctx, t)
 	if best == nil {
@@ -363,40 +372,74 @@ func (j *NarrationJob) checkEssayEligible(ctx context.Context, t *sim.Telemetry)
 // getVisibleCandidate returns the highest-scoring POI that has line-of-sight.
 // If LOS is disabled or no checker is available, falls back to GetBestCandidate.
 func (j *NarrationJob) getVisibleCandidate(ctx context.Context, t *sim.Telemetry) *model.POI {
-	// If LOS is disabled or checker unavailable, use simple best candidate
-	if !j.cfgProv.LineOfSight(ctx) || j.losChecker == nil {
-		return j.getBestCandidateFallback(ctx, t)
+	minScorePtr := j.getPOIQueryThreshold(ctx)
+	minScore := 0.0
+	if minScorePtr != nil {
+		minScore = *minScorePtr
 	}
 
-	minScore := j.getPOIQueryThreshold(ctx)
-	candidates := j.poiMgr.GetNarrationCandidates(1000, minScore)
+	if j.isCacheValid(t, minScore) {
+		return j.cachedBest
+	}
+	j.updateCacheMetadata(t, minScore)
+
+	if !j.cfgProv.LineOfSight(ctx) || j.losChecker == nil {
+		j.cachedBest = j.getBestCandidateFallback(ctx, t)
+		return j.cachedBest
+	}
+
+	candidates := j.poiMgr.GetNarrationCandidates(1000, minScorePtr)
+	j.logCandidateScoping(candidates, t)
+
 	if len(candidates) == 0 {
-		if j.lastCheckedCount != -1 {
-			slog.Debug("NarrationJob: No candidates in range")
-			j.lastCheckedCount = -1
-		}
 		return nil
 	}
 
-	slog.Debug("NarrationJob: LOS checking candidates", "count", len(candidates), "aircraft_alt_ft", t.AltitudeMSL)
+	j.cachedBest = j.findLOSVisibleCandidate(ctx, t, candidates)
+	return j.cachedBest
+}
 
+func (j *NarrationJob) isCacheValid(t *sim.Telemetry, minScore float64) bool {
+	if t == nil {
+		return false
+	}
+	isPlaying := j.narrator.IsPlaying()
+	isGenerating := j.narrator.IsGenerating()
+
+	return t.Latitude == j.lastLat && t.Longitude == j.lastLon && t.AltitudeMSL == j.lastAlt &&
+		isPlaying == j.lastIsPlaying && isGenerating == j.lastIsGenerating && minScore == j.lastMinScore
+}
+
+func (j *NarrationJob) updateCacheMetadata(t *sim.Telemetry, minScore float64) {
+	if t != nil {
+		j.lastLat = t.Latitude
+		j.lastLon = t.Longitude
+		j.lastAlt = t.AltitudeMSL
+	}
+	j.lastIsPlaying = j.narrator.IsPlaying()
+	j.lastIsGenerating = j.narrator.IsGenerating()
+	j.lastMinScore = minScore
+	j.cachedBest = nil
+}
+
+func (j *NarrationJob) logCandidateScoping(candidates []*model.POI, t *sim.Telemetry) {
+	if len(candidates) != j.lastCandidateCount {
+		if len(candidates) == 0 {
+			slog.Debug("NarrationJob: No candidates in range")
+		} else {
+			slog.Debug("NarrationJob: LOS checking candidates", "count", len(candidates), "aircraft_alt_ft", t.AltitudeMSL)
+		}
+		j.lastCandidateCount = len(candidates)
+	}
+}
+
+func (j *NarrationJob) findLOSVisibleCandidate(ctx context.Context, t *sim.Telemetry, candidates []*model.POI) *model.POI {
 	aircraftPos := geo.Point{Lat: t.Latitude, Lon: t.Longitude}
 	aircraftAltFt := t.AltitudeMSL
 
 	var visibleCandidates []*model.POI
 	for i, poi := range candidates {
-		// Skip deferred POIs - hard filter for better viewing later
-		if poi.IsDeferred {
-			continue
-		}
-
-		// Also skip if not playable
-		if !j.isPlayable(ctx, poi) {
-			continue
-		}
-
-		// RARELY FILTER (Frequency 1): Ensure we only pick "Lone Wolves"
-		if !j.isRarelyEligible(ctx, poi, t) {
+		if poi.IsDeferred || !j.isPlayable(ctx, poi) || !j.isRarelyEligible(ctx, poi, t) {
 			continue
 		}
 
@@ -409,7 +452,6 @@ func (j *NarrationJob) getVisibleCandidate(ctx context.Context, t *sim.Telemetry
 	}
 
 	if len(visibleCandidates) == 0 {
-		j.logBlockedStatus(candidates, 0) // Approximation
 		return nil
 	}
 
@@ -459,9 +501,30 @@ func (j *NarrationJob) getBestCandidateFallback(ctx context.Context, t *sim.Tele
 func (j *NarrationJob) getPOIQueryThreshold(ctx context.Context) *float64 {
 	if j.cfgProv.FilterMode(ctx) != "adaptive" {
 		val := j.cfgProv.MinScoreThreshold(ctx)
+
+		// Apply visibility boost if enabled
+		boost := j.getVisibilityBoost(ctx)
+		if boost > 1.0 {
+			threshold := val / boost
+			return &threshold
+		}
+
 		return &val
 	}
 	return nil
+}
+
+func (j *NarrationJob) getVisibilityBoost(ctx context.Context) float64 {
+	if j.store == nil {
+		return 1.0
+	}
+	val, ok := j.store.GetState(ctx, "visibility_boost")
+	if ok && val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f
+		}
+	}
+	return 1.0
 }
 
 func (j *NarrationJob) isRarelyEligible(ctx context.Context, poi *model.POI, t *sim.Telemetry) bool {
@@ -498,17 +561,6 @@ func (j *NarrationJob) checkPOIInLOS(poi *model.POI, aircraftPos geo.Point, airc
 	return isVisible
 }
 
-func (j *NarrationJob) logBlockedStatus(candidates []*model.POI, checkedCount int) {
-	if checkedCount != j.lastCheckedCount {
-		if checkedCount == 0 {
-			slog.Debug("NarrationJob: All candidates filtered by cooldown or rules", "total", len(candidates))
-		} else {
-			slog.Info("NarrationJob: All candidates blocked by LOS", "checked", checkedCount, "total", len(candidates))
-		}
-		j.lastCheckedCount = checkedCount
-	}
-}
-
 func (j *NarrationJob) isLocationConsistent(t *sim.Telemetry) bool {
 	// Ensure the scores are fresh relative to our CURRENT position.
 	// If the scorer hasn't run since we moved here (e.g. teleport), we wait.
@@ -537,13 +589,7 @@ func (j *NarrationJob) incrementVisibilityBoost(ctx context.Context) {
 		return
 	}
 
-	current := 1.0
-	val, ok := j.store.GetState(ctx, "visibility_boost")
-	if ok && val != "" {
-		if f, err := strconv.ParseFloat(val, 64); err == nil {
-			current = f
-		}
-	}
+	current := j.getVisibilityBoost(ctx)
 
 	if current >= 1.5 {
 		return // Max reached

@@ -1,5 +1,11 @@
 ﻿Release History
 
+## v0.3.134 (2026-02-05)
+- **Feature**: **Language Density Correction**. Integrated a language-aware scoring and word count estimation system using `configs/languages.yaml`. This ensures accurate narrative lengths and fair POI ranking across diverse languages (e.g., German, Japanese, English).
+- **Improvement**: **Reactive Visibility Boosting**. Restored the automatic visibility threshold reduction mechanism when no candidates are visible, improving POI discovery in sparse areas.
+- **Fix**: **Selection Cache Regression**. Fixed a bug in the narration job where stale candidate data was incorrectly cached between different preparation cycles.
+- **Refinement**: **Mock TTS Verification**. Updated the development Mock TTS provider to generate valid audio artifacts, allowing for automated verification of the full narration lifecycle in tests.
+
 ## v0.3.133 (2026-02-05)
 - **Feature**: **Synchronized Trip Replay**. Integrated the trip replay animation with the debriefing audio playback. Replays now trigger automatically during the debriefing phase and synchronize their timing with the actual narration duration.
 - **Fix**: **Double Audio Extension**. Resolved a bug where narration audio paths were being incorrectly appended with a double `.mp3.mp3` extension, which caused playback failures for some TTS providers.

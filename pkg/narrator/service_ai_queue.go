@@ -108,6 +108,9 @@ func (s *AIService) ProcessGenerationQueue(ctx context.Context) {
 		narrative, err := s.GenerateNarrative(genCtx, req)
 		if err != nil {
 			slog.Error("Narrator: Priority generation failed", "type", job.Type, "error", err)
+			if job.OnComplete != nil {
+				job.OnComplete(nil)
+			}
 			s.ProcessGenerationQueue(genCtx)
 			return
 		}

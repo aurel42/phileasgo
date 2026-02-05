@@ -12,6 +12,7 @@ import (
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
+	"phileasgo/pkg/wikidata"
 )
 
 type Assembler struct {
@@ -24,6 +25,7 @@ type Assembler struct {
 	llm           LLMProvider
 	categoriesCfg *config.CategoriesConfig
 	langRes       LanguageResolver
+	density       *wikidata.DensityManager
 }
 
 func NewAssembler(
@@ -36,6 +38,7 @@ func NewAssembler(
 	llm LLMProvider,
 	categoriesCfg *config.CategoriesConfig,
 	langRes LanguageResolver,
+	density *wikidata.DensityManager,
 ) *Assembler {
 	return &Assembler{
 		cfg:           cfg,
@@ -47,6 +50,7 @@ func NewAssembler(
 		llm:           llm,
 		categoriesCfg: categoriesCfg,
 		langRes:       langRes,
+		density:       density,
 	}
 }
 
@@ -250,9 +254,13 @@ func (a *Assembler) fetchWikipediaText(ctx context.Context, p *model.POI) *artic
 	// 1. Try Store using QID as UUID
 	art, _ := a.st.GetArticle(ctx, p.WikidataID)
 	if art != nil && art.Text != "" {
+		wordCount := len(strings.Fields(art.Text))
+		if a.density != nil && p.WPURL != "" {
+			wordCount = a.density.EstimateWordCount(len(art.Text), p.WPURL)
+		}
 		return &articleproc.Info{
 			Prose:     art.Text,
-			WordCount: len(strings.Fields(art.Text)),
+			WordCount: wordCount,
 		}
 	}
 
@@ -426,11 +434,7 @@ func (a *Assembler) sampleNarrationLength(p *model.POI, strategy string, sourceW
 }
 
 func (a *Assembler) ApplyWordLengthMultiplier(baseWords int) int {
-	textLengthVal, _ := a.st.GetState(context.Background(), "text_length")
-	textLength := 1
-	if textLengthVal != "" {
-		_, _ = fmt.Sscanf(textLengthVal, "%d", &textLength)
-	}
+	textLength := a.cfg.TextLengthScale(context.Background())
 
 	multiplier := 1.0
 	if textLength > 1 {

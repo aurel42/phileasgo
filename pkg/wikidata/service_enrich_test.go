@@ -96,7 +96,8 @@ func TestDetermineBestArticle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url, nameLocal, length := determineBestArticle(&tt.article, tt.lengths, tt.localLangs, tt.userLang)
+			p := newTestPipeline(&mockStore{})
+			url, nameLocal, length := p.determineBestArticle(&tt.article, tt.lengths, tt.localLangs, tt.userLang)
 			if url != tt.wantURL {
 				t.Errorf("got url %q, want %q", url, tt.wantURL)
 			}
@@ -147,7 +148,8 @@ func TestConstructPOI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := constructPOI(&tt.article, tt.lengths, []string{"fr"}, "en", mockIcon)
+			pipeline := newTestPipeline(&mockStore{})
+			p := pipeline.constructPOI(&tt.article, tt.lengths, []string{"fr"}, "en", mockIcon)
 			if (p != nil) != tt.wantPOI {
 				t.Fatalf("got POI %v, wantPOI %v", p, tt.wantPOI)
 			}

@@ -1,0 +1,48 @@
+zh:
+  density: 3.20
+  avg_word_len: 4.5  # 1.5 chars * 3 bytes
+ja:
+  density: 2.40
+  avg_word_len: 6.6  # 2.2 chars * 3 bytes
+ko:
+  density: 1.90
+  avg_word_len: 8.1  # 2.7 chars * 3 bytes
+th:
+  density: 1.60
+  avg_word_len: 12.0 # 4.0 chars * 3 bytes
+vi:
+  density: 1.30
+  avg_word_len: 4.8  # Latin script, but short words
+tr:
+  density: 1.25
+  avg_word_len: 6.2  # Agglutinative; long words
+en:
+  density: 1.00
+  avg_word_len: 5.1  # 5.1 chars * 1 byte
+id:
+  density: 1.10
+  avg_word_len: 6.5  
+de:
+  density: 0.88
+  avg_word_len: 6.8  # Compound words are long
+pl:
+  density: 0.85
+  avg_word_len: 6.6  # Complex morphology + 2-byte chars
+it:
+  density: 0.85
+  avg_word_len: 5.4  
+fr:
+  density: 0.82
+  avg_word_len: 5.2  
+es:
+  density: 0.80
+  avg_word_len: 5.2  
+ru:
+  density: 0.70
+  avg_word_len: 11.2 # ~5.6 chars * 2 bytes
+ar:
+  density: 0.75
+  avg_word_len: 10.4 # ~5.2 chars * 2 bytes
+hi:
+  density: 0.60
+  avg_word_len: 13.5 # ~4.5 chars * 3 bytes

@@ -47,8 +47,13 @@ X do not request info panel for essay, briefing
 X verify: when flying from MN to CN, to we check the chinese wikipedia?
 X regression: essay titles are missing, are now only the category
 X regression: POIs no longer open info panels
-
-# Trip Themes
+X Trip Themes
+- letsgoo announcement frequently way too long
+- Morgan Freeman voice broken
+X add reinforcement of target language to 2nd pass
+- reconsider basing MaxWords on the Wikipedia article length, doesn't work with Chinese articles
+- regression: screenshot announcements no longer repeatable?
+- regression: screenshot announcement played no audio?
 
 # Trip Planning
 - can we pre-plan a whole trip? Generate a flight plan?

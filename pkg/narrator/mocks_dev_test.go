@@ -89,18 +89,19 @@ func (m *MockTTS) Synthesize(ctx context.Context, text, voiceID, outputPath stri
 		return m.SynthesizeFunc(ctx, text, voiceID, outputPath)
 	}
 
+	ext := m.Format
+	if ext == "" {
+		ext = "mp3"
+	}
+
 	if m.Err == nil {
 		fullPath := outputPath
-		ext := m.Format
-		if ext == "" {
-			ext = "mp3"
-		}
 		if !strings.HasSuffix(strings.ToLower(fullPath), "."+ext) {
 			fullPath += "." + ext
 		}
 		_ = os.WriteFile(fullPath, make([]byte, tts.MinAudioSize+1), 0644)
 	}
-	return m.Format, m.Err
+	return ext, m.Err
 }
 
 type MockAudio struct {

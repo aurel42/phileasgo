@@ -112,7 +112,7 @@ func run(ctx context.Context, configPath string) error {
 		return fmt.Errorf("failed to load categories config: %w", err)
 	}
 
-	svcs, err := initCoreServices(st, cfgProv, tr, simClient, catCfg)
+	svcs, densityMgr, err := initCoreServices(st, cfgProv, tr, simClient, catCfg)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func run(ctx context.Context, configPath string) error {
 	verifyStartup(ctx, catCfg, wdValidator)
 
 	// Narrator & TTS
-	comps, err := initNarrator(ctx, cfgProv, svcs, tr, simClient, st, catCfg, elProv)
+	comps, err := initNarrator(ctx, cfgProv, svcs, tr, simClient, st, catCfg, elProv, densityMgr)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func run(ctx context.Context, configPath string) error {
 	// If elevGetter is nil, NewSession might crash.
 	// Let's rely on Scorer handling nil optionally or just let it be nil for now.
 	// The previous code verified startup files.
-	poiScorer := scorer.NewScorer(&appCfg.Scorer, catCfg, visCalc, elevGetter, narratorSvc.LLMProvider().HasProfile("pregrounding"))
+	poiScorer := scorer.NewScorer(&appCfg.Scorer, catCfg, visCalc, elevGetter, densityMgr, narratorSvc.LLMProvider().HasProfile("pregrounding"))
 
 	// [NEW] Scoring Job
 	scoringJob := poi.NewScoringJob("POIScoring", svcs.PoiMgr, simClient, poiScorer, cfgProv, narratorSvc.IsPOIBusy, slog.Default())
@@ -218,11 +218,11 @@ func initDB(appCfg *config.Config) (*db.DB, store.Store, error) {
 	return dbConn, store.NewSQLiteStore(dbConn), nil
 }
 
-func initCoreServices(st store.Store, cfg config.Provider, tr *tracker.Tracker, simClient sim.Client, catCfg *config.CategoriesConfig) (*CoreServices, error) {
+func initCoreServices(st store.Store, cfg config.Provider, tr *tracker.Tracker, simClient sim.Client, catCfg *config.CategoriesConfig) (*CoreServices, *wikidata.DensityManager, error) {
 	appCfg := cfg.AppConfig()
 	geoSvc, err := geo.NewService("data/cities1000.txt", "data/admin1CodesASCII.txt")
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize geo service: %w", err)
+		return nil, nil, fmt.Errorf("failed to initialize geo service: %w", err)
 	}
 
 	// Initialize CountryService for accurate country boundary detection (embedded data)
@@ -247,7 +247,12 @@ func initCoreServices(st store.Store, cfg config.Provider, tr *tracker.Tracker, 
 	tr.SetFreeTier("wikidata", true)
 	tr.SetFreeTier("wikipedia", true)
 
-	wikiSvc := wikidata.NewService(st, simClient, tr, smartClassifier, reqClient, geoSvc, poiMgr, cfg)
+	densityMgr, err := wikidata.NewDensityManager("configs/languages.yaml")
+	if err != nil {
+		slog.Warn("Failed to initialize DensityManager, using defaults", "error", err)
+	}
+
+	wikiSvc := wikidata.NewService(st, simClient, tr, smartClassifier, reqClient, geoSvc, poiMgr, densityMgr, cfg)
 
 	// River Sentinel Wiring (Phase 3)
 	riverSentinel := rivers.NewSentinel(slog.With("component", "river_sentinel"), "data/ne_50m_rivers_lake_centerlines.geojson")
@@ -261,7 +266,7 @@ func initCoreServices(st store.Store, cfg config.Provider, tr *tracker.Tracker, 
 		Classifier:      smartClassifier,
 		WikiClient:      wikiClient,
 		WikipediaClient: wpClient,
-	}, nil
+	}, densityMgr, nil
 }
 
 type NarratorComponents struct {
@@ -271,7 +276,7 @@ type NarratorComponents struct {
 	SessionManager *session.Manager
 }
 
-func initNarrator(ctx context.Context, cfg config.Provider, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store, catCfg *config.CategoriesConfig, elProv *terrain.ElevationProvider) (*NarratorComponents, error) {
+func initNarrator(ctx context.Context, cfg config.Provider, svcs *CoreServices, tr *tracker.Tracker, simClient sim.Client, st store.Store, catCfg *config.CategoriesConfig, elProv *terrain.ElevationProvider, densityMgr *wikidata.DensityManager) (*NarratorComponents, error) {
 	appCfg := cfg.AppConfig()
 	llmProv, err := narrator.NewLLMProvider(appCfg.LLM, appCfg.History.LLM, svcs.ReqClient, tr)
 	if err != nil {
@@ -315,7 +320,7 @@ func initNarrator(ctx context.Context, cfg config.Provider, svcs *CoreServices, 
 	}
 
 	pbQ := playback.NewManager()
-	gen := createAIService(cfg, llmProv, ttsProv, promptMgr, svcs.PoiMgr, svcs.WikiSvc, simClient, st, tr, catCfg, sessionMgr)
+	gen := createAIService(cfg, llmProv, ttsProv, promptMgr, svcs.PoiMgr, svcs.WikiSvc, simClient, st, tr, catCfg, sessionMgr, densityMgr)
 
 	orch := narrator.NewOrchestrator(gen, audio.New(&appCfg.Narrator), pbQ, sessionMgr, beaconProvider, simClient)
 	gen.SetOnPlayback(orch.EnqueuePlayback)
@@ -531,7 +536,7 @@ type CoreServices struct {
 	WikipediaClient *wikipedia.Client
 }
 
-func createAIService(cfg config.Provider, llmProv llm.Provider, ttsProv tts.Provider, promptMgr *prompts.Manager, poiMgr narrator.POIProvider, wikiSvc *wikidata.Service, simClient sim.Client, st store.Store, tr *tracker.Tracker, catCfg *config.CategoriesConfig, sessionMgr *session.Manager) *narrator.AIService {
+func createAIService(cfg config.Provider, llmProv llm.Provider, ttsProv tts.Provider, promptMgr *prompts.Manager, poiMgr narrator.POIProvider, wikiSvc *wikidata.Service, simClient sim.Client, st store.Store, tr *tracker.Tracker, catCfg *config.CategoriesConfig, sessionMgr *session.Manager, densityMgr *wikidata.DensityManager) *narrator.AIService {
 	essayConfig := "configs/essays.yaml"
 	essayH, _ := narrator.NewEssayHandler(essayConfig, promptMgr)
 
@@ -563,5 +568,6 @@ func createAIService(cfg config.Provider, llmProv llm.Provider, ttsProv tts.Prov
 		avoid,
 		tr,
 		sessionMgr,
+		densityMgr,
 	)
 }

@@ -106,6 +106,12 @@ func (m *Manager) onResult(id string, n *model.Narrative, t *sim.Telemetry) {
 		return
 	}
 
+	if n == nil {
+		slog.Warn("Announcement: Generation failed, resetting", "id", id)
+		a.Reset()
+		return
+	}
+
 	a.SetHeldNarrative(n)
 	a.SetStatus(StatusHeld)
 

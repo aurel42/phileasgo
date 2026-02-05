@@ -38,16 +38,23 @@ type Scorer struct {
 	catConfig           *config.CategoriesConfig
 	visCalc             *visibility.Calculator
 	elevation           terrain.ElevationGetter
+	density             DensityResolver
 	pregroundingEnabled bool
 }
 
+// DensityResolver defines the density management interface.
+type DensityResolver interface {
+	GetAdjustedLength(rawLen int, url string) int
+}
+
 // NewScorer creates a new Scorer.
-func NewScorer(cfg *config.ScorerConfig, catCfg *config.CategoriesConfig, visCalc *visibility.Calculator, elev terrain.ElevationGetter, pregroundingEnabled bool) *Scorer {
+func NewScorer(cfg *config.ScorerConfig, catCfg *config.CategoriesConfig, visCalc *visibility.Calculator, elev terrain.ElevationGetter, density DensityResolver, pregroundingEnabled bool) *Scorer {
 	return &Scorer{
 		config:              cfg,
 		catConfig:           catCfg,
 		visCalc:             visCalc,
 		elevation:           elev,
+		density:             density,
 		pregroundingEnabled: pregroundingEnabled,
 	}
 }
@@ -273,7 +280,7 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 	return maxFutureVisPow > currentVisPow*threshold
 }
 
-// calculateUrgencyMetrics calculates TimeToBehind (TTB) and TimeToCPA (TTCPA).
+// calculateUrgencyMetrics calculates TimeToBehind (TTB) and TimeToCPA).
 func (sess *DefaultSession) calculateUrgencyMetrics(poi *model.POI, poiPoint geo.Point, heading float64) {
 	poi.TimeToBehind = -1
 	poi.TimeToCPA = -1
@@ -375,7 +382,11 @@ func (s *Scorer) calculateContentScore(poi *model.POI) (score float64, logs []st
 
 	// Article Length
 	lengthMult := 1.0
+	// Information Density Correction
 	l := float64(poi.WPArticleLength)
+	if s.density != nil && poi.WPURL != "" {
+		l = float64(s.density.GetAdjustedLength(poi.WPArticleLength, poi.WPURL))
+	}
 
 	// Pregrounding bonus: categories with preground=true get virtual article boost
 	pregroundApplied := false
@@ -394,7 +405,7 @@ func (s *Scorer) calculateContentScore(poi *model.POI) (score float64, logs []st
 	if lengthMult > 1.0 {
 		score *= lengthMult
 		if pregroundApplied {
-			logs = append(logs, fmt.Sprintf("Length (%d+%d chars): x%.2f", poi.WPArticleLength, s.config.PregroundBoost, lengthMult))
+			logs = append(logs, fmt.Sprintf("Length (%d+%d chars): x%.2f", poi.WPArticleLength, int(s.config.PregroundBoost), lengthMult))
 		} else {
 			logs = append(logs, fmt.Sprintf("Length (%d chars): x%.2f", poi.WPArticleLength, lengthMult))
 		}
@@ -478,44 +489,61 @@ func (s *Scorer) calculateVarietyScore(poi *model.POI, history []string) (multip
 
 // applyBadges handles the stateless logic for assigning badges based on POI properties.
 func (sess *DefaultSession) applyBadges(poi *model.POI) {
-	s := sess.scorer
-
-	// Reset Ephemeral Badges
 	poi.Badges = make([]string, 0)
 	if poi.IsMSFSPOI {
 		poi.Badges = append(poi.Badges, "msfs")
 	}
 
-	// Calculate Effective Length for logic (Wiki + potential Pregrounding)
-	effectiveLen := float64(poi.WPArticleLength)
+	effLen := sess.getEffectiveWordLength(poi)
+
+	sess.assignLengthBadges(poi, effLen)
+	sess.assignStubBadge(poi, effLen)
+}
+
+func (sess *DefaultSession) getEffectiveWordLength(poi *model.POI) int {
+	s := sess.scorer
+	effLen := poi.WPArticleLength
+	if s.density != nil && poi.WPURL != "" {
+		effLen = s.density.GetAdjustedLength(poi.WPArticleLength, poi.WPURL)
+	}
+	return effLen
+}
+
+func (sess *DefaultSession) assignLengthBadges(poi *model.POI, effLen int) {
+	s := sess.scorer
+	limit := s.config.Badges.DeepDive.ArticleLenMin
+	if limit <= 0 {
+		limit = 20000
+	}
+	if effLen > limit {
+		poi.Badges = append(poi.Badges, "deep_dive")
+	}
+	if effLen > 15000 {
+		poi.Badges = append(poi.Badges, "detailed")
+	}
+}
+
+func (sess *DefaultSession) assignStubBadge(poi *model.POI, effLen int) {
+	s := sess.scorer
+	if poi.WPArticleLength <= 0 {
+		return
+	}
+
+	stubLimit := s.config.Badges.Stub.ArticleLenMax
+	if stubLimit <= 0 {
+		stubLimit = 2500
+	}
+
+	adjEffectiveLen := float64(effLen)
 	if s.pregroundingEnabled && s.catConfig != nil && s.catConfig.ShouldPreground(poi.Category) {
 		boost := s.config.PregroundBoost
 		if boost <= 0 {
-			boost = 4000 // Default
+			boost = 4000
 		}
-		effectiveLen += float64(boost)
+		adjEffectiveLen += float64(boost)
 	}
 
-	// [BADGE] Deep Dive (Stateless, keep on blue markers)
-	limit := s.config.Badges.DeepDive.ArticleLenMin
-	if limit == 0 {
-		limit = 20000 // Safe default
-	}
-	if poi.WPArticleLength > limit {
-		poi.Badges = append(poi.Badges, "deep_dive")
-	}
-
-	// [BADGE] Stub (Stateless, mutually exclusive with Deep Dive ideally, but logic handles it)
-	// Design: We only mark as stub if the combined potential info depth is low.
-	stubLimit := s.config.Badges.Stub.ArticleLenMax
-	if stubLimit == 0 {
-		stubLimit = 2500 // Aligned with config default
-	}
-
-	// A POI is a stub if:
-	// 1. It has some Wikipedia text (length > 0)
-	// 2. The combined potential depth (Wiki + PregroundBoost) is below the limit.
-	if poi.WPArticleLength > 0 && int(effectiveLen) < stubLimit {
+	if int(adjEffectiveLen) < stubLimit {
 		poi.Badges = append(poi.Badges, "stub")
 	}
 }

@@ -26,11 +26,12 @@ type Pipeline struct {
 	mapper     *LanguageMapper
 	classifier Classifier
 	cfgProv    config.Provider
+	density    *DensityManager
 	logger     *slog.Logger
 }
 
 // NewPipeline creates a new Pipeline.
-func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo.Service, p *poi.Manager, gr *Grid, m *LanguageMapper, c Classifier, cfgProv config.Provider, log *slog.Logger) *Pipeline {
+func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo.Service, p *poi.Manager, gr *Grid, m *LanguageMapper, c Classifier, dm *DensityManager, cfgProv config.Provider, log *slog.Logger) *Pipeline {
 	return &Pipeline{
 		store:      st,
 		client:     cl,
@@ -40,6 +41,7 @@ func NewPipeline(st store.Store, cl ClientInterface, w WikipediaProvider, g *geo
 		grid:       gr,
 		mapper:     m,
 		classifier: c,
+		density:    dm,
 		cfgProv:    cfgProv,
 		logger:     log,
 	}

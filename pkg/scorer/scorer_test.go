@@ -76,7 +76,7 @@ func setupScorer() *Scorer {
 	})
 	visCalc := visibility.NewCalculator(visMgr, nil)
 
-	return NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, false)
+	return NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, nil, false)
 }
 
 func TestScorer_Calculate(t *testing.T) {
@@ -509,7 +509,7 @@ func TestScorer_PregroundingBonus(t *testing.T) {
 			})
 			visCalc := visibility.NewCalculator(visMgr, nil)
 
-			s := NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, tt.enabled)
+			s := NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, nil, tt.enabled)
 
 			poi := &model.POI{
 				Lat: 0.0, Lon: 0.0, Category: tt.category,
@@ -600,7 +600,7 @@ func TestScorer_StubRescue(t *testing.T) {
 			})
 			visCalc := visibility.NewCalculator(visMgr, nil)
 
-			s := NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, tt.pregroundOn)
+			s := NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, nil, tt.pregroundOn)
 
 			poi := &model.POI{
 				Lat: 0.0, Lon: 0.0, Category: tt.category,

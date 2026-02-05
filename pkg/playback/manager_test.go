@@ -146,3 +146,11 @@ func TestManager_HasAuto(t *testing.T) {
 		t.Error("expected HasAuto to be true")
 	}
 }
+
+func TestManager_EnqueueNil(t *testing.T) {
+	m := NewManager()
+	m.Enqueue(nil, false)
+	if m.Count() != 0 {
+		t.Errorf("expected count 0 after enqueuing nil, got %d", m.Count())
+	}
+}

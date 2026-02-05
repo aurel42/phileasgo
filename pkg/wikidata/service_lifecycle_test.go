@@ -61,9 +61,11 @@ func TestService_Lifecycle(t *testing.T) {
 	}
 
 	// Minimal valid service dependencies
-	svc := NewService(st, sm, tracker.New(), &MockClassifier{},
-		request.New(st, tracker.New(), request.ClientConfig{}),
-		&geo.Service{}, poi.NewManager(config.NewProvider(&config.Config{}, nil), st, nil), config.NewProvider(&config.Config{Wikidata: cfg}, nil))
+	reqCli := request.New(st, tracker.New(), request.ClientConfig{})
+	geoSvc := &geo.Service{}
+	poiMgr := poi.NewManager(config.NewProvider(&config.Config{}, nil), st, nil)
+	dm, _ := NewDensityManager("../../configs/languages.yaml")
+	svc := NewService(st, sm, tracker.New(), &MockClassifier{}, reqCli, geoSvc, poiMgr, dm, config.NewProvider(&config.Config{Wikidata: cfg}, nil))
 
 	// 2. Accessors
 	if svc.WikipediaClient() == nil {
