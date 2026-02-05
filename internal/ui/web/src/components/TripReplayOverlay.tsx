@@ -274,13 +274,9 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
     const startTimeRef = useRef<number | null>(null);
     const animationRef = useRef<number | null>(null);
 
-    // Stop all map animations when this component unmounts (important for flyToBounds)
-    useEffect(() => {
-        return () => {
-            console.log("TripReplayOverlay: Cleaning up and stopping map animations");
-            map.stop(); // Stops any ongoing flyToBounds
-        };
-    }, [map]);
+    // Note: We previously had a cleanup effect that called map.stop() here,
+    // but it caused errors when the map was already being unmounted.
+    // Leaflet handles animation cleanup automatically when the map is removed.
 
     // Filter events with valid coordinates
     const validEvents = useMemo(() => {
@@ -372,12 +368,25 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
 
     // Dynamic zoom: recalculate bounds when reaching a new event
     const prevSegmentRef = useRef(-1);
+
+    // Skip flyToBounds for the first N segments to prevent rapid early zooms
+    // that cause the Polyline SVG to desync from the map tiles
+    const MIN_SEGMENT_FOR_FLYBOUNDS = 10;
+
     useEffect(() => {
         if (segmentIndex > prevSegmentRef.current && departure) {
             prevSegmentRef.current = segmentIndex;
 
+            // Skip early segments to avoid rapid zoom animations
+            if (segmentIndex < MIN_SEGMENT_FOR_FLYBOUNDS) {
+                console.log(`[TripReplay] segmentIndex=${segmentIndex}, skipping flyToBounds (< ${MIN_SEGMENT_FOR_FLYBOUNDS})`);
+                return;
+            }
+
             // Create bounds from departure to current position
             const bounds = L.latLngBounds([departure, position]);
+
+            console.log(`[TripReplay] segmentIndex=${segmentIndex}, calling flyToBounds`);
 
             // Add some padding and animate the zoom
             map.flyToBounds(bounds, {
@@ -479,6 +488,44 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
             fy: planeProjected.y,
         });
 
+        // Add departure airport as repulsion point
+        if (departure) {
+            const depProjected = map.latLngToLayerPoint(departure);
+            trackNodes.push({
+                id: 'departure',
+                lat: departure[0],
+                lon: departure[1],
+                icon: '',
+                anchorX: depProjected.x,
+                anchorY: depProjected.y,
+                x: depProjected.x,
+                y: depProjected.y,
+                r: MARKER_RADIUS + 5,
+                isTrackPoint: true,
+                fx: depProjected.x,
+                fy: depProjected.y,
+            });
+        }
+
+        // Add destination airport as repulsion point
+        if (destination) {
+            const destProjected = map.latLngToLayerPoint(destination);
+            trackNodes.push({
+                id: 'destination',
+                lat: destination[0],
+                lon: destination[1],
+                icon: '',
+                anchorX: destProjected.x,
+                anchorY: destProjected.y,
+                x: destProjected.x,
+                y: destProjected.y,
+                r: MARKER_RADIUS + 5,
+                isTrackPoint: true,
+                fx: destProjected.x,
+                fy: destProjected.y,
+            });
+        }
+
         const allNodes = [...poiNodeList, ...trackNodes];
 
         // Run d3-force simulation - markers with larger scale push harder
@@ -495,7 +542,7 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         // Return only non-track nodes (the ones we want to render)
         return allNodes.filter(n => !n.isTrackPoint);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [visiblePOIs, map, drawnPath, position, tick]); // tick forces recalc for lifecycle animation
+    }, [visiblePOIs, map, drawnPath, position, tick, departure, destination]); // tick forces recalc for lifecycle animation
 
     // Plane icon
     const planeIcon = L.divIcon({

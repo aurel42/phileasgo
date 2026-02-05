@@ -1,5 +1,13 @@
 ﻿Release History
 
+## v0.3.136 (2026-02-05)
+- **Fix**: **Trip Replay Map Errors**. Resolved JavaScript errors that occurred when opening the Settings dialog during trip replay playback.
+- **Fix**: **Trip Replay Trail Stability**. Prevented rapid zoom animations at the start of replays that caused the flight trail to temporarily desync from the map.
+- **Improvement**: **Airport Repulsion**. Added departure and destination airports as physics repulsion points in the trip replay animation, preventing POI markers from overlapping airport icons.
+
+## v0.3.135 (2026-02-05)
+- **Improvement**: **Graceful Audio Shutdown**. Implemented a brief fade-out (mute + 20ms delay) before stopping audio playback to eliminate the audible "pop" sound on track transitions.
+
 ## v0.3.134 (2026-02-05)
 - **Feature**: **Language Density Correction**. Integrated a language-aware scoring and word count estimation system using `configs/languages.yaml`. This ensures accurate narrative lengths and fair POI ranking across diverse languages (e.g., German, Japanese, English).
 - **Improvement**: **Reactive Visibility Boosting**. Restored the automatic visibility threshold reduction mechanism when no candidates are visible, improving POI discovery in sparse areas.

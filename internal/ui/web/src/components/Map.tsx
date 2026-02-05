@@ -291,7 +291,8 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
     // Auto-Zoom Logic (Ported from OverlayMiniMap)
     useEffect(() => {
         // Only run if map exists, we are connected, and auto-zoom is enabled
-        if (!map || !isConnected || !autoZoom || !throttledPos) return;
+        // Skip during replay mode to avoid fighting with TripReplayOverlay's flyToBounds
+        if (!map || !isConnected || !autoZoom || !throttledPos || isReplayMode) return;
 
         // Uses throttledPos directly, so no need for internal throttling
 
@@ -362,7 +363,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
             isAutomatedMoveRef.current = false;
         }, 100);
 
-    }, [map, isConnected, autoZoom, throttledPos, displayPois, currentNarratedId, preparingId]);
+    }, [map, isConnected, autoZoom, throttledPos, displayPois, currentNarratedId, preparingId, isReplayMode]);
 
     // Disable auto-zoom on manual interaction
     const handleMapInteraction = () => {

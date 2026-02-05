@@ -214,10 +214,17 @@ func (m *Manager) Stop() {
 }
 
 func (m *Manager) stopLocked() {
-	if m.trackStreamer != nil {
-		m.trackStreamer.Close()
-		m.trackStreamer = nil
+	// Graceful shutdown: mute first to prevent audio "crack"
+	if m.streamer != nil && m.ctrl != nil {
+		speaker.Lock()
+		m.streamer.Silent = true
+		speaker.Unlock()
+		// Brief delay to allow silent samples to flush through the audio buffer
+		// This prevents the abrupt termination "pop" sound
+		time.Sleep(20 * time.Millisecond)
 	}
+
+	// Now clear the speaker before closing the streamer
 	if m.ctrl != nil {
 		speaker.Clear()
 		m.ctrl = nil
@@ -230,6 +237,11 @@ func (m *Manager) stopLocked() {
 			// Call in a goroutine to avoid deadlocks if callback calls back into manager
 			go callback()
 		}
+	}
+
+	if m.trackStreamer != nil {
+		m.trackStreamer.Close()
+		m.trackStreamer = nil
 	}
 }
 
