@@ -18,8 +18,11 @@ type GUIConfig struct {
 
 // WindowConfig holds initial window dimensions.
 type WindowConfig struct {
-	Width  int `yaml:"width"`
-	Height int `yaml:"height"`
+	Width     int  `yaml:"width"`
+	Height    int  `yaml:"height"`
+	X         int  `yaml:"x"`
+	Y         int  `yaml:"y"`
+	Maximized bool `yaml:"maximized"`
 }
 
 // Config holds the application configuration.
@@ -335,8 +338,11 @@ func DefaultConfig() *Config {
 		},
 		GUI: GUIConfig{
 			Window: WindowConfig{
-				Width:  614,
-				Height: 1152,
+				Width:     614,
+				Height:    1152,
+				X:         -1, // -1 means let the OS decide
+				Y:         -1,
+				Maximized: false,
 			},
 		},
 		TTS: TTSConfig{

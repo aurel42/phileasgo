@@ -9,27 +9,58 @@ import (
 	"phileasgo/pkg/config"
 	"runtime"
 	"syscall"
+	"time"
 	"unsafe"
 
 	webview "github.com/webview/webview_go"
 )
 
 var (
-	kernel32            = syscall.NewLazyDLL("kernel32.dll")
-	user32              = syscall.NewLazyDLL("user32.dll")
-	procCreateMutex     = kernel32.NewProc("CreateMutexW")
-	procGetLastError    = kernel32.NewProc("GetLastError")
-	procGetModuleHandle = kernel32.NewProc("GetModuleHandleW")
-	procLoadIcon        = user32.NewProc("LoadIconW")
-	procSendMessage     = user32.NewProc("SendMessageW")
-	procFindWindow      = user32.NewProc("FindWindowW")
+	kernel32               = syscall.NewLazyDLL("kernel32.dll")
+	user32                 = syscall.NewLazyDLL("user32.dll")
+	procCreateMutex        = kernel32.NewProc("CreateMutexW")
+	procGetLastError       = kernel32.NewProc("GetLastError")
+	procGetModuleHandle    = kernel32.NewProc("GetModuleHandleW")
+	procLoadIcon           = user32.NewProc("LoadIconW")
+	procSendMessage        = user32.NewProc("SendMessageW")
+	procFindWindow         = user32.NewProc("FindWindowW")
+	procGetWindowPlacement = user32.NewProc("GetWindowPlacement")
+	procSetWindowPlacement = user32.NewProc("SetWindowPlacement")
+	procMonitorFromRect    = user32.NewProc("MonitorFromRect")
+	procSetWindowLongPtr   = user32.NewProc("SetWindowLongPtrW")
+	procCallWindowProc     = user32.NewProc("CallWindowProcW")
 )
+
+var originalWndProc uintptr
 
 const (
 	WM_SETICON = 0x0080
 	ICON_SMALL = 0
 	ICON_BIG   = 1
+
+	MONITOR_DEFAULTTONEAREST = 0x00000002
 )
+
+type POINT struct {
+	X int32
+	Y int32
+}
+
+type RECT struct {
+	Left   int32
+	Top    int32
+	Right  int32
+	Bottom int32
+}
+
+type WINDOWPLACEMENT struct {
+	Length         uint32
+	Flags          uint32
+	ShowCmd        uint32
+	MinPosition    POINT
+	MaxPosition    POINT
+	NormalPosition RECT
+}
 
 func main() {
 	// Single Instance Check (Windows Named Mutex)
@@ -76,17 +107,39 @@ func main() {
 	`)
 
 	w.SetTitle("PhileasGUI")
+	// Set initial size, but we might override it with placement
 	w.SetSize(cfg.GUI.Window.Width, cfg.GUI.Window.Height, webview.HintNone)
 
-	// Set window icon from embedded resource
+	// GUI Maintenance (Icon, Restore, Hook)
 	go func() {
-		// Give the window time to be created
-		for i := 0; i < 50; i++ {
-			if setWindowIcon("PhileasGUI") {
+		iconSet := false
+		var hwnd uintptr
+		for {
+			hwnd = uintptr(w.Window())
+			if hwnd != 0 {
 				break
 			}
-			// Brief sleep
 			runtime.Gosched()
+		}
+
+		// Initial Restore
+		restoreWindowPlacement(hwnd, cfg)
+
+		// Native Hook for "Save on Close"
+		subclassWindow(hwnd, cfg)
+
+		// Icon Maintenance
+		for {
+			hwnd = uintptr(w.Window())
+			if hwnd == 0 {
+				break
+			}
+			if !iconSet {
+				if setWindowIcon("PhileasGUI") {
+					iconSet = true
+				}
+			}
+			time.Sleep(1 * time.Second)
 		}
 	}()
 
@@ -138,6 +191,76 @@ func main() {
 
 	w.Run()
 	mgr.Stop()
+}
+
+func restoreWindowPlacement(hwnd uintptr, cfg *config.Config) {
+	if cfg.GUI.Window.X == -1 {
+		return // Let OS decide
+	}
+
+	wp := WINDOWPLACEMENT{}
+	wp.Length = uint32(unsafe.Sizeof(wp))
+
+	// Get current placement to fill in defaults
+	_, _, _ = procGetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&wp)))
+
+	// Override with saved values
+	wp.NormalPosition = RECT{
+		Left:   int32(cfg.GUI.Window.X),
+		Top:    int32(cfg.GUI.Window.Y),
+		Right:  int32(cfg.GUI.Window.X + cfg.GUI.Window.Width),
+		Bottom: int32(cfg.GUI.Window.Y + cfg.GUI.Window.Height),
+	}
+
+	if cfg.GUI.Window.Maximized {
+		wp.ShowCmd = 3 // SW_SHOWMAXIMIZED
+	}
+
+	// Safety Check: Ensure the window is on a visible monitor
+	hMonitor, _, _ := procMonitorFromRect.Call(uintptr(unsafe.Pointer(&wp.NormalPosition)), MONITOR_DEFAULTTONEAREST)
+	if hMonitor == 0 {
+		return // Something is wrong, don't apply
+	}
+
+	_, _, _ = procSetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&wp)))
+}
+
+func subclassWindow(hwnd uintptr, cfg *config.Config) {
+	// WM_CLOSE is 0x0010
+	// GWLP_WNDPROC is -4
+	callback := syscall.NewCallback(func(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
+		if msg == 0x0010 { // WM_CLOSE
+			saveWindowPlacement(hwnd, cfg)
+		}
+		ret, _, _ := procCallWindowProc.Call(originalWndProc, hwnd, uintptr(msg), wParam, lParam)
+		return ret
+	})
+
+	gwlpWndProc := int32(-4)
+	ptr, _, _ := procSetWindowLongPtr.Call(hwnd, uintptr(gwlpWndProc), callback)
+	originalWndProc = ptr
+}
+
+func saveWindowPlacement(hwnd uintptr, cfg *config.Config) {
+	if hwnd == 0 {
+		return
+	}
+
+	wp := WINDOWPLACEMENT{}
+	wp.Length = uint32(unsafe.Sizeof(wp))
+
+	ret, _, _ := procGetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&wp)))
+	if ret == 0 {
+		return
+	}
+
+	cfg.GUI.Window.X = int(wp.NormalPosition.Left)
+	cfg.GUI.Window.Y = int(wp.NormalPosition.Top)
+	cfg.GUI.Window.Width = int(wp.NormalPosition.Right - wp.NormalPosition.Left)
+	cfg.GUI.Window.Height = int(wp.NormalPosition.Bottom - wp.NormalPosition.Top)
+	cfg.GUI.Window.Maximized = (wp.ShowCmd == 3) // SW_SHOWMAXIMIZED
+
+	_ = config.Save("configs/phileas.yaml", cfg)
 }
 
 func escapeJS(s string) string {

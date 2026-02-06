@@ -1,10 +1,15 @@
 ﻿Release History
 
+## v0.3.144 (2026-02-07)
+- **Feature**: **Window State Persistence**. PhileasGUI now reliably remembers its size, position, and maximized state across sessions using a native Win32 message hook.
+- **Improvement**: **Multi-Monitor Safety**. Added a native monitor check to automatically move the window to the nearest visible screen if a saved position is no longer valid (e.g., after disconnecting a monitor).
+- **Fix**: **Strict Template Validation**. Enforced `missingkey=error` for all prompt templates to catch rendering regressions early, ensuring 100% template stability.
+- **Fix**: **Pregrounding Reliability**. Restored missing `Name` field in research requests and fixed a configuration bug that could lead to incomplete research context.
+- **Improved**: **Settings UI Polish**. Refined descriptions for scorer deferral settings and corrected the logic for "Peak View" waiting.
+
 ## v0.3.143 (2026-02-06)
 - **Fix**: **Template Regressions**. Resolved rendering failures across all 30 production templates by enforcing explicit error checking and standardizing test data.
 - **Fix**: **Pregrounding Continuity**. Restored missing `Name` field in Perplexity research requests to ensure consistent additional context generation.
-- **Improvement**: **Deterministic Prompts**. Enforced `missingkey=error` globally in the prompt management system to catch missing data early in development.
-- **Improvement**: **Settings Clarity**. Refined the "Wait for better view" description to accurately reflect that 0% waits for the absolute peak visibility.
 - **Fix**: **Replay Transitions**. Resolved an issue where transitioning from normal flight to trip replay could be buggy.
 
 ## v0.3.142 (2026-02-06)
