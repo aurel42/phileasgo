@@ -1,9 +1,14 @@
 ﻿Release History
 
+## v0.3.143 (2026-02-06)
+- **Fix**: **Template Regressions**. Resolved rendering failures across all 30 production templates by enforcing explicit error checking and standardizing test data.
+- **Fix**: **Pregrounding Continuity**. Restored missing `Name` field in Perplexity research requests to ensure consistent additional context generation.
+- **Improvement**: **Deterministic Prompts**. Enforced `missingkey=error` globally in the prompt management system to catch missing data early in development.
+- **Improvement**: **Settings Clarity**. Refined the "Wait for better view" description to accurately reflect that 0% waits for the absolute peak visibility.
+- **Fix**: **Replay Transitions**. Resolved an issue where transitioning from normal flight to trip replay could be buggy.
+
 ## v0.3.142 (2026-02-06)
-- **Feature**: **User-Controlled Deferral**. Migrated the `scorer.deferral_threshold` setting to the UI with a premium percentage slider (0-20%) in the Scorer settings tab.
-- **Improvement**: **Flexible Selection Timing**. Threshold mapping allows users to favor immediate narrations (0%) or wait for perfect cinematic angles (20%).
-- **Refinement**: **Config Persistence**. Integrated the deferral threshold into the unified configuration provider for reactive, session-aware stability.
+- **Chore**: Migrated the `scorer.deferral_threshold` setting to the UI with a premium percentage slider (0-20%) in the Scorer settings tab.
 
 ## v0.3.141 (2026-02-06)
 - **Feature**: **Enhanced Trip Replay Visuals**. Overhauled the flight path with a crisp, parchment-outlined dashed trail (Crimson core, Parchment white outline) and doubled its visual weight.

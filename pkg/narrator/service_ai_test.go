@@ -38,6 +38,11 @@ func TestAIService_PlayPOI(t *testing.T) {
 		poiFindErr      error
 		llmErr          error
 		ttsErr          error
+		ClockPos        int
+		RelativeDir     string
+		POINameUser     string
+		POINameNative   string
+		NameNative      string
 		wikiContent     string
 		wikiErr         error
 		expectNarration bool
@@ -604,32 +609,61 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
 
 	data := svc.promptAssembler.NewPromptData(svc.getSessionState())
-	data["FlightStage"] = "Cruise"
-	data["NameNative"] = "Test POI"
-	data["POINameNative"] = "Test POI"
-	data["NameUser"] = "Test POI"
-	data["POINameUser"] = "Test POI"
+	data["Interests"] = []string{"Aviation"}
+	data["POINameUser"] = "Paris"
+	data["POINameNative"] = "Paris"
+	data["NameNative"] = "Paris"
+	data["NameUser"] = "Paris"
+	data["Name"] = "Paris"
 	data["Category"] = "City"
-	data["WikipediaText"] = "Test wiki content."
-	data["NavInstruction"] = "10km ahead"
+	data["WikipediaText"] = "Text"
+	data["ArticleURL"] = "http://example.com"
+	data["Country"] = "France"
+	data["Region"] = "Ile-de-France"
+	data["City"] = "Paris"
+	data["AltitudeAGL"] = 5000.0
+	data["GroundSpeed"] = 120.0
+	data["Heading"] = 180.0
 	data["Lat"] = 10.0
 	data["Lon"] = 20.0
-	data["AltitudeAGL"] = 5000.0
-	data["Heading"] = 180.0
-	data["GroundSpeed"] = 120.0
-	data["RecentContext"] = "None"
-	data["UnitsInstruction"] = "Use metric units."
-	data["FlightStatusSentence"] = "Flying over the sea."
-	data["From"] = "France"
-	data["To"] = "Italy"
-	data["Title"] = "Sample Title"
-	data["Script"] = "Sample Script Content"
+	data["IsOnGround"] = false
+	data["ActiveStyle"] = "Informative"
+	data["ActiveSecretWord"] = "Phileas"
+	data["Avoid"] = []string{"Politics"}
+	data["UnitSystem"] = "metric"
+	data["IsStub"] = false
+	data["PregroundContext"] = "Notes"
+	data["TTSInstructions"] = "Speak."
+	data["LastSentence"] = "Hello."
+	data["TripSummary"] = "Summary."
+	data["Language_name"] = "English"
+	data["TargetLanguage"] = "en"
+	data["ClockPos"] = 12
+	data["NavInstruction"] = "10km ahead"
+	data["RelativeDir"] = "ahead"
+	data["Movement"] = "Flying North"
 	data["CurrentSummary"] = "Summary"
 	data["LastTitle"] = "Last"
 	data["LastScript"] = "Last"
 	data["Images"] = []prompt.ImageResult{{Title: "Img", URL: "url"}}
 	data["CategoryList"] = "Airport"
 	data["TopicName"] = "Local History"
+	data["TopicDescription"] = "Description"
+	data["DistKm"] = 10.0
+	data["DistNm"] = 5.4
+	data["Bearing"] = 180.0
+	data["RelBearing"] = 0.0
+	data["CardinalDir"] = "South"
+	data["UnitsInstruction"] = "Use metric units."
+	data["TargetRegion"] = "Ile-de-France"
+	data["TargetCountry"] = "France"
+	data["MaxWords"] = 150
+	data["RecentContext"] = "None"
+	data["Script"] = "Narrative text."
+	data["DomStrat"] = "Uniform"
+	data["From"] = "France"
+	data["To"] = "Germany"
+	data["NarrativeType"] = "script"
 
 	err = filepath.Walk(promptsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".tmpl") {

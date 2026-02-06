@@ -761,7 +761,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 </div>
                             ))}
                             <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
-                                Controls how much better the "future view" must be to defer narration. 0% means never defer if currently visible.
+                                Minimum visual improvement required to defer narration. At 0%, Phileas always waits for the absolute peak view.
                             </div>
                         </div>
                     )}

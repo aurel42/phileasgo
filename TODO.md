@@ -52,7 +52,7 @@ X letsgoo announcement frequently way too long
 X Morgan Freeman voice broken
 X add reinforcement of target language to 2nd pass
 X reconsider basing MaxWords on the Wikipedia article length, doesn't work with Chinese articles
-- transition from normal to trip replay still buggy
+X transition from normal to trip replay still buggy
 X replay: photo icon for screenshots, markers get different color
 X replay: essays: assign icons, use different colors for markers
 

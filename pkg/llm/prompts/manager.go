@@ -27,7 +27,7 @@ func NewManager(dir string) (*Manager, error) {
 		"interests": interestsFunc,
 		"maybe":     maybeFunc,
 		"pick":      pickFunc,
-	})
+	}).Option("missingkey=error")
 
 	if err := m.loadCommon(dir); err != nil {
 		return nil, fmt.Errorf("loading common templates: %w", err)

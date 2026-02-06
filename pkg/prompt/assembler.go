@@ -3,6 +3,7 @@ package prompt
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 	"time"
@@ -242,6 +243,7 @@ func (a *Assembler) fetchUnitsInstruction() string {
 
 	content, err := a.prompts.Render(tmplName, nil)
 	if err != nil {
+		slog.Error("Failed to render units template", "template", tmplName, "error", err)
 		return ""
 	}
 	return content
@@ -330,11 +332,13 @@ func (a *Assembler) fetchPregroundContext(ctx context.Context, p *model.POI) str
 	}
 
 	data := struct {
+		Name     string
 		Category string
 		Country  string
 		Lat      float64
 		Lon      float64
 	}{
+		Name:     p.DisplayName(),
 		Category: p.Category,
 		Country:  a.geoSvc.GetLocation(p.Lat, p.Lon).CountryName,
 		Lat:      p.Lat,
@@ -343,6 +347,7 @@ func (a *Assembler) fetchPregroundContext(ctx context.Context, p *model.POI) str
 
 	prompt, err := a.prompts.Render("context/pregrounding.tmpl", data)
 	if err != nil {
+		slog.Error("Failed to render pregrounding template", "error", err)
 		return ""
 	}
 
@@ -398,6 +403,7 @@ func (a *Assembler) fetchTTSInstructions(data Data) string {
 
 	content, err := a.prompts.Render(tmplName, data)
 	if err != nil {
+		slog.Error("Failed to render TTS template", "template", tmplName, "error", err)
 		return "Do not use speaker labels."
 	}
 	return content
