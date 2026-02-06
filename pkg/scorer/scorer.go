@@ -215,15 +215,16 @@ func (sess *DefaultSession) calculateIntrinsicScore(poi *model.POI) (score float
 }
 
 // determineDeferral checks if we should defer this POI because we'll have a better view later.
-// Returns true if the POI should be deferred (excluded from selection).
+// Uses two buckets: "current" (+1, +3 min) and "future" (+5, +10, +15 min).
+// Defers if best visibility in current bucket * threshold < best visibility in future bucket.
 func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVisibility float64) bool {
 	// Don't defer urgent POIs (about to disappear)
 	if poi.TimeToBehind > 0 && poi.TimeToBehind < 300 { // < 5 minutes
 		return false
 	}
 
-	// Check if we have valid future positions
-	if len(sess.futurePositions) == 0 {
+	// Need all 5 future positions for the two-bucket comparison
+	if len(sess.futurePositions) < 5 {
 		return false
 	}
 
@@ -235,37 +236,44 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 		boost = 1.0
 	}
 
-	// Calculate Max Future Visibility
-	maxFutureVis := 0.0
-	for _, pos := range sess.futurePositions {
+	// Helper to calculate visibility at a future position
+	calcVisibility := func(pos geo.Point) float64 {
 		bearingToPOI := geo.Bearing(pos, poiPoint)
 		distMeters := geo.Distance(pos, poiPoint)
 		distNM := distMeters / 1852.0
 
-		// Use consistent scoring logic for future visibility
-		// We use CalculateVisibilityForSize which returns a simple 0-1 score
-		// And we manually apply the same penalties as calculateVisibilityScore
-		futureScore := sess.scorer.visCalc.CalculateVisibilityForSize(heading, altAGL, altAGL, bearingToPOI, distNM, visibility.SizeType(poi.Size), isOnGround, boost)
+		score := sess.scorer.visCalc.CalculateVisibilityForSize(heading, altAGL, altAGL, bearingToPOI, distNM, visibility.SizeType(poi.Size), isOnGround, boost)
 
 		// Apply same multipliers as current score for parity
-		// 1. Size Penalty
 		sizePenalty := map[string]float64{"S": 1.0, "M": 1.0, "L": 0.85, "XL": 0.7}
 		if penalty, ok := sizePenalty[poi.Size]; ok && penalty < 1.0 {
-			futureScore *= penalty
+			score *= penalty
 		}
-		// 2. Dimension Multiplier
 		if poi.DimensionMultiplier > 1.0 {
-			futureScore *= poi.DimensionMultiplier
+			score *= poi.DimensionMultiplier
 		}
+		return score
+	}
 
-		if futureScore > maxFutureVis {
-			maxFutureVis = futureScore
+	// "Current" bucket: +1 and +3 minutes (indices 0, 1)
+	bestCurrentVis := 0.0
+	for i := 0; i < 2; i++ {
+		if vis := calcVisibility(sess.futurePositions[i]); vis > bestCurrentVis {
+			bestCurrentVis = vis
+		}
+	}
+
+	// "Future" bucket: +5, +10, +15 minutes (indices 2, 3, 4)
+	bestFutureVis := 0.0
+	for i := 2; i < 5; i++ {
+		if vis := calcVisibility(sess.futurePositions[i]); vis > bestFutureVis {
+			bestFutureVis = vis
 		}
 	}
 
 	threshold := sess.scorer.config.DeferralThreshold
 	if threshold <= 0 {
-		threshold = 1.1 // Default: defer if 10% better visibility later
+		threshold = 1.1 // Default: defer if future is 10% better
 	}
 
 	power := sess.scorer.config.DeferralProximityBoostPower
@@ -273,11 +281,12 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 		power = 1.0
 	}
 
-	// Apply exponential penalty to both scores before comparison
-	maxFutureVisPow := math.Pow(maxFutureVis, power)
-	currentVisPow := math.Pow(currentVisibility, power)
+	// Apply power to both scores before comparison
+	bestCurrentVisPow := math.Pow(bestCurrentVis, power)
+	bestFutureVisPow := math.Pow(bestFutureVis, power)
 
-	return maxFutureVisPow > currentVisPow*threshold
+	// Defer if: best_current^power * threshold < best_future^power
+	return bestCurrentVisPow*threshold < bestFutureVisPow
 }
 
 // calculateUrgencyMetrics calculates TimeToBehind (TTB) and TimeToCPA).

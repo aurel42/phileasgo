@@ -1,11 +1,15 @@
 ﻿Release History
 
+## v0.3.139 (2026-02-06)
+- **Fix**: **Two-Bucket Deferral**. Restored proper POI selection timing with a dual-horizon lookahead, comparing near-term (+1, +3m) vs long-term (+5, +10, +15m) visibility.
+- **Fix**: **Location-Aware Deferral**. Restored distance-based visibility bias for more stable "Fly-By" narrations.
+- **Improvement**: **Trip Replay Refinements**. Assigned specific icons and semantic colors to screenshots and regional essays in trip replay.
+
 ## v0.3.138 (2026-02-05)
 - **Feature**: **Beacon Customization**. Integrated all beacon parameters (formation count, distance, altitude floor, and sink distances) into the unified configuration provider and settings panel.
 - **Improvement**: **Trip Replay Marker Suppression**. Suppressed dynamic aerodrome markers within 5km of departure/destination airports to avoid overlap with static terminal icons.
 - **Improvement**: **Prompt Polish**. Refined `Let's Go` templates for more engaging takeoff announcements and updated `Situation` context for better environmental awareness.
 - **Refactor**: **Beacon Service Reliability**. Updated the beacon update loop to be context-aware and synchronized with the latest telemetry.
-
 
 ## v0.3.137 (2026-02-05)
 - **Feature**: **Credit Roll**. Trip replay now displays POI names in a scrolling credit roll as markers appear, using role-title font with dual-outline styling.

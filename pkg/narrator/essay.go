@@ -20,6 +20,7 @@ type EssayTopic struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 	MaxWords    int    `yaml:"max_words"`
+	Icon        string `yaml:"icon"`
 }
 
 // EssayConfig holds the list of defined essay topics.

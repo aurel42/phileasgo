@@ -237,7 +237,7 @@ func (p *UnifiedProvider) StyleLibrary(ctx context.Context) []string {
 }
 
 func (p *UnifiedProvider) ActiveStyle(ctx context.Context) string {
-	return p.getString(ctx, KeyActiveStyle, p.base.Narrator.ActiveStyle)
+	return p.getOptionalString(ctx, KeyActiveStyle, p.base.Narrator.ActiveStyle)
 }
 
 func (p *UnifiedProvider) SecretWordLibrary(ctx context.Context) []string {
@@ -245,7 +245,7 @@ func (p *UnifiedProvider) SecretWordLibrary(ctx context.Context) []string {
 }
 
 func (p *UnifiedProvider) ActiveSecretWord(ctx context.Context) string {
-	return p.getString(ctx, KeyActiveSecretWord, p.base.Narrator.ActiveSecretWord)
+	return p.getOptionalString(ctx, KeyActiveSecretWord, p.base.Narrator.ActiveSecretWord)
 }
 
 func (p *UnifiedProvider) BeaconEnabled(ctx context.Context) bool {
@@ -293,6 +293,16 @@ func (p *UnifiedProvider) BeaconMaxTargets(ctx context.Context) int {
 func (p *UnifiedProvider) getString(ctx context.Context, key, fallback string) string {
 	if p.store != nil {
 		if val, ok := p.store.GetState(ctx, key); ok && val != "" {
+			return val
+		}
+	}
+	return fallback
+}
+
+// getOptionalString returns the stored value even if empty, only falling back if not set.
+func (p *UnifiedProvider) getOptionalString(ctx context.Context, key, fallback string) string {
+	if p.store != nil {
+		if val, ok := p.store.GetState(ctx, key); ok {
 			return val
 		}
 	}

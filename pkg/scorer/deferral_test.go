@@ -65,24 +65,16 @@ func TestDefaultSession_DetermineDeferral(t *testing.T) {
 		expectDeferred bool
 	}{
 		{
-			name: "Fly-By: Improve Angle (Defer)",
-			// POI is 5nm North, 2nm East.
-			// Currently: Bearing ~22 deg (Right Front).
-			// Future (+5m): Will be at 5nm North -> POI is abeam (90 deg).
-			// Vis Calc gives bonus for side view vs front view?
-			// Let's check Vis Calc logic:
-			// < 90: 1.0 (Right Front)
-			// < 225: 0.0 (Rear)
-			// < 270: 0.5 (Left Rear)
-			// < 300: 1.5 (Left Side)
-			// < 330: 2.0 (Left Front - Best)
-			// So right side is 1.0. Left Front is 2.0.
-			// Let's put POI on LEFT side to test optimization.
-			// POI: 10nm North, 2nm West.
-			// Current (0,0): Bearing ~350 (Forward Left - x1.5). Dist ~10nm. Vis Score ~0.5 * 1.5 = 0.75
-			// Future (+5m): At 5nm North. Bearing ~340 (Forward Left/Left Best). Dist ~5nm. Vis Score ~0.75 * 2.0 = 1.5
-			// Future much better -> Defer.
-			poiPos:         geo.Point{Lat: 10.0 / 60.0, Lon: -2.0 / 60.0},
+			name: "Fly-By: Improve Distance (Defer)",
+			// Two-bucket design: current bucket (+1, +3 min) vs future bucket (+5, +10, +15 min).
+			// POI at 12nm North, 1nm East - we're flying towards it.
+			// Current bucket:
+			//   +1min (1nm N): POI 11nm away, forward-right (1.0x). Score ~0.45
+			//   +3min (3nm N): POI 9nm away, forward-right (1.0x). Score ~0.55
+			// Future bucket:
+			//   +10min (10nm N): POI 2.2nm away, forward-right (1.0x). Score ~0.89
+			// Future bucket (0.89) > Current bucket best (0.55) * 1.1 (0.605) -> Defer.
+			poiPos:         geo.Point{Lat: 12.0 / 60.0, Lon: 1.0 / 60.0},
 			heading:        0,
 			timeToBehind:   -1,
 			expectDeferred: true,

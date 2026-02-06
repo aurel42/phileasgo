@@ -224,7 +224,7 @@ categories:
       "Q34038": "waterfall"
     weight: 0.6
     icon: "water"
-    sitelinks_min: 2
+    # sitelinks_min: 2
     size: "L"
   Wetland:
     qids:

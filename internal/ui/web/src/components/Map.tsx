@@ -2,6 +2,7 @@ import { useEffect, Fragment, useMemo, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTelemetry } from '../hooks/useTelemetry';
 import { AircraftMarker } from './AircraftMarker';
 import { CacheLayer } from './CacheLayer';
@@ -220,6 +221,7 @@ interface MapProps {
 }
 
 export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selectedPOI, onPOISelect, onMapClick }: MapProps) => {
+    const queryClient = useQueryClient();
 
     const { data: telemetry, isLoading: isConnecting } = useTelemetry();
     const isConnected = telemetry?.SimState === 'active';
@@ -234,6 +236,20 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
     const isDebriefing = narratorStatus?.current_type === 'debriefing';
     const isIdleReplay = isDisconnected && tripEvents && tripEvents.length > 1;
     const isReplayMode = isIdleReplay || isDebriefing;
+
+    // Track replay mode transitions to force TripReplayOverlay remount
+    const [replayKey, setReplayKey] = useState(0);
+    const prevReplayModeRef = useRef(false);
+
+    // When entering replay mode, invalidate trip events to get fresh data and force remount
+    useEffect(() => {
+        if (isReplayMode && !prevReplayModeRef.current) {
+            // Transitioning into replay mode - refetch trip events and bump key
+            queryClient.invalidateQueries({ queryKey: ['tripEvents'] });
+            setReplayKey(k => k + 1);
+        }
+        prevReplayModeRef.current = isReplayMode;
+    }, [isReplayMode, queryClient]);
 
     // Default duration for idle replay is 2 mins, otherwise use actual audio duration
     const replayDuration = isDebriefing ? (narratorStatus?.current_duration_ms || 120000) : 120000;
@@ -308,30 +324,19 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
         const lat = throttledPos.lat;
         const lon = throttledPos.lon;
 
-        // Default to a 10km radius (20x20km) bounding box
+        // Default to a 20km radius (40x40km) bounding box
         const degPerKm = 1 / 111.11;
-        let latBuffer = 10 * degPerKm;
-        let lonBuffer = 10 * degPerKm / Math.cos(lat * Math.PI / 180);
+        let latBuffer = 20 * degPerKm;
+        let lonBuffer = 20 * degPerKm / Math.cos(lat * Math.PI / 180);
         let targetZoom = DEFAULT_ZOOM;
 
         if (nonBluePois.length > 0) {
             const maxLatDiff = Math.max(...nonBluePois.map(p => Math.abs(p.lat - lat)));
             const maxLonDiff = Math.max(...nonBluePois.map(p => Math.abs(p.lon - lon)));
 
-            latBuffer = Math.max(maxLatDiff, 0.01);
-            lonBuffer = Math.max(maxLonDiff, 0.01);
-
-            // Refinement: Adjust bounding box based on map aspect ratio
-            const playingPoi = displayPois.find(p => p.wikidata_id === currentNarratedId);
-            const activePoiLatDiff = playingPoi ? Math.abs(playingPoi.lat - lat) : 0;
-            const activePoiLonDiff = playingPoi ? Math.abs(playingPoi.lon - lon) : 0;
-
-            const mapSize = map.getSize();
-            if (mapSize.y > mapSize.x) {
-                lonBuffer = activePoiLonDiff;
-            } else if (mapSize.x > mapSize.y) {
-                latBuffer = activePoiLatDiff;
-            }
+            // Subtract 10% for a tighter fit
+            latBuffer = Math.max(maxLatDiff * 0.9, 0.01);
+            lonBuffer = Math.max(maxLonDiff * 0.9, 0.01);
         }
 
         const symmetricBounds = L.latLngBounds(
@@ -402,7 +407,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 />
                 {showFallbackMap && <MapBranding />}
                 {showFallbackMap && <CoverageLayer />}
-                {isReplayMode && tripEvents && <TripReplayOverlay events={tripEvents} durationMs={replayDuration} isPlaying={isReplayMode} />}
+                {isReplayMode && tripEvents && <TripReplayOverlay key={replayKey} events={tripEvents} durationMs={replayDuration} isPlaying={isReplayMode} />}
                 {showCacheLayer && isConnected && <CacheLayer />}
                 {isConnected && <VisibilityLayer enabled={showVisibilityLayer} />}
                 {/* Hide aircraft elements during replay mode to prevent telemetry-based map updates */}

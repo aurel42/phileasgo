@@ -39,6 +39,7 @@ type Narrative struct {
 	POI        *POI   `json:"poi,omitempty"`        // nil for non-POI narratives
 	ImagePath  string `json:"image_path,omitempty"` // For screenshots
 	EssayTopic string `json:"essay_topic,omitempty"`
+	EssayIcon  string `json:"essay_icon,omitempty"`
 
 	// Location Context (Snapshot)
 	Lat float64 `json:"lat,omitempty"`

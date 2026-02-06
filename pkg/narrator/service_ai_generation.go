@@ -194,6 +194,7 @@ func (s *AIService) constructNarrative(req *GenerationRequest, script, extracted
 	}
 	if req.EssayTopic != nil {
 		n.EssayTopic = req.EssayTopic.Name
+		n.EssayIcon = req.EssayTopic.Icon
 	}
 	return n
 }

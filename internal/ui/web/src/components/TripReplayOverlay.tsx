@@ -50,6 +50,9 @@ const COLORS = {
     orange: '#FF8C00',
     green: '#22c55e',
     blue: '#3b82f6',
+    // Triadic colors (120° apart from blue) for special markers
+    magenta: '#F63B82',   // For screenshots
+    lime: '#82F63B',      // For essays
 };
 
 // Credit Roll timing - when to add a name to the roll (at spawn)
@@ -292,7 +295,9 @@ const CreditRoll = ({ items, totalPOICount, mapContainer }: {
                                 1px 1px 0 #000,
                                 0 0 4px rgba(0,0,0,0.8)
                             `,
-                            whiteSpace: 'nowrap',
+                            textAlign: 'center',
+                            maxWidth: '90%',
+                            padding: '0 5%',
                         }}
                     >
                         {item.name}
@@ -514,7 +519,15 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
                 // Calculate age and use lifecycle functions for scale and color
                 const age = now - birthTime;
                 const scale = getScale(age, shrinkTarget);
-                const color = getColor(age);
+                // Screenshots and essays get fixed triadic colors
+                let color: string;
+                if (poi.category === 'screenshot') {
+                    color = COLORS.magenta;
+                } else if (poi.category === 'essay') {
+                    color = COLORS.lime;
+                } else {
+                    color = getColor(age);
+                }
 
                 // Physics radius is proportional to scale
                 const physicsRadius = MARKER_RADIUS * scale;
