@@ -187,6 +187,11 @@ func TestUnifiedProvider(t *testing.T) {
 		store.SetState(ctx, KeyActiveStyle, "style2")
 		store.SetState(ctx, KeyActiveSecretWord, "word2")
 		store.SetState(ctx, KeyActiveTargetLanguage, "fr-FR")
+		store.SetState(ctx, KeyAutoNarrate, "false")
+		store.SetState(ctx, KeyPauseDuration, "10s")
+		store.SetState(ctx, KeyRepeatTTL, "2h")
+		store.SetState(ctx, KeyNarrationLengthShort, "150")
+		store.SetState(ctx, KeyNarrationLengthLong, "500")
 
 		styles, _ := json.Marshal([]string{"s1", "s2", "s3"})
 		store.SetState(ctx, KeyStyleLibrary, string(styles))
@@ -195,6 +200,21 @@ func TestUnifiedProvider(t *testing.T) {
 
 		if p.SimProvider(ctx) != "mock" {
 			t.Errorf("expected mock, got %s", p.SimProvider(ctx))
+		}
+		if p.AutoNarrate(ctx) != false {
+			t.Error("expected auto narrate false from store")
+		}
+		if p.PauseDuration(ctx) != 10*time.Second {
+			t.Errorf("expected 10s pause, got %v", p.PauseDuration(ctx))
+		}
+		if p.RepeatTTL(ctx) != 2*time.Hour {
+			t.Errorf("expected 2h repeat ttl, got %v", p.RepeatTTL(ctx))
+		}
+		if p.NarrationLengthShort(ctx) != 150 {
+			t.Errorf("expected 150 short target, got %d", p.NarrationLengthShort(ctx))
+		}
+		if p.NarrationLengthLong(ctx) != 500 {
+			t.Errorf("expected 500 long target, got %d", p.NarrationLengthLong(ctx))
 		}
 		if p.TeleportDistance(ctx) != 200.5 {
 			t.Errorf("expected 200.5, got %f", p.TeleportDistance(ctx))

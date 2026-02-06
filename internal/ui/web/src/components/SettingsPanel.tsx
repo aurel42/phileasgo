@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { VictorianToggle } from './VictorianToggle';
-import type { Telemetry } from '../types/telemetry';
 import { DualRangeSlider } from './DualRangeSlider';
+import type { Telemetry } from '../types/telemetry';
 
 interface SettingsPanelProps {
     isGui: boolean;
@@ -23,6 +23,15 @@ interface SettingsPanelProps {
     onNarrationFrequencyChange: (val: number) => void;
     textLength: number;
     onTextLengthChange: (val: number) => void;
+    autoNarrate: boolean;
+    onAutoNarrateChange: (val: boolean) => void;
+    pauseDuration: number;
+    onPauseDurationChange: (val: number) => void;
+    repeatTTL: string;
+    onRepeatTTLChange: (val: string) => void;
+    narrationLengthShort: number;
+    narrationLengthLong: number;
+    onNarrationLengthChange: (minValue: number, maxValue: number) => void;
     streamingMode: boolean;
     onStreamingModeChange: (val: boolean) => void;
 }
@@ -76,6 +85,11 @@ interface DraftState {
     // Narrator tab
     narrationFrequency: number;
     textLength: number;
+    autoNarrate: boolean;
+    pauseDuration: number;
+    repeatTTL: string;
+    narrationLengthShort: number;
+    narrationLengthLong: number;
     promptUnits: string; // imperial/hybrid/metric - affects prompt templates
     minPoiScore: number;
     filterMode: string;
@@ -135,6 +149,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     onNarrationFrequencyChange,
     textLength,
     onTextLengthChange,
+    autoNarrate,
+    onAutoNarrateChange,
+    pauseDuration,
+    onPauseDurationChange,
+    repeatTTL,
+    onRepeatTTLChange,
+    narrationLengthShort,
+    narrationLengthLong,
+    onNarrationLengthChange,
     streamingMode,
     onStreamingModeChange
 }) => {
@@ -159,6 +182,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 setDraft({
                     narrationFrequency,
                     textLength,
+                    autoNarrate,
+                    pauseDuration,
+                    repeatTTL,
+                    narrationLengthShort,
+                    narrationLengthLong,
                     promptUnits: data.units || 'hybrid',
                     minPoiScore,
                     filterMode,
@@ -205,6 +233,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         return (
             draft.narrationFrequency !== narrationFrequency ||
             draft.textLength !== textLength ||
+            draft.autoNarrate !== autoNarrate ||
+            draft.pauseDuration !== pauseDuration ||
+            draft.repeatTTL !== repeatTTL ||
+            draft.narrationLengthShort !== narrationLengthShort ||
+            draft.narrationLengthLong !== narrationLengthLong ||
             draft.promptUnits !== (serverConfig.units || 'hybrid') ||
             draft.minPoiScore !== minPoiScore ||
             draft.filterMode !== filterMode ||
@@ -271,6 +304,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         if (draft.mockDurationHold !== (serverConfig?.mock_duration_hold || '')) payload.mock_duration_hold = draft.mockDurationHold;
         if (draft.deferralProximityBoostPower !== (serverConfig?.deferral_proximity_boost_power ?? 1.0)) payload.deferral_proximity_boost_power = draft.deferralProximityBoostPower;
         if (draft.twoPassScriptGeneration !== (serverConfig?.two_pass_script_generation ?? false)) payload.two_pass_script_generation = draft.twoPassScriptGeneration;
+        if (draft.autoNarrate !== (serverConfig?.auto_narrate ?? true)) payload.auto_narrate = draft.autoNarrate;
+        if (draft.pauseDuration !== (serverConfig?.pause_between_narrations ?? 4)) payload.pause_between_narrations = draft.pauseDuration;
+        if (draft.repeatTTL !== (serverConfig?.repeat_ttl || '1h')) payload.repeat_ttl = draft.repeatTTL;
+        if (draft.narrationLengthShort !== (serverConfig?.narration_length_short_words ?? 50)) payload.narration_length_short_words = draft.narrationLengthShort;
+        if (draft.narrationLengthLong !== (serverConfig?.narration_length_long_words ?? 200)) payload.narration_length_long_words = draft.narrationLengthLong;
         if (draft.beaconEnabled !== (serverConfig?.beacon_enabled ?? true)) payload.beacon_enabled = draft.beaconEnabled;
         if (draft.beaconFormationEnabled !== (serverConfig?.beacon_formation_enabled ?? true)) payload.beacon_formation_enabled = draft.beaconFormationEnabled;
         if (draft.beaconFormationDistance !== (serverConfig?.beacon_formation_distance ?? 2000)) payload.beacon_formation_distance = draft.beaconFormationDistance;
@@ -301,6 +339,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             // Apply prop-based changes via callbacks (these update parent state AND send to server)
             if (draft.narrationFrequency !== narrationFrequency) onNarrationFrequencyChange(draft.narrationFrequency);
             if (draft.textLength !== textLength) onTextLengthChange(draft.textLength);
+            if (draft.autoNarrate !== autoNarrate) onAutoNarrateChange(draft.autoNarrate);
+            if (draft.pauseDuration !== pauseDuration) onPauseDurationChange(draft.pauseDuration);
+            if (draft.repeatTTL !== repeatTTL) onRepeatTTLChange(draft.repeatTTL);
+            if (draft.narrationLengthShort !== narrationLengthShort || draft.narrationLengthLong !== narrationLengthLong) {
+                onNarrationLengthChange(draft.narrationLengthShort, draft.narrationLengthLong);
+            }
             if (draft.minPoiScore !== minPoiScore) onMinPoiScoreChange(draft.minPoiScore);
             if (draft.filterMode !== filterMode) onFilterModeChange(draft.filterMode);
             if (draft.targetPoiCount !== targetPoiCount) onTargetPoiCountChange(draft.targetPoiCount);
@@ -482,6 +526,37 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     {activeTab === 'narrator' && (
                         <div className="settings-group">
                             <div className="role-header">Narration Preferences</div>
+                            <VictorianToggle
+                                label="Automatic Narration"
+                                checked={draft.autoNarrate}
+                                onChange={val => updateDraft('autoNarrate', val)}
+                            />
+                            <VictorianToggle
+                                label="2-pass script generation"
+                                checked={draft.twoPassScriptGeneration}
+                                onChange={val => updateDraft('twoPassScriptGeneration', val)}
+                            />
+                            {renderField('Pause Between Narrations', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{draft.pauseDuration}s</span>
+                                    <input
+                                        type="range"
+                                        min="1" max="10"
+                                        value={draft.pauseDuration}
+                                        onChange={e => updateDraft('pauseDuration', parseInt(e.target.value))}
+                                    />
+                                </div>
+                            ))}
+                            {renderField('Repeat TTL', (
+                                <input
+                                    type="text"
+                                    className="settings-input"
+                                    placeholder="e.g. 1h, 30m, 1d"
+                                    value={draft.repeatTTL}
+                                    onChange={e => updateDraft('repeatTTL', e.target.value)}
+                                />
+                            ))}
+                            <div style={{ marginTop: '16px' }}></div>
                             {renderField('Narration Frequency', (
                                 <div className="settings-slider-container">
                                     <span className="role-value">{['Rarely', 'Normal', 'Active', 'Hyperactive'][draft.narrationFrequency - 1] || draft.narrationFrequency}</span>
@@ -501,11 +576,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                     <option value="metric">Metric (m, km/h, °C)</option>
                                 </select>
                             ))}
-                            <VictorianToggle
-                                label="2-pass script generation"
-                                checked={draft.twoPassScriptGeneration}
-                                onChange={val => updateDraft('twoPassScriptGeneration', val)}
-                            />
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Language</div>
                             {renderField('Active Language', (
@@ -596,6 +666,21 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                     values={draft.secretWordLibrary}
                                     placeholder="Add theme to library..."
                                     onChange={val => updateDraft('secretWordLibrary', val)}
+                                />
+                            ))}
+
+                            {renderField('Narration Word Targets', (
+                                <DualRangeSlider
+                                    min={10}
+                                    max={1000}
+                                    step={10}
+                                    minVal={draft.narrationLengthShort}
+                                    maxVal={draft.narrationLengthLong}
+                                    unit=" words"
+                                    onChange={(min, max) => {
+                                        updateDraft('narrationLengthShort', min);
+                                        updateDraft('narrationLengthLong', max);
+                                    }}
                                 />
                             ))}
 
@@ -1028,6 +1113,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     background: rgba(255, 255, 255, 0.02);
     }
 `}</style>
-        </div>
+        </div >
     );
 };

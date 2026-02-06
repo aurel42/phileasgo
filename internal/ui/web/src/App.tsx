@@ -39,6 +39,11 @@ function App() {
   const [targetCount, setTargetCount] = useState(20);
   const [narrationFrequency, setNarrationFrequency] = useState(3);
   const [textLength, setTextLength] = useState(3);
+  const [autoNarrate, setAutoNarrate] = useState(true);
+  const [pauseDuration, setPauseDuration] = useState(4);
+  const [repeatTTL, setRepeatTTL] = useState('1h');
+  const [narrationLengthShort, setNarrationLengthShort] = useState(50);
+  const [narrationLengthLong, setNarrationLengthLong] = useState(200);
   const pois = useTrackedPOIs();
   const { status: narratorStatus } = useNarrator();
 
@@ -149,6 +154,11 @@ function App() {
     if (key === 'target_poi_count') setTargetCount(value as number);
     if (key === 'narration_frequency') setNarrationFrequency(value as number);
     if (key === 'text_length') setTextLength(value as number);
+    if (key === 'auto_narrate') setAutoNarrate(value as boolean);
+    if (key === 'pause_between_narrations') setPauseDuration(value as number);
+    if (key === 'repeat_ttl') setRepeatTTL(value as string);
+    if (key === 'narration_length_short_words') setNarrationLengthShort(value as number);
+    if (key === 'narration_length_long_words') setNarrationLengthLong(value as number);
 
     fetch('/api/config', {
       method: 'PUT',
@@ -176,6 +186,11 @@ function App() {
           // These two can also be driven by narratorStatus, but config is the source of truth for settings
           setNarrationFrequency(data.narration_frequency ?? 3);
           setTextLength(data.text_length ?? 3);
+          setAutoNarrate(data.auto_narrate ?? true);
+          setPauseDuration(data.pause_between_narrations ?? 4);
+          setRepeatTTL(data.repeat_ttl || '1h');
+          setNarrationLengthShort(data.narration_length_short_words ?? 50);
+          setNarrationLengthLong(data.narration_length_long_words ?? 200);
         })
         .catch(e => console.error("Failed to fetch config", e));
     };
@@ -263,6 +278,18 @@ function App() {
           onNarrationFrequencyChange={(val) => updateConfig('narration_frequency', val)}
           textLength={textLength}
           onTextLengthChange={(val) => updateConfig('text_length', val)}
+          autoNarrate={autoNarrate}
+          onAutoNarrateChange={(val) => updateConfig('auto_narrate', val)}
+          pauseDuration={pauseDuration}
+          onPauseDurationChange={(val) => updateConfig('pause_between_narrations', val)}
+          repeatTTL={repeatTTL}
+          onRepeatTTLChange={(val) => updateConfig('repeat_ttl', val)}
+          narrationLengthShort={narrationLengthShort}
+          narrationLengthLong={narrationLengthLong}
+          onNarrationLengthChange={(min, max) => {
+            updateConfig('narration_length_short_words', min);
+            updateConfig('narration_length_long_words', max);
+          }}
           streamingMode={streamingMode}
           onStreamingModeChange={(val) => {
             setStreamingMode(val);

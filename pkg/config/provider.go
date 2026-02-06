@@ -27,6 +27,8 @@ type Provider interface {
 	TargetLanguage(ctx context.Context) string
 	ActiveTargetLanguage(ctx context.Context) string
 	TargetLanguageLibrary(ctx context.Context) []string
+	NarrationLengthShort(ctx context.Context) int
+	NarrationLengthLong(ctx context.Context) int
 	TextLengthScale(ctx context.Context) int
 	TwoPassScriptGeneration(ctx context.Context) bool
 
@@ -121,7 +123,7 @@ func (p *UnifiedProvider) TelemetryLoop(ctx context.Context) time.Duration {
 }
 
 func (p *UnifiedProvider) AutoNarrate(ctx context.Context) bool {
-	return p.base.Narrator.AutoNarrate
+	return p.getBool(ctx, KeyAutoNarrate, p.base.Narrator.AutoNarrate)
 }
 
 func (p *UnifiedProvider) MinScoreThreshold(ctx context.Context) float64 {
@@ -132,8 +134,16 @@ func (p *UnifiedProvider) NarrationFrequency(ctx context.Context) int {
 	return p.getInt(ctx, KeyNarrationFrequency, p.base.Narrator.Frequency)
 }
 
+func (p *UnifiedProvider) NarrationLengthShort(ctx context.Context) int {
+	return p.getInt(ctx, KeyNarrationLengthShort, p.base.Narrator.NarrationLengthShortWords)
+}
+
+func (p *UnifiedProvider) NarrationLengthLong(ctx context.Context) int {
+	return p.getInt(ctx, KeyNarrationLengthLong, p.base.Narrator.NarrationLengthLongWords)
+}
+
 func (p *UnifiedProvider) RepeatTTL(ctx context.Context) time.Duration {
-	return time.Duration(p.base.Narrator.RepeatTTL)
+	return p.getDuration(ctx, KeyRepeatTTL, time.Duration(p.base.Narrator.RepeatTTL))
 }
 
 func (p *UnifiedProvider) TargetLanguage(ctx context.Context) string {
@@ -209,7 +219,7 @@ func (p *UnifiedProvider) TargetPOICount(ctx context.Context) int {
 }
 
 func (p *UnifiedProvider) PauseDuration(ctx context.Context) time.Duration {
-	return time.Duration(p.base.Narrator.PauseDuration)
+	return p.getDuration(ctx, KeyPauseDuration, time.Duration(p.base.Narrator.PauseDuration))
 }
 
 func (p *UnifiedProvider) LineOfSight(ctx context.Context) bool {

@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.140 (2026-02-06)
+- **Feature**: **Dynamic Narrator Settings**. Migrated common narrator preferences (Auto-Narration, Pause Duration, and Repeat TTL) to a reactive, unified configuration system.
+- **Feature**: **Narration Word Targets**. Introduced a dual-range slider for granular control over short (10-1000 words) and long narration lengths directly from the settings panel.
+- **Improvement**: **Victorian Settings Polish**. Refined the settings interface with a configurable `DualRangeSlider` component supporting custom units and precision stepping.
+
 ## v0.3.139 (2026-02-06)
 - **Fix**: **Two-Bucket Deferral**. Restored proper POI selection timing with a dual-horizon lookahead, comparing near-term (+1, +3m) vs long-term (+5, +10, +15m) visibility.
 - **Fix**: **Location-Aware Deferral**. Restored distance-based visibility bias for more stable "Fly-By" narrations.

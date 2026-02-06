@@ -48,10 +48,13 @@ X verify: when flying from MN to CN, to we check the chinese wikipedia?
 X regression: essay titles are missing, are now only the category
 X regression: POIs no longer open info panels
 X Trip Themes
-- letsgoo announcement frequently way too long
+X letsgoo announcement frequently way too long
 X Morgan Freeman voice broken
 X add reinforcement of target language to 2nd pass
 X reconsider basing MaxWords on the Wikipedia article length, doesn't work with Chinese articles
+- transition from normal to trip replay still buggy
+X replay: photo icon for screenshots, markers get different color
+X replay: essays: assign icons, use different colors for markers
 
 # Trip Planning
 - can we pre-plan a whole trip? Generate a flight plan?

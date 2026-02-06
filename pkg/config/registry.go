@@ -28,6 +28,11 @@ const (
 	KeyActiveTargetLanguage        = "active_target_language"
 	KeyDeferralProximityBoostPower = "scorer.deferral_proximity_boost_power"
 	KeyTwoPassScriptGeneration     = "narrator.two_pass_script_generation"
+	KeyAutoNarrate                 = "narrator.auto_narrate"
+	KeyPauseDuration               = "narrator.pause_between_narrations"
+	KeyRepeatTTL                   = "narrator.repeat_ttl"
+	KeyNarrationLengthShort        = "narrator.narration_length_short_words"
+	KeyNarrationLengthLong         = "narrator.narration_length_long_words"
 
 	// Beacon settings
 	KeyBeaconEnabled           = "beacon.enabled"

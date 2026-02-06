@@ -404,9 +404,8 @@ func (a *Assembler) fetchTTSInstructions(data Data) string {
 }
 
 func (a *Assembler) sampleNarrationLength(p *model.POI, strategy string, sourceWords int) (words int, strategyUsed string) {
-	appCfg := a.cfg.AppConfig()
-	shortTarget := appCfg.Narrator.NarrationLengthShortWords
-	longTarget := appCfg.Narrator.NarrationLengthLongWords
+	shortTarget := a.cfg.NarrationLengthShort(context.Background())
+	longTarget := a.cfg.NarrationLengthLong(context.Background())
 	if shortTarget <= 0 {
 		shortTarget = 50
 	}

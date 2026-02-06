@@ -6,6 +6,7 @@ interface DualRangeSliderProps {
     step?: number;
     minVal: number;
     maxVal: number;
+    unit?: string;
     onChange: (min: number, max: number) => void;
 }
 
@@ -15,6 +16,7 @@ export const DualRangeSlider: React.FC<DualRangeSliderProps> = ({
     step = 1,
     minVal,
     maxVal,
+    unit = 'm',
     onChange,
 }) => {
     const [minValState, setMinValState] = useState(minVal);
@@ -82,8 +84,8 @@ export const DualRangeSlider: React.FC<DualRangeSliderProps> = ({
             <div className="v-slider">
                 <div className="v-slider-track" />
                 <div ref={range} className="v-slider-range" />
-                <div className="v-slider-left-value">{minValState}m</div>
-                <div className="v-slider-right-value">{maxValState}m</div>
+                <div className="v-slider-left-value">{minValState}{unit}</div>
+                <div className="v-slider-right-value">{maxValState}{unit}</div>
             </div>
 
             <style>{`

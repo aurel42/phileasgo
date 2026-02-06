@@ -73,6 +73,11 @@ type ConfigResponse struct {
 	BeaconSinkDistanceFar   float64 `json:"beacon_sink_distance_far"`
 	BeaconSinkDistanceClose float64 `json:"beacon_sink_distance_close"`
 	BeaconMaxTargets        int     `json:"beacon_max_targets"`
+	AutoNarrate             bool    `json:"auto_narrate"`
+	PauseBetweenNarrations  float64 `json:"pause_between_narrations"`
+	RepeatTTL               string  `json:"repeat_ttl"`
+	NarrationLengthShort    int     `json:"narration_length_short_words"`
+	NarrationLengthLong     int     `json:"narration_length_long_words"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -113,6 +118,11 @@ type ConfigRequest struct {
 	BeaconSinkDistanceFar   *float64 `json:"beacon_sink_distance_far,omitempty"`
 	BeaconSinkDistanceClose *float64 `json:"beacon_sink_distance_close,omitempty"`
 	BeaconMaxTargets        *int     `json:"beacon_max_targets,omitempty"`
+	AutoNarrate             *bool    `json:"auto_narrate,omitempty"`
+	PauseBetweenNarrations  *float64 `json:"pause_between_narrations,omitempty"`
+	RepeatTTL               *string  `json:"repeat_ttl,omitempty"`
+	NarrationLengthShort    *int     `json:"narration_length_short_words,omitempty"`
+	NarrationLengthLong     *int     `json:"narration_length_long_words,omitempty"`
 }
 
 // HandleConfig is a unified handler for all config-related methods, facilitating CORS/OPTIONS.
@@ -201,6 +211,11 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		BeaconSinkDistanceFar:       float64(h.cfgProv.BeaconSinkDistanceFar(ctx)),
 		BeaconSinkDistanceClose:     float64(h.cfgProv.BeaconSinkDistanceClose(ctx)),
 		BeaconMaxTargets:            h.cfgProv.BeaconMaxTargets(ctx),
+		AutoNarrate:                 h.cfgProv.AutoNarrate(ctx),
+		PauseBetweenNarrations:      h.cfgProv.PauseDuration(ctx).Seconds(),
+		RepeatTTL:                   h.cfgProv.RepeatTTL(ctx).String(),
+		NarrationLengthShort:        h.cfgProv.NarrationLengthShort(ctx),
+		NarrationLengthLong:         h.cfgProv.NarrationLengthLong(ctx),
 	}
 }
 
@@ -297,6 +312,24 @@ func (h *ConfigHandler) applyThresholdUpdates(ctx context.Context, req *ConfigRe
 	}
 	if req.TwoPassScriptGeneration != nil {
 		h.updateBoolState(ctx, config.KeyTwoPassScriptGeneration, *req.TwoPassScriptGeneration)
+	}
+	if req.AutoNarrate != nil {
+		h.updateBoolState(ctx, config.KeyAutoNarrate, *req.AutoNarrate)
+	}
+	if req.PauseBetweenNarrations != nil {
+		strVal := fmt.Sprintf("%.0fs", *req.PauseBetweenNarrations)
+		_ = h.store.SetState(ctx, config.KeyPauseDuration, strVal)
+		slog.Debug("Config updated", config.KeyPauseDuration, strVal)
+	}
+	if req.RepeatTTL != nil {
+		_ = h.store.SetState(ctx, config.KeyRepeatTTL, *req.RepeatTTL)
+		slog.Debug("Config updated", config.KeyRepeatTTL, *req.RepeatTTL)
+	}
+	if req.NarrationLengthShort != nil {
+		h.updateIntState(ctx, config.KeyNarrationLengthShort, *req.NarrationLengthShort)
+	}
+	if req.NarrationLengthLong != nil {
+		h.updateIntState(ctx, config.KeyNarrationLengthLong, *req.NarrationLengthLong)
 	}
 }
 
