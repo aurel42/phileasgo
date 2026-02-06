@@ -15,7 +15,6 @@ interface TripReplayOverlayProps {
 const MARKER_SIZE = 28;
 const MARKER_RADIUS = MARKER_SIZE / 2;
 const COLLISION_PADDING = 3; // Reduced for tighter packing
-const TRACK_REPULSION_RADIUS = 2; // Subtle push from track
 const ANCHOR_STRENGTH = 0.08; // How strongly markers are pulled toward their anchor (lower = smoother/floatier)
 
 // Lifecycle timing (in milliseconds)
@@ -358,7 +357,6 @@ const SmartReplayMarker = ({ node }: { node: ReplayNode }) => {
                         transform: `translate3d(${node.x - scaledRadius}px, ${node.y - scaledRadius}px, 0)`,
                         width: scaledSize,
                         height: scaledSize,
-                        zIndex: 1000,
                         pointerEvents: 'none',
                         transition: 'width 0.3s, height 0.3s, transform 0.3s', // Smoother movement
                     }}
@@ -421,6 +419,8 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         };
     }, [validEvents, path]);
 
+    const [panesReady, setPanesReady] = useState(false);
+
     // Fit map to static bounding box on mount (departure to destination)
     // No dynamic zooming during animation - keeps map stable throughout playback
     useEffect(() => {
@@ -431,6 +431,23 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         if (destination) bounds.extend(destination);
 
         map.fitBounds(bounds, { padding: [50, 50], animate: false });
+
+        if (!map.getPane('trailPane')) {
+            const pane = map.createPane('trailPane');
+            pane.style.zIndex = '610';
+            pane.style.pointerEvents = 'none';
+        }
+        if (!map.getPane('terminalPane')) {
+            const pane = map.createPane('terminalPane');
+            pane.style.zIndex = '615';
+            pane.style.pointerEvents = 'none';
+        }
+        if (!map.getPane('replayPlanePane')) {
+            const pane = map.createPane('replayPlanePane');
+            pane.style.zIndex = '620';
+            pane.style.pointerEvents = 'none';
+        }
+        setPanesReady(true);
     }, [map, path, departure, destination]);
 
     // Animation loop - continues for a cooldown period after trip ends to let POI lifecycle complete
@@ -552,44 +569,9 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
 
         if (poiNodeList.length === 0) return [];
 
-        // Add track points as fixed repulsion barriers (sample every few points to reduce computation)
-        // We use the full path so POIs stay clear of both the past and future course
         const trackNodes: ReplayNode[] = [];
-        const sampleInterval = Math.max(1, Math.floor(path.length / 50)); // ~50 sample points for better coverage of full path
-        for (let i = 0; i < path.length; i += sampleInterval) {
-            const projected = map.latLngToLayerPoint(path[i]);
-            trackNodes.push({
-                id: `track-${i}`,
-                lat: path[i][0],
-                lon: path[i][1],
-                icon: '',
-                anchorX: projected.x,
-                anchorY: projected.y,
-                x: projected.x,
-                y: projected.y,
-                r: TRACK_REPULSION_RADIUS,
-                isTrackPoint: true,
-                fx: projected.x,
-                fy: projected.y,
-            });
-        }
-
-        // Also add current plane position as repulsion point
-        const planeProjected = map.latLngToLayerPoint(position);
-        trackNodes.push({
-            id: 'plane',
-            lat: position[0],
-            lon: position[1],
-            icon: '',
-            anchorX: planeProjected.x,
-            anchorY: planeProjected.y,
-            x: planeProjected.x,
-            y: planeProjected.y,
-            r: MARKER_RADIUS + 10,
-            isTrackPoint: true,
-            fx: planeProjected.x,
-            fy: planeProjected.y,
-        });
+        // Removed track and plane repulsion to prevent "nervous" markers move away from the path.
+        // Keeping only terminii repulsion.
 
         // Add departure airport as repulsion point
         if (departure) {
@@ -716,35 +698,51 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
     const departureIcon = createAirportIcon('#4CAF50', '#4CAF50'); // Green
     const destinationIcon = createAirportIcon('#FFD700', '#333');   // Gold
 
-    // Get marker pane for smart placement
+    // Get custom panes (fallback to markerPane just for type safety, but guarded by panesReady)
     const markerPane = map.getPanes().markerPane;
 
     return (
         <>
-            {/* Route line */}
-            <Polyline
-                positions={drawnPath}
-                pathOptions={{
-                    color: 'crimson',
-                    weight: 3,
-                    opacity: 0.9,
-                    dashArray: '10, 5',
-                }}
-            />
+            {/* Route line - double polyline for parchment outline effect */}
+            {panesReady && (
+                <>
+                    <Polyline
+                        positions={drawnPath}
+                        pathOptions={{
+                            color: '#FCF5E5', // Parchment white
+                            weight: 10,       // Outer width
+                            opacity: 1,
+                            dashArray: '10, 5',
+                            pane: 'trailPane',
+                        }}
+                        interactive={false}
+                    />
+                    <Polyline
+                        positions={drawnPath}
+                        pathOptions={{
+                            color: 'crimson', // Inner core
+                            weight: 6,        // Inner width
+                            opacity: 0.9,
+                            dashArray: '10, 5',
+                            pane: 'trailPane',
+                        }}
+                        interactive={false}
+                    />
+                </>
+            )}
 
             {/* Departure marker */}
-            {departure && <Marker position={departure} icon={departureIcon} interactive={false} />}
+            {departure && panesReady && <Marker position={departure} icon={departureIcon} interactive={false} pane="terminalPane" />}
 
             {/* Destination marker (always visible) */}
-            {destination && <Marker position={destination} icon={destinationIcon} interactive={false} />}
+            {destination && panesReady && <Marker position={destination} icon={destinationIcon} interactive={false} pane="terminalPane" />}
 
-            {/* Smart POI markers - rendered via portal to marker pane */}
-            {markerPane && createPortal(
+            {/* Smart POI markers - rendered via portal to default marker pane */}
+            {panesReady && markerPane && createPortal(
                 <div className="replay-marker-layer" style={{
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    zIndex: 600,
                     pointerEvents: 'none',
                 }}>
                     {poiNodes.map((node) => (
@@ -756,7 +754,7 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
 
 
             {/* Animated plane at tip - highest z-level */}
-            <Marker position={position} icon={planeIcon} interactive={false} zIndexOffset={10000} />
+            {panesReady && <Marker position={position} icon={planeIcon} interactive={false} pane="replayPlanePane" />}
 
             {/* Credit Roll - POI names scrolling up (rendered to body for viewport positioning) */}
             {createPortal(

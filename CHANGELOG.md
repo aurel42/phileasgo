@@ -1,5 +1,11 @@
 ﻿Release History
 
+## v0.3.141 (2026-02-06)
+- **Feature**: **Enhanced Trip Replay Visuals**. Overhauled the flight path with a crisp, parchment-outlined dashed trail (Crimson core, Parchment white outline) and doubled its visual weight.
+- **Improvement**: **Natural Physics**. Removed physics repulsion from the aircraft and its flight path to prevent markers from jittering during playback.
+- **Improved**: **Hierarchical Layering**. Finalized the stacking order (Aircraft > Terminals > Markers > Trail) for optimal clarity during trip debriefings.
+- **Fix**: **Replay Initialization**. Resolved a race condition that could cause a temporary "black window" state when launching the trip replay overlay.
+
 ## v0.3.140 (2026-02-06)
 - **Feature**: **Dynamic Narrator Settings**. Migrated common narrator preferences (Auto-Narration, Pause Duration, and Repeat TTL) to a reactive, unified configuration system.
 - **Feature**: **Narration Word Targets**. Introduced a dual-range slider for granular control over short (10-1000 words) and long narration lengths directly from the settings panel.
