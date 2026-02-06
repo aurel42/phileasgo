@@ -107,8 +107,9 @@ export const InfoPanel = ({
     }
 
     // Determine status display based on SimState from telemetry
-    const simPaused = telemetry.IsOnGround === false && telemetry.GroundSpeed < 1; // Heuristic (Airspeed missing from types, assume GroundSpeed proxies for now if airborn)
-    const simStateDisplay = (!telemetry || telemetry.SimState === 'disconnected') ? 'disconnected' : (simPaused ? 'paused' : 'active');
+    const simStateDisplay = telemetry.SimState === 'disconnected' ? 'disconnected'
+        : telemetry.SimState === 'inactive' ? 'paused'
+        : 'active';
 
     const agl = Math.round(telemetry.AltitudeAGL);
     const msl = Math.round(telemetry.AltitudeMSL);

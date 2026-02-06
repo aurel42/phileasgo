@@ -1,5 +1,10 @@
 ﻿Release History
 
+## v0.3.142 (2026-02-06)
+- **Feature**: **User-Controlled Deferral**. Migrated the `scorer.deferral_threshold` setting to the UI with a premium percentage slider (0-20%) in the Scorer settings tab.
+- **Improvement**: **Flexible Selection Timing**. Threshold mapping allows users to favor immediate narrations (0%) or wait for perfect cinematic angles (20%).
+- **Refinement**: **Config Persistence**. Integrated the deferral threshold into the unified configuration provider for reactive, session-aware stability.
+
 ## v0.3.141 (2026-02-06)
 - **Feature**: **Enhanced Trip Replay Visuals**. Overhauled the flight path with a crisp, parchment-outlined dashed trail (Crimson core, Parchment white outline) and doubled its visual weight.
 - **Improvement**: **Natural Physics**. Removed physics repulsion from the aircraft and its flight path to prevent markers from jittering during playback.

@@ -416,7 +416,7 @@ func DefaultConfig() *Config {
 			NoveltyBoost:                1.3,
 			GroupPenalty:                0.5,
 			DeferralEnabled:             true,
-			DeferralThreshold:           0.75, // Defer if future dist < 75% of current
+			DeferralThreshold:           1.05, // Defer if max future visibility > threshold * current (default 1.05 = 5%)
 			DeferralMultiplier:          0.1,  // 10% score when deferred
 			DeferralProximityBoostPower: 1.0,
 			Badges: BadgesConfig{

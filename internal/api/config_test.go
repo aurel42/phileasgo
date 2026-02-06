@@ -46,11 +46,14 @@ func TestHandleGetConfig(t *testing.T) {
 		wantFilterMode  string
 		wantTargetCount int
 		wantTextLength  int
+		wantDeferral    float64
+		wantBoostPower  float64
 	}{
 		{
 			name: "Default Config",
 			cfg: &config.Config{
-				TTS: config.TTSConfig{Engine: "edge-tts"},
+				TTS:    config.TTSConfig{Engine: "edge-tts"},
+				Scorer: config.ScorerConfig{DeferralThreshold: 1.05, DeferralProximityBoostPower: 1.0},
 			},
 			storeState:      map[string]string{},
 			wantTTSEngine:   "edge-tts",
@@ -59,6 +62,8 @@ func TestHandleGetConfig(t *testing.T) {
 			wantFilterMode:  "fixed", // restored default
 			wantTargetCount: 5,       // new default
 			wantTextLength:  3,
+			wantDeferral:    1.05,
+			wantBoostPower:  1.0,
 		},
 		{
 			name: "Azure Config with Store Overrides",
@@ -66,11 +71,13 @@ func TestHandleGetConfig(t *testing.T) {
 				TTS: config.TTSConfig{Engine: "azure-speech"},
 			},
 			storeState: map[string]string{
-				"sim_source":       "mock",
-				"show_cache_layer": "true",
-				"filter_mode":      "adaptive",
-				"target_poi_count": "15",
-				"text_length":      "4",
+				"sim_source":                            "mock",
+				"show_cache_layer":                      "true",
+				"filter_mode":                           "adaptive",
+				"target_poi_count":                      "15",
+				"text_length":                           "4",
+				"scorer.deferral_threshold":             "1.1",
+				"scorer.deferral_proximity_boost_power": "1.2",
 			},
 			wantTTSEngine:   "azure-speech",
 			wantSimSource:   "mock",
@@ -78,6 +85,8 @@ func TestHandleGetConfig(t *testing.T) {
 			wantFilterMode:  "adaptive",
 			wantTargetCount: 15,
 			wantTextLength:  4,
+			wantDeferral:    1.1,
+			wantBoostPower:  1.2,
 		},
 		{
 			name: "Custom Adaptive Config",
@@ -131,6 +140,12 @@ func TestHandleGetConfig(t *testing.T) {
 			}
 			if got.TextLength != tt.wantTextLength && tt.wantTextLength != 0 {
 				t.Errorf("TextLength = %d, want %d", got.TextLength, tt.wantTextLength)
+			}
+			if got.DeferralThreshold != tt.wantDeferral && tt.wantDeferral != 0 {
+				t.Errorf("DeferralThreshold = %f, want %f", got.DeferralThreshold, tt.wantDeferral)
+			}
+			if got.DeferralProximityBoostPower != tt.wantBoostPower && tt.wantBoostPower != 0 {
+				t.Errorf("DeferralProximityBoostPower = %f, want %f", got.DeferralProximityBoostPower, tt.wantBoostPower)
 			}
 		})
 	}
@@ -211,6 +226,18 @@ func TestHandleSetConfig(t *testing.T) {
 			req:     ConfigRequest{MinPOIScore: ptrFloat(0.75)},
 			wantKey: "min_poi_score",
 			wantVal: "0.75",
+		},
+		{
+			name:    "Update Deferral Threshold",
+			req:     ConfigRequest{DeferralThreshold: ptrFloat(1.1)},
+			wantKey: "scorer.deferral_threshold",
+			wantVal: "1.10",
+		},
+		{
+			name:    "Update Deferral Boost Power",
+			req:     ConfigRequest{DeferralProximityBoostPower: ptrFloat(1.5)},
+			wantKey: "scorer.deferral_proximity_boost_power",
+			wantVal: "1.50",
 		},
 	}
 

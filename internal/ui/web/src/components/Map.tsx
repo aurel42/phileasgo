@@ -179,10 +179,10 @@ const RangeRings = ({ lat, lon, heading, units }: { lat: number; lon: number; he
 };
 
 // Helper to control map interaction based on connection state
-const MapStateController = ({ isConnected }: { isConnected: boolean }) => {
+const MapStateController = ({ isConnected, isPaused }: { isConnected: boolean; isPaused: boolean }) => {
     const map = useMap();
     useEffect(() => {
-        if (!isConnected) {
+        if (!isConnected || isPaused) {
             map.dragging.enable();
             map.doubleClickZoom.enable();
             map.boxZoom.enable();
@@ -206,7 +206,7 @@ const MapStateController = ({ isConnected }: { isConnected: boolean }) => {
             if (map.getZoom() < MIN_ZOOM) map.setZoom(MIN_ZOOM);
             if (map.getZoom() > MAX_ZOOM) map.setZoom(MAX_ZOOM);
         }
-    }, [isConnected, map]);
+    }, [isConnected, isPaused, map]);
     return null;
 };
 
@@ -226,6 +226,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
     const { data: telemetry, isLoading: isConnecting } = useTelemetry();
     const isConnected = telemetry?.SimState === 'active';
     const isDisconnected = telemetry?.SimState === 'disconnected';
+    const isPaused = telemetry?.SimState === 'inactive';
 
     // Trip events for replay mode
     const { data: tripEvents } = useTripEvents();
@@ -254,8 +255,8 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
     // Default duration for idle replay is 2 mins, otherwise use actual audio duration
     const replayDuration = isDebriefing ? (narratorStatus?.current_duration_ms || 120000) : 120000;
 
-    // Prevent rendering fallback map until we are sure we are disconnected
-    const showFallbackMap = !isConnecting && !isConnected && !isReplayMode;
+    // Prevent rendering fallback map until we are sure we are disconnected or paused
+    const showFallbackMap = !isConnecting && (!isConnected || isPaused) && !isReplayMode;
 
     // Determine the currently narrated POI
     const currentNarratedPoi = narratorStatus?.playback_status !== 'idle' ? narratorStatus?.current_poi : null;
@@ -370,6 +371,12 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
 
     }, [map, isConnected, autoZoom, throttledPos, displayPois, currentNarratedId, preparingId, isReplayMode]);
 
+    // Zoom out to world view when sim is paused
+    useEffect(() => {
+        if (!map || !isPaused) return;
+        map.setView([30, 0], 2, { animate: true });
+    }, [map, isPaused]);
+
     // Disable auto-zoom on manual interaction
     const handleMapInteraction = () => {
         if (isAutomatedMoveRef.current) return;
@@ -397,7 +404,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 touchZoom={false}
                 ref={setMap}
             >
-                <MapStateController isConnected={isConnected} />
+                <MapStateController isConnected={isConnected} isPaused={isPaused} />
                 <MapEvents onInteraction={handleMapInteraction} />
                 <AircraftPaneSetup />
                 <TileLayer
@@ -429,8 +436,8 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 )}
 
                 {/* Smart Marker Layer handles collision avoidance and rendering */}
-
-                {isConnected && (
+                {/* Hide during replay mode - TripReplayOverlay has its own animated POI markers */}
+                {isConnected && !isReplayMode && (
                     <SmartMarkerLayer
                         pois={displayPois}
                         selectedPOI={selectedPOI}

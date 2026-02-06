@@ -116,6 +116,7 @@ interface DraftState {
     streamingMode: boolean;
     // Scorer tab
     deferralProximityBoostPower: number;
+    deferralThreshold: number;
     // Narrator refinement
     twoPassScriptGeneration: boolean;
     // Beacon tab
@@ -209,6 +210,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     showCacheLayer,
                     showVisibilityLayer,
                     streamingMode,
+                    deferralThreshold: data.deferral_threshold ?? 1.05,
                     deferralProximityBoostPower: data.deferral_proximity_boost_power ?? 1.0,
                     twoPassScriptGeneration: data.two_pass_script_generation ?? false,
                     beaconEnabled: data.beacon_enabled ?? true,
@@ -260,6 +262,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.showCacheLayer !== showCacheLayer ||
             draft.showVisibilityLayer !== showVisibilityLayer ||
             draft.streamingMode !== streamingMode ||
+            draft.deferralThreshold !== (serverConfig.deferral_threshold ?? 1.05) ||
             draft.twoPassScriptGeneration !== (serverConfig.two_pass_script_generation ?? false) ||
             draft.beaconEnabled !== (serverConfig.beacon_enabled ?? true) ||
             draft.beaconFormationEnabled !== (serverConfig.beacon_formation_enabled ?? true) ||
@@ -302,6 +305,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         if (draft.mockDurationParked !== (serverConfig?.mock_duration_parked || '')) payload.mock_duration_parked = draft.mockDurationParked;
         if (draft.mockDurationTaxi !== (serverConfig?.mock_duration_taxi || '')) payload.mock_duration_taxi = draft.mockDurationTaxi;
         if (draft.mockDurationHold !== (serverConfig?.mock_duration_hold || '')) payload.mock_duration_hold = draft.mockDurationHold;
+        if (draft.deferralThreshold !== (serverConfig?.deferral_threshold ?? 1.05)) payload.deferral_threshold = draft.deferralThreshold;
         if (draft.deferralProximityBoostPower !== (serverConfig?.deferral_proximity_boost_power ?? 1.0)) payload.deferral_proximity_boost_power = draft.deferralProximityBoostPower;
         if (draft.twoPassScriptGeneration !== (serverConfig?.two_pass_script_generation ?? false)) payload.two_pass_script_generation = draft.twoPassScriptGeneration;
         if (draft.autoNarrate !== (serverConfig?.auto_narrate ?? true)) payload.auto_narrate = draft.autoNarrate;
@@ -742,6 +746,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             ))}
                             <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
                                 Higher values prioritize perfect viewing moments over immediate narration by punishing distance more heavily.
+                            </div>
+
+                            <div style={{ marginTop: '24px' }}></div>
+                            {renderField('Wait for better view', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{Math.round((draft.deferralThreshold - 1.0) * 100)}%</span>
+                                    <input
+                                        type="range"
+                                        min="0" max="20" step="1"
+                                        value={Math.round((draft.deferralThreshold - 1.0) * 100)}
+                                        onChange={e => updateDraft('deferralThreshold', 1.0 + (parseInt(e.target.value) / 100.0))}
+                                    />
+                                </div>
+                            ))}
+                            <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
+                                Controls how much better the "future view" must be to defer narration. 0% means never defer if currently visible.
                             </div>
                         </div>
                     )}

@@ -26,6 +26,7 @@ const (
 	KeyActiveSecretWord            = "active_secret_word"
 	KeyTargetLanguageLibrary       = "target_language_library"
 	KeyActiveTargetLanguage        = "active_target_language"
+	KeyDeferralThreshold           = "scorer.deferral_threshold"
 	KeyDeferralProximityBoostPower = "scorer.deferral_proximity_boost_power"
 	KeyTwoPassScriptGeneration     = "narrator.two_pass_script_generation"
 	KeyAutoNarrate                 = "narrator.auto_narrate"

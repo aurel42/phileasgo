@@ -49,6 +49,7 @@ type Provider interface {
 	PauseDuration(ctx context.Context) time.Duration
 	LineOfSight(ctx context.Context) bool
 	DeferralProximityBoostPower(ctx context.Context) float64
+	DeferralThreshold(ctx context.Context) float64
 
 	// Essay
 	EssayEnabled(ctx context.Context) bool
@@ -228,6 +229,10 @@ func (p *UnifiedProvider) LineOfSight(ctx context.Context) bool {
 
 func (p *UnifiedProvider) DeferralProximityBoostPower(ctx context.Context) float64 {
 	return p.getFloat64(ctx, KeyDeferralProximityBoostPower, p.base.Scorer.DeferralProximityBoostPower)
+}
+
+func (p *UnifiedProvider) DeferralThreshold(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyDeferralThreshold, p.base.Scorer.DeferralThreshold)
 }
 
 func (p *UnifiedProvider) EssayEnabled(ctx context.Context) bool {

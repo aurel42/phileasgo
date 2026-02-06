@@ -62,6 +62,8 @@ func TestUnifiedProvider(t *testing.T) {
 	baseCfg.Narrator.ActiveStyle = "style1"
 	baseCfg.Narrator.SecretWordLibrary = []string{"word1", "word2"}
 	baseCfg.Narrator.ActiveSecretWord = "word1"
+	baseCfg.Scorer.DeferralThreshold = 1.05
+	baseCfg.Scorer.DeferralProximityBoostPower = 1.0
 
 	store := NewMockStateStore()
 	p := NewProvider(baseCfg, store)
@@ -163,6 +165,12 @@ func TestUnifiedProvider(t *testing.T) {
 		if p.ActiveSecretWord(ctx) != "word1" {
 			t.Errorf("expected word1, got %s", p.ActiveSecretWord(ctx))
 		}
+		if p.DeferralThreshold(ctx) != 1.05 {
+			t.Errorf("expected 1.05, got %f", p.DeferralThreshold(ctx))
+		}
+		if p.DeferralProximityBoostPower(ctx) != 1.0 {
+			t.Errorf("expected 1.0, got %f", p.DeferralProximityBoostPower(ctx))
+		}
 		if p.AppConfig() != baseCfg {
 			t.Error("expected baseCfg")
 		}
@@ -192,6 +200,8 @@ func TestUnifiedProvider(t *testing.T) {
 		store.SetState(ctx, KeyRepeatTTL, "2h")
 		store.SetState(ctx, KeyNarrationLengthShort, "150")
 		store.SetState(ctx, KeyNarrationLengthLong, "500")
+		store.SetState(ctx, KeyDeferralThreshold, "1.15")
+		store.SetState(ctx, KeyDeferralProximityBoostPower, "1.5")
 
 		styles, _ := json.Marshal([]string{"s1", "s2", "s3"})
 		store.SetState(ctx, KeyStyleLibrary, string(styles))
@@ -266,6 +276,12 @@ func TestUnifiedProvider(t *testing.T) {
 		}
 		if p.ActiveTargetLanguage(ctx) != "fr-FR" {
 			t.Errorf("expected fr-FR, got %s", p.ActiveTargetLanguage(ctx))
+		}
+		if p.DeferralThreshold(ctx) != 1.15 {
+			t.Errorf("expected 1.15, got %f", p.DeferralThreshold(ctx))
+		}
+		if p.DeferralProximityBoostPower(ctx) != 1.5 {
+			t.Errorf("expected 1.5, got %f", p.DeferralProximityBoostPower(ctx))
 		}
 		if len(p.TargetLanguageLibrary(ctx)) != 2 {
 			t.Errorf("expected 2 languages, got %d", len(p.TargetLanguageLibrary(ctx)))

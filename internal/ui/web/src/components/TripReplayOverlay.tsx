@@ -159,6 +159,9 @@ const calculateHeading = (from: [number, number], to: [number, number]): number 
     return (bearing + 360) % 360;
 };
 
+// Check if an event is a non-content transition (take-off, landing, flight stage)
+const isTransitionEvent = (type: string): boolean => type === 'transition' || type === 'flight_stage';
+
 // Helper to check if a POI is an airport near departure/destination (within 5km)
 const isAirportNearTerminal = (poi: TripEvent, departure: [number, number] | null, destination: [number, number] | null): boolean => {
     // Check if this is an airport/aerodrome by icon or category
@@ -404,8 +407,8 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
 
     // Identify departure/destination (for bounding box)
     const { departure, destination } = useMemo(() => {
-        const dep = validEvents.find(e => e.type === 'transition' && e.title?.toLowerCase().includes('take-off'));
-        const dest = validEvents.slice().reverse().find(e => e.type === 'transition' && e.title?.toLowerCase().includes('landed'));
+        const dep = validEvents.find(e => isTransitionEvent(e.type) && e.title?.toLowerCase().includes('take-off'));
+        const dest = validEvents.slice().reverse().find(e => isTransitionEvent(e.type) && e.title?.toLowerCase().includes('landed'));
 
         // Fallback to first/last path points if no transition events
         const depCoords = dep ? [dep.lat, dep.lon] as [number, number]
@@ -507,7 +510,7 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
     // Track birth times for each POI (when it first appeared)
     const birthTimesRef = useRef<Map<string, number>>(new Map());
     const currentTime = Date.now();
-    const totalPOIs = useMemo(() => validEvents.filter(e => e.type !== 'transition').length, [validEvents]);
+    const totalPOIs = useMemo(() => validEvents.filter(e => !isTransitionEvent(e.type)).length, [validEvents]);
     const shrinkTarget = useMemo(() => getShrinkTarget(totalPOIs), [totalPOIs]);
 
     // Compute smart POI layout using d3-force with lifecycle-aware growth/shrink/color
@@ -517,7 +520,7 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         const poiNodeList = (visiblePOIs
             .map((poi): ReplayNode | null => {
                 const globalIndex = validEvents.indexOf(poi);
-                if (poi.type === 'transition' || isAirportNearTerminal(poi, departure, destination)) {
+                if (isTransitionEvent(poi.type) || isAirportNearTerminal(poi, departure, destination)) {
                     return null;
                 }
 
@@ -667,7 +670,7 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
     }, [visiblePOIs, tick]); // tick ensures we check on each animation frame
 
     // Total POI count for adaptive credit roll speed
-    const totalPOICount = validEvents.filter(e => e.type !== 'transition').length;
+    const totalPOICount = validEvents.filter(e => !isTransitionEvent(e.type)).length;
 
     // Plane icon
     const planeIcon = L.divIcon({

@@ -61,6 +61,7 @@ type ConfigResponse struct {
 	ActiveSecretWord            string   `json:"active_secret_word"`
 	TargetLanguageLibrary       []string `json:"target_language_library"`
 	ActiveTargetLanguage        string   `json:"active_target_language"`
+	DeferralThreshold           float64  `json:"deferral_threshold"`
 	DeferralProximityBoostPower float64  `json:"deferral_proximity_boost_power"`
 	TwoPassScriptGeneration     bool     `json:"two_pass_script_generation"`
 	// Beacon
@@ -106,6 +107,7 @@ type ConfigRequest struct {
 	ActiveSecretWord            *string  `json:"active_secret_word,omitempty"` // Pointer to detect empty string vs missing
 	TargetLanguageLibrary       []string `json:"target_language_library,omitempty"`
 	ActiveTargetLanguage        *string  `json:"active_target_language,omitempty"`
+	DeferralThreshold           *float64 `json:"deferral_threshold,omitempty"`
 	DeferralProximityBoostPower *float64 `json:"deferral_proximity_boost_power,omitempty"`
 	TwoPassScriptGeneration     *bool    `json:"two_pass_script_generation,omitempty"`
 	// Beacon
@@ -200,6 +202,7 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		ActiveSecretWord:            h.cfgProv.ActiveSecretWord(ctx),
 		TargetLanguageLibrary:       h.cfgProv.TargetLanguageLibrary(ctx),
 		ActiveTargetLanguage:        h.cfgProv.ActiveTargetLanguage(ctx),
+		DeferralThreshold:           h.cfgProv.DeferralThreshold(ctx),
 		DeferralProximityBoostPower: h.cfgProv.DeferralProximityBoostPower(ctx),
 		TwoPassScriptGeneration:     h.cfgProv.TwoPassScriptGeneration(ctx),
 		BeaconEnabled:               h.cfgProv.BeaconEnabled(ctx),
@@ -306,6 +309,9 @@ func (h *ConfigHandler) applyThresholdUpdates(ctx context.Context, req *ConfigRe
 	}
 	if req.TeleportDistance != nil {
 		h.updateFloatState(ctx, config.KeyTeleportDistance, *req.TeleportDistance)
+	}
+	if req.DeferralThreshold != nil {
+		h.updateFloatState(ctx, config.KeyDeferralThreshold, *req.DeferralThreshold)
 	}
 	if req.DeferralProximityBoostPower != nil {
 		h.updateFloatState(ctx, config.KeyDeferralProximityBoostPower, *req.DeferralProximityBoostPower)
