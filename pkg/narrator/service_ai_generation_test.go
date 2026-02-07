@@ -163,7 +163,7 @@ func TestAIService_PerformSecondPass(t *testing.T) {
 		cfg:        cfg,
 		sessionMgr: sess,
 	}
-	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil, nil)
+	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil, nil, nil, nil)
 
 	req := &GenerationRequest{
 		MaxWords: 100,
@@ -202,7 +202,7 @@ func TestAIService_SynthesizeRetry(t *testing.T) {
 		sim: &MockSim{},
 		cfg: config.NewProvider(config.DefaultConfig(), nil),
 	}
-	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, nil, nil, nil, nil, mockLLM, nil, nil, nil)
+	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, nil, nil, nil, nil, mockLLM, nil, nil, nil, nil, nil)
 
 	req := &GenerationRequest{
 		Type: model.NarrativeTypePOI,

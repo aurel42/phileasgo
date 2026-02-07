@@ -27,6 +27,8 @@ type Assembler struct {
 	categoriesCfg *config.CategoriesConfig
 	langRes       LanguageResolver
 	density       *wikidata.DensityManager
+	interests     []string
+	avoid         []string
 }
 
 func NewAssembler(
@@ -40,6 +42,8 @@ func NewAssembler(
 	categoriesCfg *config.CategoriesConfig,
 	langRes LanguageResolver,
 	density *wikidata.DensityManager,
+	interests []string,
+	avoid []string,
 ) *Assembler {
 	return &Assembler{
 		cfg:           cfg,
@@ -52,13 +56,62 @@ func NewAssembler(
 		categoriesCfg: categoriesCfg,
 		langRes:       langRes,
 		density:       density,
+		interests:     interests,
+		avoid:         avoid,
 	}
 }
 
 func (a *Assembler) NewPromptData(session SessionState) Data {
 	pd := make(Data)
 	a.injectPersona(pd, session)
+	a.ensureCommonKeys(pd)
 	return pd
+}
+
+func (a *Assembler) ensureCommonKeys(pd Data) {
+	keys := []string{
+		"POINameUser", "POINameNative", "Category",
+		"WikipediaText", "PregroundContext", "RecentContext",
+		"Movement", "ClockPos", "RelativeDir", "CardinalDir",
+		"DistMeters", "DistKm", "DistNm",
+		"Bearing", "RelBearing",
+		"City", "Region", "Country",
+		"TargetRegion", "TargetCountry",
+		"ArticleURL", "ActiveStyle", "ActiveSecretWord",
+		"TTSInstructions", "UnitsInstruction", "UnitSystem",
+		"Persona", "Accent", "Language", "TourGuideName",
+		"FlightStage", "TargetLanguage", "Language_code", "Language_name", "Language_region_code",
+	}
+
+	for _, k := range keys {
+		if _, ok := pd[k]; !ok {
+			pd[k] = ""
+		}
+	}
+
+	// Ensure numeric keys are present
+	numKeys := []string{"Lat", "Lon", "AltitudeMSL", "AltitudeAGL", "Heading", "GroundSpeed", "PredictedLat", "PredictedLon", "MaxWords"}
+	for _, k := range numKeys {
+		if _, ok := pd[k]; !ok {
+			pd[k] = 0
+		}
+	}
+
+	// Ensure boolean keys
+	if _, ok := pd["IsStub"]; !ok {
+		pd["IsStub"] = false
+	}
+	if _, ok := pd["IsOnGround"]; !ok {
+		pd["IsOnGround"] = false
+	}
+
+	// Ensure slice keys
+	if _, ok := pd["Interests"]; !ok {
+		pd["Interests"] = []string{}
+	}
+	if _, ok := pd["Avoid"]; !ok {
+		pd["Avoid"] = []string{}
+	}
 }
 
 func (a *Assembler) ForPOI(ctx context.Context, p *model.POI, tel *sim.Telemetry, strategy string, session SessionState) Data {
@@ -163,6 +216,8 @@ func (a *Assembler) injectPersona(pd Data, session SessionState) {
 	pd["MinPOIScore"] = a.cfg.MinScoreThreshold(context.Background())
 	pd["TextLengthScale"] = a.cfg.TextLengthScale(context.Background())
 	pd["UnitSetting"] = a.cfg.Units(context.Background())
+	pd["Interests"] = a.interests
+	pd["Avoid"] = a.avoid
 
 	targetLang := a.cfg.ActiveTargetLanguage(context.Background())
 	langCode := "en"

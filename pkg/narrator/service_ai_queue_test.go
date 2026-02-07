@@ -101,7 +101,7 @@ func TestAIService_RecordNarration(t *testing.T) {
 		prompts:    pm,
 		llm:        mockLLM,
 	}
-	svc.promptAssembler = prompt.NewAssembler(svc.cfg, nil, pm, nil, nil, nil, mockLLM, nil, nil, nil)
+	svc.promptAssembler = prompt.NewAssembler(svc.cfg, nil, pm, nil, nil, nil, mockLLM, nil, nil, nil, nil, nil)
 
 	n := &model.Narrative{
 		Title:  "Test Title",

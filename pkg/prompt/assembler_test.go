@@ -67,6 +67,8 @@ func TestAssembler_NewPromptData(t *testing.T) {
 				TargetLanguageLibrary: []string{"en-US"},
 			},
 		}, nil),
+		interests: []string{"History"},
+		avoid:     []string{"War"},
 	}
 	session := SessionState{
 		Events: []model.TripEvent{
@@ -123,6 +125,8 @@ func TestAssembler_ForPOI_NilTelemetry(t *testing.T) {
 		wikipedia: &MockWikipedia{},
 		poiMgr:    &MockPOIProvider{Rivals: 0},
 		llm:       &MockLLM{},
+		interests: []string{},
+		avoid:     []string{},
 	}
 
 	session := SessionState{
@@ -189,7 +193,9 @@ func TestAssembler_FetchUnitsInstruction(t *testing.T) {
 						Units: tt.units,
 					},
 				}, nil),
-				prompts: mockRenderer,
+				prompts:   mockRenderer,
+				interests: []string{},
+				avoid:     []string{},
 			}
 
 			_ = a.fetchUnitsInstruction()
@@ -210,4 +216,40 @@ func (m *MockRendererWithCapture) Render(name string, data any) (string, error) 
 		m.Capture(name)
 	}
 	return "Rendered", nil
+}
+
+func TestAssembler_InterestsAndAvoid(t *testing.T) {
+	a := &Assembler{
+		cfg: config.NewProvider(&config.Config{
+			Narrator: config.NarratorConfig{
+				ActiveTargetLanguage:  "en-US",
+				TargetLanguageLibrary: []string{"en-US"},
+			},
+		}, nil),
+		interests: []string{"Aviation", "History"},
+		avoid:     []string{"Politics"},
+	}
+	session := SessionState{}
+	pd := a.NewPromptData(session)
+
+	interests, ok := pd["Interests"].([]string)
+	if !ok || len(interests) != 2 || interests[0] != "Aviation" {
+		t.Errorf("Expected interests [Aviation, History], got %v", pd["Interests"])
+	}
+
+	avoid, ok := pd["Avoid"].([]string)
+	if !ok || len(avoid) != 1 || avoid[0] != "Politics" {
+		t.Errorf("Expected avoid [Politics], got %v", pd["Avoid"])
+	}
+
+	// Verify automated key injection
+	if name, ok := pd["POINameUser"]; !ok || name != "" {
+		t.Errorf("Expected POINameUser to be present and empty, got %v", pd["POINameUser"])
+	}
+	if lat, ok := pd["Lat"]; !ok || lat != 0 {
+		t.Errorf("Expected Lat to be present and 0, got %v", pd["Lat"])
+	}
+	if onGround, ok := pd["IsOnGround"]; !ok || onGround != false {
+		t.Errorf("Expected IsOnGround to be present and false, got %v", pd["IsOnGround"])
+	}
 }
