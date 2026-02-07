@@ -92,7 +92,7 @@ func (m *Manager) Play(filepath string, startPaused bool, onComplete func()) err
 	m.stopLocked()
 
 	// Open and decode audio file
-	streamer, format, err := m.decodeStreamer(filepath)
+	streamer, format, err := DecodeMedia(filepath)
 	if err != nil {
 		return err
 	}
@@ -412,7 +412,7 @@ func (m *Manager) Remaining() time.Duration {
 	return m.trackFormat.SampleRate.D(remainingSamples)
 }
 
-func (m *Manager) decodeStreamer(path string) (beep.StreamSeekCloser, beep.Format, error) {
+func DecodeMedia(path string) (beep.StreamSeekCloser, beep.Format, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		slog.Error("Failed to open audio file", "path", path, "error", err)

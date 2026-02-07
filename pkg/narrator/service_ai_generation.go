@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"phileasgo/pkg/audio"
 	"phileasgo/pkg/model"
 )
 
@@ -89,7 +90,10 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 		return nil, fmt.Errorf("TTS synthesis failed after retries: %w", synthErr)
 	}
 
-	return s.constructNarrative(req, script, extractedTitle, audioPath, format, startTime, predicted), nil
+	// 6. Get Audio Duration
+	duration, _ := audio.GetDuration(audioPath)
+
+	return s.constructNarrative(req, script, extractedTitle, audioPath, format, startTime, predicted, duration), nil
 }
 
 func (s *AIService) logWikipediaContext(req *GenerationRequest) {
@@ -157,7 +161,7 @@ func (s *AIService) performRescueIfNeeded(ctx context.Context, req *GenerationRe
 	return script
 }
 
-func (s *AIService) constructNarrative(req *GenerationRequest, script, extractedTitle, audioPath, format string, startTime time.Time, predicted time.Duration) *model.Narrative {
+func (s *AIService) constructNarrative(req *GenerationRequest, script, extractedTitle, audioPath, format string, startTime time.Time, predicted, duration time.Duration) *model.Narrative {
 	finalTitle := req.Title
 	if finalTitle == "" {
 		finalTitle = extractedTitle
@@ -182,6 +186,7 @@ func (s *AIService) constructNarrative(req *GenerationRequest, script, extracted
 
 		GenerationLatency: time.Since(startTime),
 		PredictedLatency:  predicted,
+		Duration:          duration,
 
 		// Context passthrough
 		POI:           req.POI,

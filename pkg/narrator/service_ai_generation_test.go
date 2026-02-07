@@ -125,10 +125,13 @@ func TestAIService_ConstructNarrative(t *testing.T) {
 		ThumbnailURL: "http://thumb",
 	}
 
-	n := s.constructNarrative(req, "The script", "Extracted Title", "audio.mp3", "mp3", time.Now(), time.Second)
+	n := s.constructNarrative(req, "The script", "Extracted Title", "audio.mp3", "mp3", time.Now(), time.Second, 10*time.Second)
 
 	if n.Title != "Test POI" {
 		t.Errorf("Expected Title 'Test POI', got '%s'", n.Title)
+	}
+	if n.Duration != 10*time.Second {
+		t.Errorf("Expected Duration 10s, got %v", n.Duration)
 	}
 	if n.ThumbnailURL != "http://thumb" {
 		t.Errorf("Expected ThumbnailURL 'http://thumb', got '%s'", n.ThumbnailURL)
@@ -138,7 +141,7 @@ func TestAIService_ConstructNarrative(t *testing.T) {
 	req.Type = model.NarrativeTypeScreenshot
 	req.Title = ""
 	req.ImagePath = "C:\\path\\to\\shot.png"
-	n = s.constructNarrative(req, "The script", "Extracted Title", "audio.mp3", "mp3", time.Now(), time.Second)
+	n = s.constructNarrative(req, "The script", "Extracted Title", "audio.mp3", "mp3", time.Now(), time.Second, 5*time.Second)
 	if n.Title != "Extracted Title" {
 		t.Errorf("Expected Extracted Title, got '%s'", n.Title)
 	}

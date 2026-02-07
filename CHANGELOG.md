@@ -1,7 +1,13 @@
 ﻿Release History
 
+## v0.3.150 (2026-02-08)
+- **Fix**: **Debriefing Animation Timing**. Synchronized the map's trip replay animation with actual audio duration by extracting duration metadata after TTS synthesis.
+- **Improvement**: **Map Autozoom Refinement**. Manual map panning or clicking no longer disables autozoom; the feature now specifically responds to deliberate zoom events.
+- **Refactor**: **Unified Audio Decoding**. Extracted audio decoding logic into a shared `audio.DecodeMedia` helper to facilitate duration extraction across all providers.
+
 ## v0.3.149 (2026-02-07)
 - **Improvement**: **LLM Fallback & Backoff**. Switched to an exponential skip strategy ($2^{N-1}$) in the failover chain and implemented "fast-fail" logic (CtxMaxAttempts) to ensure instant failover without pre-request blocking.
+- **Improvement**: **Map Autozoom Refinement**. Panning or clicking the map no longer disables autozoom; the feature now exclusively responds to manual zoom events for a more predictable UX.
 - **Refactor**: **Request Client Resilience**. Refactored internal request handling into more manageable components and added robust table-driven verification for backoff and retry behaviors.
  
  ## v0.3.148 (2026-02-07)

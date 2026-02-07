@@ -59,10 +59,10 @@ const AircraftPaneSetup = () => {
     return null;
 };
 
-const MapEvents = ({ onInteraction }: { onInteraction: () => void }) => {
+const MapEvents = ({ onZoom, onClick }: { onZoom: () => void; onClick: () => void }) => {
     useMapEvents({
-        zoomstart: () => onInteraction(),
-        click: () => onInteraction(),
+        zoomstart: () => onZoom(),
+        click: () => onClick(),
     });
     return null;
 };
@@ -377,15 +377,19 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
         map.setView([30, 0], 2, { animate: true });
     }, [map, isPaused]);
 
-    // Disable auto-zoom on manual interaction
-    const handleMapInteraction = () => {
+    // Disable auto-zoom on manual zoom
+    const handleManualZoom = () => {
         if (isAutomatedMoveRef.current) return;
         if (Date.now() < lastInteractionAllowedRef.current) return;
 
         if (autoZoom) {
-            console.log("Map: Manual interaction detected, disabling autozoom");
+            console.log("Map: Manual zoom detected, disabling autozoom");
             setAutoZoom(false);
         }
+    };
+
+    const handleMapClick = () => {
+        if (Date.now() < lastInteractionAllowedRef.current) return;
         onMapClick(); // Propagate click
     };
 
@@ -405,7 +409,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 ref={setMap}
             >
                 <MapStateController isConnected={isConnected} isPaused={isPaused} />
-                <MapEvents onInteraction={handleMapInteraction} />
+                <MapEvents onZoom={handleManualZoom} onClick={handleMapClick} />
                 <AircraftPaneSetup />
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
