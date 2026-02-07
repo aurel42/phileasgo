@@ -1,4 +1,8 @@
 ﻿Release History
+
+## v0.3.149 (2026-02-07)
+- **Improvement**: **LLM Fallback & Backoff**. Switched to an exponential skip strategy ($2^{N-1}$) in the failover chain and implemented "fast-fail" logic (CtxMaxAttempts) to ensure instant failover without pre-request blocking.
+- **Refactor**: **Request Client Resilience**. Refactored internal request handling into more manageable components and added robust table-driven verification for backoff and retry behaviors.
  
  ## v0.3.148 (2026-02-07)
  - **Fix**: **Phantom Info Panel**. Eliminated the unexpected "Regional Essay" panel that appeared between back-to-back screenshot narrations.

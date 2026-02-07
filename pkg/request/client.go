@@ -363,62 +363,70 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 			c.backoff.Wait(provider)
 		}
 
-		// Verify context is still alive before dialing
-		if req.Context().Err() != nil {
-			return nil, req.Context().Err()
+		body, retryable, err := c.executeAttempt(req, provider, attempt)
+		if err == nil {
+			return body, nil
 		}
-
-		logging.TraceDefault("Network Request", "host", req.URL.Host, "path", req.URL.Path, "attempt", attempt+1, "max", c.retries)
-
-		// RESET BODY for retries
-		if attempt > 0 && req.GetBody != nil {
-			var err error
-			req.Body, err = req.GetBody()
-			if err != nil {
-				return nil, fmt.Errorf("failed to reset request body: %w", err)
-			}
+		if !retryable {
+			return nil, err
 		}
-
-		resp, err := c.httpClient.Do(req)
-
-		if err != nil {
-			// Check if the error is a context cancellation from OUR side
-			if req.Context().Err() != nil {
-				return nil, req.Context().Err()
-			}
-
-			// Network error - record failure and retry
-			slog.Debug("Request failed", "provider", provider, "error", err)
-			slog.Warn("Request failed, retrying", "provider", provider, "attempt", attempt+1, "error", err)
-			c.backoff.RecordFailure(provider)
-			continue
-		}
-
-		// Handle Status Codes
-		if resp.StatusCode == 429 || (resp.StatusCode >= 500 && resp.StatusCode < 600) {
-			resp.Body.Close()
-			slog.Debug("Request failed (retryable)", "status", resp.StatusCode, "provider", provider)
-			slog.Warn("API Backoff", "status", resp.StatusCode, "provider", provider, "attempt", attempt+1)
-			c.backoff.RecordFailure(provider)
-			continue
-		}
-
-		if resp.StatusCode >= 400 {
-			resp.Body.Close()
-			slog.Debug("Request failed (terminal)", "status", resp.StatusCode, "provider", provider, "url", req.URL.String())
-			return nil, fmt.Errorf("api error: status %d", resp.StatusCode)
-		}
-
-		// Success - record it for gradual recovery
-		c.backoff.RecordSuccess(provider)
-
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return nil, fmt.Errorf("read error: %w", err)
-		}
-		return body, nil
+		// Continue to next attempt
 	}
 
 	return nil, fmt.Errorf("max attempts (%d) exceeded for %s", maxAttempts, provider)
+}
+
+func (c *Client) executeAttempt(req *http.Request, provider string, attempt int) (body []byte, retryable bool, err error) {
+	// Verify context is still alive before dialing
+	if req.Context().Err() != nil {
+		return nil, false, req.Context().Err()
+	}
+
+	logging.TraceDefault("Network Request", "host", req.URL.Host, "path", req.URL.Path, "attempt", attempt+1, "max", c.retries)
+
+	// RESET BODY for retries
+	if attempt > 0 && req.GetBody != nil {
+		var err error
+		req.Body, err = req.GetBody()
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to reset request body: %w", err)
+		}
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		// Check if the error is a context cancellation from OUR side
+		if req.Context().Err() != nil {
+			return nil, false, req.Context().Err()
+		}
+
+		// Network error - record failure and retry
+		slog.Debug("Request failed", "provider", provider, "error", err)
+		slog.Warn("Request failed, retrying", "provider", provider, "attempt", attempt+1, "error", err)
+		c.backoff.RecordFailure(provider)
+		return nil, true, err
+	}
+	defer resp.Body.Close()
+
+	// Handle Status Codes
+	if resp.StatusCode == 429 || (resp.StatusCode >= 500 && resp.StatusCode < 600) {
+		slog.Debug("Request failed (retryable)", "status", resp.StatusCode, "provider", provider)
+		slog.Warn("API Backoff", "status", resp.StatusCode, "provider", provider, "attempt", attempt+1)
+		c.backoff.RecordFailure(provider)
+		return nil, true, fmt.Errorf("api error: status %d", resp.StatusCode)
+	}
+
+	if resp.StatusCode >= 400 {
+		slog.Debug("Request failed (terminal)", "status", resp.StatusCode, "provider", provider, "url", req.URL.String())
+		return nil, false, fmt.Errorf("api error: status %d", resp.StatusCode)
+	}
+
+	// Success - record it for gradual recovery
+	c.backoff.RecordSuccess(provider)
+
+	body, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, false, fmt.Errorf("read error: %w", err)
+	}
+	return body, false, nil
 }

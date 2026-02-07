@@ -319,42 +319,112 @@ func TestInvalidURL(t *testing.T) {
 }
 
 func TestCtxMaxAttempts(t *testing.T) {
-	attempts := 0
-	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
-		w.WriteHeader(500) // Always fail
-	}))
-	defer svr.Close()
-
-	tempDir := t.TempDir()
-	d, err := db.Init(filepath.Join(tempDir, "ctx_retry.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
-	// Default retries = 5
-	client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{
-		BaseDelay: 1 * time.Millisecond,
-		MaxDelay:  5 * time.Millisecond,
-		Retries:   5,
-	})
-
-	// Override to 1 attempt (fail immediately)
-	ctx := context.WithValue(context.Background(), CtxMaxAttempts, 1)
-	_, err = client.Get(ctx, svr.URL, "")
-
-	if err == nil {
-		t.Error("Expected error, got nil")
-	}
-	if attempts != 1 {
-		t.Errorf("Expected 1 attempt with override, got %d", attempts)
+	tests := []struct {
+		name             string
+		maxAttempts      int
+		expectedAttempts int
+	}{
+		{
+			name:             "Override to 1 attempt (fail immediately)",
+			maxAttempts:      1,
+			expectedAttempts: 1,
+		},
+		{
+			name:             "Override to 2 attempts",
+			maxAttempts:      2,
+			expectedAttempts: 2,
+		},
 	}
 
-	// Override to 2 attempts
-	attempts = 0
-	ctx = context.WithValue(context.Background(), CtxMaxAttempts, 2)
-	_, err = client.Get(ctx, svr.URL, "")
-	if attempts != 2 {
-		t.Errorf("Expected 2 attempts with override, got %d", attempts)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attempts := 0
+			svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				attempts++
+				w.WriteHeader(500)
+			}))
+			defer svr.Close()
+
+			tempDir := t.TempDir()
+			d, _ := db.Init(filepath.Join(tempDir, tt.name+".db"))
+			defer d.Close()
+
+			client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{
+				BaseDelay: 1 * time.Millisecond,
+				MaxDelay:  5 * time.Millisecond,
+				Retries:   5,
+			})
+
+			ctx := context.WithValue(context.Background(), CtxMaxAttempts, tt.maxAttempts)
+			_, err := client.Get(ctx, svr.URL, "")
+
+			if err == nil {
+				t.Error("Expected error, got nil")
+			}
+			if attempts != tt.expectedAttempts {
+				t.Errorf("Expected %d attempts, got %d", tt.expectedAttempts, attempts)
+			}
+		})
+	}
+}
+
+func TestClient_BypassWait(t *testing.T) {
+	tests := []struct {
+		name         string
+		maxAttempts  int
+		shouldBypass bool
+	}{
+		{
+			name:         "Bypass Wait with maxAttempts=1",
+			maxAttempts:  1,
+			shouldBypass: true,
+		},
+		{
+			name:         "Wait with maxAttempts=2",
+			maxAttempts:  2,
+			shouldBypass: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attempts := 0
+			svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				attempts++
+				w.WriteHeader(429)
+			}))
+			defer svr.Close()
+
+			tempDir := t.TempDir()
+			d, _ := db.Init(filepath.Join(tempDir, tt.name+".db"))
+			defer d.Close()
+
+			// Large base delay to make waiting obvious
+			client := New(cache.NewSQLiteCache(d), tracker.New(), ClientConfig{
+				BaseDelay: 1 * time.Second,
+				MaxDelay:  2 * time.Second,
+				Retries:   2,
+			})
+
+			// 1. Trigger backoff
+			ctxInit := context.WithValue(context.Background(), CtxMaxAttempts, 1)
+			_, _ = client.Get(ctxInit, svr.URL, "")
+
+			// 2. Second request
+			start := time.Now()
+			ctx := context.WithValue(context.Background(), CtxMaxAttempts, tt.maxAttempts)
+			_, _ = client.Get(ctx, svr.URL, "")
+			duration := time.Since(start)
+
+			if tt.shouldBypass {
+				if duration > 500*time.Millisecond {
+					t.Errorf("Expected bypass, but took %v", duration)
+				}
+			} else {
+				if duration < 500*time.Millisecond {
+					t.Errorf("Expected wait, but took only %v", duration)
+				}
+			}
+		})
 	}
 }
