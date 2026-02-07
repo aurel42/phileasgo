@@ -1,8 +1,12 @@
 ﻿Release History
 
-## v0.3.145 (2026-02-07)
-- **Fix**: **Robust Template Data Assembly**. Implemented a centralized data normalization layer that ensures all standard Phileas macros (POI name, location, telemetry, interests, etc.) are always present for LLM prompts, preventing rendering errors in diverse narration types (screenshots, takeoff reactions).
+## v0.3.146 (2026-02-07)
+- **Fix**: **Teleport Reset**. Fixed an issue where teleports (>80km) would trigger immediate border crossing announcements and confuse flight debriefing logic. `AnnouncementManager` now performs a deep reset, clearing stale state on teleport.
+- **Fix**: **Session Manager Reset**. Registered `SessionManager` as a resettable component to ensure flight history is properly cleared on teleport.
+- **Fix**: **Deferral Precision**. Refined the deferral lookahead horizons to check every other minute (up to +15m) and use valley-boosted altitude (Effective AGL), ensuring deferrals align perfectly with the main scoring logic.
 
+## v0.3.145 (2026-02-07)
+- **Fix**: **Robust Template Data Assembly**. Fixed missing macros in template data assembly.
 
 ## v0.3.144 (2026-02-07)
 - **Feature**: **Window State Persistence**. PhileasGUI now reliably remembers window size, position, and maximized state across sessions using a native Win32 message hook.

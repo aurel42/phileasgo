@@ -80,10 +80,12 @@ func (s *Scorer) NewSession(input *ScoringInput) Session {
 		lowestElev = 0
 	}
 
-	// Pre-calculate future positions for deferral logic: +1, +3, +5, +10, +15 minutes
+	// Pre-calculate future positions for deferral logic:
+	// Near bucket: 1, 2, 3 minutes
+	// Far bucket: 5, 7, 9, 11, 13, 15 minutes (every other minute)
 	var futurePositions []geo.Point
 	if s.config.DeferralEnabled && input.Telemetry.GroundSpeed > 10 {
-		horizons := []float64{1, 3, 5, 10, 15} // minutes
+		horizons := []float64{1, 2, 3, 5, 7, 9, 11, 13, 15} // minutes
 		futurePositions = make([]geo.Point, len(horizons))
 		tel := input.Telemetry
 		speedMetersPerMin := (tel.GroundSpeed * 1852.0) / 60.0 // knots → m/min
@@ -218,10 +220,6 @@ func (sess *DefaultSession) calculateIntrinsicScore(poi *model.POI) (score float
 // Uses two buckets: "current" (+1, +3 min) and "future" (+5, +10, +15 min).
 // Defers if best visibility in current bucket * threshold < best visibility in future bucket.
 func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVisibility float64) bool {
-	// Don't defer urgent POIs (about to disappear)
-	if poi.TimeToBehind > 0 && poi.TimeToBehind < 300 { // < 5 minutes
-		return false
-	}
 
 	// Need all 5 future positions for the two-bucket comparison
 	if len(sess.futurePositions) < 5 {
@@ -229,7 +227,10 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 	}
 
 	poiPoint := geo.Point{Lat: poi.Lat, Lon: poi.Lon}
-	altAGL := sess.input.Telemetry.AltitudeAGL
+	// Use effective AGL (valley logic) for visibility calculations
+	// lowestElev is in meters, AltitudeMSL is in feet
+	lowestElevFt := sess.lowestElev * 3.28084
+	effectiveAGL := sess.input.Telemetry.AltitudeMSL - lowestElevFt
 	isOnGround := sess.input.Telemetry.IsOnGround
 	boost := sess.input.BoostFactor
 	if boost < 1.0 {
@@ -242,7 +243,7 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 		distMeters := geo.Distance(pos, poiPoint)
 		distNM := distMeters / 1852.0
 
-		score := sess.scorer.visCalc.CalculateVisibilityForSize(heading, altAGL, altAGL, bearingToPOI, distNM, visibility.SizeType(poi.Size), isOnGround, boost)
+		score := sess.scorer.visCalc.CalculateVisibilityForSize(heading, effectiveAGL, effectiveAGL, bearingToPOI, distNM, visibility.SizeType(poi.Size), isOnGround, boost)
 
 		// Apply same multipliers as current score for parity
 		sizePenalty := map[string]float64{"S": 1.0, "M": 1.0, "L": 0.85, "XL": 0.7}
@@ -255,19 +256,19 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 		return score
 	}
 
-	// "Current" bucket: +1 and +3 minutes (indices 0, 1)
-	bestCurrentVis := 0.0
-	for i := 0; i < 2; i++ {
-		if vis := calcVisibility(sess.futurePositions[i]); vis > bestCurrentVis {
-			bestCurrentVis = vis
+	// "Near" bucket: +1, +2, +3 minutes (indices 0, 1, 2)
+	bestNearVis := 0.0
+	for i := 0; i < 3; i++ {
+		if vis := calcVisibility(sess.futurePositions[i]); vis > bestNearVis {
+			bestNearVis = vis
 		}
 	}
 
-	// "Future" bucket: +5, +10, +15 minutes (indices 2, 3, 4)
-	bestFutureVis := 0.0
-	for i := 2; i < 5; i++ {
-		if vis := calcVisibility(sess.futurePositions[i]); vis > bestFutureVis {
-			bestFutureVis = vis
+	// "Far" bucket: +5, +7, +9, +11, +13, +15 minutes (indices 3 to 8)
+	bestFarVis := 0.0
+	for i := 3; i < 9; i++ {
+		if vis := calcVisibility(sess.futurePositions[i]); vis > bestFarVis {
+			bestFarVis = vis
 		}
 	}
 
@@ -281,12 +282,8 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 		power = 1.0
 	}
 
-	// Apply power to both scores before comparison
-	bestCurrentVisPow := math.Pow(bestCurrentVis, power)
-	bestFutureVisPow := math.Pow(bestFutureVis, power)
-
-	// Defer if: best_current^power * threshold < best_future^power
-	return bestCurrentVisPow*threshold < bestFutureVisPow
+	// Defer if: best_near^power * threshold < best_far^power
+	return math.Pow(bestNearVis, power)*threshold < math.Pow(bestFarVis, power)
 }
 
 // calculateUrgencyMetrics calculates TimeToBehind (TTB) and TimeToCPA).
@@ -294,7 +291,7 @@ func (sess *DefaultSession) calculateUrgencyMetrics(poi *model.POI, poiPoint geo
 	poi.TimeToBehind = -1
 	poi.TimeToCPA = -1
 
-	horizons := []float64{1, 3, 5, 10, 15}
+	horizons := []float64{1, 2, 3, 5, 7, 9, 11, 13, 15}
 	minD := math.Inf(1)
 	bestIdx := -1
 

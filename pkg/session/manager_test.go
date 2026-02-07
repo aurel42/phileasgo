@@ -89,4 +89,11 @@ func TestManager(t *testing.T) {
 	if len(m.GetState().Events) != 0 {
 		t.Errorf("expected 0 events after reset")
 	}
+
+	// ResetSession (Deep Reset)
+	m.IncrementCount()
+	m.ResetSession(context.Background())
+	if m.NarratedCount() != 0 {
+		t.Errorf("expected 0 count after ResetSession")
+	}
 }

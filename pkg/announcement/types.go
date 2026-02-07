@@ -51,6 +51,11 @@ type Item interface {
 	Reset()
 }
 
+// SessionResettable is an optional interface for Items that need deep reset on teleport.
+type SessionResettable interface {
+	ResetSession(ctx context.Context)
+}
+
 // EventRecorder defines the interface for logging trip events.
 type EventRecorder interface {
 	AddEvent(event *model.TripEvent)

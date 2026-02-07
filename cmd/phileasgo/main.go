@@ -430,6 +430,7 @@ func setupScheduler(cfg config.Provider, simClient sim.Client, st store.Store, n
 	sched.AddResettable(narratorSvc)
 	sched.AddResettable(svcs.PoiMgr)
 	sched.AddResettable(annMgr)
+	sched.AddResettable(sessionMgr)
 
 	// Register Cleanup Job (runs every 10s)
 	sched.AddJob(core.NewTimeJob("CacheCleanup", 10*time.Second, func(c context.Context, t sim.Telemetry) {

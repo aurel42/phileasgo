@@ -130,7 +130,12 @@ func (m *Manager) triggerPlayback(a Item) {
 func (m *Manager) ResetSession(ctx context.Context) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, a := range m.registry {
-		a.Reset()
+	for id, a := range m.registry {
+		if r, ok := a.(SessionResettable); ok {
+			slog.Debug("Announcement: Deep resetting session", "id", id)
+			r.ResetSession(ctx)
+		} else {
+			a.Reset()
+		}
 	}
 }

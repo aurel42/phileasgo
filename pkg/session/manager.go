@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -207,6 +208,12 @@ func (m *Manager) Reset() {
 	m.lastSentence = ""
 	m.narratedCount = 0
 	m.stageData = sim.StageState{}
+}
+
+// ResetSession implements the SessionResettable interface for deep resets.
+func (m *Manager) ResetSession(ctx context.Context) {
+	slog.Info("SessionManager: Resetting session state")
+	m.Reset()
 }
 
 // PersistentState represents the serializable part of the session.

@@ -47,14 +47,18 @@ func TestDefaultSession_DetermineDeferral(t *testing.T) {
 		IsOnGround:  false,
 	}
 
-	// Mock future positions: straight North at 60kts
-	// 0, 1, 3, 5, 10, 15 nm North
+	// Mock future positions: straight North at 60kts (1nm/min)
+	// Horizons: 1, 2, 3, 5, 7, 9, 11, 13, 15 minutes
 	futurePositions := []geo.Point{
-		{Lat: 1.0 / 60.0, Lon: 0},
-		{Lat: 3.0 / 60.0, Lon: 0},
-		{Lat: 5.0 / 60.0, Lon: 0},
-		{Lat: 10.0 / 60.0, Lon: 0},
-		{Lat: 15.0 / 60.0, Lon: 0},
+		{Lat: 1.0 / 60.0, Lon: 0},  // +1 min
+		{Lat: 2.0 / 60.0, Lon: 0},  // +2 min
+		{Lat: 3.0 / 60.0, Lon: 0},  // +3 min
+		{Lat: 5.0 / 60.0, Lon: 0},  // +5 min
+		{Lat: 7.0 / 60.0, Lon: 0},  // +7 min
+		{Lat: 9.0 / 60.0, Lon: 0},  // +9 min
+		{Lat: 11.0 / 60.0, Lon: 0}, // +11 min
+		{Lat: 13.0 / 60.0, Lon: 0}, // +13 min
+		{Lat: 15.0 / 60.0, Lon: 0}, // +15 min
 	}
 
 	tests := []struct {
