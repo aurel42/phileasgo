@@ -90,23 +90,9 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
         fetchThumbnail();
     }, [poi, thumbnailFromData, freshPoi?.narration_strategy]);
 
-    // If no POI, we are in a generic nomination mode (Debrief, Essay, Screenshot)
+    // If no POI, we are in a generic narration mode (Debrief, Screenshot, etc.)
     if (!poi) {
-        let displayTitle = currentTitle;
-        let displayCategory = 'Regional Essay';
-        let defaultText = '';
-
-        if (currentType === 'debriefing') {
-            displayTitle = displayTitle || 'Flight Debrief';
-            displayCategory = 'Flight Summary';
-            defaultText = 'Your flight has concluded. Listen to the automated pilot debrief.';
-        } else if (currentType === 'screenshot') {
-            displayTitle = displayTitle || 'Photograph Analysis';
-            displayCategory = 'Visual Reconnaissance';
-            defaultText = 'Analyzing the captured imagery with local geographical context.';
-        } else {
-            displayTitle = displayTitle || 'Regional Essay';
-        }
+        if (!currentTitle) return null;
 
         const screenshotUrl = (currentType === 'screenshot' && narratorStatus?.display_thumbnail)
             ? narratorStatus.display_thumbnail
@@ -116,14 +102,11 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
             <div className="poi-info-panel generic-narration" style={{ display: 'flex', gap: '12px' }}>
                 <div style={{ flex: screenshotUrl ? '1' : '1 1 auto', minWidth: 0 }}>
                     <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div className="role-label">{displayCategory}</div>
+                        <div className="role-label">{currentType}</div>
                         <button className="close-btn role-btn" onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#666', fontSize: '20px', cursor: 'pointer' }}>×</button>
                     </div>
                     <div className="poi-details">
-                        <h1 className="role-title" style={{ margin: '8px 0' }}>{displayTitle}</h1>
-                        <p className="role-text-lg" style={{ opacity: 0.8 }}>
-                            {defaultText}
-                        </p>
+                        <h1 className="role-title" style={{ margin: '8px 0' }}>{currentTitle}</h1>
                     </div>
                 </div>
                 {screenshotUrl && (

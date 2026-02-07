@@ -785,7 +785,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                     <span className="role-value">{draft.beaconFormationDistance}m</span>
                                     <input
                                         type="range"
-                                        min="500" max="10000" step="500"
+                                        min="500" max="10000" step="100"
                                         value={draft.beaconFormationDistance}
                                         onChange={e => updateDraft('beaconFormationDistance', parseInt(e.target.value))}
                                     />

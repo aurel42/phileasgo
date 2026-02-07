@@ -1,4 +1,11 @@
 ﻿Release History
+ 
+ ## v0.3.148 (2026-02-07)
+ - **Fix**: **Phantom Info Panel**. Eliminated the unexpected "Regional Essay" panel that appeared between back-to-back screenshot narrations.
+ - **Refactor**: **API-Driven UI Visibility**. Migrated the Information Panel and Overlay components to strictly follow the backend's `show_info_panel` flag, ensuring visual consistency across all narrative types.
+ - **Improvement**: **Flight Debrief Refinement**. Enabled two-pass AI refinement for the flight debriefing script for higher quality summaries.
+ - **Improvement**: **Beacon Settings**. Increased granularity of the beacon formation distance slider (100m steps).
+ - **Improvement**: **Clean Generic Narrations**. Removed all hardcoded categorical fallbacks and title overrides in the frontend; generic narrations (screenshots, debriefs) now use the rich titles and types provided directly by the backend.
 
 ## v0.3.147 (2026-02-07)
 - **Fix**: **Rescue Logic**. Prevented redundant "rescue" attempts (script shortening) when the 2-pass refinement strategy is active. The system now strictly respects the 2-pass output, ensuring higher fidelity to the user's refinement instructions.

@@ -8,6 +8,7 @@ interface OverlayPOIPanelProps {
     currentType?: string;
     playbackProgress: number; // 0-1
     isPlaying: boolean;
+    showInfoPanel?: boolean;
 }
 
 const getName = (poi: POI) => {
@@ -16,12 +17,12 @@ const getName = (poi: POI) => {
     return poi.name_local || 'Unknown';
 };
 
-export const OverlayPOIPanel = ({ poi, title, displayThumbnail, currentType, playbackProgress, isPlaying }: OverlayPOIPanelProps) => {
+export const OverlayPOIPanel = ({ poi, title, displayThumbnail, currentType, playbackProgress, isPlaying, showInfoPanel }: OverlayPOIPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
-        if ((poi || title) && isPlaying) {
+        if ((poi || title) && isPlaying && showInfoPanel) {
             setVisible(true);
 
             if (poi) {
@@ -46,7 +47,7 @@ export const OverlayPOIPanel = ({ poi, title, displayThumbnail, currentType, pla
             setVisible(false);
             setThumbnailUrl(null);
         }
-    }, [poi, title, isPlaying, displayThumbnail]);
+    }, [poi, title, isPlaying, displayThumbnail, showInfoPanel]);
 
     if (!poi && !title) return null;
 
@@ -56,12 +57,8 @@ export const OverlayPOIPanel = ({ poi, title, displayThumbnail, currentType, pla
     if (poi) {
         primaryName = getName(poi);
         category = poi.specific_category || poi.category || '';
-    } else if (currentType === 'debriefing') {
-        category = "Flight Summary";
-    } else if (currentType === 'essay') {
-        category = "Regional Essay";
-    } else if (currentType === 'screenshot') {
-        category = "Photograph";
+    } else {
+        category = currentType || '';
     }
 
     const getFontSize = (text: string) => {

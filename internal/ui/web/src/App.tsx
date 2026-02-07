@@ -97,9 +97,8 @@ function App() {
           lastAutoOpenedIdRef.current = poiId;
         }
       } else {
-        // Auto-open for non-POI narratives (Debriefing & Screenshots)
-        const title = narratorStatus.current_title ||
-          (narratorStatus.current_type === 'debriefing' ? 'Debrief' : 'Photograph Analysis');
+        // Auto-open for non-POI narratives (managed by show_info_panel flag from backend)
+        const title = narratorStatus.display_title || narratorStatus.current_title || narratorStatus.current_type || 'Narration';
         if (lastAutoOpenedIdRef.current !== title) {
           lastAutoOpenedIdRef.current = title;
           // Clear any previous POI selection to ensure the generic panel shows instead
@@ -109,22 +108,20 @@ function App() {
         }
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [narratorStatus?.playback_status, narratorStatus?.current_poi?.wikidata_id, narratorStatus?.current_type, narratorStatus?.current_title, pois]);
+  }, [narratorStatus?.playback_status, narratorStatus?.current_poi?.wikidata_id, narratorStatus?.current_type, narratorStatus?.current_title, narratorStatus?.show_info_panel, pois]);
 
-  // Auto-close panel when narrator stops or switches to non-POI content (e.g. screenshot)
+  // Auto-close panel when narrator stops or switches to content that shouldn't show the panel
   useEffect(() => {
     const isIdle = narratorStatus?.playback_status === 'idle';
-    const isPlayingNonPoi = narratorStatus?.playback_status === 'playing' && !narratorStatus?.current_poi;
-    const isSpecialType = narratorStatus?.current_type === 'debriefing' || narratorStatus?.current_type === 'essay' || narratorStatus?.current_type === 'screenshot';
+    const shouldShow = narratorStatus?.show_info_panel ?? false;
 
-    if ((isIdle || (isPlayingNonPoi && !isSpecialType)) && autoOpenedRef.current) {
+    if ((isIdle || !shouldShow) && autoOpenedRef.current) {
       setSelectedPOI(null);
       setShowGenericPanel(false);
       autoOpenedRef.current = false;
       lastAutoOpenedIdRef.current = null;
     }
-  }, [narratorStatus?.playback_status, narratorStatus?.current_poi, narratorStatus?.current_type]);
+  }, [narratorStatus?.playback_status, narratorStatus?.show_info_panel]);
 
   // Handler for manual POI selection (from map)
   const handlePOISelect = useCallback((poi: POI) => {

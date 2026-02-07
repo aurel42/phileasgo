@@ -109,6 +109,7 @@ const OverlayPage = () => {
                         currentType={narratorStatus?.current_type}
                         playbackProgress={playbackProgress}
                         isPlaying={isPlaying}
+                        showInfoPanel={narratorStatus?.show_info_panel}
                     />
                 )}
 

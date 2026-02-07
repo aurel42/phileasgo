@@ -639,7 +639,7 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 	data["Language_name"] = "English"
 	data["TargetLanguage"] = "en"
 	data["ClockPos"] = 12
-	data["NavInstruction"] = "10km ahead"
+
 	data["RelativeDir"] = "ahead"
 	data["Movement"] = "Flying North"
 	data["CurrentSummary"] = "Summary"

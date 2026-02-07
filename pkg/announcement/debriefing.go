@@ -15,11 +15,13 @@ type Debriefing struct {
 }
 
 func NewDebriefing(cfg *config.Config, dp DataProvider, events EventRecorder) *Debriefing {
-	return &Debriefing{
+	d := &Debriefing{
 		Base: NewBase("debriefing", model.NarrativeTypeDebriefing, false, dp, events),
 		cfg:  cfg,
 		dp:   dp,
 	}
+	d.SetTwoPass(true)
+	return d
 }
 
 func (a *Debriefing) Title() string {
