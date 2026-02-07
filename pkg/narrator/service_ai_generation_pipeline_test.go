@@ -131,6 +131,7 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 	promptsDir := filepath.Join(tmpDir, "context")
 	_ = os.MkdirAll(promptsDir, 0o755)
 	_ = os.WriteFile(filepath.Join(promptsDir, "rescue_script.tmpl"), []byte("Rescue this: {{.Script}}"), 0o644)
+	_ = os.WriteFile(filepath.Join(promptsDir, "second_pass.tmpl"), []byte("Refined: {{.Script}}"), 0o644)
 	pm, _ := prompts.NewManager(tmpDir)
 
 	t.Run("No Rescue when within buffer", func(t *testing.T) {
@@ -211,6 +212,58 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 		}
 		if narrative.Title != "Title" {
 			t.Errorf("Expected rescued title \"Title\", got %q", narrative.Title)
+		}
+	})
+
+	t.Run("TwoPass Excludes Rescue", func(t *testing.T) {
+		// Even if script is long, rescue should be skipped if TwoPass is enabled
+		veryLongResponse := "This is a much longer response that definitely exceeds the ten word limit plus the thirty percent buffer that we have." // 22 words
+
+		mockLLM := &MockLLM{
+			GenerateTextFunc: func(ctx context.Context, name, prompt string) (string, error) {
+				// 1. Initial Generation
+				if name != "script_rescue" {
+					return "TITLE: Title\n" + veryLongResponse, nil
+				}
+
+				// 2. Second Pass or Rescue?
+				// Rescue template has "Rescue this:" (see setup above)
+				if strings.Contains(prompt, "Rescue this:") {
+					return "", context.DeadlineExceeded // Should NOT happen, simulate error or use fmt.Errorf
+				}
+
+				// Second Pass (template has "Refined:")
+				return "Refined script result", nil
+			},
+		}
+
+		svc := &AIService{
+			cfg:        cfg,
+			llm:        mockLLM,
+			tts:        mockTTS,
+			prompts:    pm,
+			st:         &MockStore{},
+			sim:        &MockSim{},
+			sessionMgr: session.NewManager(nil),
+			running:    true,
+		}
+		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil)
+
+		req := &GenerationRequest{
+			Type:     model.NarrativeTypePOI,
+			MaxWords: 10,
+			Prompt:   "Prompt",
+			TwoPass:  true, // ENABLED
+		}
+
+		narrative, err := svc.GenerateNarrative(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Expect 2-pass result, NOT rescue result (and definitely not an error from the rescue trap)
+		if narrative.Script != "Refined script result" {
+			t.Errorf("Expected 2-pass script 'Refined script result', got %q", narrative.Script)
 		}
 	})
 }

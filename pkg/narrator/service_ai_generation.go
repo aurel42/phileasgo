@@ -52,10 +52,10 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 	// 4. Second Pass Refinement (if enabled)
 	if req.TwoPass {
 		script = s.performSecondPass(ctx, req, script)
+	} else {
+		// 5. Rescue Script (if too long) - Mutually exclusive with 2-pass
+		script = s.performRescueIfNeeded(ctx, req, script)
 	}
-
-	// 5. Rescue Script (if too long)
-	script = s.performRescueIfNeeded(ctx, req, script)
 
 	// 5. TTS Synthesis (with retries)
 	safeID := req.SafeID

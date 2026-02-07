@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.147 (2026-02-07)
+- **Fix**: **Rescue Logic**. Prevented redundant "rescue" attempts (script shortening) when the 2-pass refinement strategy is active. The system now strictly respects the 2-pass output, ensuring higher fidelity to the user's refinement instructions.
+
 ## v0.3.146 (2026-02-07)
 - **Fix**: **Teleport Reset**. Fixed an issue where teleports (>80km) would trigger immediate border crossing announcements and confuse flight debriefing logic. `AnnouncementManager` now performs a deep reset, clearing stale state on teleport.
 - **Fix**: **Session Manager Reset**. Registered `SessionManager` as a resettable component to ensure flight history is properly cleared on teleport.
