@@ -31,6 +31,7 @@ type Provider struct {
 type backoffState struct {
 	subsequentFailures int
 	skippedRequests    int
+	targetSkips        int
 }
 
 // New creates a new Provider with failover and unified logging.
@@ -174,9 +175,15 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		backoffKey := c.name + ":" + callName
 		f.mu.Lock()
 		bs, exists := f.backoffs[backoffKey]
-		if exists && bs.skippedRequests < bs.subsequentFailures {
+		if exists && bs.skippedRequests < bs.targetSkips {
 			bs.skippedRequests++
-			slog.Debug("LLM Provider in backoff, skipping", "provider", c.name, "profile", callName, "skipped", bs.skippedRequests, "target", bs.subsequentFailures)
+			slog.Info("LLM Provider in backoff, skipping",
+				"provider", c.name,
+				"profile", callName,
+				"skipped", bs.skippedRequests,
+				"target", bs.targetSkips,
+				"failures", bs.subsequentFailures,
+			)
 			f.mu.Unlock()
 			continue
 		}
@@ -186,11 +193,11 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		timeout := f.timeouts[c.index]
 		callCtx, cancel := context.WithTimeout(ctx, timeout)
 
-		// Inject MaxRetries=1 context for all but the last candidate
+		// Inject MaxAttempts=1 context for all but the last candidate
 		// This forces the request client to fail immediately on error, relying on our loop for fallback.
 		// The last candidate gets standard behavior (retries allowed as configured in client).
 		if idx < len(candidates)-1 {
-			callCtx = context.WithValue(callCtx, request.CtxMaxRetries, 1)
+			callCtx = context.WithValue(callCtx, request.CtxMaxAttempts, 1)
 		}
 
 		res, err := fn(callCtx, c.p)
@@ -235,10 +242,18 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		}
 		bs.subsequentFailures++
 		bs.skippedRequests = 0
+		// Exponential skip: 2^(N-1)
+		bs.targetSkips = int(1 << (uint(bs.subsequentFailures) - 1))
 		f.mu.Unlock()
 
 		if !isLast {
-			slog.Info("LLM Provider failed (retryable), falling back", "provider", c.name, "next", candidates[idx+1].name, "error", err, "backoff_failures", bs.subsequentFailures)
+			slog.Info("LLM Provider failed (retryable), falling back",
+				"provider", c.name,
+				"next", candidates[idx+1].name,
+				"error", err,
+				"failures", bs.subsequentFailures,
+				"next_skips", bs.targetSkips,
+			)
 			continue // Try next immediately
 		}
 

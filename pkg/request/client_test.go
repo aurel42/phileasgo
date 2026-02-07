@@ -318,7 +318,7 @@ func TestInvalidURL(t *testing.T) {
 	}
 }
 
-func TestCtxMaxRetries(t *testing.T) {
+func TestCtxMaxAttempts(t *testing.T) {
 	attempts := 0
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
@@ -340,7 +340,7 @@ func TestCtxMaxRetries(t *testing.T) {
 	})
 
 	// Override to 1 attempt (fail immediately)
-	ctx := context.WithValue(context.Background(), CtxMaxRetries, 1)
+	ctx := context.WithValue(context.Background(), CtxMaxAttempts, 1)
 	_, err = client.Get(ctx, svr.URL, "")
 
 	if err == nil {
@@ -352,7 +352,7 @@ func TestCtxMaxRetries(t *testing.T) {
 
 	// Override to 2 attempts
 	attempts = 0
-	ctx = context.WithValue(context.Background(), CtxMaxRetries, 2)
+	ctx = context.WithValue(context.Background(), CtxMaxAttempts, 2)
 	_, err = client.Get(ctx, svr.URL, "")
 	if attempts != 2 {
 		t.Errorf("Expected 2 attempts with override, got %d", attempts)

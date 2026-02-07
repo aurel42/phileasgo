@@ -25,9 +25,9 @@ var (
 // CtxKey is a type for context keys to avoid collisions.
 type CtxKey string
 
-// CtxMaxRetries is the context key for overriding the maximum number of retries.
+// CtxMaxAttempts is the context key for overriding the maximum number of attempts.
 // Value should be an int.
-const CtxMaxRetries CtxKey = "max_retries"
+const CtxMaxAttempts CtxKey = "max_attempts"
 
 // Client handles HTTP requests with queuing, caching, and tracking.
 type Client struct {
@@ -350,16 +350,18 @@ func (c *Client) PostWithGeodataCache(ctx context.Context, u string, body []byte
 func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 	provider := normalizeProvider(req.URL.Host)
 
-	maxRetries := c.retries
-	if v := req.Context().Value(CtxMaxRetries); v != nil {
+	maxAttempts := c.retries
+	if v := req.Context().Value(CtxMaxAttempts); v != nil {
 		if val, ok := v.(int); ok {
-			maxRetries = val
+			maxAttempts = val
 		}
 	}
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		// Wait for any provider-level backoff
-		c.backoff.Wait(provider)
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		// Wait for any provider-level backoff (unless we are in single-attempt mode)
+		if maxAttempts > 1 {
+			c.backoff.Wait(provider)
+		}
 
 		// Verify context is still alive before dialing
 		if req.Context().Err() != nil {
@@ -418,5 +420,5 @@ func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
 		return body, nil
 	}
 
-	return nil, fmt.Errorf("max retries (%d) exceeded for %s", maxRetries, provider)
+	return nil, fmt.Errorf("max attempts (%d) exceeded for %s", maxAttempts, provider)
 }
