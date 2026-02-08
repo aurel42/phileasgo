@@ -179,16 +179,16 @@ const RangeRings = ({ lat, lon, heading, units }: { lat: number; lon: number; he
 };
 
 // Helper to control map interaction based on connection state
-const MapStateController = ({ isConnected, isPaused }: { isConnected: boolean; isPaused: boolean }) => {
+const MapStateController = ({ isConnected, isPaused, isReplayMode }: { isConnected: boolean; isPaused: boolean; isReplayMode: boolean }) => {
     const map = useMap();
     useEffect(() => {
-        if (!isConnected || isPaused) {
+        if (!isConnected || isPaused || isReplayMode) {
             map.dragging.enable();
             map.doubleClickZoom.enable();
             map.boxZoom.enable();
             map.keyboard.enable();
 
-            // Unlock zoom for world exploration
+            // Unlock zoom for world exploration or replay overview
             map.setMinZoom(2);
             map.setMaxZoom(18);
         } else {
@@ -206,7 +206,7 @@ const MapStateController = ({ isConnected, isPaused }: { isConnected: boolean; i
             if (map.getZoom() < MIN_ZOOM) map.setZoom(MIN_ZOOM);
             if (map.getZoom() > MAX_ZOOM) map.setZoom(MAX_ZOOM);
         }
-    }, [isConnected, isPaused, map]);
+    }, [isConnected, isPaused, isReplayMode, map]);
     return null;
 };
 
@@ -397,9 +397,9 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
         <div style={{ position: 'relative', height: '100%', width: '100%' }}>
             <MapContainer
                 center={center}
-                zoom={isConnected ? DEFAULT_ZOOM : 3}
-                minZoom={isConnected ? MIN_ZOOM : 2}
-                maxZoom={isConnected ? MAX_ZOOM : 18}
+                zoom={isConnected && !isReplayMode ? DEFAULT_ZOOM : 3}
+                minZoom={isConnected && !isReplayMode ? MIN_ZOOM : 2}
+                maxZoom={isConnected && !isReplayMode ? MAX_ZOOM : 18}
                 style={{ height: '100%', width: '100%' }}
                 zoomControl={false}
                 dragging={false}
@@ -408,7 +408,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 touchZoom={false}
                 ref={setMap}
             >
-                <MapStateController isConnected={isConnected} isPaused={isPaused} />
+                <MapStateController isConnected={isConnected} isPaused={isPaused} isReplayMode={isReplayMode} />
                 <MapEvents onZoom={handleManualZoom} onClick={handleMapClick} />
                 <AircraftPaneSetup />
                 <TileLayer

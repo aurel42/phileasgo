@@ -1,15 +1,18 @@
 ﻿Release History
 
+## v0.3.153 (2026-02-08)
+- **Fix**: **Debriefing Bounding Box**. Relaxed map zoom constraints during replay mode, ensuring the entire trip (departure/destination) is properly framed even when the simulator remains connected.
+
 ## v0.3.152 (2026-02-08)
 - **Fix**: **Dynamic Size Resolution**. Resolved a critical bug in the POI deferral mechanism by implementing dynamic size lookups from the category configuration, ensuring accurate future visibility predictions for all POI sizes.
-- **Improvement**: **Ephemeral LOS HUD**. Integrated real-time Line-of-Sight status (✅/🚫) directly onto map markers, supported by a new memory-only status tracker in the backend.
-- **Improvement**: **Marker Polishing**. Standardized played POI markers to 80% opacity and refined scaling logic for better map legibility.
+- **Improvement**: **Ephemeral LOS HUD**. Integrated real-time Line-of-Sight status 🚫 directly onto map markers.
 
 ## v0.3.151 (2026-02-08)
 - **Feature**: **Enhanced `whatsaroundme` CLI**. Upgraded the diagnostic tool with a clean ASCII table layout, distance sorting, and integrated classification reasoning with name resolution.
 - **Fix**: **Classifier Cache Protection**. Implemented a priority-based storage system in the SQLite store to prevent real category matches from being overwritten by "ignored" or "deadend" sentinels.
 - **Improvement**: **Robust Hierarchy Traversal**. Refactored the classifier to prioritize category matches across entire BFS layers, ensuring accurate results even when a node has multiple conflicting parent paths.
 - **Improvement**: **Intermediate Label Caching**. The classifier now automatically persists intermediate Wikidata labels during hierarchy discovery, improving resolution performance for diagnostic tools.
+- **Improvement**: **Marker Polishing**. Standardized played POI markers to 80% opacity and refined scaling logic for better map legibility.
 
 ## v0.3.150 (2026-02-08)
 - **Fix**: **Debriefing Animation Timing**. Synchronized the map's trip replay animation with actual audio duration by extracting duration metadata after TTS synthesis.
