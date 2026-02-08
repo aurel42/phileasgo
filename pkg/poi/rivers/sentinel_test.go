@@ -69,14 +69,20 @@ func TestLoadDataWithValidGeoJSON(t *testing.T) {
 		t.Fatalf("expected 2 rivers, got %d", len(s.rivers))
 	}
 
-	// Check first river (should use name_en)
-	if s.rivers[0].Name != "Test River" {
-		t.Errorf("expected name 'Test River', got %q", s.rivers[0].Name)
+	// Check rivers (order-agnostic)
+	riversByName := make(map[string]River)
+	for _, r := range s.rivers {
+		riversByName[r.Name] = r
 	}
 
-	// Check second river (should use name fallback)
-	if s.rivers[1].Name != "Secondary River" {
-		t.Errorf("expected name 'Secondary River', got %q", s.rivers[1].Name)
+	// Check Test River (should use name_en)
+	if _, ok := riversByName["Test River"]; !ok {
+		t.Error("expected 'Test River' to be loaded")
+	}
+
+	// Check Secondary River (should use name fallback)
+	if _, ok := riversByName["Secondary River"]; !ok {
+		t.Error("expected 'Secondary River' to be loaded")
 	}
 }
 

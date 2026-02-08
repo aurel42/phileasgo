@@ -43,6 +43,9 @@ func TestScreenshot_Lifecycle(t *testing.T) {
 				"City":    "TestCity",
 				"Region":  "TestRegion",
 				"Country": "TC",
+				"Lat":     10.0,
+				"Lon":     20.0,
+				"Alt":     1000.0,
 			}
 		}
 
@@ -73,7 +76,7 @@ func TestScreenshot_Lifecycle(t *testing.T) {
 			t.Fatalf("GetPromptData failed: %v", err)
 		}
 		m := data.(prompt.Data)
-		if m["Lat"] != "10.000" {
+		if m["Lat"] != 10.0 {
 			t.Errorf("Lat mismatch: got %v", m["Lat"])
 		}
 	})

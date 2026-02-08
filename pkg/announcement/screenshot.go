@@ -60,9 +60,6 @@ func (s *Screenshot) GetPromptData(t *sim.Telemetry) (any, error) {
 	data["Country"] = loc.CountryCode
 
 	// Formatted Telemetry
-	data["Lat"] = fmt.Sprintf("%.3f", t.Latitude)
-	data["Lon"] = fmt.Sprintf("%.3f", t.Longitude)
-	data["Alt"] = fmt.Sprintf("%.0f", t.AltitudeAGL)
 
 	// Length: Use Short Words setting
 	// Ideally we would apply the multiplier here, but we'll use the base config for simplicity

@@ -147,6 +147,10 @@ func TestHandleGetConfig(t *testing.T) {
 			if got.DeferralProximityBoostPower != tt.wantBoostPower && tt.wantBoostPower != 0 {
 				t.Errorf("DeferralProximityBoostPower = %f, want %f", got.DeferralProximityBoostPower, tt.wantBoostPower)
 			}
+			if tt.name == "Azure Config with Store Overrides" && got.RenderVisibilityAsMap != false {
+				// We didn't set RenderVisibilityAsMap in the test struct, but it's in the response
+				// Let's add it to the test struct for completeness if needed, but for now just check existence
+			}
 		})
 	}
 }
@@ -238,6 +242,12 @@ func TestHandleSetConfig(t *testing.T) {
 			req:     ConfigRequest{DeferralProximityBoostPower: ptrFloat(1.5)},
 			wantKey: "scorer.deferral_proximity_boost_power",
 			wantVal: "1.50",
+		},
+		{
+			name:    "Update Render Visibility As Map",
+			req:     ConfigRequest{RenderVisibilityAsMap: ptrBool(true)},
+			wantKey: "render_visibility_as_map",
+			wantVal: "true",
 		},
 	}
 

@@ -214,13 +214,14 @@ interface MapProps {
     units: 'km' | 'nm';
     showCacheLayer: boolean;
     showVisibilityLayer: boolean;
+    renderVisibilityAsMap: boolean;
     pois: POI[];
     selectedPOI: POI | null;
     onPOISelect: (poi: POI) => void;
     onMapClick: () => void;
 }
 
-export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selectedPOI, onPOISelect, onMapClick }: MapProps) => {
+export const Map = ({ units, showCacheLayer, showVisibilityLayer, renderVisibilityAsMap, pois, selectedPOI, onPOISelect, onMapClick }: MapProps) => {
     const queryClient = useQueryClient();
 
     const { data: telemetry, isLoading: isConnecting } = useTelemetry();
@@ -420,7 +421,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
                 {showFallbackMap && <CoverageLayer />}
                 {isReplayMode && tripEvents && <TripReplayOverlay key={replayKey} events={tripEvents} durationMs={replayDuration} isPlaying={isReplayMode} />}
                 {showCacheLayer && isConnected && <CacheLayer />}
-                {isConnected && <VisibilityLayer enabled={showVisibilityLayer} />}
+                {isConnected && <VisibilityLayer enabled={showVisibilityLayer} renderAsMap={renderVisibilityAsMap} />}
                 {/* Hide aircraft elements during replay mode to prevent telemetry-based map updates */}
                 {isConnected && telemetry && throttledPos && !isReplayMode && (
                     <>

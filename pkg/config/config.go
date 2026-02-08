@@ -49,10 +49,11 @@ type Config struct {
 
 // OverlayConfig holds settings for the overlay UI.
 type OverlayConfig struct {
-	MapBox  bool `yaml:"map_box"`
-	POIInfo bool `yaml:"poi_info"`
-	InfoBar bool `yaml:"info_bar"`
-	LogLine bool `yaml:"log_line"`
+	MapBox                bool `yaml:"map_box"`
+	POIInfo               bool `yaml:"poi_info"`
+	InfoBar               bool `yaml:"info_bar"`
+	LogLine               bool `yaml:"log_line"`
+	RenderVisibilityAsMap bool `yaml:"render_visibility_as_map"`
 }
 
 // RequestConfig holds HTTP request settings.
@@ -527,10 +528,11 @@ func DefaultConfig() *Config {
 			IdentAction: "skip",
 		},
 		Overlay: OverlayConfig{
-			MapBox:  true,
-			POIInfo: true,
-			InfoBar: true,
-			LogLine: true,
+			MapBox:                true,
+			POIInfo:               true,
+			InfoBar:               true,
+			LogLine:               true,
+			RenderVisibilityAsMap: false,
 		},
 	}
 }

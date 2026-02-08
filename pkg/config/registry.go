@@ -11,6 +11,7 @@ const (
 	KeyRangeRingUnits              = "range_ring_units" // Map display units (km/nm)
 	KeyShowCacheLayer              = "show_cache_layer"
 	KeyShowVisibility              = "show_visibility_layer"
+	KeyRenderVisibilityAsMap       = "render_visibility_as_map"
 	KeySimSource                   = "sim_source"
 	KeyTeleportDistance            = "teleport_distance"
 	KeyMockLat                     = "mock_start_lat"

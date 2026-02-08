@@ -34,6 +34,7 @@ function App() {
   const [units, setUnits] = useState<Units>('km');
   const [showCacheLayer, setShowCacheLayer] = useState(false);
   const [showVisibilityLayer, setShowVisibilityLayer] = useState(false);
+  const [renderVisibilityAsMap, setRenderVisibilityAsMap] = useState(false);
   const [minPoiScore, setMinPoiScore] = useState(0.5);
   const [filterMode, setFilterMode] = useState<string>('fixed');
   const [targetCount, setTargetCount] = useState(20);
@@ -176,6 +177,7 @@ function App() {
           setUnits(data.range_ring_units || 'km');
           setShowCacheLayer(data.show_cache_layer || false);
           setShowVisibilityLayer(data.show_visibility_layer || false);
+          setRenderVisibilityAsMap(data.render_visibility_as_map || false);
           setMinPoiScore(data.min_poi_score ?? 0.5);
           setFilterMode(data.filter_mode || 'fixed');
           setTargetCount(data.target_poi_count ?? 20);
@@ -219,6 +221,15 @@ function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ show_visibility_layer: show })
     }).catch(e => console.error("Failed to update visibility layer config", e));
+  }, []);
+
+  const handleRenderVisibilityAsMapChange = useCallback((render: boolean) => {
+    setRenderVisibilityAsMap(render);
+    fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ render_visibility_as_map: render })
+    }).catch(e => console.error("Failed to update visibility rendering config", e));
   }, []);
 
   // Handler to update min poi score config
@@ -265,6 +276,8 @@ function App() {
           onCacheLayerChange={(val) => updateConfig('show_cache_layer', val)}
           showVisibilityLayer={showVisibilityLayer}
           onVisibilityLayerChange={handleVisibilityLayerChange}
+          renderVisibilityAsMap={renderVisibilityAsMap}
+          onRenderVisibilityAsMapChange={handleRenderVisibilityAsMapChange}
           minPoiScore={minPoiScore}
           onMinPoiScoreChange={handleMinPoiScoreChange}
           filterMode={filterMode}
@@ -303,6 +316,7 @@ function App() {
           units={units}
           showCacheLayer={showCacheLayer}
           showVisibilityLayer={showVisibilityLayer}
+          renderVisibilityAsMap={renderVisibilityAsMap}
           pois={pois}
           selectedPOI={selectedPOI}
           onPOISelect={handlePOISelect}

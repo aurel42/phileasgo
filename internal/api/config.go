@@ -36,6 +36,7 @@ type ConfigResponse struct {
 	TTSEngine                   string   `json:"tts_engine"`
 	ShowCacheLayer              bool     `json:"show_cache_layer"`
 	ShowVisibilityLayer         bool     `json:"show_visibility_layer"`
+	RenderVisibilityAsMap       bool     `json:"render_visibility_as_map"`
 	MinPOIScore                 float64  `json:"min_poi_score"`
 	Volume                      float64  `json:"volume"`
 	FilterMode                  string   `json:"filter_mode"`
@@ -88,6 +89,7 @@ type ConfigRequest struct {
 	RangeRingUnits              string   `json:"range_ring_units,omitempty"`      // Map display units (km/nm)
 	ShowCacheLayer              *bool    `json:"show_cache_layer,omitempty"`      // Pointer to detect false vs missing
 	ShowVisibilityLayer         *bool    `json:"show_visibility_layer,omitempty"` // Pointer to detect false vs missing
+	RenderVisibilityAsMap       *bool    `json:"render_visibility_as_map,omitempty"`
 	MinPOIScore                 *float64 `json:"min_poi_score,omitempty"`
 	FilterMode                  string   `json:"filter_mode,omitempty"`
 	TargetPOICount              *int     `json:"target_poi_count,omitempty"`
@@ -177,6 +179,7 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		TTSEngine:                   h.appCfg.TTS.Engine,
 		ShowCacheLayer:              h.cfgProv.ShowCacheLayer(ctx),
 		ShowVisibilityLayer:         h.cfgProv.ShowVisibilityLayer(ctx),
+		RenderVisibilityAsMap:       h.cfgProv.RenderVisibilityAsMap(ctx),
 		MinPOIScore:                 h.cfgProv.MinScoreThreshold(ctx),
 		Volume:                      volume, // Volume is not migrated to cfgProv
 		FilterMode:                  h.cfgProv.FilterMode(ctx),
@@ -286,6 +289,9 @@ func (h *ConfigHandler) applyUIUpdates(ctx context.Context, req *ConfigRequest) 
 
 	if req.ShowVisibilityLayer != nil {
 		h.updateBoolState(ctx, config.KeyShowVisibility, *req.ShowVisibilityLayer)
+	}
+	if req.RenderVisibilityAsMap != nil {
+		h.updateBoolState(ctx, config.KeyRenderVisibilityAsMap, *req.RenderVisibilityAsMap)
 	}
 
 	if req.RangeRingUnits != "" && (req.RangeRingUnits == "km" || req.RangeRingUnits == "nm") {

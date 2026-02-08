@@ -44,6 +44,7 @@ type Provider interface {
 	// UI / Overlay
 	ShowCacheLayer(ctx context.Context) bool
 	ShowVisibilityLayer(ctx context.Context) bool
+	RenderVisibilityAsMap(ctx context.Context) bool
 	FilterMode(ctx context.Context) string
 	TargetPOICount(ctx context.Context) int
 	PauseDuration(ctx context.Context) time.Duration
@@ -209,6 +210,10 @@ func (p *UnifiedProvider) ShowCacheLayer(ctx context.Context) bool {
 
 func (p *UnifiedProvider) ShowVisibilityLayer(ctx context.Context) bool {
 	return p.getBool(ctx, KeyShowVisibility, false)
+}
+
+func (p *UnifiedProvider) RenderVisibilityAsMap(ctx context.Context) bool {
+	return p.getBool(ctx, KeyRenderVisibilityAsMap, p.base.Overlay.RenderVisibilityAsMap)
 }
 
 func (p *UnifiedProvider) FilterMode(ctx context.Context) string {

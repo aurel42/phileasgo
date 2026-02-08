@@ -44,6 +44,7 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 
 	// 2g. Visibility Endpoint
 	mux.HandleFunc("GET /api/map/visibility", vis.Handler)
+	mux.HandleFunc("GET /api/map/visibility-mask", vis.HandleMask)
 	mux.HandleFunc("GET /api/map/coverage", vis.HandleGetCoverage)
 
 	// 2h. Geography Endpoint

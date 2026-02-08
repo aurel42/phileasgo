@@ -104,6 +104,72 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
+// HandleMask handles GET /api/map/visibility-mask
+func (h *VisibilityHandler) HandleMask(w http.ResponseWriter, r *http.Request) {
+	// 1. Get Aircraft State
+	telemetry, err := h.simClient.GetTelemetry(r.Context())
+	if err != nil {
+		if err == sim.ErrWaitingForTelemetry {
+			http.Error(w, "Waiting for telemetry", http.StatusServiceUnavailable)
+			return
+		}
+		http.Error(w, "Sim not connected", http.StatusServiceUnavailable)
+		return
+	}
+
+	// 2. Parse Query Params
+	params, err := h.parseQueryParams(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// 3. Calculate Effective AGL (Valley)
+	effectiveAGL := h.calculateEffectiveAGL(r.Context(), &telemetry)
+
+	// 3a. Get Visibility Boost
+	boostFactor := h.getBoostFactor(r.Context())
+
+	// 4. Generate Grid
+	gridM, gridL, gridXL := h.computeGrids(&telemetry, effectiveAGL, params.North, params.East, params.South, params.West, params.Resolution, boostFactor)
+
+	// 5. Calculate Mask
+	// We want the mask to be intense (1.0) wherever any visibility grid is at its local peak.
+	// Normalizing each grid individually and taking the Max ensures the "spotlight"
+	// feels bright even if one size class (e.g. M) is weak but XL is strong.
+	maxM, maxL, maxXL := 0.001, 0.001, 0.001
+	for i := range gridM {
+		maxM = math.Max(maxM, gridM[i])
+		maxL = math.Max(maxL, gridL[i])
+		maxXL = math.Max(maxXL, gridXL[i])
+	}
+
+	mask := make([]float64, len(gridM))
+	for i := range gridM {
+		mVal := gridM[i] / maxM
+		lVal := gridL[i] / maxL
+		xlVal := gridXL[i] / maxXL
+
+		maxVal := math.Max(mVal, math.Max(lVal, xlVal))
+
+		// Apply a slight contrast boost: score^1.5 makes the edges cleaner
+		mask[i] = math.Pow(maxVal, 1.5)
+	}
+
+	// 6. Response
+	resp := map[string]interface{}{
+		"mask": mask,
+		"rows": params.Resolution,
+		"cols": params.Resolution,
+		"bounds": map[string]float64{
+			"north": params.North, "east": params.East, "south": params.South, "west": params.West,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
 type VisibilityParams struct {
 	North, East, South, West float64
 	Resolution               int

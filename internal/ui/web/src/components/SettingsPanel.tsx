@@ -13,6 +13,8 @@ interface SettingsPanelProps {
     onCacheLayerChange: (val: boolean) => void;
     showVisibilityLayer: boolean;
     onVisibilityLayerChange: (val: boolean) => void;
+    renderVisibilityAsMap: boolean;
+    onRenderVisibilityAsMapChange: (val: boolean) => void;
     minPoiScore: number;
     onMinPoiScoreChange: (val: number) => void;
     filterMode: string;
@@ -113,6 +115,7 @@ interface DraftState {
     units: 'km' | 'nm';
     showCacheLayer: boolean;
     showVisibilityLayer: boolean;
+    renderVisibilityAsMap: boolean;
     streamingMode: boolean;
     // Scorer tab
     deferralProximityBoostPower: number;
@@ -160,7 +163,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     narrationLengthLong,
     onNarrationLengthChange,
     streamingMode,
-    onStreamingModeChange
+    onStreamingModeChange,
+    renderVisibilityAsMap,
+    onRenderVisibilityAsMapChange
 }) => {
     const [activeTab, setActiveTab] = useState('narrator');
     const [loading, setLoading] = useState(true);
@@ -206,9 +211,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     mockDurationParked: data.mock_duration_parked || '',
                     mockDurationTaxi: data.mock_duration_taxi || '',
                     mockDurationHold: data.mock_duration_hold || '',
-                    units,
-                    showCacheLayer,
-                    showVisibilityLayer,
+                    units: data.range_ring_units || units,
+                    showCacheLayer: data.show_cache_layer ?? showCacheLayer,
+                    showVisibilityLayer: data.show_visibility_layer ?? showVisibilityLayer,
+                    renderVisibilityAsMap: data.render_visibility_as_map ?? renderVisibilityAsMap,
                     streamingMode,
                     deferralThreshold: data.deferral_threshold ?? 1.05,
                     deferralProximityBoostPower: data.deferral_proximity_boost_power ?? 1.0,
@@ -261,6 +267,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.units !== units ||
             draft.showCacheLayer !== showCacheLayer ||
             draft.showVisibilityLayer !== showVisibilityLayer ||
+            draft.renderVisibilityAsMap !== renderVisibilityAsMap ||
             draft.streamingMode !== streamingMode ||
             draft.deferralThreshold !== (serverConfig.deferral_threshold ?? 1.05) ||
             draft.twoPassScriptGeneration !== (serverConfig.two_pass_script_generation ?? false) ||
@@ -338,6 +345,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             if (draft.units !== units) onUnitsChange(draft.units);
             if (draft.showCacheLayer !== showCacheLayer) onCacheLayerChange(draft.showCacheLayer);
             if (draft.showVisibilityLayer !== showVisibilityLayer) onVisibilityLayerChange(draft.showVisibilityLayer);
+            if (draft.renderVisibilityAsMap !== renderVisibilityAsMap) onRenderVisibilityAsMapChange(draft.renderVisibilityAsMap);
             if (draft.streamingMode !== streamingMode) onStreamingModeChange(draft.streamingMode);
 
             // Apply prop-based changes via callbacks (these update parent state AND send to server)
@@ -717,9 +725,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 onChange={val => updateDraft('showCacheLayer', val)}
                             />
                             <VictorianToggle
-                                label="Show Line-of-Sight Coverage"
+                                label="Show Visibility Layer"
                                 checked={draft.showVisibilityLayer}
                                 onChange={val => updateDraft('showVisibilityLayer', val)}
+                            />
+                            <VictorianToggle
+                                label="Render Visibility Layer as Map"
+                                checked={draft.renderVisibilityAsMap}
+                                onChange={val => updateDraft('renderVisibilityAsMap', val)}
                             />
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Developer Settings</div>

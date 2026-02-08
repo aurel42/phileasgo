@@ -1,5 +1,12 @@
 ﻿Release History
- 
+
+## v0.3.155 (2026-02-09)
+* **Map**: Renamed "Line-of-Sight Coverage" to "Visibility Layer" for clarity.
+* **Narrator**: Fixed a `%!f(string=...)` formatting error in Screenshot announcements by ensuring correct float types are passed to the template.
+* **UI**: Updated toggle switches to a new Victorian visual style.
+* **Config**: Added support for `render_visibility_as_map` (experimental backend feature).
+* **Core**: Resolved a POI merging issue where distinct islands (e.g., Cayo Culebra) were absorbed into larger neighbors due to an aggressive 5km merge radius for "Nature (XL)" items.
+
 ## v0.3.154 (2026-02-08)
 - **Refactor**: **Unified Wikipedia Image Pipeline**. Consolidated thumbnail selection into a single fetching path, utilizing smart selection from image candidates and removing legacy heuristic fallbacks.
 - **Cleanup**: **Wikipedia Client**. Excised legacy and redundant API methods (`GetThumbnail`, `GetImageURL`) for a cleaner, more performant client.
