@@ -396,6 +396,12 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 
 	result := make([]*model.POI, 0, len(resultMap))
 	for _, p := range resultMap {
+		// Hydrate size for UI (icons, scaling)
+		if m.catConfig != nil {
+			p.Size = m.catConfig.GetSize(p.Category)
+		} else {
+			p.Size = "M"
+		}
 		result = append(result, p)
 	}
 

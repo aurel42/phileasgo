@@ -23,14 +23,20 @@ func setupDeferralScorer() *Scorer {
 		{
 			AltAGL: 1000,
 			Distances: map[visibility.SizeType]float64{
-				visibility.SizeM: 20.0,
+				visibility.SizeM:  20.0,
+				visibility.SizeXL: 50.0,
 			},
 		},
 	})
 	visCalc := visibility.NewCalculator(visMgr, nil)
 
 	// Mock other dependencies
-	catCfg := &config.CategoriesConfig{Categories: map[string]config.Category{}}
+	catCfg := &config.CategoriesConfig{
+		Categories: map[string]config.Category{
+			"mountain": {Size: "XL"},
+			"church":   {Size: "M"},
+		},
+	}
 	return NewScorer(scorerCfg, catCfg, visCalc, &mockElevationGetter{}, nil, false)
 }
 
@@ -139,7 +145,7 @@ func TestDefaultSession_DetermineDeferral(t *testing.T) {
 				Lat:          tt.poiPos.Lat,
 				Lon:          tt.poiPos.Lon,
 				TimeToBehind: tt.timeToBehind,
-				Category:     "Church", // Size M
+				Category:     "church", // Size M
 			}
 
 			// Pre-calculate current visibility (usually done in Calculate)
@@ -157,4 +163,38 @@ func TestDefaultSession_DetermineDeferral(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("XL POI: Dynamic Visibility (Defer)", func(t *testing.T) {
+		// POI at 40nm North.
+		// Current: 40nm. XL MaxDist=50nm. Vis = (50-40)/50 = 0.2.
+		// Future (+10m): 30nm. Vis = (50-30)/50 = 0.4.
+		// Improvement: 0.4 / 0.2 = 2.0x > 1.1x Threshold -> Defer.
+		// This test proves that the Scorer is NOT defaulting to Size M (dist 20nm),
+		// because if it did, current and future vis would both be 0.0.
+		poi := &model.POI{
+			Lat:      40.0 / 60.0,
+			Lon:      0,
+			Category: "mountain", // XL
+		}
+		poiPos := geo.Point{Lat: 40.0 / 60.0, Lon: 0}
+		bearing := geo.Bearing(geo.Point{Lat: 0, Lon: 0}, poiPos)
+		distNM := 40.0
+		curVis := s.visCalc.CalculateVisibilityForSize(0, 1000, 1000, bearing, distNM, visibility.SizeXL, false, 1.0)
+
+		input := &ScoringInput{
+			Telemetry:       baseTel,
+			CategoryHistory: []string{},
+			BoostFactor:     1.0,
+		}
+		sess := &DefaultSession{
+			scorer:          s,
+			input:           input,
+			futurePositions: futurePositions,
+		}
+
+		result := sess.determineDeferral(poi, 0, curVis)
+		if !result {
+			t.Errorf("expected XL POI to be deferred (future is 2x better), got false")
+		}
+	})
 }

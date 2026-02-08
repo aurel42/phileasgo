@@ -243,11 +243,12 @@ func (sess *DefaultSession) determineDeferral(poi *model.POI, heading, currentVi
 		distMeters := geo.Distance(pos, poiPoint)
 		distNM := distMeters / 1852.0
 
-		score := sess.scorer.visCalc.CalculateVisibilityForSize(heading, effectiveAGL, effectiveAGL, bearingToPOI, distNM, visibility.SizeType(poi.Size), isOnGround, boost)
+		size := sess.scorer.catConfig.GetSize(poi.Category)
+		score := sess.scorer.visCalc.CalculateVisibilityForSize(heading, effectiveAGL, effectiveAGL, bearingToPOI, distNM, visibility.SizeType(size), isOnGround, boost)
 
 		// Apply same multipliers as current score for parity
 		sizePenalty := map[string]float64{"S": 1.0, "M": 1.0, "L": 0.85, "XL": 0.7}
-		if penalty, ok := sizePenalty[poi.Size]; ok && penalty < 1.0 {
+		if penalty, ok := sizePenalty[size]; ok && penalty < 1.0 {
 			score *= penalty
 		}
 		if poi.DimensionMultiplier > 1.0 {
@@ -325,13 +326,7 @@ func (sess *DefaultSession) LowestElevation() float64 {
 // Returns the visibility score (0.0-1.0+), log details, and whether to skip this POI.
 func (s *Scorer) calculateVisibilityScore(poi *model.POI, state *sim.Telemetry, bearing, distNM, lowestElevMeters, boostFactor float64) (score float64, logs []string, shouldReturn bool) {
 	// 1. Determine Size
-	poiSize := poi.Size
-	if poiSize == "" {
-		poiSize = s.catConfig.GetSize(poi.Category)
-	}
-	if poiSize == "" {
-		poiSize = "M"
-	}
+	poiSize := s.catConfig.GetSize(poi.Category)
 
 	// 2. Calculate Effective AGL (Valley Logic)
 	// state.AltitudeMSL is in Feet. lowestElevMeters is Meters.

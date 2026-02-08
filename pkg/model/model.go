@@ -4,7 +4,14 @@ import (
 	"time"
 )
 
+// SizeResolver defines the interface for dynamically determining POI size.
+type SizeResolver interface {
+	GetSize(category string) string
+}
+
 // POI represents a Point of Interest from Wikidata/Wikipedia.
+// Note: The Size field is ephemeral and used primarily for UI/lookahead.
+// Dynamic size resolution should be preferred via a SizeResolver.
 type POI struct {
 	WikidataID       string `json:"wikidata_id"`       // Primary Key
 	Source           string `json:"source"`            // "wikidata"

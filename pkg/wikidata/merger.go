@@ -35,11 +35,7 @@ func MergePOIs(candidates []*model.POI, cfg *config.CategoriesConfig, logger *sl
 	// 2. Greedy Selection
 	for _, cand := range candidates {
 		// Determine Merge Distance for this Candidate
-		// Use the candidate's size category to determine its "influence radius"
-		candSize := cand.Size
-		if candSize == "" {
-			candSize = cfg.GetSize(cand.Category)
-		}
+		candSize := cfg.GetSize(cand.Category)
 		candRadius := cfg.GetMergeDistance(candSize)
 		candGroup := cfg.GetGroup(cand.Category)
 
@@ -54,10 +50,7 @@ func MergePOIs(candidates []*model.POI, cfg *config.CategoriesConfig, logger *sl
 			}
 
 			// Determine Merge Distance for Accepted POI
-			accSize := acc.Size
-			if accSize == "" {
-				accSize = cfg.GetSize(acc.Category)
-			}
+			accSize := cfg.GetSize(acc.Category)
 			accRadius := cfg.GetMergeDistance(accSize)
 
 			// Effective Merge Distance is the MAX of the two radii
