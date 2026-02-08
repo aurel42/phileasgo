@@ -34,14 +34,15 @@ type POI struct {
 	CreatedAt  time.Time `json:"created_at"`
 
 	// Scorer Data
-	Size                string   `json:"size"`                 // S, M, L, XL
-	DimensionMultiplier float64  `json:"dimension_multiplier"` // Multiplier from physical dimensions
-	Score               float64  `json:"score"`                // Intrinsic score (content-based, position-agnostic)
-	ScoreDetails        string   `json:"score_details"`        // Explainer for debug
-	IsVisible           bool     `json:"is_visible"`
-	IsDeferred          bool     `json:"is_deferred"` // Hard filter: don't pick this POI now
-	Visibility          float64  `json:"visibility"`  // Raw visibility score (0.0 - 1.0+)
-	Badges              []string `json:"badges"`      // Ephemeral state (deferred, msfs, etc.)
+	Size                string    `json:"size"`                 // S, M, L, XL
+	DimensionMultiplier float64   `json:"dimension_multiplier"` // Multiplier from physical dimensions
+	Score               float64   `json:"score"`                // Intrinsic score (content-based, position-agnostic)
+	ScoreDetails        string    `json:"score_details"`        // Explainer for debug
+	IsVisible           bool      `json:"is_visible"`
+	IsDeferred          bool      `json:"is_deferred"` // Hard filter: don't pick this POI now
+	Visibility          float64   `json:"visibility"`  // Raw visibility score (0.0 - 1.0+)
+	Badges              []string  `json:"badges"`      // Ephemeral state (deferred, msfs, etc.)
+	LOSStatus           LOSStatus `json:"los_status"`  // 0=unknown, 1=visible, 2=blocked
 	// MSFS
 	IsMSFSPOI bool `json:"is_msfs_poi"`
 	// Narration
@@ -57,6 +58,15 @@ type POI struct {
 
 	// Deprecated/Removed fields: ID (int), ArticleIDs
 }
+
+// LOSStatus represents the Line-of-Sight status of a POI.
+type LOSStatus int
+
+const (
+	LOSUnknown LOSStatus = iota // 0 (Default)
+	LOSVisible                  // 1
+	LOSBlocked                  // 2
+)
 
 // RiverContext holds ephemeral state for rivers detected by the Sentinel.
 type RiverContext struct {

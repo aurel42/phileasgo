@@ -32,6 +32,58 @@ func TestSQLiteStore(t *testing.T) {
 	testCache(t, ctx, store)
 	testState(t, ctx, store)
 	testResetLastPlayed(t, ctx, store)
+	testClassificationPriority(t, ctx, store)
+}
+
+func testClassificationPriority(t *testing.T, ctx context.Context, store *SQLiteStore) {
+	t.Run("ClassificationPriority", func(t *testing.T) {
+		qid := "Q_PRIORITY_TEST"
+
+		// 1. Start with DEADEND
+		if err := store.SaveClassification(ctx, qid, "__DEADEND__", nil, "Deadend"); err != nil {
+			t.Fatalf("Save failed: %v", err)
+		}
+		cat, _, _ := store.GetClassification(ctx, qid)
+		if cat != "__DEADEND__" {
+			t.Errorf("Expected __DEADEND__, got %q", cat)
+		}
+
+		// 2. Upgrade to IGNORED
+		if err := store.SaveClassification(ctx, qid, "__IGNORED__", nil, "Ignored"); err != nil {
+			t.Fatalf("Save failed: %v", err)
+		}
+		cat, _, _ = store.GetClassification(ctx, qid)
+		if cat != "__IGNORED__" {
+			t.Errorf("Expected __IGNORED__, got %q", cat)
+		}
+
+		// 3. Upgrade to Real Category
+		if err := store.SaveClassification(ctx, qid, "City", nil, "City"); err != nil {
+			t.Fatalf("Save failed: %v", err)
+		}
+		cat, _, _ = store.GetClassification(ctx, qid)
+		if cat != "City" {
+			t.Errorf("Expected City, got %q", cat)
+		}
+
+		// 4. Try to downgrade with IGNORED (should be protected)
+		if err := store.SaveClassification(ctx, qid, "__IGNORED__", nil, "Ignored Again"); err != nil {
+			t.Fatalf("Save failed: %v", err)
+		}
+		cat, _, _ = store.GetClassification(ctx, qid)
+		if cat != "City" {
+			t.Errorf("CRITICAL: Category downgraded from City to %q", cat)
+		}
+
+		// 5. Try to downgrade with DEADEND (should be protected)
+		if err := store.SaveClassification(ctx, qid, "__DEADEND__", nil, "Deadend Again"); err != nil {
+			t.Fatalf("Save failed: %v", err)
+		}
+		cat, _, _ = store.GetClassification(ctx, qid)
+		if cat != "City" {
+			t.Errorf("CRITICAL: Category downgraded from City to %q", cat)
+		}
+	})
 }
 
 func testPOI(t *testing.T, ctx context.Context, store *SQLiteStore) {

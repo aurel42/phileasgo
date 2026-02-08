@@ -1,12 +1,20 @@
 ﻿Release History
 
+## v0.3.151 (2026-02-08)
+- **Feature**: **Enhanced `whatsaroundme` CLI**. Upgraded the diagnostic tool with a clean ASCII table layout, distance sorting, and integrated classification reasoning with name resolution.
+- **Fix**: **Classifier Cache Protection**. Implemented a priority-based storage system in the SQLite store to prevent real category matches from being overwritten by "ignored" or "deadend" sentinels.
+- **Improvement**: **Robust Hierarchy Traversal**. Refactored the classifier to prioritize category matches across entire BFS layers, ensuring accurate results even when a node has multiple conflicting parent paths.
+- **Improvement**: **LOS Badge Refinement**. Refined the Line-of-Sight HUD indicator: POIs with blocked LOS now show a clear "forbidden" sign (🚫), while successful checks remain clean and unobtrusive.
+- **Improvement**: **Marker Opacity Consistency**. Standardized played POI markers to a fixed 80% opacity for better map readability.
+- **Improvement**: **Intermediate Label Caching**. The classifier now automatically persists intermediate Wikidata labels during hierarchy discovery, improving resolution performance for diagnostic tools.
+
 ## v0.3.150 (2026-02-08)
 - **Fix**: **Debriefing Animation Timing**. Synchronized the map's trip replay animation with actual audio duration by extracting duration metadata after TTS synthesis.
 - **Improvement**: **Map Autozoom Refinement**. Manual map panning or clicking no longer disables autozoom; the feature now specifically responds to deliberate zoom events.
 - **Refactor**: **Unified Audio Decoding**. Extracted audio decoding logic into a shared `audio.DecodeMedia` helper to facilitate duration extraction across all providers.
 
 ## v0.3.149 (2026-02-07)
-- **Improvement**: **LLM Fallback & Backoff**. Switched to an exponential skip strategy ($2^{N-1}$) in the failover chain and implemented "fast-fail" logic (CtxMaxAttempts) to ensure instant failover without pre-request blocking.
+- **Improvement**: **LLM Fallback & Backoff**. Switched to an exponential skip strategy in the failover chain and implemented "fast-fail" logic to ensure instant failover without pre-request blocking.
 - **Improvement**: **Map Autozoom Refinement**. Panning or clicking the map no longer disables autozoom; the feature now exclusively responds to manual zoom events for a more predictable UX.
 - **Refactor**: **Request Client Resilience**. Refactored internal request handling into more manageable components and added robust table-driven verification for backoff and retry behaviors.
  

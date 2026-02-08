@@ -21,6 +21,7 @@ export interface POI {
     thumbnail_url?: string;
     is_msfs_poi?: boolean;
     narration_strategy?: string;
+    los_status?: number; // 0=unknown, 1=visible, 2=blocked
 }
 
 export function useTrackedPOIs() {

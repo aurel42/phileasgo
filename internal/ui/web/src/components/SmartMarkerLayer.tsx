@@ -79,12 +79,14 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
         zIndex = 20000 + baseLatZ; // Standard Unplayed
     }
 
-    // Opacity Logic: Use visibility directly (0.0-1.0)
+    // Opacity Logic
     let opacity = 1.0;
-    if (poi.visibility !== undefined) {
-        opacity = Math.max(0.1, Math.min(1.0, poi.visibility)); // Clamp to 0.1-1.0 (minimum visibility for usability)
+    if (isPlayed) {
+        opacity = 0.8; // Played (blue) markers get fixed 80% opacity
+    } else if (poi.visibility !== undefined) {
+        opacity = Math.max(0.2, Math.min(1.0, poi.visibility)); // Clamp to 0.2-1.0 (minimum visibility for usability)
     } else if (poi.is_visible === false) {
-        opacity = 0.1; // Invisible POIs get minimum opacity
+        opacity = 0.2; // Invisible POIs get minimum opacity
     }
 
     const badges: string[] = [];
@@ -151,6 +153,7 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
     if (badges.includes('deferred')) blBadges.push({ icon: '🕒' });
     if (badges.includes('urgent')) blBadges.push({ icon: '⏩' });
     if (badges.includes('patient')) blBadges.push({ icon: '⏪' });
+    if (poi.los_status === 2) blBadges.push({ icon: '🚫' });
 
     blBadges.forEach((b, idx) => {
         const isAlternating = blBadges.length > 1;

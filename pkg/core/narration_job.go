@@ -551,12 +551,10 @@ func (j *NarrationJob) checkPOIInLOS(poi *model.POI, aircraftPos geo.Point, airc
 	// Check LOS with 0.5km step size
 	isVisible := j.losChecker.IsVisible(aircraftPos, poiPos, aircraftAltFt, poiAltFt, 0.5)
 
-	if index < 5 { // Log first 5 candidates only to avoid spam
-		slog.Debug("NarrationJob: LOS check", "poi", poi.DisplayName(), "score", fmt.Sprintf("%.2f", poi.Score), "visible", isVisible, "poi_elev_ft", poiAltFt)
-	}
-
 	if isVisible {
-		slog.Debug("NarrationJob: Selected visible POI", "poi", poi.DisplayName(), "score", fmt.Sprintf("%.2f", poi.Score))
+		poi.LOSStatus = model.LOSVisible
+	} else {
+		poi.LOSStatus = model.LOSBlocked
 	}
 	return isVisible
 }

@@ -159,7 +159,7 @@ func run() error {
 
 	cls := classifier.NewClassifier(st, wdClient, catCfg, tr)
 
-	printResults(ctx, cls, articles, *radius, *showAll)
+	printResults(ctx, cls, st, wdClient, articles, *radius, *showAll)
 
 	return nil
 }
@@ -196,7 +196,7 @@ func scanTiles(ctx context.Context, st *store.SQLiteStore, tiles []store.Geodata
 	return allArticles, nil
 }
 
-func printResults(ctx context.Context, cls *classifier.Classifier, allArticles []articleDebug, radiusKm float64, showAll bool) {
+func printResults(ctx context.Context, cls *classifier.Classifier, st *store.SQLiteStore, wd wikidata.ClientInterface, allArticles []articleDebug, radiusKm float64, showAll bool) {
 	// Sort by distance
 	sort.Slice(allArticles, func(i, j int) bool {
 		return allArticles[i].Distance < allArticles[j].Distance
@@ -209,37 +209,59 @@ func printResults(ctx context.Context, cls *classifier.Classifier, allArticles [
 	}
 
 	fmt.Printf("Found %d articles within %.1f km (showing %d)\n\n", len(allArticles), radiusKm, displayCount)
-	fmt.Println(strings.Repeat("-", 80))
+
+	header := fmt.Sprintf("%-10s | %-25s | %-10s | %-15s | %-35s", "QID", "Name", "Dist", "Category", "Match Reason / Instances")
+	fmt.Println(header)
+	fmt.Println(strings.Repeat("-", len(header)))
 
 	for i := 0; i < displayCount; i++ {
 		a := allArticles[i]
-		fmt.Printf("\nPOI: %s (%s)\n", a.Article.Label, a.Article.QID)
-		fmt.Printf("   Loc:       %.4f, %.4f (%.1f km away)\n", a.Article.Lat, a.Article.Lon, a.Distance/1000)
-		fmt.Printf("   Sitelinks: %d\n", a.Article.Sitelinks)
-
-		if len(a.Article.Instances) > 0 {
-			fmt.Printf("   Instances: %s\n", strings.Join(a.Article.Instances, ", "))
-		}
+		name := resolveName(ctx, st, wd, a.Article.QID)
+		distStr := fmt.Sprintf("%.1f km", a.Distance/1000)
 
 		// Run classification explanation
 		exp, err := cls.Explain(ctx, a.Article.QID)
-		if err != nil {
-			fmt.Printf("   ERROR: Classification failed: %v\n", err)
-			continue
+		cat := "NO MATCH"
+		reason := ""
+		if err == nil {
+			switch {
+			case exp.Ignored:
+				cat = "IGNORED"
+				reason = fmt.Sprintf("%s (%s)", exp.Reason, resolveName(ctx, st, wd, exp.MatchedQID))
+			case exp.Category != "":
+				cat = fmt.Sprintf("%s (%s)", exp.Category, exp.Size)
+				reason = fmt.Sprintf("via %s (%s)", exp.MatchedQID, resolveName(ctx, st, wd, exp.MatchedQID))
+			default:
+				reason = exp.Reason
+			}
+		} else {
+			cat = "ERROR"
+			reason = err.Error()
 		}
 
-		switch {
-		case exp.Ignored:
-			fmt.Printf("   IGNORED:   %s\n", exp.Reason)
-		case exp.Category != "":
-			fmt.Printf("   MATCH:     %s (size: %s)\n", exp.Category, exp.Size)
-			fmt.Printf("   Reason:    %s\n", exp.Reason)
-		default:
-			fmt.Printf("   NO MATCH:  %s\n", exp.Reason)
+		// Fallback for empty reason: show instances
+		if reason == "" && len(a.Article.Instances) > 0 {
+			var insts []string
+			for i, q := range a.Article.Instances {
+				if i >= 3 {
+					insts = append(insts, "...")
+					break
+				}
+				insts = append(insts, fmt.Sprintf("%s(%s)", q, truncate(resolveName(ctx, st, wd, q), 10)))
+			}
+			reason = strings.Join(insts, ", ")
 		}
+
+		fmt.Printf("%-10s | %-25s | %-10s | %-15s | %-s\n",
+			truncate(a.Article.QID, 10),
+			truncate(name, 25),
+			truncate(distStr, 10),
+			truncate(cat, 15),
+			reason,
+		)
 	}
 
-	fmt.Println(strings.Repeat("-", 80))
+	fmt.Println(strings.Repeat("-", len(header)))
 	if len(allArticles) > displayCount {
 		fmt.Printf("\n... and %d more. Use -all to see all.\n", len(allArticles)-displayCount)
 	}
@@ -310,4 +332,38 @@ func checkDB(ctx context.Context, db *db.DB, qid string) {
 		fmt.Printf("Not found in 'seen_entities' table (%v)\n", err)
 	}
 	fmt.Println(strings.Repeat("-", 50))
+}
+
+func resolveName(ctx context.Context, st store.Store, wd wikidata.ClientInterface, qid string) string {
+	if qid == "" {
+		return "<UNK>"
+	}
+
+	// 1. Check POI table (name_en)
+	if p, err := st.GetPOI(ctx, qid); err == nil && p != nil && p.NameEn != "" {
+		return p.NameEn
+	}
+
+	// 2. Check Hierarchy table (name)
+	if h, err := st.GetHierarchy(ctx, qid); err == nil && h != nil && h.Name != "" {
+		return h.Name
+	}
+
+	// 3. Fallback to Wikidata API
+	_, label, err := wd.GetEntityClaims(ctx, qid, "P31")
+	if err == nil && label != "" {
+		return label
+	}
+
+	return "<UNK>"
+}
+
+func truncate(s string, l int) string {
+	if len(s) <= l {
+		return s
+	}
+	if l <= 3 {
+		return s[:l]
+	}
+	return s[:l-3] + "..."
 }

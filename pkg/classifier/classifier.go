@@ -94,10 +94,11 @@ func (c *Classifier) Classify(ctx context.Context, qid string) (*model.Classific
 
 // ExplanationResult provides details about classification
 type ExplanationResult struct {
-	Category string
-	Size     string
-	Ignored  bool
-	Reason   string
+	Category   string
+	Size       string
+	Ignored    bool
+	Reason     string
+	MatchedQID string
 }
 
 // Explain analyzes a QID and returns details on why it was classified (or not).
@@ -124,9 +125,10 @@ func (c *Classifier) Explain(ctx context.Context, qid string) (*ExplanationResul
 			if !res.Ignored {
 				// Found proper match
 				return &ExplanationResult{
-					Category: res.Category,
-					Size:     res.Size,
-					Reason:   fmt.Sprintf("Matched via instance %s", inst),
+					Category:   res.Category,
+					Size:       res.Size,
+					Reason:     fmt.Sprintf("Matched via instance %s", inst),
+					MatchedQID: inst,
 				}, nil
 			}
 			// Track ignored result as fallback
@@ -139,8 +141,9 @@ func (c *Classifier) Explain(ctx context.Context, qid string) (*ExplanationResul
 
 	if bestRes != nil {
 		return &ExplanationResult{
-			Ignored: true,
-			Reason:  fmt.Sprintf("Ignored via instance %s", bestInst),
+			Ignored:    true,
+			Reason:     fmt.Sprintf("Ignored via instance %s", bestInst),
+			MatchedQID: bestInst,
 		}, nil
 	}
 
@@ -286,46 +289,38 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 	currentDepth := 1
 
 	for len(queue) > 0 && currentDepth <= maxDepth {
-		toFetch := make([]string, 0, len(queue))
-		parentsFromCache := make(map[string][]string)
-
-		// 1. Filter: Determine what to fetch vs use from cache
-		for _, id := range queue {
-			match, parents, foundInDB := c.checkCacheOrDB(ctx, id)
-			if foundInDB {
-				if match != "" {
-					if match == catIgnored {
-						// Propagate ignored to all traversed nodes
-						c.propagateIgnored(ctx, allTraversed)
-						return c.finalizeIgnored(ctx, qid, subclasses, label)
-					}
-					if match == catDeadEnd {
-						// Dead end reached in branch, move to next queue item
-						continue
-					}
-					return c.finalizeMatch(ctx, qid, match, subclasses, label)
-				}
-				parentsFromCache[id] = parents
-			} else {
-				toFetch = append(toFetch, id)
-			}
-		}
+		// 1. Filter & Layer Scan: Check cache for matches/ignores
+		toFetch, parentsFromCache, layerMatch, layerIgnore := c.scanLayerCache(ctx, queue)
 
 		// 2. Fetch: Batch request for missing nodes
 		if len(toFetch) > 0 {
 			fetchedParents := c.fetchAndCacheLayer(ctx, toFetch)
 			for id, parents := range fetchedParents {
 				parentsFromCache[id] = parents
+				m, ig := c.checkFetchedForMatches(id, parents)
+				if layerMatch == "" {
+					layerMatch = m
+				}
+				if layerIgnore == "" {
+					layerIgnore = ig
+				}
 			}
 		}
 
-		// 3. Build Next Layer & Check Hits
+		// 3. Layer Priority Check
+		if layerMatch != "" {
+			return c.finalizeMatch(ctx, qid, layerMatch, subclasses, label)
+		}
+
+		// 4. Build Next Layer & Final Layer Check
 		nextQueue, matchedCat, ignoredCat := c.buildNextLayer(queue, parentsFromCache, visited)
 		if matchedCat != "" {
 			return c.finalizeMatch(ctx, qid, matchedCat, subclasses, label)
 		}
-		if ignoredCat != "" {
-			// Propagate ignored to all traversed nodes in the BFS path
+
+		// If we found an ignore in this layer (either cached or direct parent match),
+		// and no match was found in the whole layer scan, then we are ignored.
+		if layerIgnore != "" || ignoredCat != "" {
 			c.propagateIgnored(ctx, allTraversed)
 			return c.finalizeIgnored(ctx, qid, subclasses, label)
 		}
@@ -343,6 +338,47 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 }
 
 // propagateIgnored marks all nodes in the BFS path as __IGNORED__ to prevent
+func (c *Classifier) scanLayerCache(ctx context.Context, queue []string) (toFetch []string, parentsFromCache map[string][]string, layerMatch, layerIgnore string) {
+	toFetch = make([]string, 0, len(queue))
+	parentsFromCache = make(map[string][]string)
+
+	for _, id := range queue {
+		match, parents, foundInDB := c.checkCacheOrDB(ctx, id)
+		if !foundInDB {
+			toFetch = append(toFetch, id)
+			continue
+		}
+
+		if match != "" {
+			switch match {
+			case catIgnored:
+				layerIgnore = id
+			case catDeadEnd:
+				// Skip
+			default:
+				if layerMatch == "" {
+					layerMatch = match
+				}
+			}
+		}
+		parentsFromCache[id] = parents
+	}
+	return
+}
+
+func (c *Classifier) checkFetchedForMatches(id string, parents []string) (match, ignore string) {
+	for _, p := range parents {
+		if cat, ok := c.getLookupMatch(p); ok {
+			match = cat
+			return
+		}
+		if _, ok := c.config.IgnoredCategories[p]; ok {
+			ignore = id
+		}
+	}
+	return
+}
+
 // future traversals from having to re-discover the same ignored chain.
 func (c *Classifier) propagateIgnored(ctx context.Context, nodes []string) {
 	for _, node := range nodes {
@@ -468,9 +504,8 @@ func (c *Classifier) fetchAndCacheLayer(ctx context.Context, ids []string) map[s
 			}
 		}
 
-		// Save to DB ONLY if we found a definite result (Match or Ignore)
-		// Intermediate nodes remain uncached to prevent "poisoning" the hierarchy.
-		if category != "" {
+		// Save to DB if we found a definite result (Match/Ignore) OR just to store the label
+		if category != "" || lbl != "" {
 			if err := c.store.SaveClassification(ctx, id, category, parents, lbl); err != nil {
 				slog.Warn("Failed to save hierarchy node", "id", id, "error", err)
 			}

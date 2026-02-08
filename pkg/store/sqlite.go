@@ -374,12 +374,24 @@ func (s *SQLiteStore) SaveClassification(ctx context.Context, qid, category stri
 
 	slog.Debug("Store: Saving Classification", "qid", qid, "cat", category)
 
+	// Priority: Real Category > __IGNORED__ > __DEADEND__ > ""
 	query := `INSERT INTO wikidata_hierarchy (qid, name, parents, category, created_at, updated_at) 
 			  VALUES (?, ?, ?, ?, ?, ?)
 			  ON CONFLICT(qid) DO UPDATE SET
 			  name=excluded.name,
 			  parents=excluded.parents,
-			  category=excluded.category,
+			  category=CASE 
+				  -- 1. New value is a real category: always take it
+				  WHEN excluded.category NOT IN ('', '__IGNORED__', '__DEADEND__') THEN excluded.category
+				  -- 2. Current value is a real category: don't let sentinels overwrite it
+				  WHEN wikidata_hierarchy.category NOT IN ('', '__IGNORED__', '__DEADEND__') THEN wikidata_hierarchy.category
+				  -- 3. New value is IGNORED: wins over DEADEND or EMPTY
+				  WHEN excluded.category = '__IGNORED__' THEN '__IGNORED__'
+				  -- 4. New value is DEADEND: wins over EMPTY
+				  WHEN excluded.category = '__DEADEND__' THEN '__DEADEND__'
+				  -- Else keep current
+				  ELSE wikidata_hierarchy.category
+			  END,
 			  updated_at=excluded.updated_at`
 
 	_, err := s.db.ExecContext(ctx, query, qid, label, string(parentsJSON), category, time.Now(), time.Now())

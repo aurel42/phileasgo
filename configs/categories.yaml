@@ -50,6 +50,7 @@ categories:
     qids:
       "Q515": "city"
       "Q124250988": "urban settlement"
+      "Q1070990": "county-level city"
     weight: 0.8
     icon: "city"
     sitelinks_min: 3

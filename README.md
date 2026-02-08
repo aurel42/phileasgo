@@ -18,6 +18,7 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 - **Visual Markers (VFR)**: Spawns in-sim balloons to help you visually identify a specific landmark. A formation of balloons travels with your aircraft pointing in the direction of the active POI. When you get close, the formation is replaced with a single balloon that sinks towards the POI. You will know which mountain or settlement the tour guide is talking about, if you want to see the castle the tour guide mentioned, just follow the balloons.
 - **As resource-friendly as possible**: While Phileas gets a lot of data from Wikidata and Wikipedia, it tries to be responsible about it (it only gets the data it needs when it needs it, all responses are cached).
 - **Highly configurable**: Most aspects of Phileas can be configured by editing yaml files, all the LLM prompts can be edited which allows for radically different experiences.
+- **Global Coverage**: Does it work everywhere and anywhere? Well, kinda. The categorization system is based on the Wikidata hierarchy, which can be subject to interpretation. I do most of my flying in "western" countries, so that's what the categories are based on. In China, for example, a town might be (correctly) categorized as such, or it could be an "ethnic township" (which is not a subclass of "town"), a city might be a "county-level city" (which is not a subclass of "city"). The included "whatsaroundme" tool can help to identify missing categories.
 - **CAVEAT**: This is an experimental, educational vibecoding project with a (most likely) limited lifespan. The code quality is probably mediocre at best, but I'm trying to make it as robust as possible without touching code myself (part of the experiment).
 
 ## Requirements
@@ -72,6 +73,7 @@ cp .env.template .env.local
 
 The `.env.template` file shows all available options:
 
+```bash
 # LLM Providers (you need at least one)
 GEMINI_API_KEY=your_gemini_key_here
 GROQ_API_KEY=your_groq_key_here
@@ -166,11 +168,6 @@ For streaming: point the browser to http://localhost:1920/overlay for a transpar
 
 ## Building from Source
 
-- [LittleNavMap MSFS POIs](https://flightsim.to/file/81114/littlenavmap-msfs-poi-s) - MSFS-specific landmarks
-- [Uber H3](https://h3geo.org/) - Hexagonal hierarchical spatial index
-
-## Building from Source
-
 Prerequisites:
 - Go 1.21+
 - Node.js 18+
@@ -201,6 +198,8 @@ PhileasGo uses data from:
 - [GeoNames](https://www.geonames.org/) - City and geographic data
 - [LittleNavMap MSFS POIs](https://flightsim.to/file/81114/littlenavmap-msfs-poi-s) - MSFS-specific landmarks
 - [Natural Earth](https://www.naturalearthdata.com/) - Country boundaries and physical geography
+- [OpenStreetMap](https://www.openstreetmap.org/) - Map data and cartography
+- [CARTO](https://carto.com/) - Map tile hosting
 
 ## Project History
 
@@ -225,6 +224,7 @@ Citation: Amante, C. and B.W. Eakins, 2009. ETOPO1 1 Arc-Minute Global Relief Mo
 Category icons provided by **[Mapbox Maki](https://github.com/mapbox/maki)** (CC0 1.0 Universal).
 
 Made with **[Natural Earth](https://www.naturalearthdata.com/)**. Free vector and raster map data @ naturalearthdata.com.
+Map tiles and data &copy; **[OpenStreetMap](https://www.openstreetmap.org/copyright)** contributors, &copy; **[CARTO](https://carto.com/attributions)**.
 
 ## License
 MIT License - see [LICENSE](LICENSE) file for details.

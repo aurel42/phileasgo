@@ -213,6 +213,20 @@ func TestClassifier_CachingLevels(t *testing.T) {
 			expectSingle: 1, // P31
 			expectHier:   1, // Hit Q_USELESS -> "__DEADEND__"
 		},
+		{
+			name: "Match over Ignore (Sibling Parents)",
+			qid:  "Q_SIBLING",
+			setupClient: func(c *MockClient) {
+				// Q_SIBLING has two parents: Q_IGNORE and Q_MATCH
+				c.Claims["Q_SIBLING"] = map[string][]string{"P31": {"Q_NODE"}}
+				c.Claims["Q_NODE"] = map[string][]string{"P279": {"Q_IGNORE", "Q_MATCH"}}
+				c.Claims["Q_IGNORE"] = map[string][]string{"P279": {"Q56061"}} // Leads to IGNORED
+				c.Claims["Q_MATCH"] = map[string][]string{"P279": {"Q62447"}}  // Leads to Aerodrome
+			},
+			expectedCat:  "Aerodrome",
+			expectSingle: 2,
+			expectHier:   3,
+		},
 	}
 
 	for i := range tests {
