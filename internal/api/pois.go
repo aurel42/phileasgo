@@ -195,19 +195,29 @@ func (h *POIHandler) fetchAndCacheThumbnail(ctx context.Context, p *model.POI) (
 	title := strings.TrimPrefix(parsed.Path, "/wiki/")
 	title, _ = url.PathUnescape(title)
 
-	var thumbURL string
-
-	// Option A: LLM-based Smart Selection (if provider available)
-	if h.llm != nil {
-		thumbURL = h.selectThumbnailWithLLM(ctx, title, lang, p)
+	images, err := h.wp.GetImagesWithURLs(ctx, title, lang)
+	if err != nil {
+		slog.Warn("Thumbnail: Failed to fetch image candidates", "poi", p.NameEn, "error", err)
+		return "", err
 	}
 
-	// Option B: Fallback to Heuristic (if LLM failed or not available)
+	if len(images) == 0 {
+		return "", nil
+	}
+
+	var thumbURL string
+
+	// 1. Try LLM-based Smart Selection (if provider available)
+	if h.llm != nil {
+		thumbURL = h.selectThumbnailFromCandidates(ctx, images, title, lang, p)
+	}
+
+	// 2. Fallback to Heuristic (if LLM failed or not available)
 	if thumbURL == "" {
-		slog.Debug("Thumbnail: LLM selection failed or unavailable, falling back to heuristics", "poi", p.NameEn)
-		thumbURL, err = h.wp.GetThumbnail(ctx, title, lang)
-		if err != nil {
-			return "", err
+		slog.Debug("Thumbnail: Falling back to heuristics", "poi", p.NameEn)
+		// Simply pick the first one that isn't unwanted (GetImagesWithURLs already filters most)
+		if len(images) > 0 {
+			thumbURL = images[0].URL
 		}
 	}
 
@@ -225,17 +235,7 @@ func (h *POIHandler) fetchAndCacheThumbnail(ctx context.Context, p *model.POI) (
 	return thumbURL, nil
 }
 
-func (h *POIHandler) selectThumbnailWithLLM(ctx context.Context, title, lang string, p *model.POI) string {
-	images, err := h.wp.GetImagesWithURLs(ctx, title, lang)
-	if err != nil {
-		slog.Warn("Thumbnail: Failed to fetch images for LLM selection", "error", err)
-		return ""
-	}
-
-	if len(images) == 0 {
-		return ""
-	}
-
+func (h *POIHandler) selectThumbnailFromCandidates(ctx context.Context, images []wikipedia.ImageResult, title, lang string, p *model.POI) string {
 	// Constrain list size (though GetImagesWithURLs already limits to 50)
 	if len(images) > 50 {
 		images = images[:50]
@@ -268,7 +268,6 @@ func (h *POIHandler) selectThumbnailWithLLM(ctx context.Context, title, lang str
 			return ""
 		}
 	} else {
-		slog.Warn("Thumbnail: Prompt manager missing")
 		return ""
 	}
 
@@ -284,18 +283,14 @@ func (h *POIHandler) selectThumbnailWithLLM(ctx context.Context, title, lang str
 	}
 	selected = strings.Trim(selected, "\"`'")
 
-	// Determine display name for logging
-	poiName := p.DisplayName()
-
-	// Find match in our list (LLM returns the URL)
+	// Find match in our list (LLM returns the URL or filename)
 	for _, img := range images {
 		if strings.EqualFold(img.URL, selected) {
-			slog.Debug("Thumbnail: LLM selected image", "poi", poiName, "url", img.URL)
+			slog.Debug("Thumbnail: LLM selected image", "poi", p.DisplayName(), "url", img.URL)
 			return img.URL
 		}
-		// Fallback: Check if it returned the filename
 		if strings.EqualFold(img.Title, selected) || strings.EqualFold(strings.TrimPrefix(img.Title, "File:"), selected) {
-			slog.Debug("Thumbnail: LLM selected image by filename", "poi", poiName, "url", img.URL)
+			slog.Debug("Thumbnail: LLM selected image by filename", "poi", p.DisplayName(), "url", img.URL)
 			return img.URL
 		}
 	}

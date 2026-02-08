@@ -1,4 +1,8 @@
 ﻿Release History
+ 
+## v0.3.154 (2026-02-08)
+- **Refactor**: **Unified Wikipedia Image Pipeline**. Consolidated thumbnail selection into a single fetching path, utilizing smart selection from image candidates and removing legacy heuristic fallbacks.
+- **Cleanup**: **Wikipedia Client**. Excised legacy and redundant API methods (`GetThumbnail`, `GetImageURL`) for a cleaner, more performant client.
 
 ## v0.3.153 (2026-02-08)
 - **Fix**: **Debriefing Bounding Box**. Relaxed map zoom constraints during replay mode, ensuring the entire trip (departure/destination) is properly framed even when the simulator remains connected.
