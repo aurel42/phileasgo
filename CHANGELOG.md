@@ -1,7 +1,7 @@
 ﻿Release History
 
 ## v0.3.155 (2026-02-09)
-* **Feature**: **Light Map Visibility**. The visibility layer now renders visible areas using a "Light Mode" (Carto Voyager) map style, creating a dramatic flashlight effect against the dark base map.
+* **Feature**: **Light Map Visibility**. The debug visibility layer can render visible areas using a "Light Mode" (Carto Voyager) map style. I thought it would look better.
 * **Fix**: Renamed misleading settings label "Line-of-Sight Coverage" to "Visibility Layer".
 * **Narrator**: Fixed a `%!f(string=...)` formatting error in Screenshot announcements by ensuring correct float types are passed to the template.
 
