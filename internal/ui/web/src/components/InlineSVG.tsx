@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const cache = new Map<string, string>();
 
@@ -11,6 +11,7 @@ interface InlineSVGProps {
 
 export const InlineSVG: React.FC<InlineSVGProps> = ({ src, className, style, fill }) => {
     const [svgContent, setSvgContent] = useState<string | null>(cache.get(src) || null);
+    const divRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (cache.has(src)) {
@@ -23,8 +24,7 @@ export const InlineSVG: React.FC<InlineSVGProps> = ({ src, className, style, fil
             .then(res => res.text())
             .then(text => {
                 if (!active) return;
-                // Simple cleanup: remove XML declaration and ensure width/height are 100% or stripped
-                // For now, we just strip the XML tag.
+                // Strip XML declaration, keep original viewBox (0 0 15 15) for consistent scaling
                 const clean = text.replace(/<\?xml.*?\?>/g, '').trim();
                 cache.set(src, clean);
                 setSvgContent(clean);
@@ -38,16 +38,13 @@ export const InlineSVG: React.FC<InlineSVGProps> = ({ src, className, style, fil
 
     return (
         <div
+            ref={divRef}
             className={className}
             style={{
                 ...style,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                // Propagate colors to SVG via CSS variables if not set explicitly
-                // But inline styles on the container don't auto-inherit to paths unless paths use 'currentColor'
-                // The SVGs in public/icons likely don't use currentColor.
-                // We'll trust the parent to use CSS or style props that target 'svg path'.
                 color: fill
             }}
             dangerouslySetInnerHTML={{ __html: svgContent }}

@@ -16,6 +16,7 @@ export interface LabelCandidate {
     isHistorical: boolean;
     size?: 'S' | 'M' | 'L' | 'XL';
     icon?: string;
+    visibility?: number; // 0-1 from backend
 
     // Output properties
     anchor?: 'center' | 'top' | 'bottom' | 'left' | 'right' | 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'radial';
@@ -24,6 +25,7 @@ export interface LabelCandidate {
     trueX?: number; // True screen coord for tethering
     trueY?: number;
     rotation?: number; // degrees
+    placedZoom?: number; // Zoom level when first placed (for map-relative scaling)
 }
 
 interface LabelItem extends BBox {
@@ -37,6 +39,7 @@ export interface PlacementState {
     anchor: LabelCandidate['anchor'];
     radialAngle?: number;
     radialDist?: number;
+    placedZoom: number;
 }
 
 export class PlacementEngine {
@@ -69,7 +72,8 @@ export class PlacementEngine {
     public compute(
         projector: (lat: number, lon: number) => { x: number, y: number },
         viewportWidth: number,
-        viewportHeight: number
+        viewportHeight: number,
+        zoom: number
     ): LabelCandidate[] {
         // Sort queue by Priority
         this.queue.sort((a, b) => {
@@ -113,70 +117,65 @@ export class PlacementEngine {
             }
         }
 
-        // PHASE 1: Place Locked Items (FORCE INSERT)
+        // PHASE 1: Locked Items — unconditional force-insert. These never move or get dropped.
         for (const candidate of lockedCandidates) {
             const pos = projector(candidate.lat, candidate.lon);
             const state = this.placedCache.get(candidate.id)!;
-            candidate.trueX = pos.x;
-            candidate.trueY = pos.y;
+            candidate.trueX = Math.round(pos.x);
+            candidate.trueY = Math.round(pos.y);
 
-            // 1. Reserve Space
-            const halfW = (candidate.width / 2) + padding;
-            const halfH = (candidate.height / 2) + padding;
+            // Scale collision box by zoom ratio so markers stay map-relative
+            const zoomScale = Math.pow(2, state.placedZoom - zoom);
+            const halfW = ((candidate.width * zoomScale) / 2) + padding;
+            const halfH = ((candidate.height * zoomScale) / 2) + padding;
 
-            if (candidate.type === 'poi' && !candidate.text) {
-                // Icon-only POI: Use finalX/Y from state or pos if no offset
-                // But icons are usually at their posh unless they are labels.
-                // Wait, POIs here are essentially markers.
-                candidate.finalX = pos.x;
-                candidate.finalY = pos.y;
-                this.tree.insert({
-                    minX: candidate.finalX - halfW, minY: candidate.finalY - halfH,
-                    maxX: candidate.finalX + halfW, maxY: candidate.finalY + halfH,
-                    ownerId: candidate.id, type: 'marker'
-                });
-            } else if (candidate.text) {
-                // ... Label logic (already mostly correct)
-                const markerW = candidate.type === 'settlement' ? 6 : candidate.width;
+            let cx = pos.x;
+            let cy = pos.y;
+            const itemType: 'marker' | 'label' = candidate.text ? 'label' : 'marker';
+
+            // Apply cached anchor offset (for both icon-only POIs and text labels)
+            if (state.anchor === 'center') {
+                // Stays at projected position
+            } else if (state.anchor === 'radial') {
+                cx = pos.x + ((state.radialDist || 0) * zoomScale * Math.cos(state.radialAngle || 0));
+                cy = pos.y + ((state.radialDist || 0) * zoomScale * Math.sin(state.radialAngle || 0));
+            } else {
+                const markerW = candidate.type === 'settlement' ? 6 * zoomScale : candidate.width * zoomScale;
                 const pointRadius = (markerW / 2) + 2;
-
-                let cx = pos.x;
-                let cy = pos.y;
-
-                if (state.anchor === 'radial') {
-                    cx = pos.x + ((state.radialDist || 0) * Math.cos(state.radialAngle || 0));
-                    cy = pos.y + ((state.radialDist || 0) * Math.sin(state.radialAngle || 0));
-                } else {
-                    const anchorDef = anchors.find(a => a.type === state.anchor);
-                    if (anchorDef) {
-                        if (anchorDef.dx !== 0) cx = pos.x + (anchorDef.dx * (pointRadius + halfW));
-                        if (anchorDef.dy !== 0) cy = pos.y + (anchorDef.dy * (pointRadius + halfH));
-                    }
+                const anchorDef = anchors.find(a => a.type === state.anchor);
+                if (anchorDef) {
+                    if (anchorDef.dx !== 0) cx = pos.x + (anchorDef.dx * (pointRadius + halfW));
+                    if (anchorDef.dy !== 0) cy = pos.y + (anchorDef.dy * (pointRadius + halfH));
                 }
-
-                this.tree.insert({
-                    minX: cx - halfW, minY: cy - halfH,
-                    maxX: cx + halfW, maxY: cy + halfH,
-                    ownerId: candidate.id, type: 'label'
-                });
-
-                candidate.anchor = state.anchor;
-                candidate.finalX = cx;
-                candidate.finalY = cy;
-                candidate.rotation = candidate.type === 'settlement' ? -20 : 0;
             }
+
+            // Snap to integer pixels to eliminate sub-pixel jitter
+            cx = Math.round(cx);
+            cy = Math.round(cy);
+
+            // Force-insert: claim space unconditionally so new items must work around us
+            this.tree.insert({
+                minX: cx - halfW, minY: cy - halfH,
+                maxX: cx + halfW, maxY: cy + halfH,
+                ownerId: candidate.id, type: itemType
+            });
+            candidate.anchor = state.anchor;
+            candidate.finalX = cx;
+            candidate.finalY = cy;
+            candidate.placedZoom = state.placedZoom;
+            candidate.rotation = 0;
             placed.push(candidate);
         }
 
         // PHASE 2: Place New Items (Greedy Search)
         for (const candidate of newCandidates) {
             const pos = projector(candidate.lat, candidate.lon);
-            candidate.trueX = pos.x;
-            candidate.trueY = pos.y;
+            candidate.trueX = Math.round(pos.x);
+            candidate.trueY = Math.round(pos.y);
 
             const halfW = (candidate.width / 2) + padding;
             const halfH = (candidate.height / 2) + padding;
-            candidate.rotation = candidate.type === 'settlement' ? -20 : 0;
+            candidate.rotation = 0;
 
             // 1. For Settlements: Force-insert the 6x6 marker (it's the anchor point)
             if (candidate.type === 'settlement') {
@@ -201,9 +200,12 @@ export class PlacementEngine {
 
                 if (!isBlocked) {
                     this.tree.insert(item);
-                    candidate.finalX = pos.x;
-                    candidate.finalY = pos.y;
+                    candidate.finalX = Math.round(pos.x);
+                    candidate.finalY = Math.round(pos.y);
+                    candidate.anchor = 'center';
+                    candidate.placedZoom = zoom;
                     placed.push(candidate);
+                    this.placedCache.set(candidate.id, { anchor: 'center', placedZoom: zoom });
                     continue;
                 }
                 // If blocked, fall through to anchor/radial search
@@ -216,8 +218,9 @@ export class PlacementEngine {
             for (const textAnchor of anchors) {
                 if (this.tryPlace(candidate, pos.x, pos.y, textAnchor.dx, textAnchor.dy, padding, textAnchor.type, viewportWidth, viewportHeight)) {
                     isPlaced = true;
+                    candidate.placedZoom = zoom;
                     placed.push(candidate);
-                    this.placedCache.set(candidate.id, { anchor: textAnchor.type });
+                    this.placedCache.set(candidate.id, { anchor: textAnchor.type, placedZoom: zoom });
                     break;
                 }
             }
@@ -239,13 +242,15 @@ export class PlacementEngine {
 
                         if (this.checkCollisionAndInsert(candidate, cx, cy, padding)) {
                             candidate.anchor = 'radial';
-                            candidate.finalX = cx;
-                            candidate.finalY = cy;
+                            candidate.finalX = Math.round(cx);
+                            candidate.finalY = Math.round(cy);
+                            candidate.placedZoom = zoom;
                             placed.push(candidate);
                             this.placedCache.set(candidate.id, {
                                 anchor: 'radial',
                                 radialAngle: theta,
-                                radialDist: r
+                                radialDist: r,
+                                placedZoom: zoom
                             });
                             isPlaced = true;
                             break;
@@ -279,8 +284,9 @@ export class PlacementEngine {
         const base = sizeWeight[c.size || 'S'];
         const freshnessBonus = c.isHistorical ? 0 : 5;
 
-        // Add Normalized Score (0..2) factor to tie-break within buckets
-        return base + freshnessBonus + (c.score * 2);
+        // Normalized score (0..2) as tie-break within buckets (scores are 1-50)
+        const normalizedScore = Math.min(2, ((c.score || 1) - 1) / 49 * 2);
+        return base + freshnessBonus + normalizedScore;
     }
 
     private tryPlace(
@@ -312,8 +318,8 @@ export class PlacementEngine {
 
         if (this.checkCollisionAndInsert(candidate, cx, cy, padding)) {
             candidate.anchor = anchorType;
-            candidate.finalX = cx;
-            candidate.finalY = cy;
+            candidate.finalX = Math.round(cx);
+            candidate.finalY = Math.round(cy);
             return true;
         }
         return false;

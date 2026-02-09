@@ -3,14 +3,14 @@ export const ARTISTIC_MAP_STYLES = {
         city: {
             family: '"Pinyon Script", cursive',
             weight: 'bold',
-            size: '27px',
-            cssFont: "bold 27px 'Pinyon Script'"
+            size: '24px',
+            cssFont: "bold 24px 'Pinyon Script'"
         },
         town: {
             family: '"Pinyon Script", cursive',
             weight: 'normal',
-            size: '24px',
-            cssFont: "24px 'Pinyon Script'"
+            size: '22px',
+            cssFont: "22px 'Pinyon Script'"
         },
         village: {
             family: '"Pinyon Script", cursive',
@@ -27,7 +27,9 @@ export const ARTISTIC_MAP_STYLES = {
         icon: {
             gold: '#D4AF37',
             silver: '#C0C0C0',
-            bronze: '#CD7F32',
+            copper: '#B55A30',
+            selected: '#8B1A4A',   // Victorian Garnet — currently narrating
+            next: '#5C1234',       // Muted Garnet — next in queue
             stroke: '#0a0805'
         },
         shadows: {

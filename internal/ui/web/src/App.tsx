@@ -364,6 +364,7 @@ function App() {
               settlementLabelLimit={settlementLabelLimit}
               paperOpacityFog={paperOpacityFog}
               paperOpacityClear={paperOpacityClear}
+              onPOISelect={handlePOISelect}
             />
           ) : (
             <Map

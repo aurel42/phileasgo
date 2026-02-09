@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head><title>Icon Bounds Test</title></head>
+<body>
+<h2>Icon getBBox() Results</h2>
+<pre id="output">Loading...</pre>
+<div id="measure" style="position:absolute;left:-9999px;top:-9999px;width:100px;height:100px;overflow:hidden;visibility:hidden"></div>
+<script>
+// Icons from categories.yaml
+const icons = [
+  "airfield", "aquarium", "attraction", "beach", "bridge", "castle",
+  "cemetery", "city", "dam", "industry", "lighthouse", "landmark",
+  "museum", "garden", "star", "park", "mountain", "racetrack", "rail",
+  "religious-christian", "rocket", "stadium", "amusement-park",
+  "communications-tower", "town", "village", "volcano", "water", "wetland", "zoo"
+];
+
+async function test() {
+  const container = document.getElementById('measure');
+  const results = [];
+
+  for (const name of icons) {
+    try {
+      const res = await fetch(`/icons/${name}.svg`);
+      const text = await res.text();
+
+      // Same cleanup as InlineSVG.tsx normalizeSVG()
+      let clean = text.replace(/<\?xml.*?\?>/g, '').trim();
+      clean = clean.replace(/<svg([^>]*)>/, (_match, attrs) => {
+        let stripped = attrs
+          .replace(/\s*width="[^"]*"/g, '')
+          .replace(/\s*height="[^"]*"/g, '')
+          .replace(/preserveAspectRatio="[^"]*"/g, '');
+        return `<svg${stripped} preserveAspectRatio="xMidYMid meet">`;
+      });
+
+      container.innerHTML = clean;
+      const svgEl = container.querySelector('svg');
+
+      if (svgEl) {
+        const origVB = svgEl.getAttribute('viewBox') || '(none)';
+        const bbox = svgEl.getBBox();
+        const pad = 0.5;
+        const tw = bbox.width + 2 * pad;
+        const th = bbox.height + 2 * pad;
+        const aspect = (tw / th).toFixed(2);
+
+        results.push({
+          icon: name,
+          origViewBox: origVB,
+          bboxX: bbox.x.toFixed(1),
+          bboxY: bbox.y.toFixed(1),
+          bboxW: bbox.width.toFixed(1),
+          bboxH: bbox.height.toFixed(1),
+          tightW: tw.toFixed(1),
+          tightH: th.toFixed(1),
+          aspect: aspect
+        });
+      }
+    } catch (e) {
+      results.push({ icon: name, error: e.message });
+    }
+  }
+
+  container.innerHTML = '';
+
+  // Format as table
+  const header = 'Icon                    | OrigViewBox    | BBox (x,y,w,h)          | Tight (w x h) | Aspect';
+  const sep =    '------------------------|----------------|-------------------------|----------------|-------';
+  const lines = results.map(r => {
+    if (r.error) return `${r.icon.padEnd(24)}| ERROR: ${r.error}`;
+    return `${r.icon.padEnd(24)}| ${r.origViewBox.padEnd(15)}| ${r.bboxX},${r.bboxY},${r.bboxW},${r.bboxH}`.padEnd(66) +
+      `| ${r.tightW} x ${r.tightH}`.padEnd(17) + `| ${r.aspect}`;
+  });
+
+  document.getElementById('output').textContent = [header, sep, ...lines].join('\n');
+}
+
+test();
+</script>
+</body>
+</html>
