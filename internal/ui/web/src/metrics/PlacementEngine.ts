@@ -15,6 +15,7 @@ export interface LabelCandidate {
     type: 'settlement' | 'poi';
     isHistorical: boolean;
     size?: 'S' | 'M' | 'L' | 'XL';
+    icon?: string;
 
     // Output properties
     anchor?: 'center' | 'top' | 'bottom' | 'left' | 'right' | 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'radial';
@@ -29,9 +30,17 @@ interface LabelItem extends BBox {
     custom?: any; // For debugging or extra data
 }
 
+
+export interface PlacementState {
+    anchor: LabelCandidate['anchor'];
+    radialAngle?: number;
+    radialDist?: number;
+}
+
 export class PlacementEngine {
     private tree: RBush<LabelItem>;
     private queue: LabelCandidate[] = [];
+    private placedCache: Map<string, PlacementState> = new Map();
 
     constructor() {
         this.tree = new RBush<LabelItem>();
@@ -48,13 +57,19 @@ export class PlacementEngine {
     public clear() {
         this.tree.clear();
         this.queue = [];
+        // Do NOT clear placedCache here. That's for resetCache().
     }
 
-    public compute(projector: (lat: number, lon: number) => { x: number, y: number }): LabelCandidate[] {
+    public resetCache() {
+        this.placedCache.clear();
+    }
+
+    public compute(
+        projector: (lat: number, lon: number) => { x: number, y: number },
+        viewportWidth: number,
+        viewportHeight: number
+    ): LabelCandidate[] {
         // Sort queue by Priority
-        // 1. Settlements (City > Town > Village)
-        // 2. Active POIs (Score DESC)
-        // 3. Historical POIs (Score DESC)
         this.queue.sort((a, b) => {
             const pA = this.getPriority(a);
             const pB = this.getPriority(b);
@@ -67,22 +82,9 @@ export class PlacementEngine {
 
         const placed: LabelCandidate[] = [];
         const padding = 4; // Spec: 4px buffer
-        const markerSize = 24; // Fixed marker size (w/h)
-        const markerHalf = markerSize / 2;
 
-        // 1. Insert ALL Markers as obstacles first
-        for (const candidate of this.queue) {
-            const pos = projector(candidate.lat, candidate.lon);
-            const mItem: LabelItem = {
-                minX: pos.x - markerHalf,
-                minY: pos.y - markerHalf,
-                maxX: pos.x + markerHalf,
-                maxY: pos.y + markerHalf,
-                ownerId: candidate.id,
-                type: 'marker'
-            };
-            this.tree.insert(mItem);
-        }
+        // Markers are now inserted alongside their labels according to the Sorted Intake Queue (greedy).
+        // This ensures high-priority features can claim space before low-priority features block them.
 
         // Define anchor offsets (dx, dy multipliers)
         // order: Top-Right (Preferred), Top, Right, Bottom, Left...
@@ -97,29 +99,109 @@ export class PlacementEngine {
             { type: 'bottom-left', dx: -1, dy: 1 },
         ];
 
-        for (const candidate of this.queue) {
-            const pos = projector(candidate.lat, candidate.lon);
-            let isPlaced = false;
+        // SEPARATE QUEUES: Locked vs New
+        const lockedCandidates: LabelCandidate[] = [];
+        const newCandidates: LabelCandidate[] = [];
 
-            // Apply rotation for settlements
-            if (candidate.type === 'settlement') {
-                candidate.rotation = -20;
+        for (const candidate of this.queue) {
+            if (this.placedCache.has(candidate.id)) {
+                lockedCandidates.push(candidate);
             } else {
-                candidate.rotation = 0;
+                newCandidates.push(candidate);
             }
+        }
+
+        // PHASE 1: Place Locked Items (FORCE INSERT)
+        for (const candidate of lockedCandidates) {
+            const pos = projector(candidate.lat, candidate.lon);
+            const state = this.placedCache.get(candidate.id)!;
+
+            // 1. Reserve Marker/Dot Space FIRST
+            const markerW = candidate.type === 'settlement' ? 6 : candidate.width;
+            const markerH = candidate.type === 'settlement' ? 6 : candidate.height;
+            const hwM = markerW / 2;
+            const hhM = markerH / 2;
+            this.tree.insert({
+                minX: pos.x - hwM - padding, minY: pos.y - hhM - padding,
+                maxX: pos.x + hwM + padding, maxY: pos.y + hhM + padding,
+                ownerId: candidate.id, type: 'marker'
+            });
+
+            if (candidate.text) {
+                let cx = pos.x;
+                let cy = pos.y;
+                const halfW = (candidate.width / 2) + padding;
+                const halfH = (candidate.height / 2) + padding;
+                const pointRadius = (markerW / 2) + 2;
+
+                if (state.anchor === 'radial') {
+                    cx = pos.x + ((state.radialDist || 0) * Math.cos(state.radialAngle || 0));
+                    cy = pos.y + ((state.radialDist || 0) * Math.sin(state.radialAngle || 0));
+                } else {
+                    const anchorDef = anchors.find(a => a.type === state.anchor);
+                    if (anchorDef) {
+                        if (anchorDef.dx !== 0) cx = pos.x + (anchorDef.dx * (pointRadius + halfW));
+                        if (anchorDef.dy !== 0) cy = pos.y + (anchorDef.dy * (pointRadius + halfH));
+                    }
+                }
+
+                this.tree.insert({
+                    minX: cx - halfW, minY: cy - halfH,
+                    maxX: cx + halfW, maxY: cy + halfH,
+                    ownerId: candidate.id, type: 'label'
+                });
+
+                candidate.anchor = state.anchor;
+                candidate.finalX = cx;
+                candidate.finalY = cy;
+                candidate.rotation = candidate.type === 'settlement' ? -20 : 0;
+            } else {
+                candidate.finalX = pos.x;
+                candidate.finalY = pos.y;
+            }
+            placed.push(candidate);
+        }
+
+        // PHASE 2: Place New Items (Greedy Search)
+        for (const candidate of newCandidates) {
+            const pos = projector(candidate.lat, candidate.lon);
+
+            // 1. Reserve Marker/Dot Space FIRST
+            const markerW = candidate.type === 'settlement' ? 6 : candidate.width;
+            const markerH = candidate.type === 'settlement' ? 6 : candidate.height;
+            const hwM = markerW / 2;
+            const hhM = markerH / 2;
+            const mItem: LabelItem = {
+                minX: pos.x - hwM - padding, minY: pos.y - hhM - padding,
+                maxX: pos.x + hwM + padding, maxY: pos.y + hhM + padding,
+                ownerId: candidate.id, type: 'marker'
+            };
+            this.tree.insert(mItem);
+
+            if (!candidate.text) {
+                // Icon-only POI
+                candidate.finalX = pos.x;
+                candidate.finalY = pos.y;
+                placed.push(candidate);
+                continue;
+            }
+
+            // 2. Try to place Label
+            let isPlaced = false;
+            candidate.rotation = candidate.type === 'settlement' ? -20 : 0;
 
             // STAGE 1: 8-Point Anchor Search
             for (const textAnchor of anchors) {
-                if (this.tryPlace(candidate, pos.x, pos.y, textAnchor.dx, textAnchor.dy, padding, textAnchor.type)) {
+                if (this.tryPlace(candidate, pos.x, pos.y, textAnchor.dx, textAnchor.dy, padding, textAnchor.type, viewportWidth, viewportHeight)) {
                     isPlaced = true;
                     placed.push(candidate);
+                    this.placedCache.set(candidate.id, { anchor: textAnchor.type });
                     break;
                 }
             }
 
             // STAGE 2: Radial Search Fallback
             if (!isPlaced) {
-                // Spiral out: max 50px radius, 5px steps, 15 degree angle steps
                 const maxRadius = 50;
                 const radiusStep = 5;
                 const angleStep = 15 * (Math.PI / 180);
@@ -127,27 +209,28 @@ export class PlacementEngine {
                 for (let r = radiusStep; r <= maxRadius; r += radiusStep) {
                     for (let theta = 0; theta < 2 * Math.PI; theta += angleStep) {
                         const dx = Math.cos(theta);
-                        const dy = Math.sin(theta); // Screen Y is down, but radial math is agnostic
-
-                        // We treat radial search as "custom offset"
-                        // Effectively similar to an anchor but with continuous position
-                        // We use dx/dy as unit vectors for the offset direction
-                        // But wait, tryPlace expects -1, 0, 1 grid logic? 
-                        // No, let's just calculate raw CX/CY and check collision manually to be cleaner.
-
-                        // For radial search, we just want to push the label away from the center.
-                        // Let's assume the label is centered on the radial point?
-                        // Or "docks" to the point?
-                        // Let's assume we place the center of the label at (pos.x + r*dx, pos.y + r*dy)
-
+                        const dy = Math.sin(theta);
                         const cx = pos.x + (r * dx);
                         const cy = pos.y + (r * dy);
+
+                        // Viewport Clipping (Design 6.0)
+                        const hw = (candidate.width / 2) + padding;
+                        const hh = (candidate.height / 2) + padding;
+                        if (cx - hw < 0 || cx + hw > viewportWidth || cy - hh < 0 || cy + hh > viewportHeight) {
+                            continue;
+                        }
 
                         if (this.checkCollisionAndInsert(candidate, cx, cy, padding)) {
                             candidate.anchor = 'radial';
                             candidate.finalX = cx;
                             candidate.finalY = cy;
                             placed.push(candidate);
+                            // Cache the success (Radial)
+                            this.placedCache.set(candidate.id, {
+                                anchor: 'radial',
+                                radialAngle: theta,
+                                radialDist: r
+                            });
                             isPlaced = true;
                             break;
                         }
@@ -160,24 +243,28 @@ export class PlacementEngine {
         return placed;
     }
 
+    private isOutsideViewport(cx: number, cy: number, hw: number, hh: number, vw: number, vh: number): boolean {
+        return (cx - hw < 0 || cx + hw > vw || cy - hh < 0 || cy + hh > vh);
+    }
+
     private getPriority(c: LabelCandidate): number {
         // High number = High Priority
+
+        // 1. Highest-Tier Settlements (100)
         if (c.type === 'settlement') {
             if (c.tier === 'city') return 100;
-            if (c.tier === 'town') return 90;
-            return 80; // village
+            if (c.tier === 'town') return 95;
+            return 90; // village
         }
 
-        // POIs
-        // Active > Historical
-        // Bucketed by score? Or just use raw score?
-        // We'll give broad buckets to mix sizes if needed, but per spec:
-        // "Active POIs" > "Historical POIs"
-        // Let's just create a base offset
-        const base = c.isHistorical ? 0 : 40; // Active = 40+, Historical = 0+
+        // 2. POIs Interleaved by size and freshness (As per Design Doc 3.2)
+        // Order: Active S > Historical S > Active M > Historical M > ...
+        const sizeWeight = { 'S': 80, 'M': 70, 'L': 60, 'XL': 50 };
+        const base = sizeWeight[c.size || 'S'];
+        const freshnessBonus = c.isHistorical ? 0 : 5;
 
-        // Add score (0..1) * 10 to give intra-group sorting
-        return base + (c.score * 10);
+        // Add Normalized Score (0..2) factor to tie-break within buckets
+        return base + freshnessBonus + (c.score * 2);
     }
 
     private tryPlace(
@@ -187,11 +274,13 @@ export class PlacementEngine {
         dx: number,
         dy: number,
         padding: number,
-        anchorType: LabelCandidate['anchor']
+        anchorType: LabelCandidate['anchor'],
+        vw: number,
+        vh: number
     ): boolean {
         const halfW = (candidate.width / 2) + padding;
         const halfH = (candidate.height / 2) + padding;
-        const pointRadius = 6;
+        const pointRadius = (candidate.type === 'poi' ? (candidate.width / 2) : 6) + 2;
 
         let cx = baseX;
         let cy = baseY;
@@ -199,6 +288,11 @@ export class PlacementEngine {
         // Shift center away from point
         if (dx !== 0) cx = baseX + (dx * (pointRadius + halfW));
         if (dy !== 0) cy = baseY + (dy * (pointRadius + halfH));
+
+        // Viewport Clipping (Design 6.0)
+        if (this.isOutsideViewport(cx, cy, halfW, halfH, vw, vh)) {
+            return false;
+        }
 
         if (this.checkCollisionAndInsert(candidate, cx, cy, padding)) {
             candidate.anchor = anchorType;

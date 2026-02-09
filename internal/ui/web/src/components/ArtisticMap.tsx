@@ -1,11 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import maplibregl from 'maplibre-gl';
 import * as turf from '@turf/turf';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Telemetry } from '../types/telemetry';
 import type { POI } from '../hooks/usePOIs';
-import { useLabelPlacement } from '../hooks/useLabelPlacement';
+import { PlacementEngine, type LabelCandidate } from '../metrics/PlacementEngine';
+import { measureText } from '../metrics/text';
+import { ARTISTIC_MAP_STYLES } from '../styles/artisticMapStyles';
+import { InlineSVG } from './InlineSVG';
 
 interface ArtisticMapProps {
     className?: string;
@@ -13,13 +16,68 @@ interface ArtisticMapProps {
     zoom: number;
     telemetry: Telemetry | null;
     pois: POI[];
+    settlementLabelLimit: number;
+    paperOpacityFog: number;
+    paperOpacityClear: number;
 }
 
-export const ArtisticMap: React.FC<ArtisticMapProps> = ({ className, center, zoom, telemetry, pois }) => {
+// Single Atomic Frame state for strict synchronization
+interface MapFrame {
+    labels: LabelCandidate[];
+    maskPath: string;
+    center: [number, number];
+    zoom: number;
+    heading: number;
+    bearingLine: Feature<any> | null;
+}
+
+export const ArtisticMap: React.FC<ArtisticMapProps> = ({
+    className,
+    center,
+    zoom,
+    telemetry,
+    pois,
+    settlementLabelLimit,
+    paperOpacityFog = 0.7,
+    paperOpacityClear = 0.1
+}) => {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<maplibregl.Map | null>(null);
     const [styleLoaded, setStyleLoaded] = useState(false);
 
+    // -- Placement Engine (Persistent across ticks) --
+    const engine = useMemo(() => new PlacementEngine(), []);
+
+    // -- Data Refs for Heartbeat --
+    const telemetryRef = useRef(telemetry);
+    const poisRef = useRef(pois);
+    const zoomRef = useRef(zoom);
+    const limitRef = useRef(settlementLabelLimit);
+
+    useEffect(() => { telemetryRef.current = telemetry; }, [telemetry]);
+    useEffect(() => { poisRef.current = pois; }, [pois]);
+    useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+    useEffect(() => { limitRef.current = settlementLabelLimit; }, [settlementLabelLimit]);
+
+    // -- THE SINGLE ATOMIC STATE --
+    const [frame, setFrame] = useState<MapFrame>({
+        labels: [],
+        maskPath: '',
+        center: [center[1], center[0]],
+        zoom: zoom,
+        heading: 0,
+        bearingLine: null
+    });
+
+    const accumulatedSettlements = useRef<Map<string, POI>>(new Map());
+
+    // Helper to calculate Mask Color
+    const getMaskColor = (opacity: number) => {
+        const val = Math.floor(opacity * 255);
+        return `rgb(${val}, ${val}, ${val})`;
+    };
+
+    // Initialize Map (Static Viewport Only)
     useEffect(() => {
         if (map.current || !mapContainer.current) return;
 
@@ -30,380 +88,303 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({ className, center, zoo
                 sources: {
                     'stamen-watercolor': {
                         type: 'raster',
-                        tiles: [
-                            'https://watercolormaps.collection.cooperhewitt.org/tile/watercolor/{z}/{x}/{y}.jpg'
-                        ],
-                        tileSize: 256,
-                        attribution: 'Map tiles by Stamen Design, under CC BY 3.0. Data by OpenStreetMap, under CC BY SA.'
+                        tiles: ['https://watercolormaps.collection.cooperhewitt.org/tile/watercolor/{z}/{x}/{y}.jpg'],
+                        tileSize: 256
                     }
                 },
                 layers: [
-                    {
-                        id: 'background',
-                        type: 'background',
-                        paint: {
-                            'background-color': '#f4ecd8' // Fallback parchment color
-                        }
-                    },
-                    {
-                        id: 'watercolor',
-                        type: 'raster',
-                        source: 'stamen-watercolor',
-                        minzoom: 0,
-                        maxzoom: 22,
-                        paint: {
-                            'raster-saturation': -0.6,
-                            'raster-contrast': 0.1
-                        }
-                    }
+                    { id: 'background', type: 'background', paint: { 'background-color': '#f4ecd8' } },
+                    { id: 'watercolor', type: 'raster', source: 'stamen-watercolor', paint: { 'raster-saturation': -0.6, 'raster-contrast': 0.1 } }
                 ]
             },
-            center: [center[1], center[0]], // MapLibre takes [lng, lat]
+            center: [center[1], center[0]],
             zoom: zoom,
-            attributionControl: false
+            minZoom: 8,
+            maxZoom: 13,
+            attributionControl: false,
+            interactive: false
         });
 
         map.current.on('load', () => {
+            map.current?.addSource('bearing-line', {
+                type: 'geojson',
+                data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } }
+            });
+            map.current?.addLayer({
+                id: 'bearing-line-layer', type: 'line', source: 'bearing-line',
+                paint: { 'line-color': '#5c4033', 'line-width': 2, 'line-dasharray': [2, 2], 'line-opacity': 0.7 }
+            });
             setStyleLoaded(true);
-            map.current?.resize();
         });
 
-
-
+        return () => { map.current?.remove(); map.current = null; };
     }, []);
 
-    // Update view when center changes (keep zoom user-controlled or auto-controlled)
-    // Update view when telemetry changes (LATCH to valid data, ignore App.tsx defaults)
+    // --- THE HEARTBEAT (Strict 0.5Hz / 2000ms) ---
     useEffect(() => {
-        if (!map.current || !telemetry) return;
+        if (!styleLoaded || !map.current) return;
 
-        // Prevent jumping to (0,0) if SimConnect glitches
-        if (telemetry.Latitude === 0 && telemetry.Longitude === 0) return;
+        let isRunning = false;
+        let lastMaskData: any = null;
+        let lastSettlements: POI[] = [];
+        let lastTierIndex: number = -1;
+        let prevZoomInt = -1;
 
-        // Use jumpTo for smooth tracking without animation lag
-        // We do NOT use the 'center' prop here because it falls back to Berlin 
-        // when telemetry is null, causing the "Jump to Departure" bug.
-        map.current.jumpTo({
-            center: [telemetry.Longitude, telemetry.Latitude]
-        });
-    }, [telemetry]); // Ignore 'center' prop to prevent resets
-
-    // Initial zoom set
-    useEffect(() => {
-        if (map.current && !styleLoaded) {
-            map.current.jumpTo({ zoom: zoom });
-        }
-    }, [zoom, styleLoaded]);
-
-    // Fetch and update visibility mask
-    useEffect(() => {
-        if (!map.current || !styleLoaded) return;
-
-        const updateMask = async () => {
-            if (!map.current) return;
-            // Use current map center, not the stale props.center
-            const currentCenter = map.current.getCenter();
-            const centerLat = currentCenter.lat;
-            const centerLon = currentCenter.lng;
+        const tick = async () => {
+            if (isRunning) return;
+            isRunning = true;
 
             try {
-                const bounds = map.current.getBounds();
-                const north = bounds.getNorth();
-                const east = bounds.getEast();
-                const south = bounds.getSouth();
-                const west = bounds.getWest();
+                // Design Section 6: Ensure fonts are loaded before measurement
+                if (document.fonts) {
+                    await document.fonts.ready;
+                }
+                const m = map.current;
+                const t = telemetryRef.current;
+                const container = mapContainer.current;
 
-                const response = await fetch(`/api/map/visibility-mask?bounds=${north},${east},${south},${west}&resolution=20`);
-                if (!response.ok) return;
-                const data = await response.json();
+                if (!m || !t || (t.Latitude === 0 && t.Longitude === 0)) return;
 
-                // Create "Fog" by inverting the visibility mask
-                // 1. Create a large world polygon
-                const world = turf.polygon([[
-                    [-180, -90],
-                    [180, -90],
-                    [180, 90],
-                    [-180, 90],
-                    [-180, -90]
-                ]]);
+                // 1. Snapshot State
+                const bounds = m.getBounds();
+                const z = m.getZoom();
+                const currentPois = poisRef.current;
+                const targetZoomBase = zoomRef.current;
 
-                let fogGeoJSON: Feature<Polygon | MultiPolygon> = world as Feature<Polygon>;
+                if (!bounds) return;
 
-                if (data && data.geometry && data.geometry.coordinates && data.geometry.coordinates.length > 0) {
+                // 2. BACKGROUND FETCH (Non-blocking)
+                const fetchExtras = async () => {
                     try {
-                        // 2. Subtract the visibility polygon from the world
-                        // Verify data is a valid polygon
-                        const visibilityPoly = turf.polygon(data.geometry.coordinates);
-                        const diff = turf.difference(turf.featureCollection([world, visibilityPoly]));
-                        if (diff) {
-                            fogGeoJSON = diff;
-                        } else {
-                            // Visibility covers the world (rare), so no fog.
-                            // Set to empty polygon
-                            fogGeoJSON = {
-                                type: 'Feature',
-                                properties: {},
-                                geometry: {
-                                    type: 'Polygon',
-                                    coordinates: []
-                                }
-                            };
+                        const [maskRes, settRes] = await Promise.all([
+                            fetch(`/api/map/visibility-mask?bounds=${bounds.getNorth()},${bounds.getEast()},${bounds.getSouth()},${bounds.getWest()}&resolution=20`),
+                            fetch(`/api/map/settlements?minLat=${bounds.getSouth()}&maxLat=${bounds.getNorth()}&minLon=${bounds.getWest()}&maxLon=${bounds.getEast()}&zoom=${z}`)
+                        ]);
+                        if (maskRes.ok) lastMaskData = await maskRes.json();
+                        if (settRes.ok) {
+                            const data = await settRes.json();
+                            // Handle SettlementResponse wrapper { tier_index: X, items: [...] }
+                            lastSettlements = (data && Array.isArray(data.items)) ? data.items : [];
+                            lastTierIndex = data?.tier_index ?? -1;
                         }
-                    } catch (err) {
-                        console.error("Turf difference failed", err);
+                    } catch (e) {
+                        console.error("Background Data Fetch Failed:", e);
+                    }
+                };
+                fetchExtras();
+
+                // 3. ZOOM ADAPTATION & PERSISTENCE
+                const currentZoomInt = Math.floor(z);
+                if (prevZoomInt === -1) prevZoomInt = currentZoomInt;
+
+                if (currentZoomInt !== prevZoomInt) {
+                    accumulatedSettlements.current.clear();
+                    engine.resetCache();
+                    prevZoomInt = currentZoomInt;
+                }
+
+                let newSettlements = Array.isArray(lastSettlements) ? (limitRef.current !== -1 ? lastSettlements.slice(0, limitRef.current) : [...lastSettlements]) : [];
+                newSettlements.forEach(s => {
+                    const id = s.wikidata_id || `${s.lat}-${s.lon}`;
+                    accumulatedSettlements.current.set(id, s);
+                });
+
+                // 4. AUTO-ZOOM
+                let targetZoom = targetZoomBase;
+                if (lastMaskData?.geometry) {
+                    const bbox = turf.bbox(lastMaskData.geometry);
+                    if (bbox && !bbox.some(isNaN)) {
+                        const camera = m.cameraForBounds(bbox as [number, number, number, number], { padding: 50, maxZoom: 13 });
+                        if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
+                            targetZoom = Math.min(Math.max(camera.zoom, 8), 13);
+                        }
                     }
                 }
 
-                const source = map.current?.getSource('fog-mask') as maplibregl.GeoJSONSource;
-                if (source) {
-                    source.setData(fogGeoJSON);
-                } else {
-                    map.current?.addSource('fog-mask', {
-                        type: 'geojson',
-                        data: fogGeoJSON
-                    });
+                // 5. ATOMIC JUMP
+                m.jumpTo({ center: [t.Longitude, t.Latitude], zoom: targetZoom });
 
-                    // Add the "Fog" layer
-                    // This covers the UNEXPLORED areas with a semi-transparent parchment color
-                    map.current?.addLayer({
-                        id: 'fog-layer',
-                        type: 'fill',
-                        source: 'fog-mask',
-                        paint: {
-                            'fill-color': '#f4ecd8', // Parchment color
-                            'fill-opacity': 0.85,    // High opacity for unexplored areas
-                            'fill-outline-color': 'rgba(0,0,0,0)'
-                        }
-                    });
+                // 6. COMPUTE LAYOUT
+                const projector = (lat: number, lon: number) => {
+                    const p = m.project([lon, lat]);
+                    return { x: p.x, y: p.y };
+                };
 
-                    // Add a subtle border to the revealed area for style
-                    map.current?.addLayer({
-                        id: 'fog-border',
-                        type: 'line',
-                        source: 'fog-mask',
-                        paint: {
-                            'line-color': '#8b4513', // SaddleBrown
-                            'line-width': 2,
-                            'line-opacity': 0.3,
-                            'line-blur': 1
-                        }
-                    });
-                }
+                engine.clear();
+                const vw = container?.clientWidth || window.innerWidth;
+                const vh = container?.clientHeight || window.innerHeight;
 
-                // Auto-Zoom Layer
-                // Calculate a bbox around the aircraft based on visibility
-                if (data && data.properties && data.properties.radius_nm && map.current) {
-                    try {
-                        const r = data.properties.radius_nm;
-                        // 1 NM = 1/60 degrees latitude roughly
-                        const latOffset = (r * 1.2) / 60.0; // 20% padding
-                        const lonOffset = latOffset / Math.cos(centerLat * Math.PI / 180.0);
+                // Register Settlements
+                Array.from(accumulatedSettlements.current.values()).forEach(f => {
+                    let font = ARTISTIC_MAP_STYLES.fonts.village.cssFont;
+                    let tierName: 'city' | 'town' | 'village' = 'village';
 
-                        const bounds: [number, number, number, number] = [
-                            centerLon - lonOffset, centerLat - latOffset,
-                            centerLon + lonOffset, centerLat + latOffset
-                        ];
-
-                        // Smoothly float to the new zoom level
-                        map.current.fitBounds(bounds, {
-                            padding: 20,
-                            maxZoom: 14, // Don't zoom in too close (pixelated tiles)
-                            linear: true,
-                            duration: 2000 // Slow drift
-                        });
-                    } catch (err) {
-                        console.error("Autozoom failed", err);
+                    // Priority from backend index (root of response)
+                    if (lastTierIndex === 0) {
+                        font = ARTISTIC_MAP_STYLES.fonts.city.cssFont;
+                        tierName = 'city';
+                    } else if (lastTierIndex === 1) {
+                        font = ARTISTIC_MAP_STYLES.fonts.town.cssFont;
+                        tierName = 'town';
+                    } else if (lastTierIndex === 2) {
+                        font = ARTISTIC_MAP_STYLES.fonts.village.cssFont;
+                        tierName = 'village';
+                    } else {
+                        // Fallback logic
+                        const cat = (f.category as string || '').toLowerCase();
+                        if (cat === 'city') { font = ARTISTIC_MAP_STYLES.fonts.city.cssFont; tierName = 'city'; }
+                        else if (cat === 'town') { font = ARTISTIC_MAP_STYLES.fonts.town.cssFont; tierName = 'town'; }
                     }
-                }
 
-            } catch (e) {
-                console.error("Failed to fetch visibility mask", e);
-            }
-        };
+                    const text = f.name_user || f.name_en || "";
+                    // Use exact cssFont for measurement to match rendered style
+                    const dims = measureText(text, font);
+                    engine.register({
+                        id: f.wikidata_id || `${f.lat}-${f.lon}`, lat: f.lat, lon: f.lon, text, tier: tierName,
+                        width: dims.width, height: dims.height, type: 'settlement', score: f.score || 0, isHistorical: false, size: 'L'
+                    });
+                });
 
-        updateMask();
-        // Poll every 5 seconds
-        const interval = setInterval(updateMask, 5000);
-        return () => clearInterval(interval);
+                // Register POIs
+                currentPois.forEach(p => {
+                    if (!p.lat || !p.lon) return;
+                    let sizePx = 20;
+                    if (p.size === 'S') sizePx = 16;
+                    else if (p.size === 'L') sizePx = 24;
+                    else if (p.size === 'XL') sizePx = 28;
+                    const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
+                    engine.register({
+                        id: p.wikidata_id, lat: p.lat, lon: p.lon, text: "", tier: 'village', score: p.score || 0,
+                        width: sizePx, height: sizePx, type: 'poi', isHistorical, size: p.size as any, icon: p.icon || 'attraction'
+                    });
+                });
 
-    }, [styleLoaded]);
+                const snapshotLabels = engine.compute(projector, vw, vh);
 
-    // Bearing Line Source
-    useEffect(() => {
-        if (!map.current || !styleLoaded) return;
+                // 7. BEARING LINE
+                const lat1 = t.Latitude * Math.PI / 180;
+                const lon1 = t.Longitude * Math.PI / 180;
+                const brng = t.Heading * Math.PI / 180;
+                const R = 3440.065; const d = 50.0;
+                const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d / R) + Math.cos(lat1) * Math.sin(d / R) * Math.cos(brng));
+                const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d / R) * Math.cos(lat1), Math.cos(d / R) - Math.sin(lat1) * Math.sin(lat2));
 
-        map.current.addSource('bearing-line', {
-            type: 'geojson',
-            data: {
-                type: 'Feature',
-                properties: {},
-                geometry: {
-                    type: 'LineString',
-                    coordinates: []
-                }
-            }
-        });
+                const bLine: Feature<any> = {
+                    type: 'Feature', properties: {},
+                    geometry: { type: 'LineString', coordinates: [[t.Longitude, t.Latitude], [lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]] }
+                };
+                const lineSource = m.getSource('bearing-line') as maplibregl.GeoJSONSource;
+                if (lineSource) lineSource.setData(bLine);
 
-        map.current.addLayer({
-            id: 'bearing-line-layer',
-            type: 'line',
-            source: 'bearing-line',
-            paint: {
-                'line-color': '#5c4033', // Dark brown
-                'line-width': 2,
-                'line-dasharray': [2, 2], // Dashed
-                'line-opacity': 0.7
-            }
-        });
-    }, [styleLoaded]);
-
-    // Update Bearing Line
-    useEffect(() => {
-        if (!map.current || !telemetry) return;
-
-        // Valid heading check
-
-        // We only update if truthy or explicitly 0 but valid.
-        // If it jumps to 0 seemingly erroneously, we might want to filter exact 0 if it was previously set.
-        // However, 0 is North. Let's assume if lat/lon is 0,0 it's invalid.
-        if (telemetry.Latitude === 0 && telemetry.Longitude === 0) return;
-
-        const h = telemetry.Heading;
-
-        const lat1 = telemetry.Latitude * Math.PI / 180.0;
-        const lon1 = telemetry.Longitude * Math.PI / 180.0;
-        const brng = h * Math.PI / 180.0;
-
-        // Draw line 50NM out
-        const d = 50.0;
-        const R = 3440.065;
-
-        const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d / R) + Math.cos(lat1) * Math.sin(d / R) * Math.cos(brng));
-        const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d / R) * Math.cos(lat1), Math.cos(d / R) - Math.sin(lat1) * Math.sin(lat2));
-
-        const lineGeoJSON: Feature<any> = {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-                type: 'LineString',
-                coordinates: [
-                    [telemetry.Longitude, telemetry.Latitude],
-                    [lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]
-                ]
-            }
-        };
-
-        const source = map.current.getSource('bearing-line') as maplibregl.GeoJSONSource;
-        if (source) {
-            source.setData(lineGeoJSON);
-        }
-
-    }, [telemetry, styleLoaded]);
-
-    // --- Settlements & Labels ---
-    const [settlements, setSettlements] = useState<POI[]>([]);
-
-    // Fetch settlements on moveend
-    useEffect(() => {
-        if (!map.current || !styleLoaded) return;
-
-        const fetchSettlements = async () => {
-            const bounds = map.current!.getBounds();
-            const north = bounds.getNorth();
-            const east = bounds.getEast();
-            const south = bounds.getSouth();
-            const west = bounds.getWest();
-            const z = map.current!.getZoom();
-
-            try {
-                const res = await fetch(`/api/map/settlements?minLat=${south}&maxLat=${north}&minLon=${west}&maxLon=${east}&zoom=${z}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setSettlements(data || []);
-                }
+                // 8. COMMIT
+                setFrame({
+                    labels: snapshotLabels,
+                    maskPath: lastMaskData ? maskToPath(lastMaskData, m) : '',
+                    center: [t.Longitude, t.Latitude],
+                    zoom: targetZoom,
+                    heading: t.Heading,
+                    bearingLine: bLine
+                });
             } catch (err) {
-                console.error("Failed to fetch settlements", err);
+                console.error("Heartbeat Loop Crash:", err);
+            } finally {
+                isRunning = false;
             }
         };
 
-        map.current.on('moveend', fetchSettlements);
-        fetchSettlements(); // Initial fetch
-
-        return () => {
-            map.current?.off('moveend', fetchSettlements);
-        };
+        tick();
+        const interval = setInterval(tick, 2000);
+        return () => clearInterval(interval);
     }, [styleLoaded]);
 
-
-    // Use Placement Engine to position labels
-    const visibleLabels = useLabelPlacement(map.current, settlements, pois, zoom);
+    const maskToPath = (geojson: Feature<Polygon | MultiPolygon>, mapInstance: maplibregl.Map): string => {
+        if (!geojson.geometry) return '';
+        const coords = geojson.geometry.type === 'Polygon' ? [geojson.geometry.coordinates] : geojson.geometry.coordinates;
+        return coords.map(poly => poly.map(ring => ring.map(coord => {
+            const p = mapInstance.project([coord[0], coord[1]]);
+            return `${p.x},${p.y}`;
+        }).join(' L ')).map(ringStr => `M ${ringStr} Z`).join(' ')).join(' ');
+    };
 
     return (
-        <div className={className} style={{ position: 'relative', width: '100%', height: '100%' }}>
+        <div className={className} style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
             <div ref={mapContainer} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', color: 'black' }} />
 
-            {/* Labels Overlay */}
+            {/* Labels Overlay (Atomic from Frame) */}
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>
-                {visibleLabels.map(l => {
-
-
+                {frame.labels.map(l => {
+                    const p = map.current?.project([l.lon, l.lat]);
+                    if (!p) return null;
+                    const px = p.x; const py = p.y;
+                    const dx = (l.finalX || 0) - px; const dy = (l.finalY || 0) - py;
+                    const dist = Math.ceil(Math.sqrt(dx * dx + dy * dy));
+                    const isDisplaced = dist > 30;
 
                     if (l.type === 'poi') {
-                        // Render Icon for POI (Placeholder: Circle with Size)
-                        // TODO: Use Maki Icons as per spec
+                        // ... POI Icon Rendering (Already present) ...
+                        const iconUrl = `/icons/${l.icon || 'attraction'}.svg`;
+                        let iconColor = ARTISTIC_MAP_STYLES.colors.icon.bronze;
+                        if (l.score > 0.8) iconColor = ARTISTIC_MAP_STYLES.colors.icon.gold;
+                        else if (l.score > 0.4) iconColor = ARTISTIC_MAP_STYLES.colors.icon.silver;
+                        const visibility = 0.5 + (l.score * 0.5);
+                        const finalOpacity = l.isHistorical ? visibility * 0.4 : visibility;
+
                         return (
-                            <div key={l.id} style={{
-                                position: 'absolute',
-                                left: l.finalX ?? 0,
-                                top: l.finalY ?? 0,
-                                width: l.width,
-                                height: l.height,
-                                transform: `translate(-50%, -50%)`, // No rotation for icons
-                                borderRadius: '50%',
-                                border: '1px solid #5c4033',
-                                backgroundColor: l.isHistorical ? 'rgba(92, 64, 51, 0.4)' : 'rgba(212, 175, 55, 0.8)', // Gold/Bronze
-                                pointerEvents: 'none'
-                            }} />
+                            <React.Fragment key={l.id}>
+                                {isDisplaced && (
+                                    <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15 }}>
+                                        <path d={`M ${px},${py} C ${px},${py - (py - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${(l.finalY || 0) + (py - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${l.finalY}`}
+                                            fill="none" stroke={ARTISTIC_MAP_STYLES.tethers.stroke} strokeWidth={ARTISTIC_MAP_STYLES.tethers.width} opacity={ARTISTIC_MAP_STYLES.tethers.opacity} />
+                                        <circle cx={px} cy={py} r={ARTISTIC_MAP_STYLES.tethers.dotRadius} fill={ARTISTIC_MAP_STYLES.tethers.stroke} opacity={ARTISTIC_MAP_STYLES.tethers.dotOpacity} />
+                                    </svg>
+                                )}
+                                <div style={{
+                                    position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, width: l.width, height: l.height,
+                                    transform: `translate(-50%, -50%)`, opacity: finalOpacity
+                                }}>
+                                    <InlineSVG src={iconUrl} style={{ width: '100%', height: '100%', color: iconColor }} className="stamped-icon" />
+                                </div>
+                            </React.Fragment>
                         );
                     }
 
+                    // Settlement Rendering
                     return (
-                        <div key={l.id} style={{
-                            position: 'absolute',
-                            left: l.finalX ?? 0,
-                            top: l.finalY ?? 0,
-                            transform: `translate(-50%, -50%) rotate(${l.rotation || 0}deg)`,
+                        <React.Fragment key={l.id}>
+                            {/* True Coordinate Marker (Design 3.2: Dot) */}
+                            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15 }}>
+                                <circle cx={px} cy={py} r={2} fill={ARTISTIC_MAP_STYLES.colors.text.active} opacity={0.8} />
+                                {isDisplaced && (
+                                    <path d={`M ${px},${py} C ${px},${py - (py - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${(l.finalY || 0) + (py - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${l.finalY}`}
+                                        fill="none" stroke={ARTISTIC_MAP_STYLES.tethers.stroke} strokeWidth={ARTISTIC_MAP_STYLES.tethers.width} opacity={ARTISTIC_MAP_STYLES.tethers.opacity} />
+                                )}
+                            </svg>
 
-                            fontFamily: l.tier === 'city' ? '"IM Fell DW Pica", serif' : '"Pinyon Script", cursive',
-                            fontWeight: l.tier === 'city' ? 'bold' : 'normal',
-                            fontSize: l.tier === 'city' ? '20px' : (l.tier === 'town' ? '18px' : '14px'),
-                            color: l.isHistorical ? '#5c4033' : '#333', // Faded brown for historical
-                            opacity: l.isHistorical ? 0.7 : 1.0,
-                            textShadow: '0 0 2px #f4ecd8',
-                            whiteSpace: 'nowrap',
-                            pointerEvents: 'none' // Ensure labels don't capture clicks
-                        }}>
-                            {l.text}
-                        </div>
-                    )
+                            <div style={{
+                                position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, transform: `translate(-50%, -50%) rotate(${l.rotation}deg)`,
+                                fontFamily: ARTISTIC_MAP_STYLES.fonts.city.family, fontSize: l.tier === 'city' ? ARTISTIC_MAP_STYLES.fonts.city.size : (l.tier === 'town' ? ARTISTIC_MAP_STYLES.fonts.town.size : ARTISTIC_MAP_STYLES.fonts.village.size),
+                                color: l.isHistorical ? ARTISTIC_MAP_STYLES.colors.text.historical : ARTISTIC_MAP_STYLES.colors.text.active, textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere, whiteSpace: 'nowrap'
+                            }}>{l.text}</div>
+                        </React.Fragment>
+                    );
                 })}
             </div>
 
+            {/* SVG Mask Definition (Atomic from Frame) */}
+            <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+                <defs><mask id="paper-mask" maskContentUnits="userSpaceOnUse">
+                    <rect x="0" y="0" width="10000" height="10000" fill={getMaskColor(paperOpacityFog)} />
+                    <path d={frame.maskPath} fill={getMaskColor(paperOpacityClear)} />
+                </mask></defs>
+            </svg>
+
+            {/* Paper Overlay (Atomic from Frame) */}
             <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none',
-                backgroundColor: '#f4ecd8',
-                backgroundImage: 'url(/assets/textures/paper.jpg), radial-gradient(#d4af37 1px, transparent 1px)',
-                backgroundSize: 'cover, 20px 20px',
-                opacity: 0.15,
-                mixBlendMode: 'multiply',
-                zIndex: 10
+                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none',
+                backgroundColor: '#f4ecd8', backgroundImage: 'url(/assets/textures/paper.jpg), radial-gradient(#d4af37 1px, transparent 1px)',
+                backgroundSize: 'cover, 20px 20px', mixBlendMode: 'multiply', zIndex: 10, mask: 'url(#paper-mask)', WebkitMask: 'url(#paper-mask)'
             }} />
+            <style>{`.stamped-icon svg { width: 100%; height: 100%; overflow: visible; } .stamped-icon path { fill: currentColor; stroke: ${ARTISTIC_MAP_STYLES.colors.icon.stroke}; stroke-width: 0.5px; vector-effect: non-scaling-stroke; }`}</style>
         </div>
     );
 };
-

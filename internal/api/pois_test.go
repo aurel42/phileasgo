@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"phileasgo/pkg/config"
@@ -98,8 +99,9 @@ func (m *apiMockStore) Close() error { return nil }
 
 func TestHandleResetLastPlayed(t *testing.T) {
 	mockStore := &apiMockStore{}
-	mgr := poi.NewManager(config.NewProvider(&config.Config{}, nil), mockStore, nil)
-	handler := NewPOIHandler(mgr, nil, mockStore, nil, nil) // WP Client nil is fine here
+	cfg := config.NewProvider(config.DefaultConfig(), nil)
+	mgr := poi.NewManager(cfg, mockStore, nil)
+	handler := NewPOIHandler(mgr, nil, mockStore, cfg, nil, nil) // WP Client nil is fine here
 
 	t.Run("Success", func(t *testing.T) {
 		reqBody := map[string]float64{
@@ -148,12 +150,13 @@ func TestHandleResetLastPlayed(t *testing.T) {
 
 func TestHandleTracked(t *testing.T) {
 	mockStore := &apiMockStore{}
-	mgr := poi.NewManager(config.NewProvider(&config.Config{}, nil), mockStore, nil)
+	cfg := config.NewProvider(config.DefaultConfig(), nil)
+	mgr := poi.NewManager(cfg, mockStore, nil)
 	// Add some POIs to the manager
 	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P1", NameEn: "POI 1", Score: 10.0, IsVisible: true})
 	mgr.TrackPOI(context.Background(), &model.POI{WikidataID: "P2", NameEn: "POI 2", Score: 8.0, IsVisible: true})
 
-	handler := NewPOIHandler(mgr, nil, mockStore, nil, nil)
+	handler := NewPOIHandler(mgr, nil, mockStore, cfg, nil, nil)
 
 	t.Run("Success", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/pois/tracked", nil)
@@ -185,8 +188,23 @@ func TestHandleTracked(t *testing.T) {
 
 func TestHandleSettlements(t *testing.T) {
 	mockStore := &apiMockStore{}
-	configProvider := config.NewProvider(&config.Config{}, nil)
-	mgr := poi.NewManager(configProvider, mockStore, nil)
+	configProvider := config.NewProvider(config.DefaultConfig(), nil)
+	// Inject Settlement group for test
+	localCatCfg := &config.CategoriesConfig{
+		CategoryGroups: map[string][]string{
+			"Settlements": {"City", "Town", "Village"},
+		},
+		GroupLookup: make(map[string]string),
+	}
+	// Build the lookup manually since we're not loading from file
+	for group, cats := range localCatCfg.CategoryGroups {
+		for _, cat := range cats {
+			localCatCfg.GroupLookup[strings.ToLower(cat)] = group
+		}
+	}
+
+	mgr := poi.NewManager(configProvider, mockStore, localCatCfg)
+	handler := NewPOIHandler(mgr, nil, mockStore, configProvider, nil, nil)
 
 	// Setup Tracked POIs
 	// City
@@ -205,13 +223,11 @@ func TestHandleSettlements(t *testing.T) {
 	farCity := &model.POI{WikidataID: "Q4", NameEn: "Far City", Category: "city", Lat: 20.0, Lon: 20.0, Score: 100}
 	mgr.TrackPOI(context.Background(), farCity)
 
-	handler := NewPOIHandler(mgr, nil, mockStore, nil, nil)
-
 	tests := []struct {
 		name           string
 		queryParams    string
 		expectedStatus int
-		verify         func(t *testing.T, pois []*model.POI)
+		verify         func(t *testing.T, resp SettlementResponse)
 	}{
 		{
 			name:           "Missing Bounds",
@@ -223,13 +239,16 @@ func TestHandleSettlements(t *testing.T) {
 			name:           "All in View (City Priority)",
 			queryParams:    "?minLat=9&maxLat=11&minLon=9&maxLon=11",
 			expectedStatus: http.StatusOK,
-			verify: func(t *testing.T, pois []*model.POI) {
-				if len(pois) != 1 {
-					t.Errorf("Expected 1 POI (City), got %d", len(pois))
+			verify: func(t *testing.T, resp SettlementResponse) {
+				if len(resp.Items) != 1 {
+					t.Errorf("Expected 1 POI (City), got %d", len(resp.Items))
 					return
 				}
-				if pois[0].Category != "city" {
-					t.Errorf("Expected city, got %s", pois[0].Category)
+				if resp.Items[0].Category != "city" {
+					t.Errorf("Expected city, got %s", resp.Items[0].Category)
+				}
+				if resp.TierIndex != 0 {
+					t.Errorf("Expected TierIndex 0, got %d", resp.TierIndex)
 				}
 			},
 		},
@@ -238,13 +257,16 @@ func TestHandleSettlements(t *testing.T) {
 			queryParams: "?minLat=10.05&maxLat=10.25&minLon=10.05&maxLon=10.25",
 			// Bounds exclude 10.0,10.0 (City) but include 10.1 (Town) and 10.2 (Village)
 			expectedStatus: http.StatusOK,
-			verify: func(t *testing.T, pois []*model.POI) {
-				if len(pois) != 1 {
-					t.Errorf("Expected 1 POI (Town), got %d", len(pois))
+			verify: func(t *testing.T, resp SettlementResponse) {
+				if len(resp.Items) != 1 {
+					t.Errorf("Expected 1 POI (Town), got %d", len(resp.Items))
 					return
 				}
-				if pois[0].Category != "town" {
-					t.Errorf("Expected town, got %s", pois[0].Category)
+				if resp.Items[0].Category != "town" {
+					t.Errorf("Expected town, got %s", resp.Items[0].Category)
+				}
+				if resp.TierIndex != 1 {
+					t.Errorf("Expected TierIndex 1, got %d", resp.TierIndex)
 				}
 			},
 		},
@@ -253,13 +275,16 @@ func TestHandleSettlements(t *testing.T) {
 			queryParams: "?minLat=10.15&maxLat=10.25&minLon=10.15&maxLon=10.25",
 			// Bounds exclude City and Town, include Village
 			expectedStatus: http.StatusOK,
-			verify: func(t *testing.T, pois []*model.POI) {
-				if len(pois) != 1 {
-					t.Errorf("Expected 1 POI, got %d", len(pois))
+			verify: func(t *testing.T, resp SettlementResponse) {
+				if len(resp.Items) != 1 {
+					t.Errorf("Expected 1 POI, got %d", len(resp.Items))
 					return
 				}
-				if pois[0].Category != "village" {
-					t.Errorf("Expected village, got %s", pois[0].Category)
+				if resp.Items[0].Category != "village" {
+					t.Errorf("Expected village, got %s", resp.Items[0].Category)
+				}
+				if resp.TierIndex != 2 {
+					t.Errorf("Expected TierIndex 2, got %d", resp.TierIndex)
 				}
 			},
 		},
@@ -277,7 +302,7 @@ func TestHandleSettlements(t *testing.T) {
 			}
 
 			if tt.verify != nil && w.Code == http.StatusOK {
-				var resp []*model.POI
+				var resp SettlementResponse
 				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 					t.Fatalf("Failed to decode response: %v", err)
 				}

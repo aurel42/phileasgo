@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
@@ -32,6 +33,7 @@ type POIHandler struct {
 	mgr       *poi.Manager
 	wp        *wikipedia.Client
 	store     store.Store
+	cfg       config.Provider
 	llm       llm.Provider
 	promptMgr *prompts.Manager
 
@@ -42,11 +44,12 @@ type POIHandler struct {
 }
 
 // NewPOIHandler creates a new POI handler.
-func NewPOIHandler(mgr *poi.Manager, wp *wikipedia.Client, st store.Store, llmProv llm.Provider, promptMgr *prompts.Manager) *POIHandler {
+func NewPOIHandler(mgr *poi.Manager, wp *wikipedia.Client, st store.Store, cfg config.Provider, llmProv llm.Provider, promptMgr *prompts.Manager) *POIHandler {
 	return &POIHandler{
 		mgr:              mgr,
 		wp:               wp,
 		store:            st,
+		cfg:              cfg,
 		llm:              llmProv,
 		promptMgr:        promptMgr,
 		thumbnailFlights: make(map[string]*thumbnailFlight),
@@ -327,6 +330,11 @@ func (h *POIHandler) HandleResetLastPlayed(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusOK)
 }
 
+type SettlementResponse struct {
+	TierIndex int          `json:"tier_index"`
+	Items     []*model.POI `json:"items"`
+}
+
 // HandleSettlements handles GET /api/map/settlements.
 // It returns a list of tracked POIs within the given bounds,
 // prioritized by "Tier" (City > Town > Village).
@@ -350,16 +358,29 @@ func (h *POIHandler) HandleSettlements(w http.ResponseWriter, r *http.Request) {
 	// 3. Filter by Bounds
 	candidates := filterByBounds(tracked, bounds)
 
-	// 4. Apply Tier Strategy
-	finalResult := applyTierStrategy(candidates)
+	// 4. Apply Tier Strategy (Selects only the highest available tier)
+	finalResult, tierIdx := applyTierStrategy(candidates, h.mgr.GetCategoriesConfig())
 
-	// Sort by Score/Population (using Sitelinks or Score as proxy)
+	// 5. Sort by Score
 	sort.Slice(finalResult, func(i, j int) bool {
 		return finalResult[i].Score > finalResult[j].Score
 	})
 
+	// 6. Apply Limit from Config
+	limit := h.cfg.SettlementLabelLimit(r.Context())
+
+	if limit != -1 && len(finalResult) > limit {
+		finalResult = finalResult[:limit]
+	}
+
+	// 7. Wrap in ephemeral response
+	response := SettlementResponse{
+		TierIndex: tierIdx,
+		Items:     finalResult,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(finalResult); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.Error("Failed to encode settlements", "error", err)
 	}
 }
@@ -391,38 +412,39 @@ func filterByBounds(pois []*model.POI, b mapBounds) []*model.POI {
 	return candidates
 }
 
-func applyTierStrategy(candidates []*model.POI) []*model.POI {
-	hasCity := false
-	hasTown := false
+func applyTierStrategy(candidates []*model.POI, catCfg *config.CategoriesConfig) (pois []*model.POI, tierIdx int) {
+	if catCfg == nil {
+		return nil, -1
+	}
 
+	// 1. Find the "Settlements" group case-insensitively
+	var orderedSettlements []string
+	for groupName, cats := range catCfg.CategoryGroups {
+		if strings.EqualFold(groupName, "Settlements") {
+			orderedSettlements = cats
+			break
+		}
+	}
+	if len(orderedSettlements) == 0 {
+		return nil, -1
+	}
+
+	// 2. Group candidates by their normalized category name
+	tiers := make(map[string][]*model.POI)
 	for _, p := range candidates {
 		cat := strings.ToLower(p.Category)
-		if cat == "city" {
-			hasCity = true
-		} else if cat == "town" {
-			hasTown = true
+		if group := catCfg.GetGroup(cat); strings.EqualFold(group, "Settlements") {
+			tiers[cat] = append(tiers[cat], p)
 		}
 	}
 
-	var finalResult []*model.POI
-	for _, p := range candidates {
-		cat := strings.ToLower(p.Category)
-
-		if hasCity {
-			if cat == "city" {
-				finalResult = append(finalResult, p)
-			}
-			continue
+	// 3. Return ONLY the highest tier found (Atomic preference)
+	for i, tierName := range orderedSettlements {
+		tierLower := strings.ToLower(tierName)
+		if len(tiers[tierLower]) > 0 {
+			return tiers[tierLower], i
 		}
-
-		if hasTown {
-			if cat == "town" {
-				finalResult = append(finalResult, p)
-			}
-			continue
-		}
-
-		finalResult = append(finalResult, p)
 	}
-	return finalResult
+
+	return nil, -1
 }

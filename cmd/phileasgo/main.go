@@ -402,7 +402,7 @@ func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns 
 		configH,
 		statsH,
 		api.NewCacheHandler(svcs.WikiSvc),
-		api.NewPOIHandler(svcs.PoiMgr, svcs.WikipediaClient, st, ns.LLMProvider(), promptMgr),
+		api.NewPOIHandler(svcs.PoiMgr, svcs.WikipediaClient, st, cfg, ns.LLMProvider(), promptMgr),
 		api.NewVisibilityHandler(vis, simClient, elevGetter, st, svcs.WikiSvc),
 		api.NewAudioHandler(ns.AudioService(), ns, st),
 		api.NewNarratorHandler(ns.AudioService(), ns, st),

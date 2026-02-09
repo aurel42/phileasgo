@@ -37,6 +37,7 @@ type ConfigResponse struct {
 	ShowCacheLayer              bool     `json:"show_cache_layer"`
 	ShowVisibilityLayer         bool     `json:"show_visibility_layer"`
 	RenderVisibilityAsMap       bool     `json:"render_visibility_as_map"`
+	SettlementLabelLimit        int      `json:"settlement_label_limit"`
 	MinPOIScore                 float64  `json:"min_poi_score"`
 	Volume                      float64  `json:"volume"`
 	FilterMode                  string   `json:"filter_mode"`
@@ -91,6 +92,7 @@ type ConfigRequest struct {
 	ShowCacheLayer              *bool    `json:"show_cache_layer,omitempty"`      // Pointer to detect false vs missing
 	ShowVisibilityLayer         *bool    `json:"show_visibility_layer,omitempty"` // Pointer to detect false vs missing
 	RenderVisibilityAsMap       *bool    `json:"render_visibility_as_map,omitempty"`
+	SettlementLabelLimit        *int     `json:"settlement_label_limit,omitempty"`
 	MinPOIScore                 *float64 `json:"min_poi_score,omitempty"`
 	FilterMode                  string   `json:"filter_mode,omitempty"`
 	TargetPOICount              *int     `json:"target_poi_count,omitempty"`
@@ -182,6 +184,7 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		ShowCacheLayer:              h.cfgProv.ShowCacheLayer(ctx),
 		ShowVisibilityLayer:         h.cfgProv.ShowVisibilityLayer(ctx),
 		RenderVisibilityAsMap:       h.cfgProv.RenderVisibilityAsMap(ctx),
+		SettlementLabelLimit:        h.cfgProv.SettlementLabelLimit(ctx),
 		MinPOIScore:                 h.cfgProv.MinScoreThreshold(ctx),
 		Volume:                      volume, // Volume is not migrated to cfgProv
 		FilterMode:                  h.cfgProv.FilterMode(ctx),
@@ -295,6 +298,9 @@ func (h *ConfigHandler) applyUIUpdates(ctx context.Context, req *ConfigRequest) 
 	}
 	if req.RenderVisibilityAsMap != nil {
 		h.updateBoolState(ctx, config.KeyRenderVisibilityAsMap, *req.RenderVisibilityAsMap)
+	}
+	if req.SettlementLabelLimit != nil {
+		h.updateIntState(ctx, config.KeySettlementLabelLimit, *req.SettlementLabelLimit)
 	}
 
 	if req.RangeRingUnits != "" && (req.RangeRingUnits == "km" || req.RangeRingUnits == "nm") {

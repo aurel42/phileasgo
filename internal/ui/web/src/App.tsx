@@ -41,6 +41,7 @@ function App() {
   const [minPoiScore, setMinPoiScore] = useState(0.5);
   const [filterMode, setFilterMode] = useState<string>('fixed');
   const [targetCount, setTargetCount] = useState(20);
+  const [settlementLabelLimit, setSettlementLabelLimit] = useState(5);
   const [narrationFrequency, setNarrationFrequency] = useState(3);
   const [textLength, setTextLength] = useState(3);
   const [autoNarrate, setAutoNarrate] = useState(true);
@@ -48,6 +49,17 @@ function App() {
   const [repeatTTL, setRepeatTTL] = useState('1h');
   const [narrationLengthShort, setNarrationLengthShort] = useState(50);
   const [narrationLengthLong, setNarrationLengthLong] = useState(200);
+
+  // Paper Opacity State (init with defaults 0.7 and 0.1)
+  const [paperOpacityFog, setPaperOpacityFog] = useState(() => {
+    const saved = localStorage.getItem('paperOpacityFog');
+    return saved ? parseFloat(saved) : 0.7;
+  });
+  const [paperOpacityClear, setPaperOpacityClear] = useState(() => {
+    const saved = localStorage.getItem('paperOpacityClear');
+    return saved ? parseFloat(saved) : 0.1;
+  });
+
   const pois = useTrackedPOIs();
   const { status: narratorStatus } = useNarrator();
 
@@ -160,6 +172,7 @@ function App() {
     if (key === 'repeat_ttl') setRepeatTTL(value as string);
     if (key === 'narration_length_short_words') setNarrationLengthShort(value as number);
     if (key === 'narration_length_long_words') setNarrationLengthLong(value as number);
+    if (key === 'settlement_label_limit') setSettlementLabelLimit(value as number);
 
     fetch('/api/config', {
       method: 'PUT',
@@ -194,6 +207,7 @@ function App() {
           setRepeatTTL(data.repeat_ttl || '1h');
           setNarrationLengthShort(data.narration_length_short_words ?? 50);
           setNarrationLengthLong(data.narration_length_long_words ?? 200);
+          setSettlementLabelLimit(data.settlement_label_limit ?? 5);
         })
         .catch(e => console.error("Failed to fetch config", e));
     };
@@ -320,6 +334,18 @@ function App() {
             setStreamingMode(val);
             localStorage.setItem('streamingMode', String(val));
           }}
+          settlementLabelLimit={settlementLabelLimit}
+          onSettlementLabelLimitChange={(val) => updateConfig('settlement_label_limit', val)}
+          paperOpacityFog={paperOpacityFog}
+          onPaperOpacityFogChange={(val) => {
+            setPaperOpacityFog(val);
+            localStorage.setItem('paperOpacityFog', String(val));
+          }}
+          paperOpacityClear={paperOpacityClear}
+          onPaperOpacityClearChange={(val) => {
+            setPaperOpacityClear(val);
+            localStorage.setItem('paperOpacityClear', String(val));
+          }}
         />
       </Suspense>
     );
@@ -335,6 +361,9 @@ function App() {
               className="w-full h-full"
               telemetry={telemetry ?? null}
               pois={pois}
+              settlementLabelLimit={settlementLabelLimit}
+              paperOpacityFog={paperOpacityFog}
+              paperOpacityClear={paperOpacityClear}
             />
           ) : (
             <Map

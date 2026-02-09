@@ -38,6 +38,12 @@ interface SettingsPanelProps {
     onNarrationLengthChange: (minValue: number, maxValue: number) => void;
     streamingMode: boolean;
     onStreamingModeChange: (val: boolean) => void;
+    settlementLabelLimit: number;
+    onSettlementLabelLimitChange: (val: number) => void;
+    paperOpacityFog: number;
+    onPaperOpacityFogChange: (val: number) => void;
+    paperOpacityClear: number;
+    onPaperOpacityClearChange: (val: number) => void;
 }
 
 const VictorianListEditor: React.FC<{
@@ -135,7 +141,11 @@ interface DraftState {
     beaconSinkDistanceFar: number;
     beaconSinkDistanceClose: number;
     beaconTargetFloorAGL: number;
+
     beaconMaxTargets: number;
+    settlementLabelLimit: number;
+    paperOpacityFog: number;
+    paperOpacityClear: number;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -170,7 +180,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     renderVisibilityAsMap,
     onRenderVisibilityAsMapChange,
     activeMapStyle,
-    onActiveMapStyleChange
+    onActiveMapStyleChange,
+    settlementLabelLimit,
+    onSettlementLabelLimitChange,
+    paperOpacityFog,
+    onPaperOpacityFogChange,
+    paperOpacityClear,
+    onPaperOpacityClearChange
 }) => {
     const [activeTab, setActiveTab] = useState('narrator');
     const [loading, setLoading] = useState(true);
@@ -234,7 +250,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     beaconSinkDistanceFar: data.beacon_sink_distance_far ?? 5000,
                     beaconSinkDistanceClose: data.beacon_sink_distance_close ?? 2000,
                     beaconTargetFloorAGL: data.beacon_target_floor_agl ?? 30.48,
+
                     beaconMaxTargets: data.beacon_max_targets ?? 2,
+                    settlementLabelLimit: settlementLabelLimit,
+                    paperOpacityFog: paperOpacityFog,
+                    paperOpacityClear: paperOpacityClear,
                 });
                 setLoading(false);
             })
@@ -287,9 +307,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.beaconSinkDistanceFar !== (serverConfig.beacon_sink_distance_far ?? 5000) ||
             draft.beaconSinkDistanceClose !== (serverConfig.beacon_sink_distance_close ?? 2000) ||
             draft.beaconTargetFloorAGL !== (serverConfig.beacon_target_floor_agl ?? 30.48) ||
-            draft.beaconMaxTargets !== (serverConfig.beacon_max_targets ?? 2)
+            draft.beaconTargetFloorAGL !== (serverConfig.beacon_target_floor_agl ?? 30.48) ||
+            draft.beaconMaxTargets !== (serverConfig.beacon_max_targets ?? 2) ||
+            draft.settlementLabelLimit !== settlementLabelLimit ||
+            draft.paperOpacityFog !== paperOpacityFog ||
+            draft.paperOpacityClear !== paperOpacityClear
         );
-    }, [draft, serverConfig, narrationFrequency, textLength, minPoiScore, filterMode, targetPoiCount, units, showCacheLayer, showVisibilityLayer, streamingMode]);
+    }, [draft, serverConfig, narrationFrequency, textLength, minPoiScore, filterMode, targetPoiCount, units, showCacheLayer, showVisibilityLayer, streamingMode, settlementLabelLimit, paperOpacityFog, paperOpacityClear]);
 
     // Update draft field
     const updateDraft = <K extends keyof DraftState>(key: K, value: DraftState[K]) => {
@@ -368,6 +392,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             if (draft.minPoiScore !== minPoiScore) onMinPoiScoreChange(draft.minPoiScore);
             if (draft.filterMode !== filterMode) onFilterModeChange(draft.filterMode);
             if (draft.targetPoiCount !== targetPoiCount) onTargetPoiCountChange(draft.targetPoiCount);
+            if (draft.settlementLabelLimit !== settlementLabelLimit) onSettlementLabelLimitChange(draft.settlementLabelLimit);
+            if (draft.paperOpacityFog !== paperOpacityFog) onPaperOpacityFogChange(draft.paperOpacityFog);
+            if (draft.paperOpacityClear !== paperOpacityClear) onPaperOpacityClearChange(draft.paperOpacityClear);
+
 
             // Update server config to match saved values
             setServerConfig((prev: any) => ({
@@ -721,8 +749,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             {renderField('Map Style', (
                                 <select className="settings-select" value={draft.activeMapStyle} onChange={e => updateDraft('activeMapStyle', e.target.value)}>
                                     <option value="dark">Dark</option>
-                                    <option value="artistic">Artistic (Victorian)</option>
+                                    <option value="artistic">Artistic</option>
                                 </select>
+                            ))}
+
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Map Labels</div>
+                            {renderField('Settlement Label Limit', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">
+                                        {draft.settlementLabelLimit === -1 ? 'Unlimited' : draft.settlementLabelLimit}
+                                    </span>
+                                    <input
+                                        type="range"
+                                        min="-1" max="20" step="1"
+                                        value={draft.settlementLabelLimit}
+                                        onChange={e => updateDraft('settlementLabelLimit', parseInt(e.target.value))}
+                                    />
+                                </div>
                             ))}
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Units & Display</div>
@@ -735,6 +779,28 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             ))}
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Overlay Layers</div>
+                            {renderField('Paper Opacity (Fog/Outside)', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{(draft.paperOpacityFog * 100).toFixed(0)}%</span>
+                                    <input
+                                        type="range"
+                                        min="0" max="1" step="0.05"
+                                        value={draft.paperOpacityFog}
+                                        onChange={e => updateDraft('paperOpacityFog', parseFloat(e.target.value))}
+                                    />
+                                </div>
+                            ))}
+                            {renderField('Paper Opacity (Clear/Inside)', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{(draft.paperOpacityClear * 100).toFixed(0)}%</span>
+                                    <input
+                                        type="range"
+                                        min="0" max="1" step="0.05"
+                                        value={draft.paperOpacityClear}
+                                        onChange={e => updateDraft('paperOpacityClear', parseFloat(e.target.value))}
+                                    />
+                                </div>
+                            ))}
                             <VictorianToggle
                                 label="Show Cache Layer"
                                 checked={draft.showCacheLayer}

@@ -83,6 +83,11 @@ func (m *Manager) SetPOILoader(pl Loader) {
 	m.poiLoader = pl
 }
 
+// GetCategoriesConfig returns the current categories configuration.
+func (m *Manager) GetCategoriesConfig() *config.CategoriesConfig {
+	return m.catConfig
+}
+
 // SetRiverSentinel injects the RiverSentinel.
 func (m *Manager) SetRiverSentinel(rs RiverSentinel) {
 	m.riverSentinel = rs
