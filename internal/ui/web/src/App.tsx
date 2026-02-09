@@ -1,4 +1,3 @@
-import { Map } from './components/Map';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { InfoPanel } from './components/InfoPanel';
 import { POIInfoPanel } from './components/POIInfoPanel';
@@ -9,6 +8,9 @@ import type { POI } from './hooks/usePOIs';
 import { useNarrator } from './hooks/useNarrator';
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 
+// Lazy load heavy map components
+const Map = lazy(() => import('./components/Map').then(m => ({ default: m.Map })));
+const ArtisticMap = lazy(() => import('./components/ArtisticMap').then(m => ({ default: m.ArtisticMap })));
 const SettingsPanel = lazy(() => import('./components/SettingsPanel').then(m => ({ default: m.SettingsPanel })));
 
 
@@ -35,6 +37,7 @@ function App() {
   const [showCacheLayer, setShowCacheLayer] = useState(false);
   const [showVisibilityLayer, setShowVisibilityLayer] = useState(false);
   const [renderVisibilityAsMap, setRenderVisibilityAsMap] = useState(false);
+  const [activeMapStyle, setActiveMapStyle] = useState('dark');
   const [minPoiScore, setMinPoiScore] = useState(0.5);
   const [filterMode, setFilterMode] = useState<string>('fixed');
   const [targetCount, setTargetCount] = useState(20);
@@ -178,6 +181,7 @@ function App() {
           setShowCacheLayer(data.show_cache_layer || false);
           setShowVisibilityLayer(data.show_visibility_layer || false);
           setRenderVisibilityAsMap(data.render_visibility_as_map || false);
+          setActiveMapStyle(data.active_map_style || 'dark');
           setMinPoiScore(data.min_poi_score ?? 0.5);
           setFilterMode(data.filter_mode || 'fixed');
           setTargetCount(data.target_poi_count ?? 20);
@@ -232,6 +236,15 @@ function App() {
     }).catch(e => console.error("Failed to update visibility rendering config", e));
   }, []);
 
+  const handleActiveMapStyleChange = useCallback((style: string) => {
+    setActiveMapStyle(style);
+    fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active_map_style: style })
+    }).catch(e => console.error("Failed to update map style", e));
+  }, []);
+
   // Handler to update min poi score config
   const handleMinPoiScoreChange = useCallback((score: number) => {
     setMinPoiScore(score);
@@ -278,6 +291,8 @@ function App() {
           onVisibilityLayerChange={handleVisibilityLayerChange}
           renderVisibilityAsMap={renderVisibilityAsMap}
           onRenderVisibilityAsMapChange={handleRenderVisibilityAsMapChange}
+          activeMapStyle={activeMapStyle}
+          onActiveMapStyleChange={handleActiveMapStyleChange}
           minPoiScore={minPoiScore}
           onMinPoiScoreChange={handleMinPoiScoreChange}
           filterMode={filterMode}
@@ -312,16 +327,29 @@ function App() {
   return (
     <div className="app-container">
       <div className="map-container">
-        <Map
-          units={units}
-          showCacheLayer={showCacheLayer}
-          showVisibilityLayer={showVisibilityLayer}
-          renderVisibilityAsMap={renderVisibilityAsMap}
-          pois={pois}
-          selectedPOI={selectedPOI}
-          onPOISelect={handlePOISelect}
-          onMapClick={handlePanelClose}
-        />
+        <Suspense fallback={<div style={{ width: '100%', height: '100%', background: '#000' }} />}>
+          {activeMapStyle === 'artistic' ? (
+            <ArtisticMap
+              center={telemetry ? [telemetry.Latitude, telemetry.Longitude] : [0, 0]}
+              zoom={10}
+              className="w-full h-full"
+              telemetry={telemetry ?? null}
+              pois={pois}
+              onPOISelect={handlePOISelect}
+            />
+          ) : (
+            <Map
+              units={units}
+              showCacheLayer={showCacheLayer}
+              showVisibilityLayer={showVisibilityLayer}
+              renderVisibilityAsMap={renderVisibilityAsMap}
+              pois={pois}
+              selectedPOI={selectedPOI}
+              onPOISelect={handlePOISelect}
+              onMapClick={handlePanelClose}
+            />
+          )}
+        </Suspense>
 
         {/* Config Pill Overlay */}
         <div className="config-pill" onClick={() => navigate('/settings')} style={{

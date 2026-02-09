@@ -60,6 +60,7 @@ type Provider interface {
 	// Style Library
 	StyleLibrary(ctx context.Context) []string
 	ActiveStyle(ctx context.Context) string
+	ActiveMapStyle(ctx context.Context) string
 
 	// Secret Word (Trip Theme)
 	SecretWordLibrary(ctx context.Context) []string
@@ -258,6 +259,10 @@ func (p *UnifiedProvider) StyleLibrary(ctx context.Context) []string {
 
 func (p *UnifiedProvider) ActiveStyle(ctx context.Context) string {
 	return p.getOptionalString(ctx, KeyActiveStyle, p.base.Narrator.ActiveStyle)
+}
+
+func (p *UnifiedProvider) ActiveMapStyle(ctx context.Context) string {
+	return p.getString(ctx, KeyActiveMapStyle, p.base.Narrator.ActiveMapStyle)
 }
 
 func (p *UnifiedProvider) SecretWordLibrary(ctx context.Context) []string {

@@ -15,6 +15,8 @@ interface SettingsPanelProps {
     onVisibilityLayerChange: (val: boolean) => void;
     renderVisibilityAsMap: boolean;
     onRenderVisibilityAsMapChange: (val: boolean) => void;
+    activeMapStyle: string;
+    onActiveMapStyleChange: (val: string) => void;
     minPoiScore: number;
     onMinPoiScoreChange: (val: number) => void;
     filterMode: string;
@@ -116,6 +118,7 @@ interface DraftState {
     showCacheLayer: boolean;
     showVisibilityLayer: boolean;
     renderVisibilityAsMap: boolean;
+    activeMapStyle: string;
     streamingMode: boolean;
     // Scorer tab
     deferralProximityBoostPower: number;
@@ -165,7 +168,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     streamingMode,
     onStreamingModeChange,
     renderVisibilityAsMap,
-    onRenderVisibilityAsMapChange
+    onRenderVisibilityAsMapChange,
+    activeMapStyle,
+    onActiveMapStyleChange
 }) => {
     const [activeTab, setActiveTab] = useState('narrator');
     const [loading, setLoading] = useState(true);
@@ -215,6 +220,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     showCacheLayer: data.show_cache_layer ?? showCacheLayer,
                     showVisibilityLayer: data.show_visibility_layer ?? showVisibilityLayer,
                     renderVisibilityAsMap: data.render_visibility_as_map ?? renderVisibilityAsMap,
+                    activeMapStyle: data.active_map_style || activeMapStyle,
                     streamingMode,
                     deferralThreshold: data.deferral_threshold ?? 1.05,
                     deferralProximityBoostPower: data.deferral_proximity_boost_power ?? 1.0,
@@ -268,6 +274,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.showCacheLayer !== showCacheLayer ||
             draft.showVisibilityLayer !== showVisibilityLayer ||
             draft.renderVisibilityAsMap !== renderVisibilityAsMap ||
+            draft.activeMapStyle !== activeMapStyle ||
             draft.streamingMode !== streamingMode ||
             draft.deferralThreshold !== (serverConfig.deferral_threshold ?? 1.05) ||
             draft.twoPassScriptGeneration !== (serverConfig.two_pass_script_generation ?? false) ||
@@ -346,6 +353,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             if (draft.showCacheLayer !== showCacheLayer) onCacheLayerChange(draft.showCacheLayer);
             if (draft.showVisibilityLayer !== showVisibilityLayer) onVisibilityLayerChange(draft.showVisibilityLayer);
             if (draft.renderVisibilityAsMap !== renderVisibilityAsMap) onRenderVisibilityAsMapChange(draft.renderVisibilityAsMap);
+            if (draft.activeMapStyle !== activeMapStyle) onActiveMapStyleChange(draft.activeMapStyle);
             if (draft.streamingMode !== streamingMode) onStreamingModeChange(draft.streamingMode);
 
             // Apply prop-based changes via callbacks (these update parent state AND send to server)
@@ -709,7 +717,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                     {activeTab === 'interface' && (
                         <div className="settings-group">
-                            <div className="role-header">Units & Display</div>
+                            <div className="role-header">Use Map Style</div>
+                            {renderField('Map Style', (
+                                <select className="settings-select" value={draft.activeMapStyle} onChange={e => updateDraft('activeMapStyle', e.target.value)}>
+                                    <option value="dark">Dark</option>
+                                    <option value="artistic">Artistic (Victorian)</option>
+                                </select>
+                            ))}
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Units & Display</div>
                             {/* DO NOT CHANGE: This specifically controls the range ring spacing and units on the map */}
                             {renderField('Range Ring Units', (
                                 <select className="settings-select" value={draft.units} onChange={e => updateDraft('units', e.target.value as 'km' | 'nm')}>
@@ -720,7 +736,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Overlay Layers</div>
                             <VictorianToggle
-                                label="Show POI Cache Radius"
+                                label="Show Cache Layer"
                                 checked={draft.showCacheLayer}
                                 onChange={val => updateDraft('showCacheLayer', val)}
                             />
@@ -734,6 +750,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 checked={draft.renderVisibilityAsMap}
                                 onChange={val => updateDraft('renderVisibilityAsMap', val)}
                             />
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Legal & Attribution</div>
+                            <div className="settings-footer" style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted)', fontStyle: 'normal', lineHeight: '1.4' }}>
+                                <strong>Map Tiles:</strong> Stamen Design (Watercolor), CartoDB (Labels/Dark).<br />
+                                <strong>Data:</strong> OpenStreetMap contributors (ODbL).<br />
+                                <strong>Icons:</strong> Lucide React, FontAwesome.<br />
+                                <strong>Fonts:</strong> IM Fell DW Pica (Igino Marini).
+                            </div>
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Developer Settings</div>
                             <VictorianToggle

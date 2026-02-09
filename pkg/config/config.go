@@ -188,6 +188,7 @@ type NarratorConfig struct {
 	ActiveStyle               string             `yaml:"active_style"`
 	SecretWordLibrary         []string           `yaml:"secret_word_library"`
 	ActiveSecretWord          string             `yaml:"active_secret_word"`
+	ActiveMapStyle            string             `yaml:"active_map_style"`
 	TwoPassScriptGeneration   bool               `yaml:"two_pass_script_generation"`
 }
 

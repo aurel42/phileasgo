@@ -23,6 +23,7 @@ const (
 	KeyMockDurHold                 = "mock_duration_hold"
 	KeyStyleLibrary                = "style_library"
 	KeyActiveStyle                 = "active_style"
+	KeyActiveMapStyle              = "active_map_style"
 	KeySecretWordLibrary           = "secret_word_library"
 	KeyActiveSecretWord            = "active_secret_word"
 	KeyTargetLanguageLibrary       = "target_language_library"

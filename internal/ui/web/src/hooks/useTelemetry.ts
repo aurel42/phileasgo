@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import type { Telemetry } from '../types/telemetry';
 
 const fetchTelemetry = async (): Promise<Telemetry> => {
@@ -16,5 +16,6 @@ export const useTelemetry = (streamingMode: boolean = false) => {
         refetchInterval: 500, // Poll every 500ms
         refetchIntervalInBackground: streamingMode, // Keep polling when tab is backgrounded
         retry: false,
+        placeholderData: keepPreviousData, // Latch: Keep last valid data while fetching
     });
 };

@@ -60,6 +60,7 @@ func TestUnifiedProvider(t *testing.T) {
 	baseCfg.Narrator.Essay.DelayBeforeEssay = Duration(60 * time.Second)
 	baseCfg.Narrator.StyleLibrary = []string{"style1", "style2"}
 	baseCfg.Narrator.ActiveStyle = "style1"
+	baseCfg.Narrator.ActiveMapStyle = "standard"
 	baseCfg.Narrator.SecretWordLibrary = []string{"word1", "word2"}
 	baseCfg.Narrator.ActiveSecretWord = "word1"
 	baseCfg.Scorer.DeferralThreshold = 1.05
@@ -161,6 +162,9 @@ func TestUnifiedProvider(t *testing.T) {
 		}
 		if p.ActiveStyle(ctx) != "style1" {
 			t.Errorf("expected style1, got %s", p.ActiveStyle(ctx))
+		}
+		if p.ActiveMapStyle(ctx) != "standard" {
+			t.Errorf("expected standard, got %s", p.ActiveMapStyle(ctx))
 		}
 		if len(p.SecretWordLibrary(ctx)) != 2 {
 			t.Errorf("expected 2 words, got %d", len(p.SecretWordLibrary(ctx)))

@@ -105,6 +105,7 @@ func (h *VisibilityHandler) Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleMask handles GET /api/map/visibility-mask
+// HandleMask handles GET /api/map/visibility-mask
 func (h *VisibilityHandler) HandleMask(w http.ResponseWriter, r *http.Request) {
 	// 1. Get Aircraft State
 	telemetry, err := h.simClient.GetTelemetry(r.Context())
@@ -117,52 +118,113 @@ func (h *VisibilityHandler) HandleMask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Parse Query Params
-	params, err := h.parseQueryParams(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// 3. Calculate Effective AGL (Valley)
+	// 2. Calculate Context
 	effectiveAGL := h.calculateEffectiveAGL(r.Context(), &telemetry)
-
-	// 3a. Get Visibility Boost
 	boostFactor := h.getBoostFactor(r.Context())
 
-	// 4. Generate Grid
-	gridM, gridL, gridXL := h.computeGrids(&telemetry, effectiveAGL, params.North, params.East, params.South, params.West, params.Resolution, boostFactor)
-
-	// 5. Calculate Mask
-	// We want the mask to be intense (1.0) wherever any visibility grid is at its local peak.
-	// Normalizing each grid individually and taking the Max ensures the "spotlight"
-	// feels bright even if one size class (e.g. M) is weak but XL is strong.
-	maxM, maxL, maxXL := 0.001, 0.001, 0.001
-	for i := range gridM {
-		maxM = math.Max(maxM, gridM[i])
-		maxL = math.Max(maxL, gridL[i])
-		maxXL = math.Max(maxXL, gridXL[i])
+	// Max possible distance for this altitude context
+	// We use EffectiveAGL because that's what drives the visibility calculation cap.
+	// Using MSL was overestimating the scan range over high terrain.
+	maxRadiusNM := h.calculator.GetMaxVisibleDistance(effectiveAGL, visibility.SizeXL, boostFactor)
+	if maxRadiusNM < 5.0 {
+		maxRadiusNM = 5.0
 	}
 
-	mask := make([]float64, len(gridM))
-	for i := range gridM {
-		mVal := gridM[i] / maxM
-		lVal := gridL[i] / maxL
-		xlVal := gridXL[i] / maxXL
+	// 3. Generate Polygon via Raycasting
+	// We scan 360 degrees to find the visible boundary "isovist".
+	const segments = 72 // Every 5 degrees
+	coordinates := make([][]float64, 0, segments+1)
 
-		maxVal := math.Max(mVal, math.Max(lVal, xlVal))
+	lat1 := telemetry.Latitude * math.Pi / 180.0
+	lon1 := telemetry.Longitude * math.Pi / 180.0
+	const R = 3440.065
 
-		// Apply a slight contrast boost: score^1.5 makes the edges cleaner
-		mask[i] = math.Pow(maxVal, 1.5)
+	// Get the blind spot radius once
+	blindSpotNM := h.calculator.GetBlindSpotRadius(telemetry.AltitudeAGL)
+
+	// Dynamic step size based on range
+	// For 3NM range, we want small steps (0.3). For 50NM, larger steps (5.0).
+	stepSize := maxRadiusNM / 10.0
+	if stepSize < 0.5 {
+		stepSize = 0.5
+	}
+	if stepSize > 5.0 {
+		stepSize = 5.0
 	}
 
-	// 6. Response
+	for i := 0; i < segments; i++ {
+		bearingVal := float64(i) * 360.0 / float64(segments)
+
+		// 1. Initial Visibility Check
+		// We check a point just outside the blind spot to see if this bearing is open.
+		// If open, we assume visibility starts from 0 (filling the hole).
+		// If blocked (e.g. behind aircraft), then the whole ray is blocked.
+		startCheckDist := blindSpotNM + 0.5
+		if startCheckDist > maxRadiusNM {
+			startCheckDist = maxRadiusNM
+		}
+
+		isOpen := false
+		if h.calculator.CalculateVisibilityForSize(telemetry.Heading, telemetry.AltitudeAGL, effectiveAGL, bearingVal, startCheckDist, visibility.SizeXL, telemetry.IsOnGround, boostFactor) > 0.01 {
+			isOpen = true
+		} else {
+			// Double check a bit further out just in case
+			// This helps if the "startCheckDist" happened to land on a small obstruction
+			secondCheck := startCheckDist + stepSize
+			if secondCheck < maxRadiusNM {
+				if h.calculator.CalculateVisibilityForSize(telemetry.Heading, telemetry.AltitudeAGL, effectiveAGL, bearingVal, secondCheck, visibility.SizeXL, telemetry.IsOnGround, boostFactor) > 0.01 {
+					isOpen = true
+				}
+			}
+		}
+
+		if !isOpen {
+			// Blocked ray (e.g. rear of aircraft)
+			rNM := 0.5
+			bearingRad := bearingVal * math.Pi / 180.0
+			lat2 := math.Asin(math.Sin(lat1)*math.Cos(rNM/R) + math.Cos(lat1)*math.Sin(rNM/R)*math.Cos(bearingRad))
+			lon2 := lon1 + math.Atan2(math.Sin(bearingRad)*math.Sin(rNM/R)*math.Cos(lat1), math.Cos(rNM/R)-math.Sin(lat1)*math.Sin(lat2))
+			coordinates = append(coordinates, []float64{lon2 * 180.0 / math.Pi, lat2 * 180.0 / math.Pi})
+			continue
+		}
+
+		// 2. Find End of Visibility (Terrain Occlusion / Max Range)
+		// We scan from startCheckDist outwards.
+		finalDist := maxRadiusNM
+
+		for d := startCheckDist; d <= maxRadiusNM; d += stepSize {
+			if h.calculator.CalculateVisibilityForSize(telemetry.Heading, telemetry.AltitudeAGL, effectiveAGL, bearingVal, d, visibility.SizeXL, telemetry.IsOnGround, boostFactor) < 0.01 {
+				// Hit obstruction limit
+				finalDist = d - stepSize
+				if finalDist < startCheckDist {
+					finalDist = startCheckDist
+				}
+				break
+			}
+		}
+
+		rNM := finalDist
+		bearingRad := bearingVal * math.Pi / 180.0
+		lat2 := math.Asin(math.Sin(lat1)*math.Cos(rNM/R) + math.Cos(lat1)*math.Sin(rNM/R)*math.Cos(bearingRad))
+		lon2 := lon1 + math.Atan2(math.Sin(bearingRad)*math.Sin(rNM/R)*math.Cos(lat1), math.Cos(rNM/R)-math.Sin(lat1)*math.Sin(lat2))
+
+		coordinates = append(coordinates, []float64{lon2 * 180.0 / math.Pi, lat2 * 180.0 / math.Pi})
+	}
+
+	// Close the loop
+	if len(coordinates) > 0 {
+		coordinates = append(coordinates, coordinates[0])
+	}
+
+	// 4. Response
 	resp := map[string]interface{}{
-		"mask": mask,
-		"rows": params.Resolution,
-		"cols": params.Resolution,
-		"bounds": map[string]float64{
-			"north": params.North, "east": params.East, "south": params.South, "west": params.West,
+		"type": "Feature",
+		"geometry": map[string]interface{}{
+			"type":        "Polygon",
+			"coordinates": [][][]float64{coordinates},
+		},
+		"properties": map[string]interface{}{
+			"radius_nm": maxRadiusNM,
 		},
 	}
 

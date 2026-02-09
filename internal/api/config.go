@@ -58,6 +58,7 @@ type ConfigResponse struct {
 	MockDurationHold            string   `json:"mock_duration_hold"`
 	StyleLibrary                []string `json:"style_library"`
 	ActiveStyle                 string   `json:"active_style"`
+	ActiveMapStyle              string   `json:"active_map_style"`
 	SecretWordLibrary           []string `json:"secret_word_library"`
 	ActiveSecretWord            string   `json:"active_secret_word"`
 	TargetLanguageLibrary       []string `json:"target_language_library"`
@@ -105,6 +106,7 @@ type ConfigRequest struct {
 	MockDurationHold            string   `json:"mock_duration_hold,omitempty"`
 	StyleLibrary                []string `json:"style_library,omitempty"`
 	ActiveStyle                 *string  `json:"active_style,omitempty"` // Pointer to detect empty string vs missing
+	ActiveMapStyle              *string  `json:"active_map_style,omitempty"`
 	SecretWordLibrary           []string `json:"secret_word_library,omitempty"`
 	ActiveSecretWord            *string  `json:"active_secret_word,omitempty"` // Pointer to detect empty string vs missing
 	TargetLanguageLibrary       []string `json:"target_language_library,omitempty"`
@@ -201,6 +203,7 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		MockDurationHold:            h.cfgProv.MockDurationHold(ctx).String(),
 		StyleLibrary:                h.cfgProv.StyleLibrary(ctx),
 		ActiveStyle:                 h.cfgProv.ActiveStyle(ctx),
+		ActiveMapStyle:              h.cfgProv.ActiveMapStyle(ctx),
 		SecretWordLibrary:           h.cfgProv.SecretWordLibrary(ctx),
 		ActiveSecretWord:            h.cfgProv.ActiveSecretWord(ctx),
 		TargetLanguageLibrary:       h.cfgProv.TargetLanguageLibrary(ctx),
@@ -384,6 +387,10 @@ func (h *ConfigHandler) applyStyleUpdates(ctx context.Context, req *ConfigReques
 	if req.ActiveStyle != nil {
 		_ = h.store.SetState(ctx, config.KeyActiveStyle, *req.ActiveStyle)
 		slog.Debug("Config updated", config.KeyActiveStyle, *req.ActiveStyle)
+	}
+	if req.ActiveMapStyle != nil {
+		_ = h.store.SetState(ctx, config.KeyActiveMapStyle, *req.ActiveMapStyle)
+		slog.Debug("Config updated", config.KeyActiveMapStyle, *req.ActiveMapStyle)
 	}
 	if req.SecretWordLibrary != nil {
 		jsonBytes, err := json.Marshal(req.SecretWordLibrary)

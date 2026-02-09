@@ -201,10 +201,11 @@ func (c *Calculator) calculateDistanceDecay(distNM, maxDist float64) float64 {
 	return score
 }
 
-func isBlindSpot(altAGL, distNM, relBearing float64) bool {
+// GetBlindSpotRadius returns the radius of the blind spot beneath the aircraft in NM
+func (c *Calculator) GetBlindSpotRadius(altAGL float64) float64 {
 	// 0. No blind spot below 500ft
 	if altAGL <= 500.0 {
-		return false
+		return 0.0
 	}
 
 	// 1. Calculate Blind Radius
@@ -221,8 +222,27 @@ func isBlindSpot(altAGL, distNM, relBearing float64) bool {
 		ratio := (altAGL - floor) / (ceiling - floor)
 		blindRadius = ratio * maxRadius
 	}
+	return blindRadius
+}
 
-	// Blind spot is under nose (small radius) - now 360 degrees
+func isBlindSpot(altAGL, distNM, relBearing float64) bool {
+	// Re-implementing logic here to avoid method signature changes for this private helper
+	if altAGL <= 500.0 {
+		return false
+	}
+
+	const ceiling = 35000.0
+	const floor = 500.0
+	const maxRadius = 5.0
+
+	var blindRadius float64
+	if altAGL >= ceiling {
+		blindRadius = maxRadius
+	} else {
+		ratio := (altAGL - floor) / (ceiling - floor)
+		blindRadius = ratio * maxRadius
+	}
+
 	return distNM < blindRadius
 }
 

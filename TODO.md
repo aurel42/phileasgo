@@ -62,3 +62,11 @@ X replay: essays: assign icons, use different colors for markers
 # Trip Summary / Improved Debriefing
 X PoC implementation
 - remove zoom or fix track de-syncing
+
+# alternative map
+- base is Stamen Watercolor
+- overlay with labels, can we control the font?
+- fog of war: paper reveal? paint map on parchment as it is revealed?
+- Victorian compass rose
+- new Victorian marker style
+- can we do all of this with leaflet?
