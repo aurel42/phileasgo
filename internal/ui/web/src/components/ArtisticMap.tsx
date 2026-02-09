@@ -5,6 +5,7 @@ import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Telemetry } from '../types/telemetry';
 import type { POI } from '../hooks/usePOIs';
+import { useLabelPlacement } from '../hooks/useLabelPlacement';
 
 interface ArtisticMapProps {
     className?: string;
@@ -12,10 +13,9 @@ interface ArtisticMapProps {
     zoom: number;
     telemetry: Telemetry | null;
     pois: POI[];
-    onPOISelect?: (poi: POI) => void;
 }
 
-export const ArtisticMap: React.FC<ArtisticMapProps> = ({ className, center, zoom, telemetry, pois, onPOISelect }) => {
+export const ArtisticMap: React.FC<ArtisticMapProps> = ({ className, center, zoom, telemetry, pois }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<maplibregl.Map | null>(null);
     const [styleLoaded, setStyleLoaded] = useState(false);
@@ -101,6 +101,11 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({ className, center, zoo
 
         const updateMask = async () => {
             if (!map.current) return;
+            // Use current map center, not the stale props.center
+            const currentCenter = map.current.getCenter();
+            const centerLat = currentCenter.lat;
+            const centerLon = currentCenter.lng;
+
             try {
                 const bounds = map.current.getBounds();
                 const north = bounds.getNorth();
@@ -192,11 +197,11 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({ className, center, zoo
                         const r = data.properties.radius_nm;
                         // 1 NM = 1/60 degrees latitude roughly
                         const latOffset = (r * 1.2) / 60.0; // 20% padding
-                        const lonOffset = latOffset / Math.cos(center[0] * Math.PI / 180.0);
+                        const lonOffset = latOffset / Math.cos(centerLat * Math.PI / 180.0);
 
                         const bounds: [number, number, number, number] = [
-                            center[1] - lonOffset, center[0] - latOffset,
-                            center[1] + lonOffset, center[0] + latOffset
+                            centerLon - lonOffset, centerLat - latOffset,
+                            centerLon + lonOffset, centerLat + latOffset
                         ];
 
                         // Smoothly float to the new zoom level
@@ -222,9 +227,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({ className, center, zoo
         return () => clearInterval(interval);
 
     }, [styleLoaded]);
-
-    // Marker refs
-    const poiMarkersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
 
     // Bearing Line Source
     useEffect(() => {
@@ -298,58 +300,95 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({ className, center, zoo
 
     }, [telemetry, styleLoaded]);
 
-    // Update POI Markers
+    // --- Settlements & Labels ---
+    const [settlements, setSettlements] = useState<POI[]>([]);
+
+    // Fetch settlements on moveend
     useEffect(() => {
-        if (!map.current) return;
+        if (!map.current || !styleLoaded) return;
 
-        const markers = poiMarkersRef.current;
-        const currentIds = new Set(pois.map(p => p.wikidata_id));
+        const fetchSettlements = async () => {
+            const bounds = map.current!.getBounds();
+            const north = bounds.getNorth();
+            const east = bounds.getEast();
+            const south = bounds.getSouth();
+            const west = bounds.getWest();
+            const z = map.current!.getZoom();
 
-        // Remove old markers
-        for (const [id, marker] of markers.entries()) {
-            if (!currentIds.has(id)) {
-                marker.remove();
-                markers.delete(id);
+            try {
+                const res = await fetch(`/api/map/settlements?minLat=${south}&maxLat=${north}&minLon=${west}&maxLon=${east}&zoom=${z}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setSettlements(data || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch settlements", err);
             }
-        }
+        };
 
-        // Add/Update new markers
-        pois.forEach(poi => {
-            if (markers.has(poi.wikidata_id)) {
-                // Update position if needed (rare for POIs but possible)
-                markers.get(poi.wikidata_id)?.setLngLat([poi.lon, poi.lat]);
-            } else {
-                const el = document.createElement('div');
-                el.className = 'artistic-poi-marker';
-                el.style.width = '24px';
-                el.style.height = '24px';
-                el.style.cursor = 'pointer';
-                el.innerHTML = `<div style="
-                    width: 100%; height: 100%;
-                    border: 2px solid #8b4513; 
-                    border-radius: 50%; 
-                    background: rgba(244, 236, 216, 0.8);
-                    display: flex; align-items: center; justify-content: center;
-                    font-family: 'IM Fell DW Pica', serif;
-                    font-weight: bold;
-                    color: #5c4033;
-                ">${poi.category === 'natural' ? 'N' : 'P'}</div>`;
+        map.current.on('moveend', fetchSettlements);
+        fetchSettlements(); // Initial fetch
 
-                el.onclick = () => onPOISelect?.(poi);
+        return () => {
+            map.current?.off('moveend', fetchSettlements);
+        };
+    }, [styleLoaded]);
 
-                const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-                    .setLngLat([poi.lon, poi.lat])
-                    .addTo(map.current!);
 
-                markers.set(poi.wikidata_id, marker);
-            }
-        });
-
-    }, [pois, onPOISelect]);
+    // Use Placement Engine to position labels
+    const visibleLabels = useLabelPlacement(map.current, settlements, pois, zoom);
 
     return (
         <div className={className} style={{ position: 'relative', width: '100%', height: '100%' }}>
             <div ref={mapContainer} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', color: 'black' }} />
+
+            {/* Labels Overlay */}
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>
+                {visibleLabels.map(l => {
+
+
+
+                    if (l.type === 'poi') {
+                        // Render Icon for POI (Placeholder: Circle with Size)
+                        // TODO: Use Maki Icons as per spec
+                        return (
+                            <div key={l.id} style={{
+                                position: 'absolute',
+                                left: l.finalX ?? 0,
+                                top: l.finalY ?? 0,
+                                width: l.width,
+                                height: l.height,
+                                transform: `translate(-50%, -50%)`, // No rotation for icons
+                                borderRadius: '50%',
+                                border: '1px solid #5c4033',
+                                backgroundColor: l.isHistorical ? 'rgba(92, 64, 51, 0.4)' : 'rgba(212, 175, 55, 0.8)', // Gold/Bronze
+                                pointerEvents: 'none'
+                            }} />
+                        );
+                    }
+
+                    return (
+                        <div key={l.id} style={{
+                            position: 'absolute',
+                            left: l.finalX ?? 0,
+                            top: l.finalY ?? 0,
+                            transform: `translate(-50%, -50%) rotate(${l.rotation || 0}deg)`,
+
+                            fontFamily: l.tier === 'city' ? '"IM Fell DW Pica", serif' : '"Pinyon Script", cursive',
+                            fontWeight: l.tier === 'city' ? 'bold' : 'normal',
+                            fontSize: l.tier === 'city' ? '20px' : (l.tier === 'town' ? '18px' : '14px'),
+                            color: l.isHistorical ? '#5c4033' : '#333', // Faded brown for historical
+                            opacity: l.isHistorical ? 0.7 : 1.0,
+                            textShadow: '0 0 2px #f4ecd8',
+                            whiteSpace: 'nowrap',
+                            pointerEvents: 'none' // Ensure labels don't capture clicks
+                        }}>
+                            {l.text}
+                        </div>
+                    )
+                })}
+            </div>
+
             <div style={{
                 position: 'absolute',
                 top: 0,
@@ -367,3 +406,4 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({ className, center, zoo
         </div>
     );
 };
+

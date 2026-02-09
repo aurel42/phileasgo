@@ -182,3 +182,107 @@ func TestHandleTracked(t *testing.T) {
 		}
 	})
 }
+
+func TestHandleSettlements(t *testing.T) {
+	mockStore := &apiMockStore{}
+	configProvider := config.NewProvider(&config.Config{}, nil)
+	mgr := poi.NewManager(configProvider, mockStore, nil)
+
+	// Setup Tracked POIs
+	// City
+	city := &model.POI{WikidataID: "Q1", NameEn: "City", Category: "city", Lat: 10.0, Lon: 10.0, Score: 100}
+	mgr.TrackPOI(context.Background(), city)
+
+	// Town
+	town := &model.POI{WikidataID: "Q2", NameEn: "Town", Category: "town", Lat: 10.1, Lon: 10.1, Score: 50}
+	mgr.TrackPOI(context.Background(), town)
+
+	// Village
+	village := &model.POI{WikidataID: "Q3", NameEn: "Village", Category: "village", Lat: 10.2, Lon: 10.2, Score: 10}
+	mgr.TrackPOI(context.Background(), village)
+
+	// Out of bounds
+	farCity := &model.POI{WikidataID: "Q4", NameEn: "Far City", Category: "city", Lat: 20.0, Lon: 20.0, Score: 100}
+	mgr.TrackPOI(context.Background(), farCity)
+
+	handler := NewPOIHandler(mgr, nil, mockStore, nil, nil)
+
+	tests := []struct {
+		name           string
+		queryParams    string
+		expectedStatus int
+		verify         func(t *testing.T, pois []*model.POI)
+	}{
+		{
+			name:           "Missing Bounds",
+			queryParams:    "",
+			expectedStatus: http.StatusBadRequest,
+			verify:         nil,
+		},
+		{
+			name:           "All in View (City Priority)",
+			queryParams:    "?minLat=9&maxLat=11&minLon=9&maxLon=11",
+			expectedStatus: http.StatusOK,
+			verify: func(t *testing.T, pois []*model.POI) {
+				if len(pois) != 1 {
+					t.Errorf("Expected 1 POI (City), got %d", len(pois))
+					return
+				}
+				if pois[0].Category != "city" {
+					t.Errorf("Expected city, got %s", pois[0].Category)
+				}
+			},
+		},
+		{
+			name:        "Zoom on Town (City out of bounds)",
+			queryParams: "?minLat=10.05&maxLat=10.25&minLon=10.05&maxLon=10.25",
+			// Bounds exclude 10.0,10.0 (City) but include 10.1 (Town) and 10.2 (Village)
+			expectedStatus: http.StatusOK,
+			verify: func(t *testing.T, pois []*model.POI) {
+				if len(pois) != 1 {
+					t.Errorf("Expected 1 POI (Town), got %d", len(pois))
+					return
+				}
+				if pois[0].Category != "town" {
+					t.Errorf("Expected town, got %s", pois[0].Category)
+				}
+			},
+		},
+		{
+			name:        "Zoom on Village (Only)",
+			queryParams: "?minLat=10.15&maxLat=10.25&minLon=10.15&maxLon=10.25",
+			// Bounds exclude City and Town, include Village
+			expectedStatus: http.StatusOK,
+			verify: func(t *testing.T, pois []*model.POI) {
+				if len(pois) != 1 {
+					t.Errorf("Expected 1 POI, got %d", len(pois))
+					return
+				}
+				if pois[0].Category != "village" {
+					t.Errorf("Expected village, got %s", pois[0].Category)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/map/settlements"+tt.queryParams, nil)
+			w := httptest.NewRecorder()
+
+			handler.HandleSettlements(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+
+			if tt.verify != nil && w.Code == http.StatusOK {
+				var resp []*model.POI
+				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+					t.Fatalf("Failed to decode response: %v", err)
+				}
+				tt.verify(t, resp)
+			}
+		})
+	}
+}

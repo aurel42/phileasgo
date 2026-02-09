@@ -335,7 +335,6 @@ function App() {
               className="w-full h-full"
               telemetry={telemetry ?? null}
               pois={pois}
-              onPOISelect={handlePOISelect}
             />
           ) : (
             <Map

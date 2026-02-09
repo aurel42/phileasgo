@@ -131,7 +131,25 @@ func (h *VisibilityHandler) HandleMask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. Generate Polygon via Raycasting
-	// We scan 360 degrees to find the visible boundary "isovist".
+	coordinates := h.calculateVisibilityPolygon(&telemetry, effectiveAGL, maxRadiusNM, boostFactor)
+
+	// 4. Response
+	resp := map[string]interface{}{
+		"type": "Feature",
+		"geometry": map[string]interface{}{
+			"type":        "Polygon",
+			"coordinates": [][][]float64{coordinates},
+		},
+		"properties": map[string]interface{}{
+			"radius_nm": maxRadiusNM,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (h *VisibilityHandler) calculateVisibilityPolygon(telemetry *sim.Telemetry, effectiveAGL, maxRadiusNM, boostFactor float64) [][]float64 {
 	const segments = 72 // Every 5 degrees
 	coordinates := make([][]float64, 0, segments+1)
 
@@ -143,7 +161,6 @@ func (h *VisibilityHandler) HandleMask(w http.ResponseWriter, r *http.Request) {
 	blindSpotNM := h.calculator.GetBlindSpotRadius(telemetry.AltitudeAGL)
 
 	// Dynamic step size based on range
-	// For 3NM range, we want small steps (0.3). For 50NM, larger steps (5.0).
 	stepSize := maxRadiusNM / 10.0
 	if stepSize < 0.5 {
 		stepSize = 0.5
@@ -156,9 +173,6 @@ func (h *VisibilityHandler) HandleMask(w http.ResponseWriter, r *http.Request) {
 		bearingVal := float64(i) * 360.0 / float64(segments)
 
 		// 1. Initial Visibility Check
-		// We check a point just outside the blind spot to see if this bearing is open.
-		// If open, we assume visibility starts from 0 (filling the hole).
-		// If blocked (e.g. behind aircraft), then the whole ray is blocked.
 		startCheckDist := blindSpotNM + 0.5
 		if startCheckDist > maxRadiusNM {
 			startCheckDist = maxRadiusNM
@@ -168,8 +182,6 @@ func (h *VisibilityHandler) HandleMask(w http.ResponseWriter, r *http.Request) {
 		if h.calculator.CalculateVisibilityForSize(telemetry.Heading, telemetry.AltitudeAGL, effectiveAGL, bearingVal, startCheckDist, visibility.SizeXL, telemetry.IsOnGround, boostFactor) > 0.01 {
 			isOpen = true
 		} else {
-			// Double check a bit further out just in case
-			// This helps if the "startCheckDist" happened to land on a small obstruction
 			secondCheck := startCheckDist + stepSize
 			if secondCheck < maxRadiusNM {
 				if h.calculator.CalculateVisibilityForSize(telemetry.Heading, telemetry.AltitudeAGL, effectiveAGL, bearingVal, secondCheck, visibility.SizeXL, telemetry.IsOnGround, boostFactor) > 0.01 {
@@ -179,7 +191,6 @@ func (h *VisibilityHandler) HandleMask(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !isOpen {
-			// Blocked ray (e.g. rear of aircraft)
 			rNM := 0.5
 			bearingRad := bearingVal * math.Pi / 180.0
 			lat2 := math.Asin(math.Sin(lat1)*math.Cos(rNM/R) + math.Cos(lat1)*math.Sin(rNM/R)*math.Cos(bearingRad))
@@ -188,13 +199,10 @@ func (h *VisibilityHandler) HandleMask(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// 2. Find End of Visibility (Terrain Occlusion / Max Range)
-		// We scan from startCheckDist outwards.
+		// 2. Find End of Visibility
 		finalDist := maxRadiusNM
-
 		for d := startCheckDist; d <= maxRadiusNM; d += stepSize {
 			if h.calculator.CalculateVisibilityForSize(telemetry.Heading, telemetry.AltitudeAGL, effectiveAGL, bearingVal, d, visibility.SizeXL, telemetry.IsOnGround, boostFactor) < 0.01 {
-				// Hit obstruction limit
 				finalDist = d - stepSize
 				if finalDist < startCheckDist {
 					finalDist = startCheckDist
@@ -216,20 +224,7 @@ func (h *VisibilityHandler) HandleMask(w http.ResponseWriter, r *http.Request) {
 		coordinates = append(coordinates, coordinates[0])
 	}
 
-	// 4. Response
-	resp := map[string]interface{}{
-		"type": "Feature",
-		"geometry": map[string]interface{}{
-			"type":        "Polygon",
-			"coordinates": [][][]float64{coordinates},
-		},
-		"properties": map[string]interface{}{
-			"radius_nm": maxRadiusNM,
-		},
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	return coordinates
 }
 
 type VisibilityParams struct {

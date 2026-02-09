@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -323,6 +324,105 @@ func (h *POIHandler) HandleResetLastPlayed(w http.ResponseWriter, r *http.Reques
 	}
 
 	slog.Info("Reset last_played timestamp for POIs", "lat", req.Lat, "lon", req.Lon, "radius_m", 100000)
-
 	w.WriteHeader(http.StatusOK)
+}
+
+// HandleSettlements handles GET /api/map/settlements.
+// It returns a list of tracked POIs within the given bounds,
+// prioritized by "Tier" (City > Town > Village).
+// Query Params: minLat, maxLat, minLon, maxLon, zoom
+func (h *POIHandler) HandleSettlements(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 1. Parse Bounds
+	bounds, err := parseBounds(r)
+	if err != nil {
+		http.Error(w, "Missing or invalid bounds", http.StatusBadRequest)
+		return
+	}
+
+	// 2. Get Tracked POIs (Thread-safe copy)
+	tracked := h.mgr.GetTrackedPOIs()
+
+	// 3. Filter by Bounds
+	candidates := filterByBounds(tracked, bounds)
+
+	// 4. Apply Tier Strategy
+	finalResult := applyTierStrategy(candidates)
+
+	// Sort by Score/Population (using Sitelinks or Score as proxy)
+	sort.Slice(finalResult, func(i, j int) bool {
+		return finalResult[i].Score > finalResult[j].Score
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(finalResult); err != nil {
+		slog.Error("Failed to encode settlements", "error", err)
+	}
+}
+
+type mapBounds struct {
+	minLat, maxLat, minLon, maxLon float64
+}
+
+func parseBounds(r *http.Request) (mapBounds, error) {
+	q := r.URL.Query()
+	minLat, _ := strconv.ParseFloat(q.Get("minLat"), 64)
+	maxLat, _ := strconv.ParseFloat(q.Get("maxLat"), 64)
+	minLon, _ := strconv.ParseFloat(q.Get("minLon"), 64)
+	maxLon, _ := strconv.ParseFloat(q.Get("maxLon"), 64)
+
+	if minLat == 0 && maxLat == 0 && minLon == 0 && maxLon == 0 {
+		return mapBounds{}, fmt.Errorf("missing bounds")
+	}
+	return mapBounds{minLat, maxLat, minLon, maxLon}, nil
+}
+
+func filterByBounds(pois []*model.POI, b mapBounds) []*model.POI {
+	var candidates []*model.POI
+	for _, p := range pois {
+		if p.Lat >= b.minLat && p.Lat <= b.maxLat && p.Lon >= b.minLon && p.Lon <= b.maxLon {
+			candidates = append(candidates, p)
+		}
+	}
+	return candidates
+}
+
+func applyTierStrategy(candidates []*model.POI) []*model.POI {
+	hasCity := false
+	hasTown := false
+
+	for _, p := range candidates {
+		cat := strings.ToLower(p.Category)
+		if cat == "city" {
+			hasCity = true
+		} else if cat == "town" {
+			hasTown = true
+		}
+	}
+
+	var finalResult []*model.POI
+	for _, p := range candidates {
+		cat := strings.ToLower(p.Category)
+
+		if hasCity {
+			if cat == "city" {
+				finalResult = append(finalResult, p)
+			}
+			continue
+		}
+
+		if hasTown {
+			if cat == "town" {
+				finalResult = append(finalResult, p)
+			}
+			continue
+		}
+
+		finalResult = append(finalResult, p)
+	}
+	return finalResult
 }
