@@ -21,17 +21,17 @@ export const ARTISTIC_MAP_STYLES = {
     },
     colors: {
         text: {
-            active: '#333',
-            historical: '#5c4033',
+            active: '#0a0805',
+            historical: '#3a2a1d',
         },
         icon: {
             gold: '#D4AF37',
             silver: '#C0C0C0',
             bronze: '#CD7F32',
-            stroke: '#333'
+            stroke: '#0a0805'
         },
         shadows: {
-            atmosphere: '0 0 1.8px rgba(245, 245, 220, 0.7)'
+            atmosphere: '0 0 1px rgba(10, 8, 5, 0.35), 0 0 2px rgba(10, 8, 5, 0.25)'
         }
     },
     tethers: {

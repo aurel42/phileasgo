@@ -755,16 +755,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Map Labels</div>
-                            {renderField('Settlement Label Limit', (
+                            {renderField('Settlement labels', (
                                 <div className="settings-slider-container">
                                     <span className="role-value">
-                                        {draft.settlementLabelLimit === -1 ? 'Unlimited' : draft.settlementLabelLimit}
+                                        {draft.settlementLabelLimit === -1 ? 'infinite' : draft.settlementLabelLimit}
                                     </span>
                                     <input
                                         type="range"
-                                        min="-1" max="20" step="1"
-                                        value={draft.settlementLabelLimit}
-                                        onChange={e => updateDraft('settlementLabelLimit', parseInt(e.target.value))}
+                                        min="0" max="21" step="1"
+                                        value={draft.settlementLabelLimit === -1 ? 21 : draft.settlementLabelLimit}
+                                        onChange={e => {
+                                            const val = parseInt(e.target.value);
+                                            updateDraft('settlementLabelLimit', val === 21 ? -1 : val);
+                                        }}
                                     />
                                 </div>
                             ))}

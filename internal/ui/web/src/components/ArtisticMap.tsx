@@ -10,6 +10,65 @@ import { measureText } from '../metrics/text';
 import { ARTISTIC_MAP_STYLES } from '../styles/artisticMapStyles';
 import { InlineSVG } from './InlineSVG';
 
+const HotAirBalloon: React.FC<{
+    x: number;
+    y: number;
+    agl: number;
+}> = ({ x, y, agl }) => {
+    // Interpolation (0 -> 10,000 ft)
+    const ratio = Math.min(Math.max(agl / 10000, 0), 1);
+    const shadowOffset = ratio * 20;
+    const shadowScale = 1 - (ratio * 0.5);
+
+    return (
+        <div style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 100 }}>
+            {/* Shadow: Soft grey, offset down and left */}
+            <svg
+                viewBox="0 0 40 50"
+                style={{
+                    position: 'absolute',
+                    left: x - shadowOffset,
+                    top: y + shadowOffset,
+                    width: 32 * shadowScale,
+                    height: 40 * shadowScale,
+                    transform: 'translate(-50%, -50%)',
+                    filter: 'blur(2px)',
+                    opacity: 0.3
+                }}
+            >
+                <path d="M20,5 C12,5 5,12 5,22 C5,28 10,35 20,42 C30,35 35,28 35,22 C35,12 28,5 20,5" fill="black" />
+                <rect x="16" y="42" width="8" height="6" fill="black" />
+            </svg>
+
+            {/* Balloon: Red body, black outline (1.5px), black basket */}
+            <svg
+                viewBox="0 0 40 50"
+                style={{
+                    position: 'absolute',
+                    left: x,
+                    top: y,
+                    width: 32,
+                    height: 40,
+                    transform: 'translate(-50%, -50%)'
+                }}
+            >
+                {/* Envelope */}
+                <path
+                    d="M20,5 C12,5 5,12 5,22 C5,28 10,35 20,42 C30,35 35,28 35,22 C35,12 28,5 20,5"
+                    fill="#e63946"
+                    stroke="black"
+                    strokeWidth="1.5"
+                />
+                {/* Strings */}
+                <line x1="12" y1="36" x2="16" y2="42" stroke="black" strokeWidth="1" />
+                <line x1="28" y1="36" x2="24" y2="42" stroke="black" strokeWidth="1" />
+                {/* Gondola/Basket */}
+                <rect x="16" y="42" width="8" height="6" rx="1" fill="#1a1a1a" stroke="black" strokeWidth="1" />
+            </svg>
+        </div>
+    );
+};
+
 interface ArtisticMapProps {
     className?: string;
     center: [number, number];
@@ -27,8 +86,12 @@ interface MapFrame {
     maskPath: string;
     center: [number, number];
     zoom: number;
+    offset: [number, number]; // [dx, dy] pixels
     heading: number;
     bearingLine: Feature<any> | null;
+    aircraftX: number;
+    aircraftY: number;
+    agl: number;
 }
 
 export const ArtisticMap: React.FC<ArtisticMapProps> = ({
@@ -65,8 +128,12 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         maskPath: '',
         center: [center[1], center[0]],
         zoom: zoom,
+        offset: [0, 0],
         heading: 0,
-        bearingLine: null
+        bearingLine: null,
+        aircraftX: 0,
+        aircraftY: 0,
+        agl: 0
     });
 
     const accumulatedSettlements = useRef<Map<string, POI>>(new Map());
@@ -94,7 +161,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 },
                 layers: [
                     { id: 'background', type: 'background', paint: { 'background-color': '#f4ecd8' } },
-                    { id: 'watercolor', type: 'raster', source: 'stamen-watercolor', paint: { 'raster-saturation': -0.6, 'raster-contrast': 0.1 } }
+                    { id: 'watercolor', type: 'raster', source: 'stamen-watercolor', paint: { 'raster-saturation': -0.2, 'raster-contrast': 0.1 } }
                 ]
             },
             center: [center[1], center[0]],
@@ -119,6 +186,18 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
         return () => { map.current?.remove(); map.current = null; };
     }, []);
+
+    // useLayoutEffect ensures the map snapped in the SAME paint cycle as the labels
+    React.useLayoutEffect(() => {
+        const m = map.current;
+        if (!m || !styleLoaded) return;
+        m.easeTo({
+            center: frame.center,
+            zoom: frame.zoom,
+            offset: [frame.offset[0], frame.offset[1]],
+            duration: 0
+        });
+    }, [frame.center, frame.zoom, frame.offset]);
 
     // --- THE HEARTBEAT (Strict 0.5Hz / 2000ms) ---
     useEffect(() => {
@@ -183,31 +262,50 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     prevZoomInt = currentZoomInt;
                 }
 
+                let computedTargetZoom = targetZoomBase;
+                if (lastMaskData?.geometry) {
+                    const bbox = turf.bbox(lastMaskData.geometry);
+                    if (bbox && !bbox.some(isNaN)) {
+                        const camera = m.cameraForBounds(bbox as [number, number, number, number], { padding: 50, maxZoom: 13 });
+                        if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
+                            computedTargetZoom = Math.min(Math.max(camera.zoom, 8), 13);
+                        }
+                    }
+                }
+
                 let newSettlements = Array.isArray(lastSettlements) ? (limitRef.current !== -1 ? lastSettlements.slice(0, limitRef.current) : [...lastSettlements]) : [];
                 newSettlements.forEach(s => {
                     const id = s.wikidata_id || `${s.lat}-${s.lon}`;
                     accumulatedSettlements.current.set(id, s);
                 });
 
-                // 4. AUTO-ZOOM
-                let targetZoom = targetZoomBase;
-                if (lastMaskData?.geometry) {
-                    const bbox = turf.bbox(lastMaskData.geometry);
-                    if (bbox && !bbox.some(isNaN)) {
-                        const camera = m.cameraForBounds(bbox as [number, number, number, number], { padding: 50, maxZoom: 13 });
-                        if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
-                            targetZoom = Math.min(Math.max(camera.zoom, 8), 13);
-                        }
-                    }
-                }
+                // 5. COMPUTE GHOST TRANSFORM (View we are about to enter)
+                const mapWidth = m.getCanvas().clientWidth;
+                const mapHeight = m.getCanvas().clientHeight;
+                const offsetPx = Math.min(mapWidth, mapHeight) * 0.25;
+                const hdgRad = t.Heading * (Math.PI / 180);
+                const dx = offsetPx * Math.sin(hdgRad);
+                const dy = -offsetPx * Math.cos(hdgRad);
 
-                // 5. ATOMIC JUMP
-                m.jumpTo({ center: [t.Longitude, t.Latitude], zoom: targetZoom });
+                // Target Screen Position for the aircraft (always centered + negative offset)
+                const aircraftX = (mapWidth / 2) - dx;
+                const aircraftY = (mapHeight / 2) - dy;
 
-                // 6. COMPUTE LAYOUT
+                const targetCenter: [number, number] = [t.Longitude, t.Latitude];
+                const targetZoom = computedTargetZoom;
+                const targetOffset: [number, number] = [-dx, -dy];
+
+                // 6. COMPUTE LAYOUT with Ghost Projection
+                // This projects LngLat relative to the FUTURE view center.
                 const projector = (lat: number, lon: number) => {
-                    const p = m.project([lon, lat]);
-                    return { x: p.x, y: p.y };
+                    // Use m.project with the FUTURE zoom. 
+                    // To handle the offset, we project relative to the aircraft coordinate.
+                    const pPoint = m.project([lon, lat]);
+                    const aPoint = m.project(targetCenter);
+                    return {
+                        x: aircraftX + (pPoint.x - aPoint.x),
+                        y: aircraftY + (pPoint.y - aPoint.y)
+                    };
                 };
 
                 engine.clear();
@@ -236,12 +334,13 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         else if (cat === 'town') { font = ARTISTIC_MAP_STYLES.fonts.town.cssFont; tierName = 'town'; }
                     }
 
-                    const text = f.name_user || f.name_en || "";
+                    const text = (f.name_user || f.name_en || "").split(',')[0].split('/')[0].trim();
                     // Use exact cssFont for measurement to match rendered style
                     const dims = measureText(text, font);
+                    const itemIsHistorical = !!(f.last_played && f.last_played !== "0001-01-01T00:00:00Z");
                     engine.register({
                         id: f.wikidata_id || `${f.lat}-${f.lon}`, lat: f.lat, lon: f.lon, text, tier: tierName,
-                        width: dims.width, height: dims.height, type: 'settlement', score: f.score || 0, isHistorical: false, size: 'L'
+                        width: dims.width, height: dims.height, type: 'settlement', score: f.score || 0, isHistorical: itemIsHistorical, size: 'L'
                     });
                 });
 
@@ -280,10 +379,14 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 setFrame({
                     labels: snapshotLabels,
                     maskPath: lastMaskData ? maskToPath(lastMaskData, m) : '',
-                    center: [t.Longitude, t.Latitude],
+                    center: targetCenter,
                     zoom: targetZoom,
+                    offset: targetOffset,
                     heading: t.Heading,
-                    bearingLine: bLine
+                    bearingLine: bLine,
+                    aircraftX,
+                    aircraftY,
+                    agl: t.AltitudeAGL
                 });
             } catch (err) {
                 console.error("Heartbeat Loop Crash:", err);
@@ -333,16 +436,18 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             <React.Fragment key={l.id}>
                                 {isDisplaced && (
                                     <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15 }}>
-                                        <path d={`M ${px},${py} C ${px},${py - (py - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${(l.finalY || 0) + (py - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${l.finalY}`}
+                                        <path d={`M ${l.trueX || 0},${l.trueY || 0} C ${l.trueX || 0},${(l.trueY || 0) - ((l.trueY || 0) - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${(l.finalY || 0) + ((l.trueY || 0) - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${l.finalY}`}
                                             fill="none" stroke={ARTISTIC_MAP_STYLES.tethers.stroke} strokeWidth={ARTISTIC_MAP_STYLES.tethers.width} opacity={ARTISTIC_MAP_STYLES.tethers.opacity} />
-                                        <circle cx={px} cy={py} r={ARTISTIC_MAP_STYLES.tethers.dotRadius} fill={ARTISTIC_MAP_STYLES.tethers.stroke} opacity={ARTISTIC_MAP_STYLES.tethers.dotOpacity} />
+                                        <circle cx={l.trueX || 0} cy={l.trueY || 0} r={ARTISTIC_MAP_STYLES.tethers.dotRadius} fill={ARTISTIC_MAP_STYLES.tethers.stroke} opacity={ARTISTIC_MAP_STYLES.tethers.dotOpacity} />
                                     </svg>
                                 )}
                                 <div style={{
                                     position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, width: l.width, height: l.height,
-                                    transform: `translate(-50%, -50%)`, opacity: finalOpacity
+                                    transform: `translate(-50%, -50%)`, opacity: finalOpacity,
+                                    filter: 'url(#ink-bleed)',
+                                    color: iconColor // Apply color here to ensure inheritance
                                 }}>
-                                    <InlineSVG src={iconUrl} style={{ width: '100%', height: '100%', color: iconColor }} className="stamped-icon" />
+                                    <InlineSVG src={iconUrl} style={{ width: '100%', height: '100%' }} className="stamped-icon" />
                                 </div>
                             </React.Fragment>
                         );
@@ -351,31 +456,37 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     // Settlement Rendering
                     return (
                         <React.Fragment key={l.id}>
-                            {/* True Coordinate Marker (Design 3.2: Dot) */}
-                            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15 }}>
-                                <circle cx={px} cy={py} r={2} fill={ARTISTIC_MAP_STYLES.colors.text.active} opacity={0.8} />
-                                {isDisplaced && (
-                                    <path d={`M ${px},${py} C ${px},${py - (py - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${(l.finalY || 0) + (py - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${l.finalY}`}
-                                        fill="none" stroke={ARTISTIC_MAP_STYLES.tethers.stroke} strokeWidth={ARTISTIC_MAP_STYLES.tethers.width} opacity={ARTISTIC_MAP_STYLES.tethers.opacity} />
-                                )}
-                            </svg>
 
                             <div style={{
                                 position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, transform: `translate(-50%, -50%) rotate(${l.rotation}deg)`,
                                 fontFamily: ARTISTIC_MAP_STYLES.fonts.city.family, fontSize: l.tier === 'city' ? ARTISTIC_MAP_STYLES.fonts.city.size : (l.tier === 'town' ? ARTISTIC_MAP_STYLES.fonts.town.size : ARTISTIC_MAP_STYLES.fonts.village.size),
-                                color: l.isHistorical ? ARTISTIC_MAP_STYLES.colors.text.historical : ARTISTIC_MAP_STYLES.colors.text.active, textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere, whiteSpace: 'nowrap'
+                                color: l.isHistorical ? ARTISTIC_MAP_STYLES.colors.text.historical : ARTISTIC_MAP_STYLES.colors.text.active, textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere, whiteSpace: 'nowrap',
+                                filter: 'url(#ink-bleed)'
                             }}>{l.text}</div>
                         </React.Fragment>
                     );
                 })}
+
+                {/* Hot Air Balloon Aircraft Icon (Atomic from Frame) */}
+                <HotAirBalloon
+                    x={frame.aircraftX}
+                    y={frame.aircraftY}
+                    agl={frame.agl}
+                />
             </div>
 
-            {/* SVG Mask Definition (Atomic from Frame) */}
+            {/* SVG Filter Definitions */}
             <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-                <defs><mask id="paper-mask" maskContentUnits="userSpaceOnUse">
-                    <rect x="0" y="0" width="10000" height="10000" fill={getMaskColor(paperOpacityFog)} />
-                    <path d={frame.maskPath} fill={getMaskColor(paperOpacityClear)} />
-                </mask></defs>
+                <defs>
+                    <filter id="ink-bleed">
+                        <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="3" result="noise" />
+                        <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.5" xChannelSelector="R" yChannelSelector="G" />
+                    </filter>
+                    <mask id="paper-mask" maskContentUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="10000" height="10000" fill={getMaskColor(paperOpacityFog)} />
+                        <path d={frame.maskPath} fill={getMaskColor(paperOpacityClear)} />
+                    </mask>
+                </defs>
             </svg>
 
             {/* Paper Overlay (Atomic from Frame) */}
@@ -384,7 +495,16 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 backgroundColor: '#f4ecd8', backgroundImage: 'url(/assets/textures/paper.jpg), radial-gradient(#d4af37 1px, transparent 1px)',
                 backgroundSize: 'cover, 20px 20px', mixBlendMode: 'multiply', zIndex: 10, mask: 'url(#paper-mask)', WebkitMask: 'url(#paper-mask)'
             }} />
-            <style>{`.stamped-icon svg { width: 100%; height: 100%; overflow: visible; } .stamped-icon path { fill: currentColor; stroke: ${ARTISTIC_MAP_STYLES.colors.icon.stroke}; stroke-width: 0.5px; vector-effect: non-scaling-stroke; }`}</style>
+            <style>{`
+                .stamped-icon svg { width: 100%; height: 100%; overflow: visible; } 
+                .stamped-icon path, .stamped-icon circle, .stamped-icon rect, .stamped-icon polygon, .stamped-icon ellipse, .stamped-icon line { 
+                    fill: currentColor !important; 
+                    stroke: ${ARTISTIC_MAP_STYLES.colors.icon.stroke} !important; 
+                    stroke-width: 2.5px !important;
+                    stroke-linejoin: round !important;
+                    vector-effect: non-scaling-stroke;
+                }
+            `}</style>
         </div>
     );
 };
