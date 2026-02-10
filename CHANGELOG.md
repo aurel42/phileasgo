@@ -1,5 +1,8 @@
 ﻿Release History
 
+## v0.3.156 (2026-02-10)
+* **Feature**: **Artistic Map**. Introduced a new "Artistic" map style with a Victorian aesthetic, featuring hand-drawn paper textures, watercolor blending, and responsive S-curve tethers for organic label placement.
+
 ## v0.3.155 (2026-02-09)
 * **Feature**: **Light Map Visibility**. The debug visibility layer can render visible areas using a "Light Mode" (Carto Voyager) map style. I thought it would look better.
 * **Fix**: Renamed misleading settings label "Line-of-Sight Coverage" to "Visibility Layer".
