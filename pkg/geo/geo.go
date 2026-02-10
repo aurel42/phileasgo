@@ -145,6 +145,7 @@ type City struct {
 	CountryCode string
 	Admin1Code  string
 	Admin1Name  string
+	Population  int
 }
 
 // Service provides reverse geocoding.
@@ -197,6 +198,9 @@ func NewService(citiesPath, admin1Path string) (*Service, error) {
 		country := parts[8]
 		admin1 := parts[10]
 
+		// Parse Population (Index 14)
+		pop, _ := strconv.Atoi(parts[14]) // Ignore error, default to 0
+
 		city := City{
 			Name:        parts[1],
 			Lat:         lat,
@@ -204,6 +208,7 @@ func NewService(citiesPath, admin1Path string) (*Service, error) {
 			CountryCode: country,
 			Admin1Code:  admin1,
 			Admin1Name:  adminMap[country+"."+admin1], // Lookup full name
+			Population:  pop,
 		}
 
 		// Add to Grid
@@ -281,6 +286,34 @@ func (s *Service) searchCities(lat, lon float64, legalCountryCode string) (bestC
 		}
 	}
 	return bestCity, bestLegalCity, minDistSq
+}
+
+// GetCitiesInBbox returns all cities within the specified bounding box.
+func (s *Service) GetCitiesInBbox(minLat, minLon, maxLat, maxLon float64) []City {
+	var result []City
+
+	startLatKey := int(math.Floor(minLat))
+	endLatKey := int(math.Floor(maxLat))
+	startLonKey := int(math.Floor(minLon))
+	endLonKey := int(math.Floor(maxLon))
+
+	// Scan the grid keys
+	for latK := startLatKey; latK <= endLatKey; latK++ {
+		for lonK := startLonKey; lonK <= endLonKey; lonK++ {
+			key := s.makeKey(latK, lonK)
+			cities, ok := s.grid[key]
+			if !ok {
+				continue
+			}
+
+			for _, city := range cities {
+				if city.Lat >= minLat && city.Lat <= maxLat && city.Lon >= minLon && city.Lon <= maxLon {
+					result = append(result, city)
+				}
+			}
+		}
+	}
+	return result
 }
 
 func (s *Service) assembleLocationInfo(lat, lon float64, countryResult CountryResult, bestCity, bestLegalCity *City, minDistSq float64) model.LocationInfo {

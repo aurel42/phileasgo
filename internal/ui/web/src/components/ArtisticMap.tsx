@@ -9,6 +9,8 @@ import { PlacementEngine, type LabelCandidate } from '../metrics/PlacementEngine
 import { measureText } from '../metrics/text';
 import { ARTISTIC_MAP_STYLES } from '../styles/artisticMapStyles';
 import { InlineSVG } from './InlineSVG';
+import { labelService } from '../services/labelService';
+import type { LabelDTO } from '../types/mapLabels';
 import { useNarrator } from '../hooks/useNarrator';
 
 const HotAirBalloon: React.FC<{
@@ -167,8 +169,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         agl: 0
     });
 
-    const accumulatedSettlements = useRef<Map<string, POI>>(new Map());
+    const accumulatedSettlements = useRef<Map<string, LabelDTO>>(new Map());
     const accumulatedPois = useRef<Map<string, POI>>(new Map());
+    const labelAppearanceRef = useRef<Map<string, number>>(new Map());
+    const [lastSyncLabels, setLastSyncLabels] = useState<LabelDTO[]>([]);
 
     // Helper to calculate Mask Color
     const getMaskColor = (opacity: number) => {
@@ -253,8 +257,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
         let isRunning = false;
         let lastMaskData: any = null;
-        let lastSettlements: POI[] = [];
-        let lastTierIndex: number = -1;
         let prevZoomInt = -1;
         let firstTick = true;
 
@@ -274,41 +276,29 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 }
                 const m = map.current;
                 const t = telemetryRef.current;
-                const container = mapContainer.current;
 
                 if (!m || !t || (t.Latitude === 0 && t.Longitude === 0)) return;
 
                 // 1. Snapshot State
                 const bounds = m.getBounds();
-                const z = m.getZoom();
-                const currentPois = poisRef.current;
                 const targetZoomBase = zoomRef.current;
 
                 if (!bounds) return;
 
-                // 2. BACKGROUND FETCH (Non-blocking)
-                const fetchExtras = async () => {
+                // 2. BACKGROUND FETCH (Visibility Mask)
+                const fetchMask = async () => {
                     try {
-                        const [maskRes, settRes] = await Promise.all([
-                            fetch(`/api/map/visibility-mask?bounds=${bounds.getNorth()},${bounds.getEast()},${bounds.getSouth()},${bounds.getWest()}&resolution=20`),
-                            fetch(`/api/map/settlements?minLat=${bounds.getSouth()}&maxLat=${bounds.getNorth()}&minLon=${bounds.getWest()}&maxLon=${bounds.getEast()}&zoom=${z}`)
-                        ]);
+                        const maskRes = await fetch(`/api/map/visibility-mask?bounds=${bounds.getNorth()},${bounds.getEast()},${bounds.getSouth()},${bounds.getWest()}&resolution=20`);
                         if (maskRes.ok) lastMaskData = await maskRes.json();
-                        if (settRes.ok) {
-                            const data = await settRes.json();
-                            // Handle SettlementResponse wrapper { tier_index: X, items: [...] }
-                            lastSettlements = (data && Array.isArray(data.items)) ? data.items : [];
-                            lastTierIndex = data?.tier_index ?? -1;
-                        }
                     } catch (e) {
-                        console.error("Background Data Fetch Failed:", e);
+                        console.error("Background Mask Fetch Failed:", e);
                     }
                 };
                 if (firstTick) {
-                    await fetchExtras();
-                    firstTick = false;
+                    await fetchMask();
+                    // firstTick logic for labels moved to needsRecenter
                 } else {
-                    fetchExtras();
+                    fetchMask();
                 }
 
                 const mapWidth = m.getCanvas().clientWidth;
@@ -364,6 +354,26 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                     // Move map to locked position BEFORE projecting
                     m.easeTo({ center: lockedCenter, zoom: lockedZoom, offset: lockedOffset, duration: 0 });
+
+                    // -- SMART SYNC: Fetch labels only on move/snap & if space remains --
+                    const b = m.getBounds();
+                    const visibleLabels = engine.getVisibleLabels();
+                    const limit = limitRef.current;
+                    const canFetch = limit === -1 || visibleLabels.length < limit;
+
+                    if (canFetch) {
+                        labelService.fetchLabels({
+                            bbox: [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()],
+                            ac_lat: t.Latitude,
+                            ac_lon: t.Longitude,
+                            heading: t.Heading
+                        }).then(newLabels => {
+                            newLabels.forEach(l => accumulatedSettlements.current.set(l.id, l));
+                            setLastSyncLabels(newLabels);
+                        }).catch(e => console.error("Label Sync Failed:", e));
+                    }
+
+                    if (firstTick) firstTick = false;
                 }
 
                 const targetZoom = lockedZoom;
@@ -379,100 +389,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     prevZoomInt = currentZoomInt;
                 }
 
-                let newSettlements = Array.isArray(lastSettlements) ? (limitRef.current !== -1 ? lastSettlements.slice(0, limitRef.current) : [...lastSettlements]) : [];
-                newSettlements.forEach(s => {
-                    const id = s.wikidata_id || `${s.lat}-${s.lon}`;
-                    accumulatedSettlements.current.set(id, s);
-                });
-
-                // 5. PROJECT using the STABLE map state (m.project is now deterministic)
+                // 5. PROJECT using the STABLE map state
                 const aircraftPos = m.project([t.Longitude, t.Latitude]);
                 const aircraftX = Math.round(aircraftPos.x);
                 const aircraftY = Math.round(aircraftPos.y);
-
-                const projector = (lat: number, lon: number) => {
-                    const p = m.project([lon, lat]);
-                    return { x: p.x, y: p.y };
-                };
-
-                const vw = container?.clientWidth || window.innerWidth;
-                const vh = container?.clientHeight || window.innerHeight;
-
-                // No viewport pruning during smooth zoom — POIs are only cleared on tileset level change (above)
-
-                engine.clear();
-
-                // Register Settlements
-                // 1. Inject POIs that are settlements into the accumulation map
-                //    This ensures any tracked settlement gets a label, even if the dedicated API missed it.
-                currentPois.forEach(p => {
-                    const cat = (p.category || '').toLowerCase();
-                    let tierMatch = -1;
-                    if (cat === 'city') tierMatch = 1;
-                    else if (cat === 'town') tierMatch = 2;
-                    else if (cat === 'village') tierMatch = 3;
-
-                    // If it is a settlement AND fits within current tier setting
-                    // (tierRef.current: 0=None, 1=City, 2=City+Town, 3=All)
-                    if (tierMatch > 0 && tierMatch <= tierRef.current) {
-                        const id = p.wikidata_id;
-                        if (!accumulatedSettlements.current.has(id)) {
-                            // Convert POI to simplified sync format for label engine
-                            accumulatedSettlements.current.set(id, p);
-                        }
-                    }
-                });
-
-                Array.from(accumulatedSettlements.current.values()).forEach(f => {
-                    let font = ARTISTIC_MAP_STYLES.fonts.village.cssFont;
-                    let tierName: 'city' | 'town' | 'village' = 'village';
-
-                    // Priority from backend index (root of response)
-                    if (lastTierIndex === 0) {
-                        font = ARTISTIC_MAP_STYLES.fonts.city.cssFont;
-                        tierName = 'city';
-                    } else if (lastTierIndex === 1) {
-                        font = ARTISTIC_MAP_STYLES.fonts.town.cssFont;
-                        tierName = 'town';
-                    } else if (lastTierIndex === 2) {
-                        font = ARTISTIC_MAP_STYLES.fonts.village.cssFont;
-                        tierName = 'village';
-                    } else {
-                        // Fallback logic
-                        const cat = (f.category as string || '').toLowerCase();
-                        if (cat === 'city') { font = ARTISTIC_MAP_STYLES.fonts.city.cssFont; tierName = 'city'; }
-                        else if (cat === 'town') { font = ARTISTIC_MAP_STYLES.fonts.town.cssFont; tierName = 'town'; }
-                    }
-
-                    const text = (f.name_user || f.name_en || "").split(',')[0].split('/')[0].trim();
-                    // Use exact cssFont for measurement to match rendered style
-                    const dims = measureText(text, font);
-                    const itemIsHistorical = !!(f.last_played && f.last_played !== "0001-01-01T00:00:00Z");
-                    engine.register({
-                        id: f.wikidata_id || `${f.lat}-${f.lon}`, lat: f.lat, lon: f.lon, text, tier: tierName,
-                        width: dims.width, height: dims.height, type: 'settlement', score: f.score || 0, isHistorical: itemIsHistorical, size: 'L'
-                    });
-                });
-
-                // Register POIs (Persistent Accumulator)
-                currentPois.forEach(p => {
-                    accumulatedPois.current.set(p.wikidata_id, p);
-                });
-
-                Array.from(accumulatedPois.current.values()).forEach(p => {
-                    if (!p.lat || !p.lon) return;
-                    const sizePx = 26; // Increased from 20px by ~30% per user request
-
-                    const iconName = p.icon || 'attraction';
-                    const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
-                    engine.register({
-                        id: p.wikidata_id, lat: p.lat, lon: p.lon, text: "", tier: 'village', score: p.score || 0,
-                        width: sizePx, height: sizePx, type: 'poi', isHistorical, size: p.size as any, icon: iconName,
-                        visibility: p.visibility
-                    });
-                });
-
-                const snapshotLabels = engine.compute(projector, vw, vh, targetZoom);
 
                 // 7. BEARING LINE
                 const lat1 = t.Latitude * Math.PI / 180;
@@ -489,9 +409,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 const lineSource = m.getSource('bearing-line') as maplibregl.GeoJSONSource;
                 if (lineSource) lineSource.setData(bLine);
 
-                // 8. COMMIT
-                setFrame({
-                    labels: snapshotLabels,
+                // 8. COMMIT (Labels now computed via useMemo outside this loop)
+                setFrame(prev => ({
+                    ...prev,
                     maskPath: lastMaskData ? maskToPath(lastMaskData, m) : '',
                     center: lockedCenter!,
                     zoom: targetZoom,
@@ -501,7 +421,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     aircraftX,
                     aircraftY,
                     agl: t.AltitudeAGL
-                });
+                }));
             } catch (err) {
                 console.error("Heartbeat Loop Crash:", err);
             } finally {
@@ -513,6 +433,65 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         const interval = setInterval(tick, 2000);
         return () => clearInterval(interval);
     }, [styleLoaded]);
+
+    // --- COLLISION SOLVER (Memoized) ---
+    // Runs only when sync labels, local POIs, or viewport changes.
+    const computedLabels = useMemo<LabelCandidate[]>(() => {
+        const m = map.current;
+        if (!m || !styleLoaded) return [];
+
+        engine.clear();
+
+        // 1. Process Sync Labels (Settlements from DB)
+        Array.from(accumulatedSettlements.current.values()).forEach(l => {
+            const id = l.id;
+            // Use category to determine font
+            let tierName: 'city' | 'town' | 'village' = 'village';
+            let font = ARTISTIC_MAP_STYLES.fonts.village.cssFont;
+            if (l.category === 'city') { tierName = 'city'; font = ARTISTIC_MAP_STYLES.fonts.city.cssFont; }
+            else if (l.category === 'town') { tierName = 'town'; font = ARTISTIC_MAP_STYLES.fonts.town.cssFont; }
+
+            const text = l.name.split(',')[0].split('/')[0].trim();
+            const dims = measureText(text, font);
+
+            engine.register({
+                id, lat: l.lat, lon: l.lon, text, tier: tierName,
+                width: dims.width, height: dims.height, type: 'settlement', score: l.pop || 0,
+                isHistorical: false, size: 'L'
+            });
+        });
+
+        // 2. Process Local discovery POIs
+        pois.forEach(p => {
+            if (!p.lat || !p.lon) return;
+            const sizePx = 26;
+            const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
+            engine.register({
+                id: p.wikidata_id, lat: p.lat, lon: p.lon, text: "", tier: 'village', score: p.score || 0,
+                width: sizePx, height: sizePx, type: 'poi', isHistorical, size: p.size as any, icon: p.icon,
+                visibility: p.visibility
+            });
+        });
+
+        const vw = mapContainer.current?.clientWidth || window.innerWidth;
+        const vh = mapContainer.current?.clientHeight || window.innerHeight;
+
+        return engine.compute(
+            (lat: number, lon: number) => {
+                const p = m.project([lon, lat]);
+                return { x: p.x, y: p.y };
+            },
+            vw,
+            vh,
+            frame.zoom
+        );
+
+    }, [lastSyncLabels, pois, frame.zoom, frame.center, frame.offset, styleLoaded]);
+
+    // Update frame with computed labels
+    useEffect(() => {
+        setFrame(prev => ({ ...prev, labels: computedLabels }));
+    }, [computedLabels]);
 
     const maskToPath = (geojson: Feature<Polygon | MultiPolygon>, mapInstance: maplibregl.Map): string => {
         if (!geojson.geometry) return '';
@@ -540,6 +519,14 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                     // Zoom-relative scale: markers shrink/grow to stay the same size on the map surface
                     const zoomScale = l.placedZoom != null ? Math.pow(2, frame.zoom - l.placedZoom) : 1;
+
+                    // Fade-In Logic
+                    const now = Date.now();
+                    if (!labelAppearanceRef.current.has(l.id)) {
+                        labelAppearanceRef.current.set(l.id, now);
+                    }
+                    const start = labelAppearanceRef.current.get(l.id)!;
+                    const fadeOpacity = Math.min(1, (now - start) / 2000);
 
                     if (l.type === 'poi') {
                         // ... POI Icon Rendering ...
@@ -589,9 +576,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         return (
                             <React.Fragment key={l.id}>
                                 {isDisplaced && (
-                                    <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15 }}>
+                                    <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15, opacity: fadeOpacity * ARTISTIC_MAP_STYLES.tethers.opacity }}>
                                         <path d={`M ${startX},${startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${endX},${endY}`}
-                                            fill="none" stroke={ARTISTIC_MAP_STYLES.tethers.stroke} strokeWidth={ARTISTIC_MAP_STYLES.tethers.width} opacity={ARTISTIC_MAP_STYLES.tethers.opacity} />
+                                            fill="none" stroke={ARTISTIC_MAP_STYLES.tethers.stroke} strokeWidth={ARTISTIC_MAP_STYLES.tethers.width} />
                                         <circle cx={startX} cy={startY} r={ARTISTIC_MAP_STYLES.tethers.dotRadius} fill={ARTISTIC_MAP_STYLES.tethers.stroke} opacity={ARTISTIC_MAP_STYLES.tethers.dotOpacity} />
                                     </svg>
                                 )}
@@ -603,7 +590,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     style={{
                                         position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, width: l.width, height: l.height,
                                         transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost})`,
-                                        opacity: l.isHistorical ? 0.8 : 1, // Fade historic POIs slightly per user request
+                                        opacity: (l.isHistorical ? 0.8 : 1) * fadeOpacity, // Fade historic POIs slightly + Fade-In
                                         color: iconColor, cursor: 'pointer', pointerEvents: 'auto',
                                         // Use drop-shadow filter for true shape contour ("Halo")
                                         // Selected/Next get glowing/colored halos, Normal gets paper-colored cutout halo
@@ -623,7 +610,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     // Settlement Rendering
                     return (
                         <React.Fragment key={l.id}>
-
                             <div style={{
                                 position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, transform: `translate(-50%, -50%) scale(${zoomScale})`,
                                 fontFamily: ARTISTIC_MAP_STYLES.fonts.city.family,
@@ -634,6 +620,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                 whiteSpace: 'nowrap',
                                 pointerEvents: 'none', // Ensure clicks pass through to map/icons
                                 zIndex: 5, // Above icons? or below? Usually text labeling an icon should be clear.
+                                opacity: fadeOpacity
                             }}>{l.text}</div>
                         </React.Fragment>
                     );

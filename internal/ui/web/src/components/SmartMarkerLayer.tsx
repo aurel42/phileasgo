@@ -267,7 +267,9 @@ export const SmartMarkerLayer = ({ pois, selectedPOI, currentNarratedId, prepari
                 // Add tiny deterministic offset to break symmetry for exact overlaps
                 x: projected.x + (Math.sin(p.wikidata_id.length + p.lat) * 1),
                 y: projected.y + (Math.cos(p.wikidata_id.length + p.lon) * 1),
-                r: MARKER_RADIUS * scale, // Actual physics radius
+                // Collision radius is capped at the base radius (1.0x scale) 
+                // to allow highlighted (1.5x) or preparing (1.3x) markers to overlap.
+                r: MARKER_RADIUS * Math.min(1.0, scale),
                 scale: scale, // Pass scale to renderer to ensure exact match
                 priority: priority,
             };

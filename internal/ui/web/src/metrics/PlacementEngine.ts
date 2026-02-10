@@ -46,6 +46,7 @@ export class PlacementEngine {
     private tree: RBush<LabelItem>;
     private queue: LabelCandidate[] = [];
     private placedCache: Map<string, PlacementState> = new Map();
+    private lastVisibleLabels: LabelCandidate[] = [];
 
     constructor() {
         this.tree = new RBush<LabelItem>();
@@ -140,7 +141,7 @@ export class PlacementEngine {
                 cx = pos.x + ((state.radialDist || 0) * zoomScale * Math.cos(state.radialAngle || 0));
                 cy = pos.y + ((state.radialDist || 0) * zoomScale * Math.sin(state.radialAngle || 0));
             } else {
-                const markerW = candidate.type === 'settlement' ? 6 * zoomScale : candidate.width * zoomScale;
+                const markerW = (candidate.type === 'settlement' && !candidate.icon) ? 6 * zoomScale : candidate.width * zoomScale;
                 const pointRadius = (markerW / 2) + 2;
                 const anchorDef = anchors.find(a => a.type === state.anchor);
                 if (anchorDef) {
@@ -177,10 +178,12 @@ export class PlacementEngine {
             const halfH = (candidate.height / 2) + padding;
             candidate.rotation = 0;
 
-            // 1. For Settlements: Force-insert the 6x6 marker (it's the anchor point)
+            // 1. For Settlements: Force-insert the marker (anchor point)
             if (candidate.type === 'settlement') {
                 const markerW = 6;
                 const hh = markerW / 2;
+
+                // Use a small 6px marker for settlements (visual dot)
                 this.tree.insert({
                     minX: pos.x - hh - padding, minY: pos.y - hh - padding,
                     maxX: pos.x + hh + padding, maxY: pos.y + hh + padding,
@@ -261,7 +264,12 @@ export class PlacementEngine {
             }
         }
 
+        this.lastVisibleLabels = placed;
         return placed;
+    }
+
+    public getVisibleLabels(): LabelCandidate[] {
+        return this.lastVisibleLabels;
     }
 
     private isOutsideViewport(cx: number, cy: number, hw: number, hh: number, vw: number, vh: number): boolean {
@@ -302,7 +310,7 @@ export class PlacementEngine {
     ): boolean {
         const halfW = (candidate.width / 2) + padding;
         const halfH = (candidate.height / 2) + padding;
-        const pointRadius = (candidate.type === 'poi' ? (candidate.width / 2) : 6) + 2;
+        const pointRadius = ((candidate.type === 'poi' || candidate.icon) ? (candidate.width / 2) : 6) + 2;
 
         let cx = baseX;
         let cy = baseY;

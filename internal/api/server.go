@@ -13,7 +13,7 @@ import (
 
 // NewServer creates and configures the HTTP server.
 // It accepts handlers for all API endpoints and a shutdownFunc for graceful shutdown.
-func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *StatsHandler, cache *CacheHandler, pois *POIHandler, vis *VisibilityHandler, audioH *AudioHandler, narratorH *NarratorHandler, imageH *ImageHandler, geo *GeographyHandler, tripH *TripHandler, shutdown func()) *http.Server {
+func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *StatsHandler, cache *CacheHandler, pois *POIHandler, vis *VisibilityHandler, audioH *AudioHandler, narratorH *NarratorHandler, imageH *ImageHandler, geo *GeographyHandler, tripH *TripHandler, labelH *MapLabelsHandler, shutdown func()) *http.Server {
 	mux := http.NewServeMux()
 
 	// 1. Health Endpoint
@@ -41,7 +41,6 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 	mux.HandleFunc("GET /api/pois/tracked", pois.HandleTracked)
 	mux.HandleFunc("GET /api/pois/{id}/thumbnail", pois.HandleThumbnail)
 	mux.HandleFunc("POST /api/pois/reset-last-played", pois.HandleResetLastPlayed)
-	mux.HandleFunc("GET /api/map/settlements", pois.HandleSettlements)
 
 	// 2g. Visibility Endpoint
 	mux.HandleFunc("GET /api/map/visibility", vis.Handler)
@@ -75,7 +74,10 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 		mux.HandleFunc("GET /api/trip/events", tripH.HandleEvents)
 	}
 
-	// 3. Shutdown Endpoint
+	// 2l. Label Endpoint (New)
+	if labelH != nil {
+		mux.HandleFunc("POST /api/map/labels/sync", labelH.HandleSync)
+	}
 
 	// 3. Shutdown Endpoint
 	mux.HandleFunc("POST /api/shutdown", func(w http.ResponseWriter, r *http.Request) {
