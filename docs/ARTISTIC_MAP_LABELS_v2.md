@@ -77,3 +77,53 @@ Ensure the `cities1000` data is indexed (e.g., using an R-Tree in Go or a spatia
 | **Movement** | Persistence | Labels stay put during 15% map steps |
 
 
+## 8. REVISED Phase B4: Stateful Backend & Shadow Integration
+This phase moves the spatial authority and session state to the backend. The `labels.Manager` will now track active settlements, perform proactive discovery (Shadows), and respect the user-defined density limit.
+
+### Proposed Changes
+
+#### Backend: Labels Manager
+*   **[MODIFY]** `manager.go`
+    *   **State Fields:**
+        *   `mu sync.Mutex`
+        *   `activeSettlements map[string]*LabelCandidate`
+        *   `currentZoom float64`
+    *   **Updated `SelectLabels` logic:**
+        1.  **Zoom Check:** If `floor(zoom) != floor(m.currentZoom)`, clear `activeSettlements`.
+        2.  **Pruning:** Remove settlements from the map if they are significantly outside the viewport (plus buffer).
+        3.  **Discovery:** Calculate an expanded BBox (current + 30% along aircraft heading).
+        4.  **Greedy Selection:**
+            *   Sort all candidates from Global + Local sources.
+            *   Skip if already in `activeSettlements`.
+            *   Skip if MSR collision with any in `activeSettlements`.
+            *   If valid:
+                *   If inside viewport -> add to `activeSettlements` (normal).
+                *   If outside viewport -> add to `activeSettlements` with `IsShadow: true`.
+        5.  **Limit:** Stop adding "normal" settlements once the limit `N` is reached.
+        6.  **Return:** Only the "normal" (non-shadow) settlements.
+
+#### Backend: API Handler
+*   **[MODIFY]** `map_labels.go`
+    *   Update `SyncRequest` to include `Zoom float64`.
+*   **[DELETE]** `HandleCheckShadow` and related structures.
+    *   Fetch `N` (Settlement Limit) from `config.Provider`.
+*   **[MODIFY]** `server.go`
+    *   Remove `check-shadow` route.
+
+#### Frontend: Map Integration
+*   **[MODIFY]** `labelService.ts`
+    *   **[DELETE]** `checkShadow` method.
+*   **[MODIFY]** `ArtisticMap.tsx`
+    *   Pass current `map.getZoom()` in the `SyncRequest`.
+    *   **Lingering Logic:** Continue to maintain `accumulatedSettlements`. Only remove labels if they are effectively off-screen (PlacementEngine rejection). If a label is not in the `/sync` response but is still in `accumulatedSettlements`, it remains until it naturally drops off.
+
+### Verification Plan
+
+#### Automated Tests
+*   Update `manager_test.go` to test sequence of calls (panning) and ensure a shadow item correctly blocks a future item inside the viewport.
+*   Verify zoom-level resets.
+
+#### Manual Verification
+*   Observe map behavior during slow flight towards a large city. Verify that the city area remains empty of small towns before the city name appears.
+*   Verify that zooming in/out clears the map state for a fresh start.
+*   Verify no more calls to `/api/map/labels/check-shadow` are made.

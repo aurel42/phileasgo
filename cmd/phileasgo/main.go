@@ -397,7 +397,7 @@ func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns 
 	statsH := api.NewStatsHandler(tr, svcs.PoiMgr, appCfg.LLM.Fallback)
 	configH := api.NewConfigHandler(st, cfg)
 	geoH := api.NewGeographyHandler(svcs.WikiSvc.GeoService())
-	labelMgr := labels.NewManager(svcs.WikiSvc.GeoService(), svcs.PoiMgr)
+	labelMgr := labels.NewManager(svcs.WikiSvc.GeoService(), svcs.PoiMgr, cfg)
 	labelH := api.NewMapLabelsHandler(labelMgr)
 
 	srv := api.NewServer(appCfg.Server.Address,

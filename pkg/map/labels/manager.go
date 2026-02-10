@@ -1,12 +1,20 @@
 package labels
 
 import (
+	"context"
 	"math"
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/poi"
 	"sort"
 	"strings"
+	"sync"
 )
+
+// LabelLimitProvider is consumed by the Manager to read the user's settlement density and tier settings.
+type LabelLimitProvider interface {
+	SettlementLabelLimit(ctx context.Context) int
+	SettlementTier(ctx context.Context) int
+}
 
 // LabelCandidate represents a city that is a potential label on the map.
 type LabelCandidate struct {
@@ -16,58 +24,216 @@ type LabelCandidate struct {
 	FinalScore float64
 	Importance float64
 	Direction  float64
+	IsShadow   bool // True if this item is in the "Deep Inventory" outside the viewport
+}
+
+// bbox holds axis-aligned bounding box coordinates.
+type bbox struct {
+	minLat, minLon, maxLat, maxLon float64
+}
+
+func (b bbox) contains(lat, lon float64) bool {
+	return lat >= b.minLat && lat <= b.maxLat && lon >= b.minLon && lon <= b.maxLon
 }
 
 // Manager coordinates the selection of map labels.
+// It is stateful: activeSettlements persists across calls to provide shadow blocking
+// and stable label sets during panning.
 type Manager struct {
-	geoSvc *geo.Service
-	poiSvc *poi.Manager
-	scorer *Scorer
+	geoSvc  *geo.Service
+	poiSvc  *poi.Manager
+	scorer  *Scorer
+	cfgProv LabelLimitProvider
+
+	mu                sync.Mutex
+	activeSettlements map[string]*LabelCandidate
+	currentZoomFloor  int
 }
 
 // NewManager creates a new Label Manager.
-func NewManager(g *geo.Service, p *poi.Manager) *Manager {
+func NewManager(g *geo.Service, p *poi.Manager, cfgProv LabelLimitProvider) *Manager {
 	return &Manager{
-		geoSvc: g,
-		poiSvc: p,
-		scorer: NewScorer(),
+		geoSvc:            g,
+		poiSvc:            p,
+		scorer:            NewScorer(),
+		cfgProv:           cfgProv,
+		activeSettlements: make(map[string]*LabelCandidate),
+		currentZoomFloor:  -1,
 	}
 }
 
+// expandBbox calculates an expanded bounding box for shadow discovery (~30% along heading).
+func expandBbox(vp bbox, heading float64) bbox {
+	latSpan := vp.maxLat - vp.minLat
+	lonSpan := vp.maxLon - vp.minLon
+	hdgRad := heading * math.Pi / 180
+	expandLat := latSpan * 0.3 * math.Cos(hdgRad)
+	expandLon := lonSpan * 0.3 * math.Sin(hdgRad)
+
+	return bbox{
+		minLat: math.Min(vp.minLat, vp.minLat+expandLat),
+		maxLat: math.Max(vp.maxLat, vp.maxLat+expandLat),
+		minLon: math.Min(vp.minLon, vp.minLon+expandLon),
+		maxLon: math.Max(vp.maxLon, vp.maxLon+expandLon),
+	}
+}
+
+// pruneActive removes all shadows and normal settlements that drifted outside the expanded bbox.
+func (m *Manager) pruneActive(exp bbox, bufferLat, bufferLon float64) {
+	for id, s := range m.activeSettlements {
+		if s.IsShadow {
+			delete(m.activeSettlements, id)
+			continue
+		}
+		lat, lon := s.City.Lat, s.City.Lon
+		if lat < exp.minLat-bufferLat || lat > exp.maxLat+bufferLat ||
+			lon < exp.minLon-bufferLon || lon > exp.maxLon+bufferLon {
+			delete(m.activeSettlements, id)
+		}
+	}
+}
+
+// getLimit reads the settlement density limit from config (or falls back to TargetLabelCount).
+func (m *Manager) getLimit() int {
+	if m.cfgProv != nil {
+		if n := m.cfgProv.SettlementLabelLimit(context.Background()); n >= 0 {
+			return n
+		}
+	}
+	return TargetLabelCount
+}
+
+// getTier reads the settlement tier from config (default 3 = all).
+func (m *Manager) getTier() int {
+	if m.cfgProv != nil {
+		return m.cfgProv.SettlementTier(context.Background())
+	}
+	return 3
+}
+
+// filterByTier removes candidates that don't meet the tier threshold.
+// Tier 0 = none, 1 = city only (pop >= PopCity), 2 = city+town (pop >= PopTown), 3 = all.
+func filterByTier(candidates []LabelCandidate, tier int) []LabelCandidate {
+	if tier >= 3 {
+		return candidates
+	}
+	if tier <= 0 {
+		return nil
+	}
+	minPop := PopTown // tier 2
+	if tier == 1 {
+		minPop = PopCity
+	}
+	filtered := candidates[:0:0]
+	for i := range candidates {
+		if candidates[i].City.Population >= minPop {
+			filtered = append(filtered, candidates[i])
+		}
+	}
+	return filtered
+}
+
+// normalCount returns the number of non-shadow active settlements.
+func (m *Manager) normalCount() int {
+	n := 0
+	for _, s := range m.activeSettlements {
+		if !s.IsShadow {
+			n++
+		}
+	}
+	return n
+}
+
+// visibleSettlements returns all non-shadow active settlements.
+func (m *Manager) visibleSettlements() []*LabelCandidate {
+	var result []*LabelCandidate
+	for _, s := range m.activeSettlements {
+		if !s.IsShadow {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
 // SelectLabels picks the best labels for a given viewport and aircraft state.
-// It respects the Minimum Separation Radius (MSR) to avoid clutter.
+// It maintains state across calls: active settlements persist and shadow items
+// block future candidates from appearing in their exclusion zone.
 func (m *Manager) SelectLabels(
 	minLat, minLon, maxLat, maxLon float64, // Viewport BBox
 	acLat, acLon, heading float64, // Aircraft State
 	existingLabels []geo.Point, // Locations of labels we MUST respect (already on screen)
+	zoom float64,
 ) []*LabelCandidate {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	// 1. Get Candidates
+	vp := bbox{minLat, minLon, maxLat, maxLon}
+	latSpan := maxLat - minLat
+	lonSpan := maxLon - minLon
+
+	// 1. Zoom-level change: clear all state
+	zoomFloor := int(math.Floor(zoom))
+	if zoomFloor != m.currentZoomFloor {
+		m.activeSettlements = make(map[string]*LabelCandidate)
+		m.currentZoomFloor = zoomFloor
+	}
+
+	// 2. Expanded bbox and pruning
+	exp := expandBbox(vp, heading)
+	m.pruneActive(exp, latSpan*0.2, lonSpan*0.2)
+
+	// 3. Get candidates from the expanded bbox
 	var scored []LabelCandidate
-	scored = append(scored, m.collectGlobalCandidates(minLat, minLon, maxLat, maxLon, acLat, acLon, heading)...)
-	scored = append(scored, m.collectLocalCandidates(minLat, minLon, maxLat, maxLon, acLat, acLon, heading)...)
+	scored = append(scored, m.collectGlobalCandidates(exp.minLat, exp.minLon, exp.maxLat, exp.maxLon, acLat, acLon, heading)...)
+	scored = append(scored, m.collectLocalCandidates(exp.minLat, exp.minLon, exp.maxLat, exp.maxLon, acLat, acLon, heading)...)
 
-	// 2. Sort by Score Descending
+	// 3b. Filter by settlement tier
+	scored = filterByTier(scored, m.getTier())
+
 	sort.Slice(scored, func(i, j int) bool {
 		return scored[i].FinalScore > scored[j].FinalScore
 	})
 
-	// 3. MSR Selection (Greedy)
-	msrDegSq := math.Pow((maxLon-minLon)*MinSeparationRatio, 2)
-	var selected []*LabelCandidate
+	// 4. Greedy selection
+	limit := m.getLimit()
+	shortSpan := math.Min(latSpan, lonSpan)
+	msrRatio := MinSeparationRatio // 0.3 for ≤6 labels
+	if limit < 0 {
+		msrRatio = 0.10 // "infinite" mode
+	} else if limit > 6 {
+		msrRatio = math.Max(0.10, MinSeparationRatio-float64(limit-6)*0.01)
+	}
+	msrDegSq := math.Pow(shortSpan*msrRatio, 2)
+
+	activeSlice := make([]*LabelCandidate, 0, len(m.activeSettlements))
+	for _, s := range m.activeSettlements {
+		activeSlice = append(activeSlice, s)
+	}
 
 	for i := range scored {
 		cand := &scored[i]
-		if len(selected) >= TargetLabelCount {
-			break
+		if _, exists := m.activeSettlements[cand.GenericID]; exists {
+			continue
+		}
+		if !m.isValid(cand, activeSlice, existingLabels, msrDegSq) {
+			continue
 		}
 
-		if m.isValid(cand, selected, existingLabels, msrDegSq) {
-			selected = append(selected, cand)
+		if vp.contains(cand.City.Lat, cand.City.Lon) {
+			if m.normalCount() >= limit {
+				continue
+			}
+			cand.IsShadow = false
+		} else {
+			cand.IsShadow = true
 		}
+
+		stored := *cand
+		m.activeSettlements[cand.GenericID] = &stored
+		activeSlice = append(activeSlice, &stored)
 	}
 
-	return selected
+	return m.visibleSettlements()
 }
 
 func (m *Manager) collectGlobalCandidates(minLat, minLon, maxLat, maxLon, acLat, acLon, heading float64) []LabelCandidate {
@@ -137,7 +303,6 @@ func (m *Manager) collectLocalCandidates(minLat, minLon, maxLat, maxLon, acLat, 
 }
 
 func (m *Manager) isValid(cand *LabelCandidate, selected []*LabelCandidate, existingLabels []geo.Point, msrDegSq float64) bool {
-	// Check collision with accepted
 	for _, s := range selected {
 		distSq := (cand.City.Lat-s.City.Lat)*(cand.City.Lat-s.City.Lat) +
 			(cand.City.Lon-s.City.Lon)*(cand.City.Lon-s.City.Lon)
@@ -146,7 +311,6 @@ func (m *Manager) isValid(cand *LabelCandidate, selected []*LabelCandidate, exis
 		}
 	}
 
-	// Check collision with existing (locked) labels
 	for _, ex := range existingLabels {
 		distSq := (cand.City.Lat-ex.Lat)*(cand.City.Lat-ex.Lat) +
 			(cand.City.Lon-ex.Lon)*(cand.City.Lon-ex.Lon)
@@ -157,11 +321,6 @@ func (m *Manager) isValid(cand *LabelCandidate, selected []*LabelCandidate, exis
 	return true
 }
 
-// TODO: integrating this into geo package properly would be better, but for now we access the grid if exported or
-// we add a method to geo. Since geo.grid is private, we MUST add a method to geo.go.
-// For compilation to work now, I'll add a placeholder that returns empty or uses a public accessor.
-// WAIT: geo.grid IS private. I must modify geo.go to export a Range Query method.
 func (m *Manager) getCitiesInBbox(minLat, minLon, maxLat, maxLon float64) []geo.City {
-	// Wrapper to call the new geo service method we are about to add.
 	return m.geoSvc.GetCitiesInBbox(minLat, minLon, maxLat, maxLon)
 }

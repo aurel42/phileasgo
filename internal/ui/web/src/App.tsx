@@ -377,7 +377,6 @@ function App() {
               className="w-full h-full"
               telemetry={telemetry ?? null}
               pois={pois}
-              settlementLabelLimit={settlementLabelLimit}
               settlementTier={settlementTier}
               paperOpacityFog={paperOpacityFog}
               paperOpacityClear={paperOpacityClear}

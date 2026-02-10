@@ -1,4 +1,4 @@
-import type { SyncRequest, SyncResponse, CheckShadowRequest, CheckShadowResponse, LabelDTO } from '../types/mapLabels';
+import type { SyncRequest, SyncResponse, LabelDTO } from '../types/mapLabels';
 
 export const labelService = {
     async fetchLabels(req: SyncRequest): Promise<LabelDTO[]> {

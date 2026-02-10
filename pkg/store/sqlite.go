@@ -54,7 +54,7 @@ func (s *SQLiteStore) Close() error {
 
 func (s *SQLiteStore) GetPOI(ctx context.Context, wikidataID string) (*model.POI, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT wikidata_id, source, category, specific_category, lat, lon, sitelinks, name_en, name_local, name_user, wp_url, wp_article_length, trigger_qid, last_played, created_at, is_msfs_poi
+		`SELECT wikidata_id, source, category, specific_category, lat, lon, sitelinks, name_en, name_local, name_user, wp_url, wp_article_length, trigger_qid, last_played, created_at, is_msfs_poi, thumbnail_url
 		 FROM poi WHERE wikidata_id = ?`, wikidataID)
 
 	var p model.POI
@@ -66,7 +66,7 @@ func (s *SQLiteStore) GetPOI(ctx context.Context, wikidataID string) (*model.POI
 		&p.Lat, &p.Lon, &p.Sitelinks,
 		&p.NameEn, &p.NameLocal, &p.NameUser,
 		&p.WPURL, &p.WPArticleLength,
-		&p.TriggerQID, &lastPlayed, &p.CreatedAt, &p.IsMSFSPOI,
+		&p.TriggerQID, &lastPlayed, &p.CreatedAt, &p.IsMSFSPOI, &p.ThumbnailURL,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -127,7 +127,7 @@ func (s *SQLiteStore) GetPOIsBatch(ctx context.Context, wikidataIDs []string) (m
 		return make(map[string]*model.POI), nil
 	}
 
-	query := `SELECT wikidata_id, source, category, specific_category, lat, lon, sitelinks, name_en, name_local, name_user, wp_url, wp_article_length, trigger_qid, last_played, created_at, is_msfs_poi
+	query := `SELECT wikidata_id, source, category, specific_category, lat, lon, sitelinks, name_en, name_local, name_user, wp_url, wp_article_length, trigger_qid, last_played, created_at, is_msfs_poi, thumbnail_url
 			  FROM poi WHERE wikidata_id IN (`
 	args := make([]any, len(wikidataIDs))
 	for i, id := range wikidataIDs {
@@ -158,7 +158,7 @@ func (s *SQLiteStore) GetPOIsBatch(ctx context.Context, wikidataIDs []string) (m
 			&p.Lat, &p.Lon, &p.Sitelinks,
 			&p.NameEn, &p.NameLocal, &p.NameUser,
 			&p.WPURL, &p.WPArticleLength,
-			&p.TriggerQID, &lastPlayed, &p.CreatedAt, &p.IsMSFSPOI,
+			&p.TriggerQID, &lastPlayed, &p.CreatedAt, &p.IsMSFSPOI, &p.ThumbnailURL,
 		)
 		if err != nil {
 			return nil, err
@@ -178,8 +178,8 @@ func (s *SQLiteStore) SavePOI(ctx context.Context, p *model.POI) error {
 	query := `INSERT OR REPLACE INTO poi (
 		wikidata_id, source, category, specific_category, lat, lon, sitelinks, 
 		name_en, name_local, name_user, wp_url, wp_article_length,
-		trigger_qid, last_played, created_at, is_msfs_poi
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		trigger_qid, last_played, created_at, is_msfs_poi, thumbnail_url
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	createdAt := p.CreatedAt
 	if createdAt.IsZero() {
@@ -189,13 +189,13 @@ func (s *SQLiteStore) SavePOI(ctx context.Context, p *model.POI) error {
 	_, err := s.db.ExecContext(ctx, query,
 		p.WikidataID, p.Source, p.Category, p.SpecificCategory, p.Lat, p.Lon, p.Sitelinks,
 		p.NameEn, p.NameLocal, p.NameUser, p.WPURL, p.WPArticleLength,
-		p.TriggerQID, p.LastPlayed, createdAt, p.IsMSFSPOI,
+		p.TriggerQID, p.LastPlayed, createdAt, p.IsMSFSPOI, p.ThumbnailURL,
 	)
 	return err
 }
 
 func (s *SQLiteStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error) {
-	query := `SELECT wikidata_id, source, category, specific_category, lat, lon, sitelinks, name_en, name_local, name_user, wp_url, wp_article_length, trigger_qid, last_played, created_at, is_msfs_poi
+	query := `SELECT wikidata_id, source, category, specific_category, lat, lon, sitelinks, name_en, name_local, name_user, wp_url, wp_article_length, trigger_qid, last_played, created_at, is_msfs_poi, thumbnail_url
 			  FROM poi WHERE last_played > ? ORDER BY last_played DESC LIMIT 10`
 
 	rows, err := s.db.QueryContext(ctx, query, since)
@@ -214,7 +214,7 @@ func (s *SQLiteStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time
 			&p.Lat, &p.Lon, &p.Sitelinks,
 			&p.NameEn, &p.NameLocal, &p.NameUser,
 			&p.WPURL, &p.WPArticleLength,
-			&p.TriggerQID, &lastPlayed, &p.CreatedAt, &p.IsMSFSPOI,
+			&p.TriggerQID, &lastPlayed, &p.CreatedAt, &p.IsMSFSPOI, &p.ThumbnailURL,
 		)
 		if err != nil {
 			return nil, err

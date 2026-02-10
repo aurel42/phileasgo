@@ -77,7 +77,8 @@ func (d *DB) migrate() error {
 			trigger_qid TEXT,
 			last_played DATETIME,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			is_msfs_poi BOOLEAN DEFAULT 0
+			is_msfs_poi BOOLEAN DEFAULT 0,
+			thumbnail_url TEXT
 		);`,
 		`CREATE TABLE IF NOT EXISTS msfs_poi (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,6 +145,14 @@ func (d *DB) migrate() error {
 	if err == nil && colCount == 0 {
 		if _, err := d.Exec("ALTER TABLE poi ADD COLUMN is_msfs_poi BOOLEAN DEFAULT 0"); err != nil {
 			return fmt.Errorf("failed to add is_msfs_poi column: %w", err)
+		}
+	}
+
+	// Migration: Add thumbnail_url if missing
+	err = d.QueryRow("SELECT count(*) FROM pragma_table_info('poi') WHERE name='thumbnail_url'").Scan(&colCount)
+	if err == nil && colCount == 0 {
+		if _, err := d.Exec("ALTER TABLE poi ADD COLUMN thumbnail_url TEXT"); err != nil {
+			return fmt.Errorf("failed to add thumbnail_url column: %w", err)
 		}
 	}
 

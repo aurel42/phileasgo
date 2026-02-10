@@ -246,6 +246,9 @@ func (m *Manager) updateExistingPOI(existing, p *model.POI) {
 	existing.Icon = p.Icon
 	existing.IconArtistic = p.IconArtistic
 	existing.IsMSFSPOI = p.IsMSFSPOI // Update flag
+	if p.ThumbnailURL != "" {
+		existing.ThumbnailURL = p.ThumbnailURL
+	}
 
 	// 2. Metadata Preservation
 	if !p.LastPlayed.IsZero() && p.LastPlayed.After(existing.LastPlayed) {

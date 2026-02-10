@@ -78,7 +78,6 @@ interface ArtisticMapProps {
     zoom: number;
     telemetry: Telemetry | null;
     pois: POI[];
-    settlementLabelLimit: number;
     settlementTier: number;
     paperOpacityFog: number;
     paperOpacityClear: number;
@@ -121,8 +120,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     zoom,
     telemetry,
     pois,
-    settlementLabelLimit,
-    settlementTier,
+    // settlementTier is handled by the backend labels Manager
+    settlementTier: _settlementTier,
     paperOpacityFog = 0.7,
     paperOpacityClear = 0.1,
     parchmentSaturation = 1.0,
@@ -145,16 +144,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const telemetryRef = useRef(telemetry);
     const poisRef = useRef(pois);
     const zoomRef = useRef(zoom);
-    const limitRef = useRef(settlementLabelLimit);
 
     useEffect(() => { telemetryRef.current = telemetry; }, [telemetry]);
     useEffect(() => { poisRef.current = pois; }, [pois]);
     useEffect(() => { zoomRef.current = zoom; }, [zoom]);
-    useEffect(() => { limitRef.current = settlementLabelLimit; }, [settlementLabelLimit]);
-    // settlementTier is read directly from props in render loop or ref if needed
-    const tierRef = useRef(settlementTier);
-    useEffect(() => { tierRef.current = settlementTier; }, [settlementTier]);
-
     // -- THE SINGLE ATOMIC STATE --
     const [frame, setFrame] = useState<MapFrame>({
         labels: [],
@@ -355,23 +348,18 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     // Move map to locked position BEFORE projecting
                     m.easeTo({ center: lockedCenter, zoom: lockedZoom, offset: lockedOffset, duration: 0 });
 
-                    // -- SMART SYNC: Fetch labels only on move/snap & if space remains --
+                    // -- SMART SYNC: Fetch labels on move/snap (backend handles density limit) --
                     const b = m.getBounds();
-                    const visibleLabels = engine.getVisibleLabels();
-                    const limit = limitRef.current;
-                    const canFetch = limit === -1 || visibleLabels.length < limit;
-
-                    if (canFetch) {
-                        labelService.fetchLabels({
-                            bbox: [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()],
-                            ac_lat: t.Latitude,
-                            ac_lon: t.Longitude,
-                            heading: t.Heading
-                        }).then(newLabels => {
-                            newLabels.forEach(l => accumulatedSettlements.current.set(l.id, l));
-                            setLastSyncLabels(newLabels);
-                        }).catch(e => console.error("Label Sync Failed:", e));
-                    }
+                    labelService.fetchLabels({
+                        bbox: [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()],
+                        ac_lat: t.Latitude,
+                        ac_lon: t.Longitude,
+                        heading: t.Heading,
+                        zoom: lockedZoom
+                    }).then(newLabels => {
+                        newLabels.forEach(l => accumulatedSettlements.current.set(l.id, l));
+                        setLastSyncLabels(newLabels);
+                    }).catch(e => console.error("Label Sync Failed:", e));
 
                     if (firstTick) firstTick = false;
                 }
@@ -461,9 +449,13 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             });
         });
 
-        // 2. Process Local discovery POIs
+        // 2. Accumulate discovery POIs (once discovered, they persist)
         pois.forEach(p => {
             if (!p.lat || !p.lon) return;
+            accumulatedPois.current.set(p.wikidata_id, p);
+        });
+
+        Array.from(accumulatedPois.current.values()).forEach(p => {
             const sizePx = 26;
             const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
             engine.register({

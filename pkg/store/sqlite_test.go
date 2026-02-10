@@ -33,6 +33,7 @@ func TestSQLiteStore(t *testing.T) {
 	testState(t, ctx, store)
 	testResetLastPlayed(t, ctx, store)
 	testClassificationPriority(t, ctx, store)
+	testThumbnail(t, ctx, store)
 }
 
 func testClassificationPriority(t *testing.T, ctx context.Context, store *SQLiteStore) {
@@ -286,6 +287,60 @@ func testResetLastPlayed(t *testing.T, ctx context.Context, store *SQLiteStore) 
 		// R4 should remain zero
 		if p, _ := store.GetPOI(ctx, "R4"); !p.LastPlayed.IsZero() {
 			t.Errorf("R4 should remain unplayed, got %v", p.LastPlayed)
+		}
+	})
+}
+func testThumbnail(t *testing.T, ctx context.Context, store *SQLiteStore) {
+	t.Run("Thumbnail", func(t *testing.T) {
+		qid := "Q_THUMB_TEST"
+		thumbURL := "https://example.com/thumb.jpg"
+
+		p := &model.POI{
+			WikidataID:   qid,
+			NameEn:       "Thumb Test",
+			ThumbnailURL: thumbURL,
+		}
+
+		if err := store.SavePOI(ctx, p); err != nil {
+			t.Fatalf("SavePOI failed: %v", err)
+		}
+
+		// 1. Test GetPOI
+		loaded, err := store.GetPOI(ctx, qid)
+		if err != nil {
+			t.Fatalf("GetPOI failed: %v", err)
+		}
+		if loaded.ThumbnailURL != thumbURL {
+			t.Errorf("Expected URL %q, got %q", thumbURL, loaded.ThumbnailURL)
+		}
+
+		// 2. Test GetPOIsBatch
+		batch, err := store.GetPOIsBatch(ctx, []string{qid})
+		if err != nil {
+			t.Fatalf("GetPOIsBatch failed: %v", err)
+		}
+		if batch[qid].ThumbnailURL != thumbURL {
+			t.Errorf("Batch: Expected URL %q, got %q", thumbURL, batch[qid].ThumbnailURL)
+		}
+
+		// 3. Test GetRecentlyPlayedPOIs
+		p.LastPlayed = time.Now()
+		_ = store.SavePOI(ctx, p)
+		recent, err := store.GetRecentlyPlayedPOIs(ctx, time.Now().Add(-1*time.Hour))
+		if err != nil {
+			t.Fatalf("GetRecentlyPlayedPOIs failed: %v", err)
+		}
+		found := false
+		for _, r := range recent {
+			if r.WikidataID == qid {
+				found = true
+				if r.ThumbnailURL != thumbURL {
+					t.Errorf("Recent: Expected URL %q, got %q", thumbURL, r.ThumbnailURL)
+				}
+			}
+		}
+		if !found {
+			t.Error("POI not found in recently played")
 		}
 	})
 }

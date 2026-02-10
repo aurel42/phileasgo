@@ -12,18 +12,9 @@ export interface SyncRequest {
     ac_lat: number;
     ac_lon: number;
     heading: number;
+    zoom: number;
 }
 
 export interface SyncResponse {
     labels: LabelDTO[];
-}
-
-export interface CheckShadowRequest {
-    ac_lat: number;
-    ac_lon: number;
-    heading: number;
-}
-
-export interface CheckShadowResponse {
-    shadow: boolean;
 }

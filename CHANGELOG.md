@@ -1,5 +1,12 @@
 ﻿Release History
 
+## v0.3.158 (2026-02-10)
+- **POI Thumbnail Persistence**: Implemented database storage for POI thumbnail URLs to avoid redundant LLM smart selection requests on repeat visits.
+- **Artistic Map**: Implemented "Settlement Shadows" and predictive lookahead to stabilize label density during flight.
+- **Artistic Map**: Added configurable limits and tiers for settlement labels.
+- **POI Manager**: Improved in-memory continuity by preserving thumbnail metadata during POI updates.
+- **Database**: Added automatic `thumbnail_url` column migration to the `poi` table.
+
 ## v0.3.157 (2026-02-10)
 - **Artistic Map**: Added support for `icon_artistic` override in categories config.
 - **Artistic Map**: Updated settlement label font to "IM Fell English SC".
