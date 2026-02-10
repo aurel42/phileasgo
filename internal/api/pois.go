@@ -358,27 +358,39 @@ func (h *POIHandler) HandleSettlements(w http.ResponseWriter, r *http.Request) {
 	// 3. Filter by Bounds
 	candidates := filterByBounds(tracked, bounds)
 
-	// 4. Apply Tier Strategy (Selects only the highest available tier)
-	finalResult, tierIdx := applyTierStrategy(candidates, h.mgr.GetCategoriesConfig())
+	// 4. Get Settlement Tier Config
+	tier := h.cfg.SettlementTier(r.Context())
+	if tier == 0 {
+		// Tier 0 = "None", return empty set
+		h.respondSettlements(w, []*model.POI{}, -1)
+		return
+	}
 
-	// 5. Sort by Score
+	// 5. Apply Tier Strategy
+	// We need to fetch the category config to get the ordered list of settlement types
+	catCfg := h.mgr.GetCategoriesConfig()
+	finalResult, tierIdx := applyTierStrategy(candidates, catCfg, tier)
+
+	// 6. Sort by Score
 	sort.Slice(finalResult, func(i, j int) bool {
 		return finalResult[i].Score > finalResult[j].Score
 	})
 
-	// 6. Apply Limit from Config
+	// 7. Apply Limit from Config
 	limit := h.cfg.SettlementLabelLimit(r.Context())
 
 	if limit != -1 && len(finalResult) > limit {
 		finalResult = finalResult[:limit]
 	}
 
-	// 7. Wrap in ephemeral response
+	h.respondSettlements(w, finalResult, tierIdx)
+}
+
+func (h *POIHandler) respondSettlements(w http.ResponseWriter, items []*model.POI, tierIdx int) {
 	response := SettlementResponse{
 		TierIndex: tierIdx,
-		Items:     finalResult,
+		Items:     items,
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.Error("Failed to encode settlements", "error", err)
@@ -412,7 +424,7 @@ func filterByBounds(pois []*model.POI, b mapBounds) []*model.POI {
 	return candidates
 }
 
-func applyTierStrategy(candidates []*model.POI, catCfg *config.CategoriesConfig) (pois []*model.POI, tierIdx int) {
+func applyTierStrategy(candidates []*model.POI, catCfg *config.CategoriesConfig, tierLimit int) (pois []*model.POI, tierIdx int) {
 	if catCfg == nil {
 		return nil, -1
 	}
@@ -425,6 +437,16 @@ func applyTierStrategy(candidates []*model.POI, catCfg *config.CategoriesConfig)
 			break
 		}
 	}
+
+	// Filter orderedSettlements based on tierLimit
+	// Tier 1 -> top 1 (City)
+	// Tier 2 -> top 2 (City, Town)
+	// Tier 3 -> top 3 (City, Town, Village)
+	// Since slice is 0-indexed, we take :tierLimit
+	if tierLimit < len(orderedSettlements) {
+		orderedSettlements = orderedSettlements[:tierLimit]
+	}
+
 	if len(orderedSettlements) == 0 {
 		return nil, -1
 	}
@@ -439,6 +461,7 @@ func applyTierStrategy(candidates []*model.POI, catCfg *config.CategoriesConfig)
 	}
 
 	// 3. Return ONLY the highest tier found (Atomic preference)
+	// We iterate through our filtered list of allowed settlements
 	for i, tierName := range orderedSettlements {
 		tierLower := strings.ToLower(tierName)
 		if len(tiers[tierLower]) > 0 {

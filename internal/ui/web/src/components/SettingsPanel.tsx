@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { VictorianToggle } from './VictorianToggle';
 import { DualRangeSlider } from './DualRangeSlider';
 import type { Telemetry } from '../types/telemetry';
@@ -40,10 +40,14 @@ interface SettingsPanelProps {
     onStreamingModeChange: (val: boolean) => void;
     settlementLabelLimit: number;
     onSettlementLabelLimitChange: (val: number) => void;
+    settlementTier: number;
+    onSettlementTierChange: (val: number) => void;
     paperOpacityFog: number;
     onPaperOpacityFogChange: (val: number) => void;
     paperOpacityClear: number;
     onPaperOpacityClearChange: (val: number) => void;
+    parchmentSaturation: number;
+    onParchmentSaturationChange: (val: number) => void;
 }
 
 const VictorianListEditor: React.FC<{
@@ -144,8 +148,10 @@ interface DraftState {
 
     beaconMaxTargets: number;
     settlementLabelLimit: number;
+    settlementTier: number;
     paperOpacityFog: number;
     paperOpacityClear: number;
+    parchmentSaturation: number;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -183,10 +189,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     onActiveMapStyleChange,
     settlementLabelLimit,
     onSettlementLabelLimitChange,
+    settlementTier: _settlementTier,
+    onSettlementTierChange: _onSettlementTierChange,
     paperOpacityFog,
     onPaperOpacityFogChange,
     paperOpacityClear,
-    onPaperOpacityClearChange
+    onPaperOpacityClearChange,
+    parchmentSaturation,
+    onParchmentSaturationChange
 }) => {
     const [activeTab, setActiveTab] = useState('narrator');
     const [loading, setLoading] = useState(true);
@@ -253,16 +263,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                     beaconMaxTargets: data.beacon_max_targets ?? 2,
                     settlementLabelLimit: settlementLabelLimit,
+                    settlementTier: data.settlement_tier ?? 0,
                     paperOpacityFog: paperOpacityFog,
                     paperOpacityClear: paperOpacityClear,
+                    parchmentSaturation: parchmentSaturation,
                 });
                 setLoading(false);
             })
             .catch(e => console.error("Failed to fetch settings", e));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Check if draft differs from original
-    const hasChanges = useCallback(() => {
+    const hasChanges = () => {
         if (!draft || !serverConfig) return false;
         return (
             draft.narrationFrequency !== narrationFrequency ||
@@ -307,13 +320,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.beaconSinkDistanceFar !== (serverConfig.beacon_sink_distance_far ?? 5000) ||
             draft.beaconSinkDistanceClose !== (serverConfig.beacon_sink_distance_close ?? 2000) ||
             draft.beaconTargetFloorAGL !== (serverConfig.beacon_target_floor_agl ?? 30.48) ||
-            draft.beaconTargetFloorAGL !== (serverConfig.beacon_target_floor_agl ?? 30.48) ||
             draft.beaconMaxTargets !== (serverConfig.beacon_max_targets ?? 2) ||
             draft.settlementLabelLimit !== settlementLabelLimit ||
+            draft.settlementTier !== _settlementTier ||
             draft.paperOpacityFog !== paperOpacityFog ||
-            draft.paperOpacityClear !== paperOpacityClear
+            draft.paperOpacityClear !== paperOpacityClear ||
+            draft.parchmentSaturation !== parchmentSaturation
         );
-    }, [draft, serverConfig, narrationFrequency, textLength, minPoiScore, filterMode, targetPoiCount, units, showCacheLayer, showVisibilityLayer, streamingMode, settlementLabelLimit, paperOpacityFog, paperOpacityClear]);
+    };
 
     // Update draft field
     const updateDraft = <K extends keyof DraftState>(key: K, value: DraftState[K]) => {
@@ -393,8 +407,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             if (draft.filterMode !== filterMode) onFilterModeChange(draft.filterMode);
             if (draft.targetPoiCount !== targetPoiCount) onTargetPoiCountChange(draft.targetPoiCount);
             if (draft.settlementLabelLimit !== settlementLabelLimit) onSettlementLabelLimitChange(draft.settlementLabelLimit);
+            if (draft.settlementTier !== _settlementTier) _onSettlementTierChange(draft.settlementTier);
             if (draft.paperOpacityFog !== paperOpacityFog) onPaperOpacityFogChange(draft.paperOpacityFog);
             if (draft.paperOpacityClear !== paperOpacityClear) onPaperOpacityClearChange(draft.paperOpacityClear);
+            if (draft.parchmentSaturation !== parchmentSaturation) onParchmentSaturationChange(draft.parchmentSaturation);
 
 
             // Update server config to match saved values
@@ -753,80 +769,106 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 </select>
                             ))}
 
+                            {draft.activeMapStyle === 'artistic' && (
+                                <>
+                                    <div className="role-header" style={{ marginTop: '24px' }}>Map Labels</div>
+                                    {renderField('Settlement labels', (
+                                        <div className="settings-slider-container">
+                                            <span className="role-value">
+                                                {draft.settlementLabelLimit === -1 ? 'infinite' : draft.settlementLabelLimit}
+                                            </span>
+                                            <input
+                                                type="range"
+                                                min="0" max="21" step="1"
+                                                value={draft.settlementLabelLimit === -1 ? 21 : draft.settlementLabelLimit}
+                                                onChange={e => {
+                                                    const val = parseInt(e.target.value);
+                                                    updateDraft('settlementLabelLimit', val === 21 ? -1 : val);
+                                                }}
+                                            />
+                                        </div>
+                                    ))}
+                                    {renderField('Settlement Size', (
+                                        <div className="settings-slider-container">
+                                            <span className="role-value">
+                                                {draft.settlementTier === 0 ? 'None' :
+                                                    draft.settlementTier === 1 ? 'City' :
+                                                        draft.settlementTier === 2 ? 'Town' : 'Village'}
+                                            </span>
+                                            <input
+                                                type="range"
+                                                min="0" max="3" step="1"
+                                                value={draft.settlementTier}
+                                                onChange={e => updateDraft('settlementTier', parseInt(e.target.value))}
+                                            />
+                                        </div>
+                                    ))}
 
-                            <div className="role-header" style={{ marginTop: '24px' }}>Map Labels</div>
-                            {renderField('Settlement labels', (
-                                <div className="settings-slider-container">
-                                    <span className="role-value">
-                                        {draft.settlementLabelLimit === -1 ? 'infinite' : draft.settlementLabelLimit}
-                                    </span>
-                                    <input
-                                        type="range"
-                                        min="0" max="21" step="1"
-                                        value={draft.settlementLabelLimit === -1 ? 21 : draft.settlementLabelLimit}
-                                        onChange={e => {
-                                            const val = parseInt(e.target.value);
-                                            updateDraft('settlementLabelLimit', val === 21 ? -1 : val);
-                                        }}
+                                    <div className="role-header" style={{ marginTop: '24px' }}>Overlay Layers</div>
+                                    {renderField('Paper Opacity (Inside / Outside)', (
+                                        <DualRangeSlider
+                                            min={0}
+                                            max={100}
+                                            step={1}
+                                            minVal={Math.round(draft.paperOpacityClear * 100)}
+                                            maxVal={Math.round(draft.paperOpacityFog * 100)}
+                                            unit="%"
+                                            onChange={(min, max) => {
+                                                updateDraft('paperOpacityClear', min / 100);
+                                                updateDraft('paperOpacityFog', max / 100);
+                                            }}
+                                        />
+                                    ))}
+                                    {renderField('Paper Saturation', (
+                                        <div className="settings-slider-container">
+                                            <span className="role-value">{(draft.parchmentSaturation * 100).toFixed(0)}%</span>
+                                            <input
+                                                type="range"
+                                                min="0" max="200" step="1"
+                                                value={Math.round(draft.parchmentSaturation * 100)}
+                                                onChange={e => updateDraft('parchmentSaturation', parseInt(e.target.value) / 100)}
+                                            />
+                                        </div>
+                                    ))}
+
+                                    <div className="role-header" style={{ marginTop: '24px' }}>Legal & Attribution</div>
+                                    <div className="settings-footer" style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted)', fontStyle: 'normal', lineHeight: '1.4' }}>
+                                        <strong>Map Tiles:</strong> Stamen Design (Watercolor), CartoDB (Labels/Dark).<br />
+                                        <strong>Data:</strong> OpenStreetMap contributors (ODbL).<br />
+                                        <strong>Icons:</strong> Lucide React, FontAwesome.<br />
+                                        <strong>Fonts:</strong> IM Fell DW Pica (Igino Marini).
+                                    </div>
+                                </>
+                            )}
+
+                            {draft.activeMapStyle !== 'artistic' && (
+                                <>
+                                    <div className="role-header" style={{ marginTop: '24px' }}>Units & Display</div>
+                                    {renderField('Range Ring Units', (
+                                        <select className="settings-select" value={draft.units} onChange={e => updateDraft('units', e.target.value as 'km' | 'nm')}>
+                                            <option value="km">km</option>
+                                            <option value="nm">nm</option>
+                                        </select>
+                                    ))}
+
+                                    <div className="role-header" style={{ marginTop: '24px' }}>Debug Layers</div>
+                                    <VictorianToggle
+                                        label="Show Cache Layer"
+                                        checked={draft.showCacheLayer}
+                                        onChange={val => updateDraft('showCacheLayer', val)}
                                     />
-                                </div>
-                            ))}
-
-                            <div className="role-header" style={{ marginTop: '24px' }}>Units & Display</div>
-                            {/* DO NOT CHANGE: This specifically controls the range ring spacing and units on the map */}
-                            {renderField('Range Ring Units', (
-                                <select className="settings-select" value={draft.units} onChange={e => updateDraft('units', e.target.value as 'km' | 'nm')}>
-                                    <option value="km">km</option>
-                                    <option value="nm">nm</option>
-                                </select>
-                            ))}
-
-                            <div className="role-header" style={{ marginTop: '24px' }}>Overlay Layers</div>
-                            {renderField('Paper Opacity (Fog/Outside)', (
-                                <div className="settings-slider-container">
-                                    <span className="role-value">{(draft.paperOpacityFog * 100).toFixed(0)}%</span>
-                                    <input
-                                        type="range"
-                                        min="0" max="1" step="0.05"
-                                        value={draft.paperOpacityFog}
-                                        onChange={e => updateDraft('paperOpacityFog', parseFloat(e.target.value))}
+                                    <VictorianToggle
+                                        label="Show Visibility Layer"
+                                        checked={draft.showVisibilityLayer}
+                                        onChange={val => updateDraft('showVisibilityLayer', val)}
                                     />
-                                </div>
-                            ))}
-                            {renderField('Paper Opacity (Clear/Inside)', (
-                                <div className="settings-slider-container">
-                                    <span className="role-value">{(draft.paperOpacityClear * 100).toFixed(0)}%</span>
-                                    <input
-                                        type="range"
-                                        min="0" max="1" step="0.05"
-                                        value={draft.paperOpacityClear}
-                                        onChange={e => updateDraft('paperOpacityClear', parseFloat(e.target.value))}
+                                    <VictorianToggle
+                                        label="Render Visibility Layer as Map"
+                                        checked={draft.renderVisibilityAsMap}
+                                        onChange={val => updateDraft('renderVisibilityAsMap', val)}
                                     />
-                                </div>
-                            ))}
-                            <VictorianToggle
-                                label="Show Cache Layer"
-                                checked={draft.showCacheLayer}
-                                onChange={val => updateDraft('showCacheLayer', val)}
-                            />
-                            <VictorianToggle
-                                label="Show Visibility Layer"
-                                checked={draft.showVisibilityLayer}
-                                onChange={val => updateDraft('showVisibilityLayer', val)}
-                            />
-                            <VictorianToggle
-                                label="Render Visibility Layer as Map"
-                                checked={draft.renderVisibilityAsMap}
-                                onChange={val => updateDraft('renderVisibilityAsMap', val)}
-                            />
-
-                            <div className="role-header" style={{ marginTop: '24px' }}>Legal & Attribution</div>
-                            <div className="settings-footer" style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted)', fontStyle: 'normal', lineHeight: '1.4' }}>
-                                <strong>Map Tiles:</strong> Stamen Design (Watercolor), CartoDB (Labels/Dark).<br />
-                                <strong>Data:</strong> OpenStreetMap contributors (ODbL).<br />
-                                <strong>Icons:</strong> Lucide React, FontAwesome.<br />
-                                <strong>Fonts:</strong> IM Fell DW Pica (Igino Marini).
-                            </div>
+                                </>
+                            )}
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Developer Settings</div>
                             <VictorianToggle

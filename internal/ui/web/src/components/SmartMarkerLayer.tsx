@@ -92,7 +92,7 @@ const SmartMarker = ({ node, onClick }: { node: SimulationNode; onClick: (p: POI
     const badges: string[] = [];
     if (poi.badges) badges.push(...poi.badges);
 
-    let badgeElements = [];
+    const badgeElements: React.ReactNode[] = [];
 
     if (badges.includes('msfs')) {
         badgeElements.push(

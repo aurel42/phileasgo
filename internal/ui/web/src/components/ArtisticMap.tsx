@@ -77,8 +77,10 @@ interface ArtisticMapProps {
     telemetry: Telemetry | null;
     pois: POI[];
     settlementLabelLimit: number;
+    settlementTier: number;
     paperOpacityFog: number;
     paperOpacityClear: number;
+    parchmentSaturation: number;
     onPOISelect?: (poi: POI) => void;
 }
 
@@ -103,8 +105,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     telemetry,
     pois,
     settlementLabelLimit,
+    settlementTier,
     paperOpacityFog = 0.7,
     paperOpacityClear = 0.1,
+    parchmentSaturation = 1.0,
     onPOISelect
 }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
@@ -116,7 +120,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
     // -- Narrator State (for Selected / Next in Queue icon colors) --
     const { status: narratorStatus } = useNarrator();
-    const currentNarratedId = narratorStatus?.playback_status !== 'idle' ? narratorStatus?.current_poi?.wikidata_id : undefined;
+    const currentNarratedId = (narratorStatus?.playback_status === 'playing' || narratorStatus?.playback_status === 'paused')
+        ? narratorStatus?.current_poi?.wikidata_id : undefined;
     const preparingId = narratorStatus?.preparing_poi?.wikidata_id;
 
     // -- Data Refs for Heartbeat --
@@ -129,6 +134,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     useEffect(() => { poisRef.current = pois; }, [pois]);
     useEffect(() => { zoomRef.current = zoom; }, [zoom]);
     useEffect(() => { limitRef.current = settlementLabelLimit; }, [settlementLabelLimit]);
+    // settlementTier is read directly from props in render loop or ref if needed
+    const tierRef = useRef(settlementTier);
+    useEffect(() => { tierRef.current = settlementTier; }, [settlementTier]);
 
     // -- THE SINGLE ATOMIC STATE --
     const [frame, setFrame] = useState<MapFrame>({
@@ -175,7 +183,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             },
             center: [center[1], center[0]],
             zoom: zoom,
-            minZoom: 8,
+            minZoom: 10,
             maxZoom: 13,
             attributionControl: false,
             interactive: false
@@ -206,7 +214,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             offset: [frame.offset[0], frame.offset[1]],
             duration: 0
         });
-    }, [frame.center, frame.zoom, frame.offset]);
+    }, [frame.center, frame.zoom, frame.offset, styleLoaded]);
 
     // --- THE HEARTBEAT (Strict 0.5Hz / 2000ms) ---
     useEffect(() => {
@@ -275,22 +283,34 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 const mapWidth = m.getCanvas().clientWidth;
                 const mapHeight = m.getCanvas().clientHeight;
 
-                // 3. DEAD-ZONE PANNING — map stays fixed until aircraft exits inner circle
-                const deadZoneRadius = Math.min(mapWidth, mapHeight) * 0.3;
+                // 3. DEAD-ZONE PANNING — re-center when more map is behind aircraft than ahead
                 let needsRecenter = !lockedCenter; // First tick always centers
 
                 if (lockedCenter) {
-                    // Project aircraft onto the CURRENT (locked) map
                     const aircraftOnMap = m.project([t.Longitude, t.Latitude]);
-                    const cx = mapWidth / 2;
-                    const cy = mapHeight / 2;
-                    const dist = Math.sqrt((aircraftOnMap.x - cx) ** 2 + (aircraftOnMap.y - cy) ** 2);
-                    needsRecenter = dist > deadZoneRadius;
+                    const hdgRad = t.Heading * (Math.PI / 180);
+                    // Ray direction in screen coords (Y-down)
+                    const adx = Math.sin(hdgRad);
+                    const ady = -Math.cos(hdgRad);
+
+                    // Distance from point to viewport edge along a ray direction
+                    const rayToEdge = (px: number, py: number, dx: number, dy: number): number => {
+                        let tMin = Infinity;
+                        if (dx > 0) tMin = Math.min(tMin, (mapWidth - px) / dx);
+                        else if (dx < 0) tMin = Math.min(tMin, -px / dx);
+                        if (dy > 0) tMin = Math.min(tMin, (mapHeight - py) / dy);
+                        else if (dy < 0) tMin = Math.min(tMin, -py / dy);
+                        return tMin === Infinity ? 0 : Math.max(0, tMin);
+                    };
+
+                    const distAhead = rayToEdge(aircraftOnMap.x, aircraftOnMap.y, adx, ady);
+                    const distBehind = rayToEdge(aircraftOnMap.x, aircraftOnMap.y, -adx, -ady);
+                    needsRecenter = distBehind > distAhead;
                 }
 
                 if (needsRecenter) {
-                    // Re-center: place aircraft with heading offset
-                    const offsetPx = Math.min(mapWidth, mapHeight) * 0.25;
+                    // Re-center: place aircraft with heading offset (35% pushes it well behind center)
+                    const offsetPx = Math.min(mapWidth, mapHeight) * 0.35;
                     const hdgRad = t.Heading * (Math.PI / 180);
                     const dx = offsetPx * Math.sin(hdgRad);
                     const dy = -offsetPx * Math.cos(hdgRad);
@@ -305,7 +325,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         if (coneBbox && !coneBbox.some(isNaN)) {
                             const camera = m.cameraForBounds(coneBbox as [number, number, number, number], { padding: 120, maxZoom: 13 });
                             if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
-                                newZoom = Math.min(Math.max(camera.zoom, 8), 13);
+                                newZoom = Math.min(Math.max(camera.zoom, 10), 13);
                             }
                         }
                     }
@@ -352,6 +372,26 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 engine.clear();
 
                 // Register Settlements
+                // 1. Inject POIs that are settlements into the accumulation map
+                //    This ensures any tracked settlement gets a label, even if the dedicated API missed it.
+                currentPois.forEach(p => {
+                    const cat = (p.category || '').toLowerCase();
+                    let tierMatch = -1;
+                    if (cat === 'city') tierMatch = 1;
+                    else if (cat === 'town') tierMatch = 2;
+                    else if (cat === 'village') tierMatch = 3;
+
+                    // If it is a settlement AND fits within current tier setting
+                    // (tierRef.current: 0=None, 1=City, 2=City+Town, 3=All)
+                    if (tierMatch > 0 && tierMatch <= tierRef.current) {
+                        const id = p.wikidata_id;
+                        if (!accumulatedSettlements.current.has(id)) {
+                            // Convert POI to simplified sync format for label engine
+                            accumulatedSettlements.current.set(id, p);
+                        }
+                    }
+                });
+
                 Array.from(accumulatedSettlements.current.values()).forEach(f => {
                     let font = ARTISTIC_MAP_STYLES.fonts.village.cssFont;
                     let tierName: 'city' | 'town' | 'village' = 'village';
@@ -390,7 +430,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                 Array.from(accumulatedPois.current.values()).forEach(p => {
                     if (!p.lat || !p.lon) return;
-                    const sizePx = 20;
+                    const sizePx = 26; // Increased from 20px by ~30% per user request
 
                     const iconName = p.icon || 'attraction';
                     const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
@@ -468,7 +508,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     const isDisplaced = dist > 30;
 
                     // Zoom-relative scale: markers shrink/grow to stay the same size on the map surface
-                    const zoomScale = l.placedZoom != null ? Math.pow(2, l.placedZoom - frame.zoom) : 1;
+                    const zoomScale = l.placedZoom != null ? Math.pow(2, frame.zoom - l.placedZoom) : 1;
 
                     if (l.type === 'poi') {
                         // ... POI Icon Rendering ...
@@ -479,21 +519,39 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             iconColor = ARTISTIC_MAP_STYLES.colors.icon.selected;
                         } else if (l.id === preparingId) {
                             iconColor = ARTISTIC_MAP_STYLES.colors.icon.next;
+                        } else if (l.isHistorical) {
+                            iconColor = ARTISTIC_MAP_STYLES.colors.icon.historical;
                         } else if (l.score > 20) {
                             iconColor = ARTISTIC_MAP_STYLES.colors.icon.gold;
                         } else if (l.score > 10) {
                             iconColor = ARTISTIC_MAP_STYLES.colors.icon.silver;
                         }
-                        const visibility = l.visibility != null ? l.visibility : 1;
-                        const finalOpacity = l.isHistorical ? 0.5 : 0.8 + (visibility * 0.2);
+                        const activeBoost = l.id === currentNarratedId ? 1.5 : l.id === preparingId ? 1.25 : 1;
+
+                        const sway = 15;
+                        // Deterministic sway direction based on ID to keep it stable but organic
+                        const swayDir = (l.id.charCodeAt(0) % 2 === 0 ? 1 : -1);
+                        const startX = l.trueX || 0;
+                        const startY = l.trueY || 0;
+                        const endX = l.finalX || 0;
+                        const endY = l.finalY || 0;
+                        const dy = endY - startY;
+
+                        // Cubic Bezier with 2 control points pulling in opposite directions
+                        // CP1 pulls Right (relative to swayDir) at 1/3 distance
+                        // CP2 pulls Left (relative to swayDir) at 2/3 distance
+                        const cp1X = startX + (sway * swayDir);
+                        const cp1Y = startY + (dy * 0.33);
+                        const cp2X = endX - (sway * swayDir);
+                        const cp2Y = startY + (dy * 0.66);
 
                         return (
                             <React.Fragment key={l.id}>
                                 {isDisplaced && (
                                     <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15 }}>
-                                        <path d={`M ${l.trueX || 0},${l.trueY || 0} C ${l.trueX || 0},${(l.trueY || 0) - ((l.trueY || 0) - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${(l.finalY || 0) + ((l.trueY || 0) - (l.finalY || 0)) / 2} ${(l.finalX || 0)},${l.finalY}`}
+                                        <path d={`M ${startX},${startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${endX},${endY}`}
                                             fill="none" stroke={ARTISTIC_MAP_STYLES.tethers.stroke} strokeWidth={ARTISTIC_MAP_STYLES.tethers.width} opacity={ARTISTIC_MAP_STYLES.tethers.opacity} />
-                                        <circle cx={l.trueX || 0} cy={l.trueY || 0} r={ARTISTIC_MAP_STYLES.tethers.dotRadius} fill={ARTISTIC_MAP_STYLES.tethers.stroke} opacity={ARTISTIC_MAP_STYLES.tethers.dotOpacity} />
+                                        <circle cx={startX} cy={startY} r={ARTISTIC_MAP_STYLES.tethers.dotRadius} fill={ARTISTIC_MAP_STYLES.tethers.stroke} opacity={ARTISTIC_MAP_STYLES.tethers.dotOpacity} />
                                     </svg>
                                 )}
                                 <div
@@ -503,8 +561,16 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     }}
                                     style={{
                                         position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, width: l.width, height: l.height,
-                                        transform: `translate(-50%, -50%) scale(${zoomScale})`, opacity: finalOpacity,
-                                        color: iconColor, cursor: 'pointer', pointerEvents: 'auto'
+                                        transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost})`,
+                                        opacity: l.isHistorical ? 0.8 : 1, // Fade historic POIs slightly per user request
+                                        color: iconColor, cursor: 'pointer', pointerEvents: 'auto',
+                                        // Use drop-shadow filter for true shape contour ("Halo")
+                                        // Selected/Next get glowing/colored halos, Normal gets paper-colored cutout halo
+                                        filter: l.id === currentNarratedId
+                                            ? `drop-shadow(0 0 3px ${ARTISTIC_MAP_STYLES.colors.icon.selectedHalo}) drop-shadow(0 0 5px ${ARTISTIC_MAP_STYLES.colors.icon.selectedHalo})`
+                                            : l.id === preparingId
+                                                ? `drop-shadow(0 0 3px ${ARTISTIC_MAP_STYLES.colors.icon.nextHalo})`
+                                                : `drop-shadow(0 0 2px ${ARTISTIC_MAP_STYLES.colors.icon.normalHalo}) drop-shadow(0 0 1px ${ARTISTIC_MAP_STYLES.colors.icon.normalHalo})`
                                     }}
                                 >
                                     <InlineSVG src={iconUrl} style={{ width: '100%', height: '100%' }} className="stamped-icon" />
@@ -519,8 +585,14 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                             <div style={{
                                 position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, transform: `translate(-50%, -50%) scale(${zoomScale})`,
-                                fontFamily: ARTISTIC_MAP_STYLES.fonts.city.family, fontSize: l.tier === 'city' ? ARTISTIC_MAP_STYLES.fonts.city.size : (l.tier === 'town' ? ARTISTIC_MAP_STYLES.fonts.town.size : ARTISTIC_MAP_STYLES.fonts.village.size),
-                                color: l.isHistorical ? ARTISTIC_MAP_STYLES.colors.text.historical : ARTISTIC_MAP_STYLES.colors.text.active, textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere, whiteSpace: 'nowrap',
+                                fontFamily: ARTISTIC_MAP_STYLES.fonts.city.family,
+                                fontSize: l.tier === 'city' ? ARTISTIC_MAP_STYLES.fonts.city.size : (l.tier === 'town' ? ARTISTIC_MAP_STYLES.fonts.town.size : ARTISTIC_MAP_STYLES.fonts.village.size),
+                                fontWeight: l.tier === 'city' ? ARTISTIC_MAP_STYLES.fonts.city.weight : (l.tier === 'town' ? ARTISTIC_MAP_STYLES.fonts.town.weight : ARTISTIC_MAP_STYLES.fonts.village.weight),
+                                color: l.isHistorical ? ARTISTIC_MAP_STYLES.colors.text.historical : ARTISTIC_MAP_STYLES.colors.text.active,
+                                textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere,
+                                whiteSpace: 'nowrap',
+                                pointerEvents: 'none', // Ensure clicks pass through to map/icons
+                                zIndex: 5, // Above icons? or below? Usually text labeling an icon should be clear.
                             }}>{l.text}</div>
                         </React.Fragment>
                     );
@@ -548,7 +620,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             <div style={{
                 position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none',
                 backgroundColor: '#f4ecd8', backgroundImage: 'url(/assets/textures/paper.jpg), radial-gradient(#d4af37 1px, transparent 1px)',
-                backgroundSize: 'cover, 20px 20px', mixBlendMode: 'multiply', zIndex: 10, mask: 'url(#paper-mask)', WebkitMask: 'url(#paper-mask)'
+                backgroundSize: 'cover, 20px 20px', mixBlendMode: 'multiply', zIndex: 10, mask: 'url(#paper-mask)', WebkitMask: 'url(#paper-mask)',
+                filter: `saturate(${parchmentSaturation})`
             }} />
             <style>{`
                 .stamped-icon { display: flex; justify-content: center; align-items: center; }

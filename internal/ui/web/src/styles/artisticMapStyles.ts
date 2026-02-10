@@ -8,15 +8,15 @@ export const ARTISTIC_MAP_STYLES = {
         },
         town: {
             family: '"Pinyon Script", cursive',
-            weight: 'normal',
+            weight: 'bold', // Bumped to bold for readability
             size: '22px',
-            cssFont: "22px 'Pinyon Script'"
+            cssFont: "bold 22px 'Pinyon Script'"
         },
         village: {
             family: '"Pinyon Script", cursive',
-            weight: 'normal',
+            weight: 'bold', // Bumped to bold for readability
             size: '20px',
-            cssFont: "20px 'Pinyon Script'"
+            cssFont: "bold 20px 'Pinyon Script'"
         }
     },
     colors: {
@@ -28,12 +28,19 @@ export const ARTISTIC_MAP_STYLES = {
             gold: '#D4AF37',
             silver: '#C0C0C0',
             copper: '#B55A30',
-            selected: '#8B1A4A',   // Victorian Garnet — currently narrating
-            next: '#5C1234',       // Muted Garnet — next in queue
+            historical: '#484848', // Cast Iron — visited/historic (Dark Grey to contrast with Silver)
+            // Harmonized with Red Balloon (#E63946)
+            // Complementary contrast for visibility
+            selected: '#2A9D8F',     // Peacock Teal — Active (Complement to Red)
+            next: '#E9C46A',         // Saffron Gold — Preparing
+            selectedHalo: '#264653', // Deep Charcoal/Blue — Contrast glow
+            nextHalo: '#F4A261',     // Sandy Orange — Warm glow
+            normalHalo: '#f4ecd8',   // Paper color — Cutout effect
             stroke: '#0a0805'
         },
         shadows: {
-            atmosphere: '0 0 1px rgba(10, 8, 5, 0.35), 0 0 2px rgba(10, 8, 5, 0.25)'
+            // Halo effect: Strong light stroke (paper color) to cut text out from background
+            atmosphere: '-1px -1px 0 #f4ecd8, 1px -1px 0 #f4ecd8, -1px 1px 0 #f4ecd8, 1px 1px 0 #f4ecd8, 0 0 3px #f4ecd8, 0 0 1px rgba(10, 8, 5, 0.35)'
         }
     },
     tethers: {

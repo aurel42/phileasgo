@@ -38,6 +38,7 @@ type ConfigResponse struct {
 	ShowVisibilityLayer         bool     `json:"show_visibility_layer"`
 	RenderVisibilityAsMap       bool     `json:"render_visibility_as_map"`
 	SettlementLabelLimit        int      `json:"settlement_label_limit"`
+	SettlementTier              int      `json:"settlement_tier"`
 	MinPOIScore                 float64  `json:"min_poi_score"`
 	Volume                      float64  `json:"volume"`
 	FilterMode                  string   `json:"filter_mode"`
@@ -93,6 +94,7 @@ type ConfigRequest struct {
 	ShowVisibilityLayer         *bool    `json:"show_visibility_layer,omitempty"` // Pointer to detect false vs missing
 	RenderVisibilityAsMap       *bool    `json:"render_visibility_as_map,omitempty"`
 	SettlementLabelLimit        *int     `json:"settlement_label_limit,omitempty"`
+	SettlementTier              *int     `json:"settlement_tier,omitempty"`
 	MinPOIScore                 *float64 `json:"min_poi_score,omitempty"`
 	FilterMode                  string   `json:"filter_mode,omitempty"`
 	TargetPOICount              *int     `json:"target_poi_count,omitempty"`
@@ -185,6 +187,7 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		ShowVisibilityLayer:         h.cfgProv.ShowVisibilityLayer(ctx),
 		RenderVisibilityAsMap:       h.cfgProv.RenderVisibilityAsMap(ctx),
 		SettlementLabelLimit:        h.cfgProv.SettlementLabelLimit(ctx),
+		SettlementTier:              h.cfgProv.SettlementTier(ctx),
 		MinPOIScore:                 h.cfgProv.MinScoreThreshold(ctx),
 		Volume:                      volume, // Volume is not migrated to cfgProv
 		FilterMode:                  h.cfgProv.FilterMode(ctx),
@@ -301,6 +304,9 @@ func (h *ConfigHandler) applyUIUpdates(ctx context.Context, req *ConfigRequest) 
 	}
 	if req.SettlementLabelLimit != nil {
 		h.updateIntState(ctx, config.KeySettlementLabelLimit, *req.SettlementLabelLimit)
+	}
+	if req.SettlementTier != nil {
+		h.updateIntState(ctx, config.KeySettlementTier, *req.SettlementTier)
 	}
 
 	if req.RangeRingUnits != "" && (req.RangeRingUnits == "km" || req.RangeRingUnits == "nm") {

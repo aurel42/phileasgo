@@ -19,12 +19,12 @@ const getName = (poi: POI) => {
 
 export const OverlayPOIPanel = ({ poi, title, displayThumbnail, currentType, playbackProgress, isPlaying, showInfoPanel }: OverlayPOIPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-    const [visible, setVisible] = useState(false);
+    // Derived visibility (no state needed)
+    const visible = (poi || title) && isPlaying && showInfoPanel;
 
     useEffect(() => {
-        if ((poi || title) && isPlaying && showInfoPanel) {
-            setVisible(true);
-
+        if (visible) {
+            // Only handle async thumbnail fetch
             if (poi) {
                 // Fetch thumbnail if not available
                 if (poi.thumbnail_url) {
@@ -44,10 +44,10 @@ export const OverlayPOIPanel = ({ poi, title, displayThumbnail, currentType, pla
                 setThumbnailUrl(null);
             }
         } else {
-            setVisible(false);
+            // When hidden, reset thumbnail
             setThumbnailUrl(null);
         }
-    }, [poi, title, isPlaying, displayThumbnail, showInfoPanel]);
+    }, [poi, displayThumbnail, visible]);
 
     if (!poi && !title) return null;
 

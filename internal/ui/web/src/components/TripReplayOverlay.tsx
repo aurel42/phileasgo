@@ -235,12 +235,13 @@ const interpolatePosition = (
 
 // Credit Roll component - scrolling POI names
 // Uses absolute positioning per item to prevent layout jumps when new items are added
-const CreditRoll = ({ items, totalPOICount, mapContainer }: {
+const CreditRoll = ({ items, totalPOICount, mapContainer, currentTime }: {
     items: CreditItem[];
     totalPOICount: number;
     mapContainer: HTMLElement | null;
+    currentTime: number;
 }) => {
-    const now = Date.now();
+    const now = currentTime;
 
     // Adaptive timing: more POIs = faster scroll
     // Base: 9s visible time for few POIs, down to 3s for many (50% slower than original)
@@ -455,7 +456,8 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
 
     // Animation loop - continues for a cooldown period after trip ends to let POI lifecycle complete
     const LIFECYCLE_COOLDOWN_MS = 16000; // 16s = grow(4) + live(10) + shrink(2)
-    const [tick, setTick] = useState(0); // Force re-renders for lifecycle animation
+    // Use state for current time to drive animation cleanly and strictly
+    const [currentTime, setCurrentTime] = useState(Date.now());
 
     // Credit roll state - track POI names as they turn green
     const [credits, setCredits] = useState<CreditItem[]>([]);
@@ -468,12 +470,14 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
 
         const animate = () => {
             if (!startTimeRef.current) return;
-            const elapsed = Date.now() - startTimeRef.current;
+            const now = Date.now();
+            const elapsed = now - startTimeRef.current;
+            setCurrentTime(now); // Drive the render loop with time
             const p = Math.min(1, elapsed / durationMs);
             setProgress(p);
 
             // Force re-render for lifecycle animations even after progress hits 1
-            setTick(t => t + 1);
+            // setTick(t => t + 1); // Replaced by setCurrentTime
 
             // Continue animation until cooldown period after trip ends
             const tripEndTime = durationMs;
@@ -492,29 +496,40 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         };
     }, [path.length, durationMs, isPlaying]);
 
-    if (path.length < 2) {
-        return null; // Not enough data to draw
+    // Guarded execution to prevent conditional hooks
+    // If path is invalid, we process dummy values but hooks still run
+    const isValidPath = path.length >= 2;
+
+    let position: [number, number] = isValidPath ? path[0] : [0, 0];
+    let heading = 0;
+    let segmentIndex = 0;
+
+    if (isValidPath) {
+        const res = interpolatePosition(path, progress);
+        position = res.position;
+        heading = res.heading;
+        segmentIndex = res.segmentIndex;
     }
 
-    const { position, heading, segmentIndex } = interpolatePosition(path, progress);
-
     // Path drawn so far
-    const drawnPath = path.slice(0, segmentIndex + 2).map((p, i) => {
+    const drawnPath = isValidPath ? path.slice(0, segmentIndex + 2).map((p, i) => {
         if (i === segmentIndex + 1) return position; // Use interpolated tip
         return p;
-    });
+    }) : [];
 
     // POIs to show (events up to current segment, plus anticipation)
-    const visiblePOIs = validEvents.slice(0, segmentIndex + 2);
+    // POIs to show (events up to current segment, plus anticipation)
+    const visiblePOIs = isValidPath ? validEvents.slice(0, segmentIndex + 2) : [];
 
     // Track birth times for each POI (when it first appeared)
     const birthTimesRef = useRef<Map<string, number>>(new Map());
-    const currentTime = Date.now();
     const totalPOIs = useMemo(() => validEvents.filter(e => !isTransitionEvent(e.type)).length, [validEvents]);
     const shrinkTarget = useMemo(() => getShrinkTarget(totalPOIs), [totalPOIs]);
 
     // Compute smart POI layout using d3-force with lifecycle-aware growth/shrink/color
+    // Compute smart POI layout using d3-force with lifecycle-aware growth/shrink/color
     const poiNodes = useMemo(() => {
+        // Fix usage of Date.now() with stable state time
         const now = currentTime;
 
         const poiNodeList = (visiblePOIs
@@ -628,13 +643,15 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         }
 
         // Return only non-track nodes (the ones we want to render)
+        // Return only non-track nodes (the ones we want to render)
         return allNodes.filter(n => !n.isTrackPoint);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [visiblePOIs, map, drawnPath, position, tick, departure, destination, shrinkTarget]); // tick forces recalc for lifecycle animation
+    }, [visiblePOIs, map, drawnPath, position, currentTime, departure, destination, shrinkTarget]); // currentTime forces recalc for lifecycle animation
 
     // Credit roll trigger - check for POIs hitting the green phase
+    // Credit roll trigger - check for POIs hitting the green phase
     useEffect(() => {
-        const now = Date.now();
+        const now = currentTime;
         const newCredits: CreditItem[] = [];
 
         visiblePOIs.forEach((poi) => {
@@ -667,7 +684,10 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         if (newCredits.length > 0) {
             setCredits(prev => [...prev, ...newCredits]);
         }
-    }, [visiblePOIs, tick]); // tick ensures we check on each animation frame
+        if (newCredits.length > 0) {
+            setCredits(prev => [...prev, ...newCredits]);
+        }
+    }, [visiblePOIs, currentTime]); // currentTime ensures we check on each animation frame
 
     // Total POI count for adaptive credit roll speed
     const totalPOICount = validEvents.filter(e => !isTransitionEvent(e.type)).length;
@@ -703,6 +723,8 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
 
     // Get custom panes (fallback to markerPane just for type safety, but guarded by panesReady)
     const markerPane = map.getPanes().markerPane;
+
+    if (!isValidPath) return null; // Final render guard
 
     return (
         <>
@@ -761,7 +783,7 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
 
             {/* Credit Roll - POI names scrolling up (rendered to body for viewport positioning) */}
             {createPortal(
-                <CreditRoll items={credits} totalPOICount={totalPOICount} mapContainer={map.getContainer()} />,
+                <CreditRoll items={credits} totalPOICount={totalPOICount} mapContainer={map.getContainer()} currentTime={currentTime} />,
                 document.body
             )}
         </>

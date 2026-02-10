@@ -42,6 +42,7 @@ function App() {
   const [filterMode, setFilterMode] = useState<string>('fixed');
   const [targetCount, setTargetCount] = useState(20);
   const [settlementLabelLimit, setSettlementLabelLimit] = useState(5);
+  const [settlementTier, setSettlementTier] = useState(3);
   const [narrationFrequency, setNarrationFrequency] = useState(3);
   const [textLength, setTextLength] = useState(3);
   const [autoNarrate, setAutoNarrate] = useState(true);
@@ -58,6 +59,12 @@ function App() {
   const [paperOpacityClear, setPaperOpacityClear] = useState(() => {
     const saved = localStorage.getItem('paperOpacityClear');
     return saved ? parseFloat(saved) : 0.1;
+  });
+
+  // Parchment Saturation State (init with default 1.0)
+  const [parchmentSaturation, setParchmentSaturation] = useState(() => {
+    const saved = localStorage.getItem('parchmentSaturation');
+    return saved ? parseFloat(saved) : 1.0;
   });
 
   const pois = useTrackedPOIs();
@@ -173,6 +180,7 @@ function App() {
     if (key === 'narration_length_short_words') setNarrationLengthShort(value as number);
     if (key === 'narration_length_long_words') setNarrationLengthLong(value as number);
     if (key === 'settlement_label_limit') setSettlementLabelLimit(value as number);
+    if (key === 'settlement_tier') setSettlementTier(value as number);
 
     fetch('/api/config', {
       method: 'PUT',
@@ -208,6 +216,7 @@ function App() {
           setNarrationLengthShort(data.narration_length_short_words ?? 50);
           setNarrationLengthLong(data.narration_length_long_words ?? 200);
           setSettlementLabelLimit(data.settlement_label_limit ?? 5);
+          setSettlementTier(data.settlement_tier ?? 3);
         })
         .catch(e => console.error("Failed to fetch config", e));
     };
@@ -336,6 +345,8 @@ function App() {
           }}
           settlementLabelLimit={settlementLabelLimit}
           onSettlementLabelLimitChange={(val) => updateConfig('settlement_label_limit', val)}
+          settlementTier={settlementTier}
+          onSettlementTierChange={(val) => updateConfig('settlement_tier', val)}
           paperOpacityFog={paperOpacityFog}
           onPaperOpacityFogChange={(val) => {
             setPaperOpacityFog(val);
@@ -345,6 +356,11 @@ function App() {
           onPaperOpacityClearChange={(val) => {
             setPaperOpacityClear(val);
             localStorage.setItem('paperOpacityClear', String(val));
+          }}
+          parchmentSaturation={parchmentSaturation}
+          onParchmentSaturationChange={(val) => {
+            setParchmentSaturation(val);
+            localStorage.setItem('parchmentSaturation', String(val));
           }}
         />
       </Suspense>
@@ -362,8 +378,10 @@ function App() {
               telemetry={telemetry ?? null}
               pois={pois}
               settlementLabelLimit={settlementLabelLimit}
+              settlementTier={settlementTier}
               paperOpacityFog={paperOpacityFog}
               paperOpacityClear={paperOpacityClear}
+              parchmentSaturation={parchmentSaturation}
               onPOISelect={handlePOISelect}
             />
           ) : (

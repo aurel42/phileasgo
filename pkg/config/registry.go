@@ -49,4 +49,5 @@ const (
 	KeyBeaconTargetFloorAGL    = "beacon.target_floor_agl"
 	KeyBeaconMaxTargets        = "beacon.max_targets"
 	KeySettlementLabelLimit    = "settlement_label_limit"
+	KeySettlementTier          = "settlement_tier"
 )

@@ -46,6 +46,7 @@ type Provider interface {
 	ShowVisibilityLayer(ctx context.Context) bool
 	RenderVisibilityAsMap(ctx context.Context) bool
 	SettlementLabelLimit(ctx context.Context) int
+	SettlementTier(ctx context.Context) int
 	FilterMode(ctx context.Context) string
 	TargetPOICount(ctx context.Context) int
 	PauseDuration(ctx context.Context) time.Duration
@@ -220,6 +221,11 @@ func (p *UnifiedProvider) RenderVisibilityAsMap(ctx context.Context) bool {
 
 func (p *UnifiedProvider) SettlementLabelLimit(ctx context.Context) int {
 	return p.getInt(ctx, KeySettlementLabelLimit, p.base.Overlay.SettlementLabelLimit)
+}
+
+func (p *UnifiedProvider) SettlementTier(ctx context.Context) int {
+	// Default to 3 (Village/All) if not set
+	return p.getInt(ctx, KeySettlementTier, 3)
 }
 
 func (p *UnifiedProvider) FilterMode(ctx context.Context) string {

@@ -57,7 +57,7 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
 
     useEffect(() => {
         if (!poi) {
-            setThumbnailUrl(null);
+            // setThumbnailUrl(null); // Removed to avoid set-state-in-effect; not needed as !poi renders generic panel which ignores thumbnailUrl
             return;
         }
 
