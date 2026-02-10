@@ -53,6 +53,7 @@ categories:
       "Q1070990": "county-level city"
     weight: 0.8
     icon: "city"
+    icon_artistic: "home"
     sitelinks_min: 3
     size: "XL"
     preground: true
@@ -199,6 +200,7 @@ categories:
       "Q3957": "town"
     weight: 0.4
     icon: "town"
+    icon_artistic: "home"
     sitelinks_min: 3
     size: "L"
     preground: true
@@ -207,6 +209,7 @@ categories:
       "Q532": "village"
     weight: 0.3
     icon: "village"
+    icon_artistic: "home"
     sitelinks_min: 5
     size: "M"
     preground: true

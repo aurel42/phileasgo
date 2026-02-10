@@ -18,6 +18,7 @@ type POI struct {
 	Category         string `json:"category"`          // e.g. "Landmark"
 	SpecificCategory string `json:"specific_category"` // More precise label from Gemini (e.g. "Chalk Formation")
 	Icon             string `json:"icon"`              // e.g. "castle.png"
+	IconArtistic     string `json:"icon_artistic"`     // Override for artistic map
 
 	// Coordinates
 	Lat float64 `json:"lat"`

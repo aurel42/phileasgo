@@ -98,6 +98,21 @@ interface MapFrame {
     agl: number;
 }
 
+// Helper for color interpolation (Hex -> Hex/RGB)
+const lerpColor = (c1: string, c2: string, t: number): string => {
+    const hex = (c: string) => parseInt(c.slice(1), 16);
+    const r1 = (hex(c1) >> 16) & 255;
+    const g1 = (hex(c1) >> 8) & 255;
+    const b1 = (hex(c1)) & 255;
+    const r2 = (hex(c2) >> 16) & 255;
+    const g2 = (hex(c2) >> 8) & 255;
+    const b2 = (hex(c2)) & 255;
+    const r = Math.round(r1 + (r2 - r1) * t);
+    const g = Math.round(g1 + (g2 - g1) * t);
+    const b = Math.round(b1 + (b2 - b1) * t);
+    return `rgb(${r}, ${g}, ${b})`;
+};
+
 export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     className,
     center,
@@ -170,20 +185,36 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             style: {
                 version: 8,
                 sources: {
-                    'stamen-watercolor': {
+                    'stamen-watercolor-hd': {
                         type: 'raster',
                         tiles: ['https://watercolormaps.collection.cooperhewitt.org/tile/watercolor/{z}/{x}/{y}.jpg'],
-                        tileSize: 256
+                        tileSize: 128 // HD Source: 128px tiles (displays Z+1 content at Z)
+                    },
+                    'stamen-watercolor-std': {
+                        type: 'raster',
+                        tiles: ['https://watercolormaps.collection.cooperhewitt.org/tile/watercolor/{z}/{x}/{y}.jpg'],
+                        tileSize: 256 // Standard Source: 256px tiles (displays Z content at Z)
                     }
                 },
                 layers: [
                     { id: 'background', type: 'background', paint: { 'background-color': '#f4ecd8' } },
-                    { id: 'watercolor', type: 'raster', source: 'stamen-watercolor', paint: { 'raster-saturation': -0.2, 'raster-contrast': 0.1 } }
+                    // HD Layer: Active for Zoom 0-10 (e.g. at Z9, uses Z10 tiles)
+                    {
+                        id: 'watercolor-hd', type: 'raster', source: 'stamen-watercolor-hd',
+                        maxzoom: 10,
+                        paint: { 'raster-saturation': -0.2, 'raster-contrast': 0.1 }
+                    },
+                    // Std Layer: Active for Zoom 10+ (Normal behavior)
+                    {
+                        id: 'watercolor-std', type: 'raster', source: 'stamen-watercolor-std',
+                        minzoom: 10,
+                        paint: { 'raster-saturation': -0.2, 'raster-contrast': 0.1 }
+                    }
                 ]
             },
             center: [center[1], center[0]],
             zoom: zoom,
-            minZoom: 10,
+            minZoom: 9, // Allowed now that we have higher-res tiles (Z10 tiles at Z9 view)
             maxZoom: 13,
             attributionControl: false,
             interactive: false
@@ -325,7 +356,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         if (coneBbox && !coneBbox.some(isNaN)) {
                             const camera = m.cameraForBounds(coneBbox as [number, number, number, number], { padding: 120, maxZoom: 13 });
                             if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
-                                newZoom = Math.min(Math.max(camera.zoom, 10), 13);
+                                newZoom = Math.min(Math.max(camera.zoom, 9), 13);
                             }
                         }
                     }
@@ -512,7 +543,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                     if (l.type === 'poi') {
                         // ... POI Icon Rendering ...
-                        const iconUrl = `/icons/${l.icon || 'attraction'}.svg`;
+                        const poi = accumulatedPois.current.get(l.id);
+                        const iconName = (poi?.icon_artistic || l.icon || 'attraction');
+                        const iconUrl = `/icons/${iconName}.svg`;
                         // Icon color: Selected > Next > Score-based metallic
                         let iconColor = ARTISTIC_MAP_STYLES.colors.icon.copper;
                         if (l.id === currentNarratedId) {
@@ -521,10 +554,18 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             iconColor = ARTISTIC_MAP_STYLES.colors.icon.next;
                         } else if (l.isHistorical) {
                             iconColor = ARTISTIC_MAP_STYLES.colors.icon.historical;
-                        } else if (l.score > 20) {
-                            iconColor = ARTISTIC_MAP_STYLES.colors.icon.gold;
-                        } else if (l.score > 10) {
-                            iconColor = ARTISTIC_MAP_STYLES.colors.icon.silver;
+                        } else {
+                            // Score Interpolation: Silver (<=0) -> Gold (>=20)
+                            const score = l.score || 0;
+                            if (score <= 0) {
+                                iconColor = ARTISTIC_MAP_STYLES.colors.icon.silver;
+                            } else if (score >= 20) {
+                                iconColor = ARTISTIC_MAP_STYLES.colors.icon.gold;
+                            } else {
+                                // 0 < score < 20
+                                const t = score / 20.0;
+                                iconColor = lerpColor(ARTISTIC_MAP_STYLES.colors.icon.silver, ARTISTIC_MAP_STYLES.colors.icon.gold, t);
+                            }
                         }
                         const activeBoost = l.id === currentNarratedId ? 1.5 : l.id === preparingId ? 1.25 : 1;
 
@@ -620,7 +661,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             <div style={{
                 position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none',
                 backgroundColor: '#f4ecd8', backgroundImage: 'url(/assets/textures/paper.jpg), radial-gradient(#d4af37 1px, transparent 1px)',
-                backgroundSize: 'cover, 20px 20px', mixBlendMode: 'multiply', zIndex: 10, mask: 'url(#paper-mask)', WebkitMask: 'url(#paper-mask)',
+                backgroundSize: 'cover, 20px 20px', zIndex: 10, mask: 'url(#paper-mask)', WebkitMask: 'url(#paper-mask)',
                 filter: `saturate(${parchmentSaturation})`
             }} />
             <style>{`

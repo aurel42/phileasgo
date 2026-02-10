@@ -1,22 +1,22 @@
 export const ARTISTIC_MAP_STYLES = {
     fonts: {
         city: {
-            family: '"Pinyon Script", cursive',
+            family: '"IM Fell English SC", serif',
             weight: 'bold',
             size: '24px',
-            cssFont: "bold 24px 'Pinyon Script'"
+            cssFont: "bold 24px 'IM Fell English SC'"
         },
         town: {
-            family: '"Pinyon Script", cursive',
-            weight: 'bold', // Bumped to bold for readability
+            family: '"IM Fell English SC", serif',
+            weight: 'bold',
             size: '22px',
-            cssFont: "bold 22px 'Pinyon Script'"
+            cssFont: "bold 22px 'IM Fell English SC'"
         },
         village: {
-            family: '"Pinyon Script", cursive',
-            weight: 'bold', // Bumped to bold for readability
+            family: '"IM Fell English SC", serif',
+            weight: 'bold',
             size: '20px',
-            cssFont: "bold 20px 'Pinyon Script'"
+            cssFont: "bold 20px 'IM Fell English SC'"
         }
     },
     colors: {

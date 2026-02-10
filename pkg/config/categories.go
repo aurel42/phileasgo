@@ -27,6 +27,7 @@ type Category struct {
 	Weight       float64           `json:"weight" yaml:"weight"`
 	Size         string            `json:"size" yaml:"size"`
 	Icon         string            `json:"icon" yaml:"icon"`
+	IconArtistic string            `json:"icon_artistic" yaml:"icon_artistic"`
 	SitelinksMin int               `json:"sitelinks_min" yaml:"sitelinks_min"`
 	QIDs         map[string]string `json:"qids" yaml:"qids"`
 	Preground    bool              `json:"preground" yaml:"preground"` // Enable Sonar pregrounding for this category

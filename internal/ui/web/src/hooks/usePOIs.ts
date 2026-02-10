@@ -7,6 +7,7 @@ export interface POI {
     category: string;
     specific_category?: string;
     icon: string;
+    icon_artistic?: string;
     lat: number;
     lon: number;
     name_en: string;

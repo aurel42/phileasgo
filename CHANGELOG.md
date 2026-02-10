@@ -1,7 +1,13 @@
 ﻿Release History
 
+## v0.3.157 (2026-02-10)
+- **Artistic Map**: Added support for `icon_artistic` override in categories config.
+- **Artistic Map**: Updated settlement label font to "IM Fell English SC".
+- **Artistic Map**: Implemented score-based metallic color interpolation (Silver to Gold).
+- **Artistic Map**: Adjusted zoom levels to load higher resolution tiles at lower zooms.
+
 ## v0.3.156 (2026-02-10)
-* **Feature**: **Artistic Map**. Introduced a new "Artistic" map style with a Victorian aesthetic, featuring hand-drawn paper textures, watercolor blending, and responsive S-curve tethers for organic label placement.
+* **Feature**: **Artistic Map**. Introduced a new "Artistic" map style based on Stamen Watercolor.
 
 ## v0.3.155 (2026-02-09)
 * **Feature**: **Light Map Visibility**. The debug visibility layer can render visible areas using a "Light Mode" (Carto Voyager) map style. I thought it would look better.

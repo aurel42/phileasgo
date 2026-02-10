@@ -180,6 +180,12 @@ func (m *Manager) ensureIcon(p *model.POI) {
 		if cfg, ok := m.catConfig.Categories[strings.ToLower(p.Category)]; ok {
 			if cfg.Icon != "" {
 				p.Icon = cfg.Icon
+			}
+			if cfg.IconArtistic != "" {
+				p.IconArtistic = cfg.IconArtistic
+			}
+			// Only return if primary icon is set, otherwise fallthrough to defaults
+			if p.Icon != "" {
 				return
 			}
 		}
@@ -238,6 +244,7 @@ func (m *Manager) updateExistingPOI(existing, p *model.POI) {
 	existing.WPArticleLength = p.WPArticleLength
 	existing.DimensionMultiplier = p.DimensionMultiplier
 	existing.Icon = p.Icon
+	existing.IconArtistic = p.IconArtistic
 	existing.IsMSFSPOI = p.IsMSFSPOI // Update flag
 
 	// 2. Metadata Preservation
