@@ -26,6 +26,16 @@ export interface LabelCandidate {
     trueY?: number;
     rotation?: number; // degrees
     placedZoom?: number; // Zoom level when first placed (for map-relative scaling)
+    secondaryLabel?: {
+        text: string;
+        width: number;
+        height: number;
+    };
+    secondaryLabelPos?: {
+        x: number;
+        y: number;
+        anchor: LabelCandidate['anchor'];
+    };
 }
 
 interface LabelItem extends BBox {
@@ -40,6 +50,7 @@ export interface PlacementState {
     radialAngle?: number;
     radialDist?: number;
     placedZoom: number;
+    secondaryAnchor?: LabelCandidate['anchor'];
 }
 
 export class PlacementEngine {
@@ -126,7 +137,8 @@ export class PlacementEngine {
             candidate.trueY = Math.round(pos.y);
 
             // Scale collision box by zoom ratio so markers stay map-relative
-            const zoomScale = Math.pow(2, zoom - state.placedZoom);
+            // Must use Math.floor(zoom) to match the renderer's zoomScale calculation
+            const zoomScale = Math.pow(2, Math.floor(zoom) - state.placedZoom);
             const halfW = ((candidate.width * zoomScale) / 2) + padding;
             const halfH = ((candidate.height * zoomScale) / 2) + padding;
 
@@ -165,6 +177,34 @@ export class PlacementEngine {
             candidate.finalY = cy;
             candidate.placedZoom = state.placedZoom;
             candidate.rotation = 0;
+
+            // RE-REGISTER SECONDARY LABEL if it was persistent
+            if (candidate.secondaryLabel && state.secondaryAnchor) {
+                const sHalfW = (candidate.secondaryLabel.width * zoomScale) / 2;
+                const sHalfH = (candidate.secondaryLabel.height * zoomScale) / 2;
+                const sPointRadius = ((candidate.width * zoomScale) / 2) + padding + 2;
+
+                const sAnchor = anchors.find(a => a.type === state.secondaryAnchor);
+                if (sAnchor) {
+                    let scx = cx;
+                    let scy = cy;
+                    if (sAnchor.dx !== 0) scx = cx + (sAnchor.dx * (sPointRadius + sHalfW));
+                    if (sAnchor.dy !== 0) scy = cy + (sAnchor.dy * (sPointRadius + sHalfH));
+
+                    const sItem: LabelItem = {
+                        minX: scx - sHalfW, minY: scy - sHalfH,
+                        maxX: scx + sHalfW, maxY: scy + sHalfH,
+                        ownerId: candidate.id + "_sec", type: 'label'
+                    };
+                    this.tree.insert(sItem);
+                    candidate.secondaryLabelPos = {
+                        x: Math.round(scx),
+                        y: Math.round(scy),
+                        anchor: state.secondaryAnchor
+                    };
+                }
+            }
+
             placed.push(candidate);
         }
 
@@ -178,20 +218,8 @@ export class PlacementEngine {
             const halfH = (candidate.height / 2) + padding;
             candidate.rotation = 0;
 
-            // 1. For Settlements: Force-insert the marker (anchor point)
-            if (candidate.type === 'settlement') {
-                const markerW = 6;
-                const hh = markerW / 2;
-
-                // Use a small 6px marker for settlements (visual dot)
-                this.tree.insert({
-                    minX: pos.x - hh - padding, minY: pos.y - hh - padding,
-                    maxX: pos.x + hh + padding, maxY: pos.y + hh + padding,
-                    ownerId: candidate.id, type: 'marker'
-                });
-                // Then fall through to label search
-            } else if (candidate.type === 'poi' && !candidate.text) {
-                // 2. For Icon-only POI: Try true position FIRST
+            // 1. For Icon-only POI: Try true position FIRST
+            if (candidate.type === 'poi' && !candidate.text) {
                 const item: LabelItem = {
                     minX: pos.x - halfW, minY: pos.y - halfH,
                     maxX: pos.x + halfW, maxY: pos.y + halfH,
@@ -206,9 +234,16 @@ export class PlacementEngine {
                     candidate.finalX = Math.round(pos.x);
                     candidate.finalY = Math.round(pos.y);
                     candidate.anchor = 'center';
-                    candidate.placedZoom = zoom;
+                    candidate.placedZoom = Math.floor(zoom);
+
+                    // Cache MUST be set before tryPlaceSecondary (it updates secondaryAnchor on this entry)
+                    this.placedCache.set(candidate.id, { anchor: 'center', placedZoom: Math.floor(zoom) });
+
+                    if (candidate.secondaryLabel) {
+                        this.tryPlaceSecondary(candidate, pos.x, pos.y, padding, viewportWidth, viewportHeight);
+                    }
+
                     placed.push(candidate);
-                    this.placedCache.set(candidate.id, { anchor: 'center', placedZoom: zoom });
                     continue;
                 }
                 // If blocked, fall through to anchor/radial search
@@ -221,9 +256,16 @@ export class PlacementEngine {
             for (const textAnchor of anchors) {
                 if (this.tryPlace(candidate, pos.x, pos.y, textAnchor.dx, textAnchor.dy, padding, textAnchor.type, viewportWidth, viewportHeight)) {
                     isPlaced = true;
-                    candidate.placedZoom = zoom;
+                    candidate.placedZoom = Math.floor(zoom);
+
+                    // Cache MUST be set before tryPlaceSecondary (it updates secondaryAnchor on this entry)
+                    this.placedCache.set(candidate.id, { anchor: textAnchor.type, placedZoom: Math.floor(zoom) });
+
+                    if (candidate.secondaryLabel) {
+                        this.tryPlaceSecondary(candidate, candidate.finalX!, candidate.finalY!, padding, viewportWidth, viewportHeight);
+                    }
+
                     placed.push(candidate);
-                    this.placedCache.set(candidate.id, { anchor: textAnchor.type, placedZoom: zoom });
                     break;
                 }
             }
@@ -247,14 +289,17 @@ export class PlacementEngine {
                             candidate.anchor = 'radial';
                             candidate.finalX = Math.round(cx);
                             candidate.finalY = Math.round(cy);
-                            candidate.placedZoom = zoom;
-                            placed.push(candidate);
+                            candidate.placedZoom = Math.floor(zoom);
+
                             this.placedCache.set(candidate.id, {
                                 anchor: 'radial',
                                 radialAngle: theta,
                                 radialDist: r,
-                                placedZoom: zoom
+                                placedZoom: Math.floor(zoom)
                             });
+
+                            // No secondary label for radial placements — marker is too far from true position
+                            placed.push(candidate);
                             isPlaced = true;
                             break;
                         }
@@ -350,11 +395,80 @@ export class PlacementEngine {
 
         const potentialCollisions = this.tree.search(item);
         for (const other of potentialCollisions) {
-            if (other.ownerId === candidate.id) continue;
+            // A secondary label (ownerId: X_sec) SHOULD collide with its own primary (ownerId: X)
+            // to ensure it clears the icon properly.
+            if (other.ownerId === item.ownerId) continue;
             return false; // Collision
         }
 
         this.tree.insert(item);
         return true;
+    }
+
+    private tryPlaceSecondary(
+        candidate: LabelCandidate,
+        baseX: number,
+        baseY: number,
+        padding: number,
+        vw: number,
+        vh: number
+    ): boolean {
+        if (!candidate.secondaryLabel) return false;
+
+        const anchors: { type: LabelCandidate['anchor'], dx: number, dy: number }[] = [
+            { type: 'top-right', dx: 1, dy: -1 },
+            { type: 'top', dx: 0, dy: -1 },
+            { type: 'right', dx: 1, dy: 0 },
+            { type: 'bottom', dx: 0, dy: 1 },
+            { type: 'left', dx: -1, dy: 0 },
+            { type: 'top-left', dx: -1, dy: -1 },
+            { type: 'bottom-right', dx: 1, dy: 1 },
+            { type: 'bottom-left', dx: -1, dy: 1 },
+        ];
+
+        const halfW = candidate.secondaryLabel.width / 2;
+        const halfH = candidate.secondaryLabel.height / 2;
+        // No padding on secondary labels — other objects' padding provides sufficient clearance
+        const pointRadius = (candidate.width / 2) + padding + 2;
+
+        for (const anchor of anchors) {
+            let cx = baseX;
+            let cy = baseY;
+
+            if (anchor.dx !== 0) cx = baseX + (anchor.dx * (pointRadius + halfW));
+            if (anchor.dy !== 0) cy = baseY + (anchor.dy * (pointRadius + halfH));
+
+            if (this.isOutsideViewport(cx, cy, halfW, halfH, vw, vh)) continue;
+
+            const item: LabelItem = {
+                minX: cx - halfW, minY: cy - halfH,
+                maxX: cx + halfW, maxY: cy + halfH,
+                ownerId: candidate.id + "_sec",
+                type: 'label'
+            };
+
+            const collisions = this.tree.search(item);
+            // Secondary labels MUST NOT overlap anything else, INCLUDING their parent icon.
+            // (Wait, actually they MUST NOT overlap anything EXCEPT themselves)
+            const isBlocked = collisions.some(other => other.ownerId !== item.ownerId);
+
+            if (!isBlocked) {
+                this.tree.insert(item);
+                candidate.secondaryLabelPos = {
+                    x: Math.round(cx),
+                    y: Math.round(cy),
+                    anchor: anchor.type!
+                };
+
+                // Update the state in the cache to include the secondary anchor
+                const state = this.placedCache.get(candidate.id);
+                if (state) {
+                    state.secondaryAnchor = anchor.type;
+                }
+
+                return true;
+            }
+        }
+        return false;
     }
 }

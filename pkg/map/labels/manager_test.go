@@ -287,3 +287,100 @@ func TestSelectLabels_TierFiltering(t *testing.T) {
 		}
 	})
 }
+func TestSelectLabels_LimitChangeReset(t *testing.T) {
+	poiSvc := poi.NewManager(nil, &MockStore{}, nil)
+	ctx := context.Background()
+	poiSvc.TrackPOI(ctx, &model.POI{WikidataID: "A", NameEn: "A", Lat: 5, Lon: 5, Category: "City"})
+
+	provider := &MockLimitProvider{Limit: 10, Tier: 3}
+	m := NewManager(&geo.Service{}, poiSvc, provider)
+
+	// First call at limit 10
+	r1 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10.0)
+	if len(r1) != 1 {
+		t.Fatalf("Expected 1 label, got %d", len(r1))
+	}
+
+	// Change limit to 5
+	provider.Limit = 5
+	_ = m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10.0)
+
+	// Verify limit was updated and state was (briefly) cleared
+	m.mu.Lock()
+	if m.lastLimit != 5 {
+		t.Errorf("Expected lastLimit=5, got %d", m.lastLimit)
+	}
+	m.mu.Unlock()
+}
+
+func TestSelectLabels_FadingFreesSlot(t *testing.T) {
+	poiSvc := poi.NewManager(nil, &MockStore{}, nil)
+	ctx := context.Background()
+
+	// City A at the left edge of viewport 1, City B well-separated in the center
+	poiSvc.TrackPOI(ctx, &model.POI{WikidataID: "A", NameEn: "EdgeCity", Lat: 5, Lon: 1, Category: "City"})
+	poiSvc.TrackPOI(ctx, &model.POI{WikidataID: "B", NameEn: "CenterCity", Lat: 5, Lon: 5, Category: "City"})
+	// City C is outside viewport 1 but inside viewport 2
+	poiSvc.TrackPOI(ctx, &model.POI{WikidataID: "C", NameEn: "NewCity", Lat: 5, Lon: 9, Category: "City"})
+
+	m := NewManager(&geo.Service{}, poiSvc, &MockLimitProvider{Limit: 2, Tier: 3})
+
+	// Viewport 1: lon 0-10, all three cities inside
+	r1 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10)
+	if len(r1) != 2 {
+		t.Fatalf("Call 1: expected 2 labels (limit), got %d", len(r1))
+	}
+
+	// Viewport 2: shift east — lon 4-14. City A (lon=1) is now outside the viewport.
+	// With fading, A should be marked fading, freeing a slot for C.
+	r2 := m.SelectLabels(0, 4, 10, 14, 5, 9, 0, nil, 10)
+
+	// A should be fading (outside inset), so not returned.
+	// B (lon=5) is inside the viewport (lon 4-14).
+	// C (lon=9) is well inside.
+	foundA := false
+	foundC := false
+	for _, r := range r2 {
+		if r.GenericID == "A" {
+			foundA = true
+		}
+		if r.GenericID == "C" {
+			foundC = true
+		}
+	}
+
+	if foundA {
+		t.Error("City A should be fading (outside shifted viewport), not returned")
+	}
+	if !foundC {
+		t.Error("City C should fill the slot freed by fading City A")
+	}
+	if len(r2) != 2 {
+		t.Errorf("Call 2: expected 2 labels, got %d", len(r2))
+	}
+}
+
+func TestSelectLabels_EllipticalExclusion(t *testing.T) {
+	poiSvc := poi.NewManager(nil, &MockStore{}, nil)
+	ctx := context.Background()
+
+	// Two very long named cities vertically close
+	// City A at (5, 5). Name 29 chars -> msrX = msrDeg * (0.8 + 29*0.04) = 1.96 * msrDeg.
+	// Viewport span 10 -> msrDeg = 3. msrX = 5.88.
+	poiSvc.TrackPOI(ctx, &model.POI{WikidataID: "Long1", NameEn: "Sankt Margarethen an der Raab", Lat: 5, Lon: 5, Category: "City"})
+
+	// City B at (5.1, 9). dx = 4, dy = 0.1.
+	// Circular: dist = sqrt(4^2 + 0.1^2) = 4.001. 4.001 > 3 -> PASS (would show both).
+	// Elliptical: (4/5.88)^2 + (0.1/3)^2 = 0.46 + 0.001 = 0.46 < 1 -> REJECT (should block).
+	poiSvc.TrackPOI(ctx, &model.POI{WikidataID: "Long2", NameEn: "Petrogradskoye Shosse", Lat: 5.1, Lon: 9, Category: "City"})
+
+	m := NewManager(&geo.Service{}, poiSvc, &MockLimitProvider{Limit: 2, Tier: 3})
+
+	// Viewport 0-10
+	results := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10)
+
+	// Should only find the first one because they collide elliptically
+	if len(results) != 1 {
+		t.Errorf("Expected 1 label due to elliptical collision, got %d", len(results))
+	}
+}

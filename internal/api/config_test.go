@@ -104,7 +104,7 @@ func TestHandleGetConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			st := &mockStore{state: tt.storeState}
-			h := NewConfigHandler(st, config.NewProvider(tt.cfg, st))
+			h := NewConfigHandler(st, config.NewProvider(tt.cfg, st), nil)
 
 			req := httptest.NewRequest("GET", "/api/config", nil)
 			w := httptest.NewRecorder()
@@ -157,7 +157,7 @@ func TestHandleGetConfig(t *testing.T) {
 
 func TestHandleSetConfig(t *testing.T) {
 	st := &mockStore{state: make(map[string]string)}
-	h := NewConfigHandler(st, config.NewProvider(&config.Config{}, st))
+	h := NewConfigHandler(st, config.NewProvider(&config.Config{}, st), nil)
 
 	// Helper functions for pointers
 	ptrInt := func(i int) *int { return &i }

@@ -58,17 +58,7 @@ func (s *SQLiteStore) GetPOI(ctx context.Context, wikidataID string) (*model.POI
 		 FROM poi WHERE wikidata_id = ?`, wikidataID)
 
 	var p model.POI
-	var lastPlayed sql.NullTime
-	var specificCategory sql.NullString
-
-	err := row.Scan(
-		&p.WikidataID, &p.Source, &p.Category, &specificCategory,
-		&p.Lat, &p.Lon, &p.Sitelinks,
-		&p.NameEn, &p.NameLocal, &p.NameUser,
-		&p.WPURL, &p.WPArticleLength,
-		&p.TriggerQID, &lastPlayed, &p.CreatedAt, &p.IsMSFSPOI, &p.ThumbnailURL,
-	)
-	if err != nil {
+	if err := scanPOI(row, &p); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil // Not found
 		}
@@ -78,13 +68,6 @@ func (s *SQLiteStore) GetPOI(ctx context.Context, wikidataID string) (*model.POI
 			return s.getPOILegacy(ctx, wikidataID)
 		}
 		return nil, err
-	}
-
-	if lastPlayed.Valid {
-		p.LastPlayed = lastPlayed.Time
-	}
-	if specificCategory.Valid {
-		p.SpecificCategory = specificCategory.String
 	}
 
 	return &p, nil
@@ -141,9 +124,6 @@ func (s *SQLiteStore) GetPOIsBatch(ctx context.Context, wikidataIDs []string) (m
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		// Fallback for batch? Tricky. Easier to assume schema is migrated or fail.
-		// To avoid breaking, can check error like above, but batch logic is complex to duplicated.
-		// Assuming migration script runs or AutoMigrate works.
 		return nil, err
 	}
 	defer rows.Close()
@@ -151,27 +131,66 @@ func (s *SQLiteStore) GetPOIsBatch(ctx context.Context, wikidataIDs []string) (m
 	results := make(map[string]*model.POI)
 	for rows.Next() {
 		var p model.POI
-		var lastPlayed sql.NullTime
-		var specificCategory sql.NullString
-		err := rows.Scan(
-			&p.WikidataID, &p.Source, &p.Category, &specificCategory,
-			&p.Lat, &p.Lon, &p.Sitelinks,
-			&p.NameEn, &p.NameLocal, &p.NameUser,
-			&p.WPURL, &p.WPArticleLength,
-			&p.TriggerQID, &lastPlayed, &p.CreatedAt, &p.IsMSFSPOI, &p.ThumbnailURL,
-		)
-		if err != nil {
+		if err := scanPOI(rows, &p); err != nil {
 			return nil, err
-		}
-		if lastPlayed.Valid {
-			p.LastPlayed = lastPlayed.Time
-		}
-		if specificCategory.Valid {
-			p.SpecificCategory = specificCategory.String
 		}
 		results[p.WikidataID] = &p
 	}
 	return results, nil
+}
+
+func scanPOI(scanner interface{ Scan(dest ...any) error }, p *model.POI) error {
+	var lastPlayed sql.NullTime
+	var specificCategory sql.NullString
+	var nameEn, nameLocal, nameUser, wpURL, triggerQID, thumbURL sql.NullString
+	var sitelinks, wpLength sql.NullInt64
+	var isMSFS sql.NullBool
+
+	err := scanner.Scan(
+		&p.WikidataID, &p.Source, &p.Category, &specificCategory,
+		&p.Lat, &p.Lon, &sitelinks,
+		&nameEn, &nameLocal, &nameUser,
+		&wpURL, &wpLength,
+		&triggerQID, &lastPlayed, &p.CreatedAt, &isMSFS, &thumbURL,
+	)
+	if err != nil {
+		return err
+	}
+
+	if lastPlayed.Valid {
+		p.LastPlayed = lastPlayed.Time
+	}
+	if specificCategory.Valid {
+		p.SpecificCategory = specificCategory.String
+	}
+	if nameEn.Valid {
+		p.NameEn = nameEn.String
+	}
+	if nameLocal.Valid {
+		p.NameLocal = nameLocal.String
+	}
+	if nameUser.Valid {
+		p.NameUser = nameUser.String
+	}
+	if wpURL.Valid {
+		p.WPURL = wpURL.String
+	}
+	if triggerQID.Valid {
+		p.TriggerQID = triggerQID.String
+	}
+	if thumbURL.Valid {
+		p.ThumbnailURL = thumbURL.String
+	}
+	if sitelinks.Valid {
+		p.Sitelinks = int(sitelinks.Int64)
+	}
+	if wpLength.Valid {
+		p.WPArticleLength = int(wpLength.Int64)
+	}
+	if isMSFS.Valid {
+		p.IsMSFSPOI = isMSFS.Bool
+	}
+	return nil
 }
 
 func (s *SQLiteStore) SavePOI(ctx context.Context, p *model.POI) error {
@@ -207,23 +226,8 @@ func (s *SQLiteStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time
 	var results []*model.POI
 	for rows.Next() {
 		var p model.POI
-		var lastPlayed sql.NullTime
-		var specificCategory sql.NullString
-		err := rows.Scan(
-			&p.WikidataID, &p.Source, &p.Category, &specificCategory,
-			&p.Lat, &p.Lon, &p.Sitelinks,
-			&p.NameEn, &p.NameLocal, &p.NameUser,
-			&p.WPURL, &p.WPArticleLength,
-			&p.TriggerQID, &lastPlayed, &p.CreatedAt, &p.IsMSFSPOI, &p.ThumbnailURL,
-		)
-		if err != nil {
+		if err := scanPOI(rows, &p); err != nil {
 			return nil, err
-		}
-		if lastPlayed.Valid {
-			p.LastPlayed = lastPlayed.Time
-		}
-		if specificCategory.Valid {
-			p.SpecificCategory = specificCategory.String
 		}
 		results = append(results, &p)
 	}
@@ -408,19 +412,31 @@ func (s *SQLiteStore) GetArticle(ctx context.Context, uuid string) (*model.Artic
 		`SELECT uuid, title, url, names, text, lengths, thumbnail_url, created_at FROM wikipedia_articles WHERE uuid = ?`, uuid)
 
 	var a model.Article
-	var namesJSON, lengthsJSON string
-	err := row.Scan(&a.UUID, &a.Title, &a.URL, &namesJSON, &a.Text, &lengthsJSON, &a.ThumbnailURL, &a.CreatedAt)
+	var title, url, namesJSON, text, lengthsJSON, thumbURL sql.NullString
+	err := row.Scan(&a.UUID, &title, &url, &namesJSON, &text, &lengthsJSON, &thumbURL, &a.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	if namesJSON != "" {
-		_ = json.Unmarshal([]byte(namesJSON), &a.Names)
+	if title.Valid {
+		a.Title = title.String
 	}
-	if lengthsJSON != "" {
-		_ = json.Unmarshal([]byte(lengthsJSON), &a.Lengths)
+	if url.Valid {
+		a.URL = url.String
+	}
+	if text.Valid {
+		a.Text = text.String
+	}
+	if namesJSON.Valid && namesJSON.String != "" {
+		_ = json.Unmarshal([]byte(namesJSON.String), &a.Names)
+	}
+	if lengthsJSON.Valid && lengthsJSON.String != "" {
+		_ = json.Unmarshal([]byte(lengthsJSON.String), &a.Lengths)
+	}
+	if thumbURL.Valid {
+		a.ThumbnailURL = thumbURL.String
 	}
 	return &a, nil
 }

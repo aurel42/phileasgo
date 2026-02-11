@@ -1,5 +1,11 @@
 ﻿Release History
 
+## v0.3.159 (2026-02-11)
+- **Fix**: **Settlement Label Stability**. Resolved issues where labels would "jump" positions due to aggressive state resets on zoom boundaries and unstable record identification.
+- **Improvement**: **Better Settlement Label Exclusion**. Implemented a hybrid dynamic radius (elliptical) system that scales with name length, preventing overcrowding and "uncomfortable" vertical stacking.
+- **Improved**: **Robust Database Scanning**. Refactored SQLite scanning logic with enhanced `NULL` field handling to prevent potential runtime errors and improve code maintainability.
+- **Improved**: **Icon Selection Logic**. The `IconArtistic` configuration now reliably overrides primary icons even when categories have internal defaults.
+
 ## v0.3.158 (2026-02-10)
 - **POI Thumbnail Persistence**: Implemented database storage for POI thumbnail URLs to avoid redundant LLM smart selection requests on repeat visits.
 - **Artistic Map**: Implemented "Settlement Shadows" and predictive lookahead to stabilize label density during flight.

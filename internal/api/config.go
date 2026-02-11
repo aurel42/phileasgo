@@ -17,14 +17,16 @@ type ConfigHandler struct {
 	store   store.Store
 	cfgProv config.Provider
 	appCfg  *config.Config
+	catCfg  *config.CategoriesConfig
 }
 
 // NewConfigHandler creates a new ConfigHandler.
-func NewConfigHandler(st store.Store, cfg config.Provider) *ConfigHandler {
+func NewConfigHandler(st store.Store, cfg config.Provider, catCfg *config.CategoriesConfig) *ConfigHandler {
 	return &ConfigHandler{
 		store:   st,
 		cfgProv: cfg,
 		appCfg:  cfg.AppConfig(),
+		catCfg:  catCfg,
 	}
 }
 
@@ -81,8 +83,9 @@ type ConfigResponse struct {
 	AutoNarrate             bool    `json:"auto_narrate"`
 	PauseBetweenNarrations  float64 `json:"pause_between_narrations"`
 	RepeatTTL               string  `json:"repeat_ttl"`
-	NarrationLengthShort    int     `json:"narration_length_short_words"`
-	NarrationLengthLong     int     `json:"narration_length_long_words"`
+	NarrationLengthShort    int      `json:"narration_length_short_words"`
+	NarrationLengthLong     int      `json:"narration_length_long_words"`
+	SettlementCategories    []string `json:"settlement_categories"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -231,6 +234,7 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		RepeatTTL:                   h.cfgProv.RepeatTTL(ctx).String(),
 		NarrationLengthShort:        h.cfgProv.NarrationLengthShort(ctx),
 		NarrationLengthLong:         h.cfgProv.NarrationLengthLong(ctx),
+		SettlementCategories:        h.settlementCategories(),
 	}
 }
 
@@ -530,6 +534,15 @@ func containsJSONKey(body []byte, key string) bool {
 	}
 	_, ok := m[key]
 	return ok
+}
+
+func (h *ConfigHandler) settlementCategories() []string {
+	if h.catCfg != nil {
+		if cats, ok := h.catCfg.CategoryGroups["Settlements"]; ok {
+			return cats
+		}
+	}
+	return nil
 }
 
 func (h *ConfigHandler) getPrimaryLLMProvider() string {

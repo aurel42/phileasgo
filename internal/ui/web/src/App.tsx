@@ -43,6 +43,7 @@ function App() {
   const [targetCount, setTargetCount] = useState(20);
   const [settlementLabelLimit, setSettlementLabelLimit] = useState(5);
   const [settlementTier, setSettlementTier] = useState(3);
+  const [settlementCategories, setSettlementCategories] = useState<string[]>([]);
   const [narrationFrequency, setNarrationFrequency] = useState(3);
   const [textLength, setTextLength] = useState(3);
   const [autoNarrate, setAutoNarrate] = useState(true);
@@ -217,6 +218,7 @@ function App() {
           setNarrationLengthLong(data.narration_length_long_words ?? 200);
           setSettlementLabelLimit(data.settlement_label_limit ?? 5);
           setSettlementTier(data.settlement_tier ?? 3);
+          if (data.settlement_categories) setSettlementCategories(data.settlement_categories);
         })
         .catch(e => console.error("Failed to fetch config", e));
     };
@@ -378,6 +380,7 @@ function App() {
               telemetry={telemetry ?? null}
               pois={pois}
               settlementTier={settlementTier}
+              settlementCategories={settlementCategories}
               paperOpacityFog={paperOpacityFog}
               paperOpacityClear={paperOpacityClear}
               parchmentSaturation={parchmentSaturation}

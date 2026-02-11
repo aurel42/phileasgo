@@ -1,24 +1,4 @@
 export const ARTISTIC_MAP_STYLES = {
-    fonts: {
-        city: {
-            family: '"IM Fell English SC", serif',
-            weight: 'bold',
-            size: '24px',
-            cssFont: "bold 24px 'IM Fell English SC'"
-        },
-        town: {
-            family: '"IM Fell English SC", serif',
-            weight: 'bold',
-            size: '22px',
-            cssFont: "bold 22px 'IM Fell English SC'"
-        },
-        village: {
-            family: '"IM Fell English SC", serif',
-            weight: 'bold',
-            size: '20px',
-            cssFont: "bold 20px 'IM Fell English SC'"
-        }
-    },
     colors: {
         text: {
             active: '#0a0805',

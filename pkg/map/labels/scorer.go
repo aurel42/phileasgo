@@ -26,17 +26,17 @@ func NewScorer() *Scorer {
 }
 
 // CalculateImportance computes the raw importance of a city based on Population and Name Length.
-// Importance = Population / (NameLength^2)
+// Importance = Population / NameLength
 // This penalizes long names (which clutter the map) while rewarding population density.
 func (s *Scorer) CalculateImportance(population int, name string) float64 {
 	length := float64(len(name))
 	if length == 0 {
 		return 0
 	}
-	// Squaring the length creates a quadratic penalty.
-	// E.g., Pop=100k, Len=5 -> 100000 / 25 = 4000
-	// E.g., Pop=100k, Len=10 -> 100000 / 100 = 1000
-	return float64(population) / math.Pow(length, 2)
+	// Linear penalty for name length.
+	// E.g., Pop=100k, Len=5 -> 100000 / 5 = 20000
+	// E.g., Pop=100k, Len=10 -> 100000 / 10 = 10000
+	return float64(population) / length
 }
 
 // CalculateDirectionalWeight computes a multiplier (0.1 - 1.0) based on whether the city is ahead of the aircraft.

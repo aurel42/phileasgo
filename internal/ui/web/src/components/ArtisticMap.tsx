@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Telemetry } from '../types/telemetry';
 import type { POI } from '../hooks/usePOIs';
 import { PlacementEngine, type LabelCandidate } from '../metrics/PlacementEngine';
-import { measureText } from '../metrics/text';
+import { measureText, getFontFromClass } from '../metrics/text';
 import { ARTISTIC_MAP_STYLES } from '../styles/artisticMapStyles';
 import { InlineSVG } from './InlineSVG';
 import { labelService } from '../services/labelService';
@@ -79,6 +79,7 @@ interface ArtisticMapProps {
     telemetry: Telemetry | null;
     pois: POI[];
     settlementTier: number;
+    settlementCategories: string[];
     paperOpacityFog: number;
     paperOpacityClear: number;
     parchmentSaturation: number;
@@ -122,6 +123,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     pois,
     // settlementTier is handled by the backend labels Manager
     settlementTier: _settlementTier,
+    settlementCategories,
     paperOpacityFog = 0.7,
     paperOpacityClear = 0.1,
     parchmentSaturation = 1.0,
@@ -165,6 +167,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const accumulatedSettlements = useRef<Map<string, LabelDTO>>(new Map());
     const accumulatedPois = useRef<Map<string, POI>>(new Map());
     const labelAppearanceRef = useRef<Map<string, number>>(new Map());
+    const failedPoiLabelIds = useRef<Set<string>>(new Set());
+    const labeledPoiIds = useRef<Set<string>>(new Set());
+    const zoomReady = useRef(false); // Gate placement until heartbeat establishes real zoom
     const [lastSyncLabels, setLastSyncLabels] = useState<LabelDTO[]>([]);
 
     // Helper to calculate Mask Color
@@ -361,7 +366,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         setLastSyncLabels(newLabels);
                     }).catch(e => console.error("Label Sync Failed:", e));
 
-                    if (firstTick) firstTick = false;
+                    if (firstTick) {
+                        firstTick = false;
+                        zoomReady.current = true;
+                    }
                 }
 
                 const targetZoom = lockedZoom;
@@ -373,6 +381,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 if (currentZoomInt !== prevZoomInt) {
                     accumulatedSettlements.current.clear();
                     accumulatedPois.current.clear();
+                    // Clear failures so we retry labeling at the new zoom scale/density
+                    failedPoiLabelIds.current.clear();
+                    // Reset labeled POIs on zoom change as well
+                    labeledPoiIds.current.clear();
                     engine.resetCache();
                     prevZoomInt = currentZoomInt;
                 }
@@ -426,21 +438,34 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     // Runs only when sync labels, local POIs, or viewport changes.
     const computedLabels = useMemo<LabelCandidate[]>(() => {
         const m = map.current;
-        if (!m || !styleLoaded) return [];
+        if (!m || !styleLoaded || !zoomReady.current) return [];
 
         engine.clear();
+
+        // 0. Extract Fonts from CSS Roles
+        const cityFont = getFontFromClass('role-title');
+        const townFont = getFontFromClass('role-header');
+        const villageFont = getFontFromClass('role-text-lg');
+        const secondaryFont = getFontFromClass('role-label');
 
         // 1. Process Sync Labels (Settlements from DB)
         Array.from(accumulatedSettlements.current.values()).forEach(l => {
             const id = l.id;
-            // Use category to determine font
             let tierName: 'city' | 'town' | 'village' = 'village';
-            let font = ARTISTIC_MAP_STYLES.fonts.village.cssFont;
-            if (l.category === 'city') { tierName = 'city'; font = ARTISTIC_MAP_STYLES.fonts.city.cssFont; }
-            else if (l.category === 'town') { tierName = 'town'; font = ARTISTIC_MAP_STYLES.fonts.town.cssFont; }
+            let role = villageFont;
 
-            const text = l.name.split(',')[0].split('/')[0].trim();
-            const dims = measureText(text, font);
+            if (l.category === 'city') {
+                tierName = 'city';
+                role = cityFont;
+            } else if (l.category === 'town') {
+                tierName = 'town';
+                role = townFont;
+            }
+
+            let text = l.name.split(',')[0].split('/')[0].trim();
+            if (role.uppercase) text = text.toUpperCase();
+
+            const dims = measureText(text, role.font, role.letterSpacing);
 
             engine.register({
                 id, lat: l.lat, lon: l.lon, text, tier: tierName,
@@ -449,7 +474,19 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             });
         });
 
-        // 2. Accumulate discovery POIs (once discovered, they persist)
+        // 2. Identify the "Champion POI" for labeling (Singleton Strategy)
+        // Find the single highest scoring POI currently in view that hasn't failed and isn't already labeled
+        const settlementCatSet = new Set(settlementCategories.map(c => c.toLowerCase()));
+        let champion: POI | null = null;
+        pois.forEach(p => {
+            if (settlementCatSet.has(p.category?.toLowerCase())) return;
+            if (p.score >= 10 && !failedPoiLabelIds.current.has(p.wikidata_id) && !labeledPoiIds.current.has(p.wikidata_id)) {
+                if (!champion || (p.score > champion.score)) {
+                    champion = p;
+                }
+            }
+        });
+
         pois.forEach(p => {
             if (!p.lat || !p.lon) return;
             accumulatedPois.current.set(p.wikidata_id, p);
@@ -458,17 +495,28 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         Array.from(accumulatedPois.current.values()).forEach(p => {
             const sizePx = 26;
             const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
+
+            // Secondary Label for Champion OR already Labeled POIs
+            let secondaryLabel = undefined;
+            if (labeledPoiIds.current.has(p.wikidata_id) || (champion && p.wikidata_id === champion.wikidata_id)) {
+                let text = p.name_en.split('(')[0].trim();
+                if (secondaryFont.uppercase) text = text.toUpperCase();
+                const dims = measureText(text, secondaryFont.font, secondaryFont.letterSpacing);
+                secondaryLabel = { text, width: dims.width, height: dims.height };
+            }
+
             engine.register({
                 id: p.wikidata_id, lat: p.lat, lon: p.lon, text: "", tier: 'village', score: p.score || 0,
                 width: sizePx, height: sizePx, type: 'poi', isHistorical, size: p.size as any, icon: p.icon,
-                visibility: p.visibility
+                visibility: p.visibility,
+                secondaryLabel
             });
         });
 
         const vw = mapContainer.current?.clientWidth || window.innerWidth;
         const vh = mapContainer.current?.clientHeight || window.innerHeight;
 
-        return engine.compute(
+        const result = engine.compute(
             (lat: number, lon: number) => {
                 const p = m.project([lon, lat]);
                 return { x: p.x, y: p.y };
@@ -478,7 +526,21 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             frame.zoom
         );
 
-    }, [lastSyncLabels, pois, frame.zoom, frame.center, frame.offset, styleLoaded]);
+        // Fail/Success Memory Logic for the Champion
+        if (champion) {
+            const placedChamp = result.find(l => l.id === (champion as POI).wikidata_id);
+            if (placedChamp && placedChamp.secondaryLabel) {
+                if (placedChamp.secondaryLabelPos) {
+                    labeledPoiIds.current.add((champion as POI).wikidata_id);
+                } else {
+                    failedPoiLabelIds.current.add((champion as POI).wikidata_id);
+                }
+            }
+        }
+
+        return result;
+
+    }, [lastSyncLabels, pois, frame.zoom, frame.center, frame.offset, styleLoaded, settlementCategories]);
 
     // Update frame with computed labels
     useEffect(() => {
@@ -510,7 +572,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     const isDisplaced = dist > 30;
 
                     // Zoom-relative scale: markers shrink/grow to stay the same size on the map surface
-                    const zoomScale = l.placedZoom != null ? Math.pow(2, frame.zoom - l.placedZoom) : 1;
+                    const zoomScale = l.placedZoom != null ? Math.pow(2, Math.floor(frame.zoom) - l.placedZoom) : 1;
 
                     // Fade-In Logic
                     const now = Date.now();
@@ -595,6 +657,25 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                 >
                                     <InlineSVG src={iconUrl} style={{ width: '100%', height: '100%' }} className="stamped-icon" />
                                 </div>
+
+                                {l.secondaryLabel && l.secondaryLabelPos && (
+                                    <div
+                                        className="role-label"
+                                        style={{
+                                            position: 'absolute',
+                                            left: l.secondaryLabelPos.x,
+                                            top: l.secondaryLabelPos.y,
+                                            transform: `translate(-50%, -50%) scale(${zoomScale})`,
+                                            opacity: fadeOpacity,
+                                            pointerEvents: 'none',
+                                            zIndex: 25,
+                                            textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere,
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        {l.secondaryLabel.text}
+                                    </div>
+                                )}
                             </React.Fragment>
                         );
                     }
@@ -602,18 +683,20 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     // Settlement Rendering
                     return (
                         <React.Fragment key={l.id}>
-                            <div style={{
-                                position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, transform: `translate(-50%, -50%) scale(${zoomScale})`,
-                                fontFamily: ARTISTIC_MAP_STYLES.fonts.city.family,
-                                fontSize: l.tier === 'city' ? ARTISTIC_MAP_STYLES.fonts.city.size : (l.tier === 'town' ? ARTISTIC_MAP_STYLES.fonts.town.size : ARTISTIC_MAP_STYLES.fonts.village.size),
-                                fontWeight: l.tier === 'city' ? ARTISTIC_MAP_STYLES.fonts.city.weight : (l.tier === 'town' ? ARTISTIC_MAP_STYLES.fonts.town.weight : ARTISTIC_MAP_STYLES.fonts.village.weight),
-                                color: l.isHistorical ? ARTISTIC_MAP_STYLES.colors.text.historical : ARTISTIC_MAP_STYLES.colors.text.active,
-                                textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere,
-                                whiteSpace: 'nowrap',
-                                pointerEvents: 'none', // Ensure clicks pass through to map/icons
-                                zIndex: 5, // Above icons? or below? Usually text labeling an icon should be clear.
-                                opacity: fadeOpacity
-                            }}>{l.text}</div>
+                            <div
+                                className={l.tier === 'city' ? 'role-title' : (l.tier === 'town' ? 'role-header' : 'role-text-lg')}
+                                style={{
+                                    position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, transform: `translate(-50%, -50%) scale(${zoomScale})`,
+                                    color: l.isHistorical ? ARTISTIC_MAP_STYLES.colors.text.historical : ARTISTIC_MAP_STYLES.colors.text.active,
+                                    textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere,
+                                    whiteSpace: 'nowrap',
+                                    pointerEvents: 'none',
+                                    zIndex: 5,
+                                    opacity: fadeOpacity
+                                }}
+                            >
+                                {l.text}
+                            </div>
                         </React.Fragment>
                     );
                 })}

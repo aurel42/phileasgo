@@ -167,10 +167,8 @@ func (m *Manager) upsertInternal(ctx context.Context, p *model.POI, shouldSave b
 }
 
 // ensureIcon populates the POI icon if missing, using config or internal defaults.
+// Always applies IconArtistic from config, even if Icon is already set.
 func (m *Manager) ensureIcon(p *model.POI) {
-	if p.Icon != "" {
-		return
-	}
 	if p.Category == "" {
 		return
 	}
@@ -178,29 +176,27 @@ func (m *Manager) ensureIcon(p *model.POI) {
 	// 1. Check Config (Case-Insensitive)
 	if m.catConfig != nil {
 		if cfg, ok := m.catConfig.Categories[strings.ToLower(p.Category)]; ok {
-			if cfg.Icon != "" {
+			if p.Icon == "" && cfg.Icon != "" {
 				p.Icon = cfg.Icon
 			}
 			if cfg.IconArtistic != "" {
 				p.IconArtistic = cfg.IconArtistic
 			}
-			// Only return if primary icon is set, otherwise fallthrough to defaults
-			if p.Icon != "" {
-				return
-			}
 		}
 	}
 
-	// 2. Dimension/Internal Fallbacks
-	switch strings.ToLower(p.Category) {
-	case "area":
-		p.Icon = "circle-stroked"
-	case "height":
-		p.Icon = "cemetery-JP" // Specific reuse of tower-like icon
-	case "length":
-		p.Icon = "arrow"
-	case "landmark":
-		p.Icon = "monument"
+	// 2. Dimension/Internal Fallbacks (only if still empty)
+	if p.Icon == "" {
+		switch strings.ToLower(p.Category) {
+		case "area":
+			p.Icon = "circle-stroked"
+		case "height":
+			p.Icon = "cemetery-JP" // Specific reuse of tower-like icon
+		case "length":
+			p.Icon = "arrow"
+		case "landmark":
+			p.Icon = "monument"
+		}
 	}
 }
 

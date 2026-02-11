@@ -15,9 +15,9 @@ func TestCalculateImportance(t *testing.T) {
 		cityName string
 		wantMin  float64 // Minimum expected score
 	}{
-		{"Small Name, High Pop", 100000, "Ulm", 10000.0},          // 100k / 9 = 11111
-		{"Long Name, High Pop", 100000, "Mönchengladbach", 390.0}, // 100k / 256 = 390.6 (len=16, 16^2=256)
-		{"Tiny Pop, Short Name", 1000, "A", 1000.0},               // 1000 / 1 = 1000
+		{"Small Name, High Pop", 100000, "Ulm", 30000.0},           // 100k / 3 = 33,333.3
+		{"Long Name, High Pop", 100000, "Mönchengladbach", 6000.0}, // 100k / 16 = 6,250
+		{"Tiny Pop, Short Name", 1000, "A", 1000.0},                // 1000 / 1 = 1000
 		{"Zero Length Name", 1000, "", 0.0},
 	}
 

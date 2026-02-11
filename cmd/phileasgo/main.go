@@ -208,7 +208,7 @@ func run(ctx context.Context, configPath string) error {
 	tr.Reset()
 
 	// Server
-	return runServer(ctx, cfgProv, svcs, narratorSvc, simClient, visCalc, tr, st, telH, elevGetter, promptMgr, sessionMgr)
+	return runServer(ctx, cfgProv, svcs, narratorSvc, simClient, visCalc, tr, st, telH, elevGetter, promptMgr, sessionMgr, catCfg)
 }
 
 func initDB(appCfg *config.Config) (*db.DB, store.Store, error) {
@@ -388,14 +388,14 @@ func initElevation(cfg *config.Config) (*terrain.ElevationProvider, *terrain.LOS
 	return provider, terrain.NewLOSChecker(provider)
 }
 
-func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns narrator.Service, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler, elevGetter terrain.ElevationGetter, promptMgr *prompts.Manager, sessionMgr *session.Manager) error {
+func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns narrator.Service, simClient sim.Client, vis *visibility.Calculator, tr *tracker.Tracker, st store.Store, telH *api.TelemetryHandler, elevGetter terrain.ElevationGetter, promptMgr *prompts.Manager, sessionMgr *session.Manager, catCfg *config.CategoriesConfig) error {
 	appCfg := cfg.AppConfig()
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	shutdownFunc := func() { quit <- syscall.SIGTERM }
 
 	statsH := api.NewStatsHandler(tr, svcs.PoiMgr, appCfg.LLM.Fallback)
-	configH := api.NewConfigHandler(st, cfg)
+	configH := api.NewConfigHandler(st, cfg, catCfg)
 	geoH := api.NewGeographyHandler(svcs.WikiSvc.GeoService())
 	labelMgr := labels.NewManager(svcs.WikiSvc.GeoService(), svcs.PoiMgr, cfg)
 	labelH := api.NewMapLabelsHandler(labelMgr)
