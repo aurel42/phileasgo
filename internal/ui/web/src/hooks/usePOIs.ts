@@ -17,6 +17,7 @@ export interface POI {
     score: number;
     score_details: string;
     is_visible?: boolean;
+    is_deferred?: boolean;
     visibility?: number;
     last_played: string; // ISO timestamp
     thumbnail_url?: string;

@@ -1,10 +1,12 @@
 
 import { useEffect, useState } from 'react';
 import type { POI } from '../hooks/usePOIs';
+import type { Telemetry } from '../types/telemetry';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AudioStatus } from '../types/audio';
 import { useNarrator } from '../hooks/useNarrator';
 import { getPOIDisplayName } from '../utils/poiUtils';
+import packageJson from '../../package.json';
 
 interface POIInfoPanelProps {
     poi: POI | null;
@@ -13,6 +15,13 @@ interface POIInfoPanelProps {
     currentTitle?: string;
     currentType?: string;
     onClose: () => void;
+    telemetry?: Telemetry;
+    minPoiScore?: number;
+    targetCount?: number;
+    filterMode?: string;
+    narrationFrequency?: number;
+    textLength?: number;
+    onSettingsClick?: () => void;
 }
 
 const getColor = (score: number) => {
@@ -45,7 +54,11 @@ const formatTimeAgo = (dateStr: string) => {
     return `${days}d ago`;
 };
 
-export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: POIInfoPanelProps) => {
+export const POIInfoPanel = ({
+    poi, pois, currentTitle, currentType, onClose,
+    telemetry, minPoiScore, targetCount, filterMode,
+    narrationFrequency, textLength, onSettingsClick
+}: POIInfoPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const [strategy, setStrategy] = useState<'min_skew' | 'uniform' | 'max_skew'>('min_skew');
     const queryClient = useQueryClient();
@@ -311,6 +324,55 @@ export const POIInfoPanel = ({ poi, pois, currentTitle, currentType, onClose }: 
                         />
                     </div>
                 )}
+            </div>
+            {/* Config Bar at the bottom */}
+            <div className="hud-card footer" onClick={onSettingsClick} style={{
+                marginTop: '12px',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '6px 12px',
+                cursor: 'pointer',
+                flexShrink: 0,
+                fontSize: '11px',
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.05)'
+            }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <div className="status-dot" style={{
+                            width: '6px',
+                            height: '6px',
+                            marginRight: '6px',
+                            backgroundColor: !telemetry || telemetry.SimState === 'disconnected' ? '#ef4444' : (telemetry.SimState === 'inactive' ? '#fbbf24' : '#22c55e')
+                        }}></div>
+                        <span className="role-label" style={{ opacity: 0.8 }}>SIM</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span className="role-label" style={{ color: 'var(--accent)' }}>{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
+                        <span className="role-num-sm">{filterMode === 'adaptive' ? targetCount : minPoiScore}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span className="role-label">FRQ</span>
+                        <div className="pip-container" style={{ gap: '2px' }}>
+                            {[1, 2, 3, 4].map(v => (
+                                <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''}`} style={{ width: '4px', height: '4px' }} />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span className="role-label">LEN</span>
+                        <div className="pip-container" style={{ gap: '2px' }}>
+                            {[1, 2, 3, 4, 5].map(v => (
+                                <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''}`} style={{ width: '4px', height: '4px' }} />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <div className="role-num-sm" style={{ opacity: 0.4 }}>v{packageJson.version}</div>
             </div>
         </div >
     );

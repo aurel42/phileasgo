@@ -384,6 +384,7 @@ function App() {
               paperOpacityFog={paperOpacityFog}
               paperOpacityClear={paperOpacityClear}
               parchmentSaturation={parchmentSaturation}
+              selectedPOI={selectedPOI}
               onPOISelect={handlePOISelect}
             />
           ) : (
@@ -400,55 +401,6 @@ function App() {
           )}
         </Suspense>
 
-        {/* Config Pill Overlay */}
-        <div className="config-pill" onClick={() => navigate('/settings')} style={{
-          position: 'absolute',
-          top: '20px',
-          right: '20px',
-          zIndex: 1000,
-          textDecoration: 'none',
-          color: 'inherit',
-          background: 'var(--panel-bg)',
-          boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
-          cursor: 'pointer'
-        }}>
-          {/* Sim Status Item */}
-          <div className="config-pill-item" style={{ marginRight: '8px', paddingRight: '12px', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
-            <div className="status-dot" style={{
-              width: '8px',
-              height: '8px',
-              marginRight: '6px',
-              backgroundColor: !telemetry || telemetry.SimState === 'disconnected' ? '#ef4444' : (telemetry.SimState === 'inactive' ? '#fbbf24' : '#22c55e')
-            }}></div>
-            <span className="role-label" style={{ color: 'var(--text-color)', textTransform: 'uppercase' }}>
-              {!telemetry ? 'DISCONNECTED' : telemetry.SimState}
-            </span>
-          </div>
-
-          <div className="config-pill-item">
-            <span className="config-mode-icon" style={{ color: 'var(--accent)' }}>{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
-            <span className="role-label" style={{ color: 'var(--muted)' }}>
-              {filterMode === 'adaptive' ? targetCount : minPoiScore}
-            </span>
-          </div>
-          <div className="config-pill-item">
-            <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>FRQ</span>
-            <div className="pip-container">
-              {[1, 2, 3, 4].map(v => (
-                <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 2 ? 'high' : ''}`} />
-              ))}
-            </div>
-          </div>
-          <div className="config-pill-item">
-            <span className="role-label" style={{ color: 'var(--muted)', marginRight: '6px' }}>LEN</span>
-            <div className="pip-container">
-              {[1, 2, 3, 4, 5].map(v => (
-                <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''} ${(textLength || 0) >= v && v > 4 ? 'high' : ''}`} />
-              ))}
-            </div>
-          </div>
-        </div>
-
         {hasConnectionError && (
           <div className="connection-warning">
             ⚠️ Connection lost, trying to reconnect...
@@ -462,10 +414,17 @@ function App() {
             key={selectedPOI?.wikidata_id || (narratorStatus?.current_type + '-' + narratorStatus?.current_title)}
             poi={selectedPOI}
             pois={pois}
+            telemetry={telemetry ?? undefined}
             aircraftHeading={telemetry?.Heading || 0}
             currentTitle={narratorStatus?.current_title}
             currentType={narratorStatus?.current_type}
             onClose={handlePanelClose}
+            minPoiScore={minPoiScore}
+            targetCount={targetCount}
+            filterMode={filterMode}
+            narrationFrequency={narrationFrequency}
+            textLength={textLength}
+            onSettingsClick={() => navigate('/settings')}
           />
         ) : (
           <InfoPanel
@@ -474,6 +433,12 @@ function App() {
             isRetrying={status === 'pending' && hasConnectionError}
             nonBlueCount={nonBlueCount}
             blueCount={blueCount}
+            minPoiScore={minPoiScore}
+            targetCount={targetCount}
+            filterMode={filterMode}
+            narrationFrequency={narrationFrequency}
+            textLength={textLength}
+            onSettingsClick={() => navigate('/settings')}
           />
         )}
       </div>

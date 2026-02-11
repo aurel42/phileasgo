@@ -8,6 +8,12 @@ interface InfoPanelProps {
     isRetrying?: boolean;
     nonBlueCount: number;
     blueCount: number;
+    minPoiScore?: number;
+    targetCount?: number;
+    filterMode?: string;
+    narrationFrequency?: number;
+    textLength?: number;
+    onSettingsClick?: () => void;
 }
 
 import { useGeography } from '../hooks/useGeography';
@@ -15,7 +21,10 @@ import { useGeography } from '../hooks/useGeography';
 
 export const InfoPanel = ({
     telemetry, status, isRetrying,
-    nonBlueCount, blueCount
+    nonBlueCount, blueCount,
+    minPoiScore, targetCount, filterMode,
+    narrationFrequency, textLength,
+    onSettingsClick
 }: InfoPanelProps) => {
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
@@ -109,7 +118,7 @@ export const InfoPanel = ({
     // Determine status display based on SimState from telemetry
     const simStateDisplay = telemetry.SimState === 'disconnected' ? 'disconnected'
         : telemetry.SimState === 'inactive' ? 'paused'
-        : 'active';
+            : 'active';
 
     const agl = Math.round(telemetry.AltitudeAGL);
     const msl = Math.round(telemetry.AltitudeMSL);
@@ -120,6 +129,19 @@ export const InfoPanel = ({
 
     return (
         <div className="hud-container">
+            <div className="hud-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div className="status-dot" style={{
+                        width: '8px',
+                        height: '8px',
+                        marginRight: '8px',
+                        backgroundColor: simStateDisplay === 'disconnected' ? '#ef4444' : (simStateDisplay === 'paused' ? '#fbbf24' : '#22c55e')
+                    }}></div>
+                    <span className="role-label" style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        SIM {simStateDisplay}
+                    </span>
+                </div>
+            </div>
 
             {/* Flight Data Flex Layout */}
             <div className="flex-container">
@@ -279,24 +301,53 @@ export const InfoPanel = ({
             {/* Removed CONFIGURATION section - moved to SettingsPanel */}
 
             <div className="hud-footer">
-                <div className="hud-card footer" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '8px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div className="hud-card footer" onClick={onSettingsClick} style={{ flexDirection: 'column', gap: '8px', padding: '10px 16px', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                         <div className="role-label" style={{ display: 'flex', gap: '12px' }}>
                             <span>POI(vis) <span className="role-num-sm">{nonBlueCount}</span><span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px', marginLeft: '4px', marginRight: '4px' }}>◆</span><span className="role-num-sm" style={{ color: '#3b82f6' }}>{blueCount}</span></span>
                             <span>POI(tracked) <span className="role-num-sm">{trackedCount}</span></span>
-                            <span>MEM(rss) <span className="role-num-sm">{sysMem}MB</span></span>
-                            <span>MEM(max) <span className="role-num-sm">{sysMemMax}MB</span></span>
                         </div>
+                        {versionMatch ? (
+                            <div className="role-num-sm" style={{ opacity: 0.5 }}>{frontendVersion}</div>
+                        ) : (
+                            <div className="role-num-sm" style={{ color: 'var(--error)' }}>
+                                ⚠ {frontendVersion}
+                            </div>
+                        )}
                     </div>
 
-                    {/* Version on the Right Border */}
-                    {versionMatch ? (
-                        <div className="role-num-sm" style={{ opacity: 0.5 }}>{frontendVersion}</div>
-                    ) : (
-                        <div className="role-num-sm" style={{ color: 'var(--error)' }}>
-                            ⚠ {frontendVersion}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
+                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span className="role-label" style={{ color: 'var(--accent)' }}>{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
+                                <span className="role-num-sm" style={{ color: 'var(--muted)' }}>
+                                    {filterMode === 'adaptive' ? targetCount : minPoiScore}
+                                </span>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span className="role-label" style={{ color: 'var(--muted)' }}>FRQ</span>
+                                <div className="pip-container">
+                                    {[1, 2, 3, 4].map(v => (
+                                        <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 2 ? 'high' : ''}`} />
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span className="role-label" style={{ color: 'var(--muted)' }}>LEN</span>
+                                <div className="pip-container">
+                                    {[1, 2, 3, 4, 5].map(v => (
+                                        <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''} ${(textLength || 0) >= v && v > 4 ? 'high' : ''}`} />
+                                    ))}
+                                </div>
+                            </div>
                         </div>
-                    )}
+
+                        <div className="role-label" style={{ opacity: 0.6 }}>
+                            MEM {sysMem}MB / {sysMemMax}MB
+                        </div>
+                    </div>
                 </div>
             </div>
         </div >

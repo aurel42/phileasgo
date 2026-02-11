@@ -6,13 +6,13 @@ export interface LabelCandidate {
     lat: number;
     lon: number;
     text: string;
-    tier: 'city' | 'town' | 'village';
+    tier: 'city' | 'town' | 'village' | 'landmark';
     score: number;
     width: number;
     height: number;
 
     // New fields for sorting
-    type: 'settlement' | 'poi';
+    type: 'settlement' | 'poi' | 'compass';
     isHistorical: boolean;
     size?: 'S' | 'M' | 'L' | 'XL';
     icon?: string;
@@ -36,11 +36,12 @@ export interface LabelCandidate {
         y: number;
         anchor: LabelCandidate['anchor'];
     };
+    custom?: any;
 }
 
 interface LabelItem extends BBox {
     ownerId: string;
-    type: 'label' | 'marker';
+    type: 'label' | 'marker' | 'compass';
     custom?: any; // For debugging or extra data
 }
 
@@ -81,6 +82,10 @@ export class PlacementEngine {
         this.placedCache.clear();
     }
 
+    public forget(id: string) {
+        this.placedCache.delete(id);
+    }
+
     public compute(
         projector: (lat: number, lon: number) => { x: number, y: number },
         viewportWidth: number,
@@ -99,7 +104,8 @@ export class PlacementEngine {
         });
 
         const placed: LabelCandidate[] = [];
-        const padding = 4; // Spec: 4px buffer
+        const labelPadding = 4; // Spec: 4px buffer for text
+        const iconPadding = 0;  // User: No padding for icons
 
         // Markers are now inserted alongside their labels according to the Sorted Intake Queue (greedy).
         // This ensures high-priority features can claim space before low-priority features block them.
@@ -136,14 +142,16 @@ export class PlacementEngine {
             candidate.trueX = Math.round(pos.x);
             candidate.trueY = Math.round(pos.y);
 
-            // Scale collision box by zoom ratio so markers stay map-relative
+            // Scale collision box by discrete zoom ratio
+            // Both current zoom and placedZoom MUST be integers to maintain the discrete parchment design.
             const zoomScale = Math.pow(2, zoom - state.placedZoom);
-            const halfW = ((candidate.width * zoomScale) / 2) + padding;
-            const halfH = ((candidate.height * zoomScale) / 2) + padding;
+            const p = (candidate.type === 'poi' || candidate.type === 'compass') ? iconPadding : labelPadding;
+            const halfW = ((candidate.width * zoomScale) / 2) + p;
+            const halfH = ((candidate.height * zoomScale) / 2) + p;
 
             let cx = pos.x;
             let cy = pos.y;
-            const itemType: 'marker' | 'label' = candidate.text ? 'label' : 'marker';
+            const itemType: 'marker' | 'label' | 'compass' = candidate.type === 'compass' ? 'compass' : (candidate.text ? 'label' : 'marker');
 
             // Apply cached anchor offset (for both icon-only POIs and text labels)
             if (state.anchor === 'center') {
@@ -165,12 +173,25 @@ export class PlacementEngine {
             cx = Math.round(cx);
             cy = Math.round(cy);
 
-            // Force-insert: claim space unconditionally so new items must work around us
-            this.tree.insert({
+            const item: LabelItem = {
                 minX: cx - halfW, minY: cy - halfH,
                 maxX: cx + halfW, maxY: cy + halfH,
                 ownerId: candidate.id, type: itemType
-            });
+            };
+
+            // COMPASS EXEMPTION: If a locked compass collides with a higher-priority settlement/landmark,
+            // we drop it here so the map heartbeat can swap it to a better corner.
+            if (candidate.type === 'compass') {
+                const potentialCollisions = this.tree.search(item);
+                // We must filter out OTHER parts of the same candidate (like its secondary label if it had one, 
+                // though compass doesn't typically have one) and definitely its own previous marker box.
+                if (potentialCollisions.some(other => other.ownerId !== candidate.id && !other.ownerId.startsWith(candidate.id))) {
+                    continue; // Skip placement to trigger fallback
+                }
+            }
+
+            // Force-insert: claim space unconditionally so new items must work around us
+            this.tree.insert(item);
             candidate.anchor = state.anchor;
             candidate.finalX = cx;
             candidate.finalY = cy;
@@ -181,7 +202,8 @@ export class PlacementEngine {
             if (candidate.secondaryLabel && state.secondaryAnchor) {
                 const sHalfW = (candidate.secondaryLabel.width * zoomScale) / 2;
                 const sHalfH = (candidate.secondaryLabel.height * zoomScale) / 2;
-                const sPointRadius = ((candidate.width * zoomScale) / 2) + padding + 2;
+                const p = (candidate.type === 'poi' || candidate.type === 'compass') ? iconPadding : labelPadding;
+                const sPointRadius = ((candidate.width * zoomScale) / 2) + p + 2;
 
                 const sAnchor = anchors.find(a => a.type === state.secondaryAnchor);
                 if (sAnchor) {
@@ -213,17 +235,18 @@ export class PlacementEngine {
             candidate.trueX = Math.round(pos.x);
             candidate.trueY = Math.round(pos.y);
 
-            const halfW = (candidate.width / 2) + padding;
-            const halfH = (candidate.height / 2) + padding;
+            const p = (candidate.type === 'poi' || candidate.type === 'compass') ? iconPadding : labelPadding;
+            const halfW = (candidate.width / 2) + p;
+            const halfH = (candidate.height / 2) + p;
             candidate.rotation = 0;
 
             // 1. For Settlements and Icon-only POI: Try true position FIRST
             // Design Correction: Settlements MUST be centered on origin (no offsets).
-            if (candidate.type === 'settlement' || (candidate.type === 'poi' && !candidate.text)) {
+            if (candidate.type === 'settlement' || candidate.type === 'compass' || (candidate.type === 'poi' && !candidate.text)) {
                 const item: LabelItem = {
                     minX: pos.x - halfW, minY: pos.y - halfH,
                     maxX: pos.x + halfW, maxY: pos.y + halfH,
-                    ownerId: candidate.id, type: candidate.type === 'settlement' ? 'label' : 'marker'
+                    ownerId: candidate.id, type: candidate.type === 'settlement' ? 'label' : (candidate.type === 'compass' ? 'compass' : 'marker')
                 };
 
                 const potentialCollisions = this.tree.search(item);
@@ -240,15 +263,15 @@ export class PlacementEngine {
                     this.placedCache.set(candidate.id, { anchor: 'center', placedZoom: Math.floor(zoom) });
 
                     if (candidate.secondaryLabel) {
-                        this.tryPlaceSecondary(candidate, pos.x, pos.y, padding, viewportWidth, viewportHeight);
+                        this.tryPlaceSecondary(candidate, pos.x, pos.y, viewportWidth, viewportHeight);
                     }
 
                     placed.push(candidate);
                     continue;
                 }
 
-                // If a settlement is blocked at its origin, it's dropped (no legacy anchors)
-                if (candidate.type === 'settlement') continue;
+                // If a settlement or compass is blocked at its origin, it's dropped (no legacy anchors)
+                if (candidate.type === 'settlement' || candidate.type === 'compass') continue;
                 // If blocked POI, fall through to anchor/radial search
             }
 
@@ -257,7 +280,7 @@ export class PlacementEngine {
 
             // STAGE 1: 8-Point Anchor Search
             for (const textAnchor of anchors) {
-                if (this.tryPlace(candidate, pos.x, pos.y, textAnchor.dx, textAnchor.dy, padding, textAnchor.type, viewportWidth, viewportHeight)) {
+                if (this.tryPlace(candidate, pos.x, pos.y, textAnchor.dx, textAnchor.dy, p, textAnchor.type, viewportWidth, viewportHeight)) {
                     isPlaced = true;
                     candidate.placedZoom = Math.floor(zoom);
 
@@ -265,7 +288,7 @@ export class PlacementEngine {
                     this.placedCache.set(candidate.id, { anchor: textAnchor.type, placedZoom: Math.floor(zoom) });
 
                     if (candidate.secondaryLabel) {
-                        this.tryPlaceSecondary(candidate, candidate.finalX!, candidate.finalY!, padding, viewportWidth, viewportHeight);
+                        this.tryPlaceSecondary(candidate, candidate.finalX!, candidate.finalY!, viewportWidth, viewportHeight);
                     }
 
                     placed.push(candidate);
@@ -288,7 +311,7 @@ export class PlacementEngine {
 
                         if (this.isOutsideViewport(cx, cy, halfW, halfH, viewportWidth, viewportHeight)) continue;
 
-                        if (this.checkCollisionAndInsert(candidate, cx, cy, padding)) {
+                        if (this.checkCollisionAndInsert(candidate, cx, cy, p)) {
                             candidate.anchor = 'radial';
                             candidate.finalX = Math.round(cx);
                             candidate.finalY = Math.round(cy);
@@ -326,6 +349,12 @@ export class PlacementEngine {
 
     private getPriority(c: LabelCandidate): number {
         // High number = High Priority
+
+        // 0. Landmarks (Fixed Viewport Elements)
+        if (c.tier === 'landmark') return 300;
+
+        // 1. Compass Rose (200)
+        if (c.type === 'compass') return 200;
 
         // 1. Highest-Tier Settlements (100)
         if (c.type === 'settlement') {
@@ -412,7 +441,6 @@ export class PlacementEngine {
         candidate: LabelCandidate,
         baseX: number,
         baseY: number,
-        padding: number,
         vw: number,
         vh: number
     ): boolean {
@@ -431,8 +459,10 @@ export class PlacementEngine {
 
         const halfW = candidate.secondaryLabel.width / 2;
         const halfH = candidate.secondaryLabel.height / 2;
-        // No padding on secondary labels — other objects' padding provides sufficient clearance
-        const pointRadius = (candidate.width / 2) + padding + 2;
+        // Padding removal: POI labels (secondary) now have 0 padding as per user request.
+        // Settlement labels (primary) keep 4px.
+        const sPadding = (candidate.type === 'poi' || candidate.type === 'compass') ? 0 : 4;
+        const pointRadius = (candidate.width / 2) + sPadding + 2;
 
         for (const anchor of anchors) {
             let cx = baseX;

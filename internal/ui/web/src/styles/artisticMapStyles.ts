@@ -16,7 +16,11 @@ export const ARTISTIC_MAP_STYLES = {
             selectedHalo: '#264653', // Deep Charcoal/Blue — Contrast glow
             nextHalo: '#F4A261',     // Sandy Orange — Warm glow
             normalHalo: '#f4ecd8',   // Paper color — Cutout effect
-            stroke: '#0a0805'
+            neonCyan: '#00f3ff',     // Cyberpunk Neon
+            neonPink: '#ff00ff',     // Cyberpunk Neon
+            organicSmudge: '#3a2a1d', // Ink smudge
+            stroke: '#0a0805',
+            compass: '#0D3B3F' // Dark Teal
         },
         shadows: {
             // Halo effect: Strong light stroke (paper color) to cut text out from background

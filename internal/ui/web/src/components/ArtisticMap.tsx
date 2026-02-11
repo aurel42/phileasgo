@@ -12,6 +12,10 @@ import { InlineSVG } from './InlineSVG';
 import { labelService } from '../services/labelService';
 import type { LabelDTO } from '../types/mapLabels';
 import { useNarrator } from '../hooks/useNarrator';
+import { CompassRose } from './CompassRose';
+import { WaxSeal } from './WaxSeal';
+
+const DEBUG_FLOURISHES = true;
 
 const HotAirBalloon: React.FC<{
     x: number;
@@ -83,6 +87,7 @@ interface ArtisticMapProps {
     paperOpacityFog: number;
     paperOpacityClear: number;
     parchmentSaturation: number;
+    selectedPOI?: POI | null;
     onPOISelect?: (poi: POI) => void;
 }
 
@@ -121,6 +126,27 @@ const adjustFont = (f: { font: string, uppercase: boolean, letterSpacing: number
     font: f.font.replace(/(\d+)px/, (_, s) => `${Math.max(1, parseInt(s) + offset)}px`)
 });
 
+/**
+ * ArtisticMap Component
+ * 
+ * DESIGN PRINCIPLES:
+ * 1. DISCRETE INTEGER SCALING:
+ *    The map is treated as a physical parchment. It only renders at discrete integer zoom levels 
+ *    (Real Zoom) where raster tiles are 1:1 with pixels. Hypothetical Zoom (telemetry-based float) 
+ *    is only used to trigger snaps between these layers.
+ * 
+ * 2. PERMANENCE & LAYERED DETAIL:
+ *    When a POI is discovered, it is "stamped" on the current map layer (Z_placed).
+ *    Its geographic size matches the parchment at that moment (Scale 1.0).
+ *    As the map zooms out (Z_current decreases), the icon shrinks: Scale = 2^(Z_current - Z_placed).
+ *    This ensures that icons never overlap as the map grows, and creates a rich texture 
+ *    of varied marker sizes representing the aircraft's history across different altitudes.
+ * 
+ * 3. NO CONTINUOUS BLOAT:
+ *    Scaling and collision calculations MUST use the integer Real Zoom. If hypothetical (float) 
+ *    zoom is used, icons will "bloat" or "shrink" continuously with altitude, violating
+ *    the static parchment aesthetic.
+ */
 export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     className,
     center,
@@ -133,6 +159,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     paperOpacityFog = 0.7,
     paperOpacityClear = 0.1,
     parchmentSaturation = 1.0,
+    selectedPOI,
     onPOISelect
 }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
@@ -186,8 +213,12 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const labelAppearanceRef = useRef<Map<string, number>>(new Map());
     const failedPoiLabelIds = useRef<Set<string>>(new Set());
     const labeledPoiIds = useRef<Set<string>>(new Set());
+    const lastPlacementResults = useRef<{ wasPlaced: boolean, id: string }>({ wasPlaced: true, id: '' });
     const zoomReady = useRef(false); // Gate placement until heartbeat establishes real zoom
     const [lastSyncLabels, setLastSyncLabels] = useState<LabelDTO[]>([]);
+    const [compassRose, setCompassRose] = useState<{ id: string, lat: number, lon: number } | null>(null);
+    const compassRoseRef = useRef(compassRose);
+    useEffect(() => { compassRoseRef.current = compassRose; }, [compassRose]);
 
     // Helper to calculate Mask Color
     const getMaskColor = (opacity: number) => {
@@ -253,6 +284,29 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
         return () => { map.current?.remove(); map.current = null; };
     }, []);
+
+    const spawnCompassRose = (mapInstance: maplibregl.Map, acHeading: number) => {
+        const canvas = mapInstance.getCanvas();
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        const padding = 80;
+
+        const candidates = [
+            { id: 'tl', x: padding, y: padding, angle: 315 },
+            { id: 'tr', x: w - padding, y: padding, angle: 45 },
+            { id: 'bl', x: padding, y: h - padding, angle: 225 },
+            { id: 'br', x: w - padding, y: h - padding, angle: 135 }
+        ];
+
+        const normHdg = (acHeading % 360 + 360) % 360;
+        candidates.sort((a, b) => {
+            const da = Math.abs((a.angle - normHdg + 180 + 360) % 360 - 180);
+            const db = Math.abs((b.angle - normHdg + 180 + 360) % 360 - 180);
+            return da - db;
+        });
+
+        return candidates;
+    };
 
     // useLayoutEffect ensures the map snapped in the SAME paint cycle as the labels
     React.useLayoutEffect(() => {
@@ -365,7 +419,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             }
                         }
                     }
-                    lockedZoom = newZoom;
+
+                    // COMPUTE REAL ZOOM (Discrete Integer Snap)
+                    // We only render at integer levels where tiles are 1:1 with screen pixels.
+                    lockedZoom = Math.floor(newZoom);
 
                     // Move map to locked position BEFORE projecting
                     m.easeTo({ center: lockedCenter, zoom: lockedZoom, offset: lockedOffset, duration: 0 });
@@ -397,12 +454,13 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                 if (currentZoomInt !== prevZoomInt) {
                     accumulatedSettlements.current.clear();
-                    accumulatedPois.current.clear();
+                    // Permanence: We no longer clear accumulatedPois or the engine cache here.
+                    // Instead, we rely on the periodic Breadcrumb Pruning below.
+                    
                     // Clear failures so we retry labeling at the new zoom scale/density
                     failedPoiLabelIds.current.clear();
                     // Reset labeled POIs on zoom change as well
                     labeledPoiIds.current.clear();
-                    engine.resetCache();
                     prevZoomInt = currentZoomInt;
                 }
 
@@ -426,7 +484,43 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 const lineSource = m.getSource('bearing-line') as maplibregl.GeoJSONSource;
                 if (lineSource) lineSource.setData(bLine);
 
-                // 8. COMMIT (Labels now computed via useMemo outside this loop)
+                // 8. COMPASS ROSE PERSISTENCE & FALLBACKS
+                // Check if the PREVIOUS tick's placement engine run actually placed the compass
+                let nextCompass = compassRoseRef.current;
+                const results = lastPlacementResults.current;
+                const corners = spawnCompassRose(m, t.Heading);
+
+                if (!nextCompass || (!results.wasPlaced && frame.labels.length > 0 && results.id === nextCompass.id)) {
+                    // Blocked: Cycle to next best corner
+                    const idx = nextCompass ? corners.findIndex(c => c.id === nextCompass?.id) : -1;
+                    const nextIdx = (idx + 1) % corners.length;
+                    const choice = corners[nextIdx];
+                    const lngLat = m.unproject([choice.x, choice.y]);
+                    nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
+                    setCompassRose(nextCompass);
+                    // Reset failure bit so we give the new corner a chance
+                    lastPlacementResults.current = { wasPlaced: true, id: nextCompass.id };
+                } else if (needsRecenter && nextCompass) {
+                    // Map moved: Keep current ID but update its Lng/Lat to stay pinned to the same corner
+                    const choice = corners.find(c => c.id === nextCompass?.id) || corners[0];
+                    const lngLat = m.unproject([choice.x, choice.y]);
+                    nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
+                    setCompassRose(nextCompass);
+                }
+
+                if (nextCompass) {
+                    const compassPx = m.project([nextCompass.lon, nextCompass.lat]);
+                    const buffer = 40;
+                    if (compassPx.x < -buffer || compassPx.x > mapWidth + buffer || compassPx.y < -buffer || compassPx.y > mapHeight + buffer) {
+                        // Hard reset to best corner if totally OOB
+                        const choice = corners[0];
+                        const lngLat = m.unproject([choice.x, choice.y]);
+                        nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
+                        setCompassRose(nextCompass);
+                    }
+                }
+
+                // 9. COMMIT (Labels now computed via useMemo outside this loop)
                 setFrame(prev => ({
                     ...prev,
                     maskPath: lastMaskData ? maskToPath(lastMaskData, m) : '',
@@ -491,6 +585,16 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             });
         });
 
+        // 1.5. Process Compass Rose
+        if (compassRose) {
+            const size = 52; // Approximately 2x POI marker
+            engine.register({
+                id: compassRose.id, lat: compassRose.lat, lon: compassRose.lon,
+                text: "", tier: 'village', score: 200,
+                width: size, height: size, type: 'compass', isHistorical: false
+            });
+        }
+
         // 2. Identify the "Champion POI" for labeling (Singleton Strategy)
         // Find the single highest scoring POI currently in view that hasn't failed and isn't already labeled
         const settlementCatSet = new Set(settlementCategories.map(c => c.toLowerCase()));
@@ -538,6 +642,40 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         const vw = mapContainer.current?.clientWidth || window.innerWidth;
         const vh = mapContainer.current?.clientHeight || window.innerHeight;
 
+        // 3. Optional: Debug Sampler Grid
+        if (DEBUG_FLOURISHES) {
+            const samplers = [
+                { id: 'dbg-1', name: 'Normal Halo', halo: 'normal', icon: 'castle' },
+                { id: 'dbg-2', name: 'Dark Smudge', halo: 'organic', icon: 'mountain' },
+                { id: 'dbg-3', name: 'Neon Cyan', halo: 'neon-cyan', icon: 'rocket' },
+                { id: 'dbg-4', name: 'Neon Pink', halo: 'neon-pink', icon: 'amusement-park' },
+                { id: 'dbg-5', name: 'Silhouette', silhouette: true, icon: 'communications-tower' },
+                { id: 'dbg-6', name: 'Heavy Ink', weight: 1.45, icon: 'landmark' }, // Softened from 1.8 (-20%)
+                { id: 'dbg-7', name: 'Red Sketch', weight: 2, color: 'red', icon: 'stadium' },
+            ];
+
+            samplers.forEach((s, i) => {
+                // Perfect viewport column anchoring: unproject unique screen points
+                const screenY = 120 + (i * 45); // Constant pixel spacing
+                const lngLat = m.unproject([60, screenY]);
+
+                engine.register({
+                    id: s.id, lat: lngLat.lat, lon: lngLat.lng, text: "",
+                    tier: 'landmark', // Locked Phase 1 - zero movement, no tethers
+                    score: 100,
+                    width: 26, height: 26, type: 'poi', isHistorical: false,
+                    icon: s.icon,
+                    secondaryLabel: { text: s.name, width: 100, height: 16 },
+                    custom: {
+                        halo: s.halo,
+                        silhouette: s.silhouette,
+                        weight: s.weight,
+                        color: s.color
+                    }
+                });
+            });
+        }
+
         const result = engine.compute(
             (lat: number, lon: number) => {
                 const p = m.project([lon, lat]);
@@ -547,6 +685,12 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             vh,
             frame.zoom
         );
+
+        // Update successful placement tracking for Heartbeat
+        if (compassRose) {
+            const placedCompass = result.some(l => l.type === 'compass' && l.id === compassRose.id);
+            lastPlacementResults.current = { wasPlaced: placedCompass, id: compassRose.id };
+        }
 
         // Fail/Success Memory Logic for the Champion
         if (champion) {
@@ -562,7 +706,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
         return result;
 
-    }, [lastSyncLabels, pois, frame.zoom, frame.center, frame.offset, styleLoaded, settlementCategories, fontsLoaded]);
+    }, [lastSyncLabels, pois, frame.zoom, frame.center, frame.offset, styleLoaded, settlementCategories, fontsLoaded, compassRose]);
 
     // Update frame with computed labels
     useEffect(() => {
@@ -585,15 +729,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             {/* Labels Overlay (Atomic from Frame) */}
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>
                 {frame.labels.map(l => {
-                    // Use tick-computed trueX/trueY (not live projection) to stay in sync with finalX/finalY
-                    const tx = l.trueX ?? 0;
-                    const ty = l.trueY ?? 0;
-                    const dx = (l.finalX || 0) - tx;
-                    const dy = (l.finalY || 0) - ty;
-                    const dist = Math.ceil(Math.sqrt(dx * dx + dy * dy));
-                    const isDisplaced = dist > 45;
-
                     // Zoom-relative scale: markers shrink/grow to stay the same size on the map surface
+                    // Both frame.zoom (Real Zoom) and l.placedZoom (Placement Real Zoom) are integers.
                     const zoomScale = l.placedZoom != null ? Math.pow(2, frame.zoom - l.placedZoom) : 1;
 
                     // Fade-In Logic
@@ -609,13 +746,22 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         const poi = accumulatedPois.current.get(l.id);
                         const iconName = (poi?.icon_artistic || l.icon || 'attraction');
                         const iconUrl = `/icons/${iconName}.svg`;
-                        // Icon color: Selected > Next > Score-based metallic
+
+                        // Semantic Logic Simplification: Playing or Preparing items are NEVER treated as historic
+                        const isLive = l.id === currentNarratedId || l.id === preparingId;
+                        const effectiveIsHistorical = l.isHistorical && !isLive;
+
+                        // Tether logic: Historic items never get tethers, regardless of distance.
+                        const tTx = l.trueX ?? 0;
+                        const tTy = l.trueY ?? 0;
+                        const tDx = (l.finalX || 0) - tTx;
+                        const tDy = (l.finalY || 0) - tTy;
+                        const tDist = Math.ceil(Math.sqrt(tDx * tDx + tDy * tDy));
+                        const isDisplaced = !effectiveIsHistorical && tDist > 68;
+
+                        // Icon color: score-based metallic for active/non-historic, dull for historic
                         let iconColor = ARTISTIC_MAP_STYLES.colors.icon.copper;
-                        if (l.id === currentNarratedId) {
-                            iconColor = ARTISTIC_MAP_STYLES.colors.icon.selected;
-                        } else if (l.id === preparingId) {
-                            iconColor = ARTISTIC_MAP_STYLES.colors.icon.next;
-                        } else if (l.isHistorical) {
+                        if (effectiveIsHistorical) {
                             iconColor = ARTISTIC_MAP_STYLES.colors.icon.historical;
                         } else {
                             // Score Interpolation: Silver (<=0) -> Gold (>=20)
@@ -630,6 +776,89 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                 iconColor = lerpColor(ARTISTIC_MAP_STYLES.colors.icon.silver, ARTISTIC_MAP_STYLES.colors.icon.gold, t);
                             }
                         }
+
+                        // Flourish Style Logic: Calculate Halo Properties
+                        const isActive = l.id === currentNarratedId;
+                        const isPreparing = l.id === preparingId;
+                        const isSelected = selectedPOI && l.id === selectedPOI.wikidata_id;
+                        const isDeferred = poi?.is_deferred || poi?.badges?.includes('deferred');
+                        const score = l.score || 0;
+                        const isHero = score > 20 && !effectiveIsHistorical;
+
+                        let activeHalo = isActive ? 'selected' : (isPreparing ? 'next' : (effectiveIsHistorical ? 'none' : 'normal'));
+                        if (isSelected) activeHalo = 'neon-cyan';
+                        if (isDeferred) activeHalo = 'none';
+                        if (l.custom?.halo) activeHalo = l.custom.halo;
+
+                        let hColor = ARTISTIC_MAP_STYLES.colors.icon.normalHalo;
+                        let hSize = 2;
+                        let hLayers = 1;
+
+                        if (isHero) hColor = ARTISTIC_MAP_STYLES.colors.icon.gold;
+                        if (score > 30 && !effectiveIsHistorical) {
+                            // Non-linear scaling: 2px at 30, ~5px at 150 (X=3.5)
+                            hSize = 2 + (Math.sqrt(score / 10 - 2) - 1) * 3.5;
+                        }
+
+                        // State-based Color/Intensity overrides
+                        if (activeHalo === 'neon-cyan') {
+                            hColor = ARTISTIC_MAP_STYLES.colors.icon.neonCyan;
+                            hLayers = 3;
+                        } else if (activeHalo === 'selected') {
+                            hLayers = 3;
+                            // Keep Golden color if Hero status is active
+                            if (!isHero) hColor = ARTISTIC_MAP_STYLES.colors.icon.selectedHalo;
+                        } else if (activeHalo === 'next') {
+                            hLayers = 2;
+                            if (!isHero) hColor = ARTISTIC_MAP_STYLES.colors.icon.nextHalo;
+                        }
+
+                        let silhouette = false;
+                        if (isDeferred) {
+                            silhouette = true;
+                            activeHalo = 'none';
+                        }
+
+                        let outlineWeight = 1.2; // Optimized from 0.8 (+50%) for better ink clarity
+
+                        const isDeepDive = poi?.badges?.includes('deep_dive');
+                        if (isDeepDive) {
+                            outlineWeight = 1.45; // "Heavy Ink" style for deep dive content (-20% from 1.8)
+                        }
+
+                        let outlineColor = effectiveIsHistorical ? iconColor : ARTISTIC_MAP_STYLES.colors.icon.stroke;
+
+                        if (l.custom) {
+                            if (l.custom.halo) activeHalo = l.custom.halo;
+                            if (l.custom.silhouette) silhouette = true;
+                            if (l.custom.weight) outlineWeight = l.custom.weight;
+                            if (l.custom.color) outlineColor = l.custom.color;
+                        }
+
+                        // Filter mapping for Halos (applying dynamic size and layers)
+                        let dropShadowFilter = '';
+                        if (activeHalo === 'none') {
+                            dropShadowFilter = 'none';
+                        } else if (activeHalo === 'organic' || (l.id.startsWith('dbg-2') && DEBUG_FLOURISHES)) {
+                            dropShadowFilter = `drop-shadow(1px 1px 2px ${ARTISTIC_MAP_STYLES.colors.icon.organicSmudge}) drop-shadow(-1px -1px 2px ${ARTISTIC_MAP_STYLES.colors.icon.organicSmudge})`;
+                        } else {
+                            // Standard or Special (Neon, Gold, Selected)
+                            if (hLayers === 3) {
+                                dropShadowFilter = `drop-shadow(0 0 ${hSize / 2}px ${hColor}) drop-shadow(0 0 ${hSize}px ${hColor}) drop-shadow(0 0 ${hSize * 2}px ${hColor})`;
+                            } else if (hLayers === 2) {
+                                dropShadowFilter = `drop-shadow(0 0 ${hSize / 2}px ${hColor}) drop-shadow(0 0 ${hSize}px ${hColor})`;
+                            } else {
+                                dropShadowFilter = `drop-shadow(0 0 ${hSize}px ${hColor})`;
+                            }
+                        }
+
+                        // Silhouette Logic
+                        if (l.custom?.silhouette) silhouette = true;
+
+                        if (silhouette) {
+                            // Empty: moved to InlineSVG filter for better halo preservation
+                        }
+
                         const activeBoost = l.id === currentNarratedId ? 1.5 : l.id === preparingId ? 1.25 : 1;
 
                         const swayOut = 36;
@@ -665,6 +894,18 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                         <circle cx={startX} cy={startY} r={ARTISTIC_MAP_STYLES.tethers.dotRadius} fill={ARTISTIC_MAP_STYLES.tethers.stroke} opacity={ARTISTIC_MAP_STYLES.tethers.dotOpacity} />
                                     </svg>
                                 )}
+                                {(l.id === currentNarratedId || l.id === preparingId) && (
+                                    <div style={{
+                                        position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0,
+                                        // Stable random rotation based on ID bytes
+                                        transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost}) rotate(${(l.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360)}deg)`,
+                                        opacity: l.id === currentNarratedId ? 1 : 0.5,
+                                        pointerEvents: 'none',
+                                        zIndex: 14
+                                    }}>
+                                        <WaxSeal size={l.width} />
+                                    </div>
+                                )}
                                 <div
                                     onClick={() => {
                                         const poi = accumulatedPois.current.get(l.id);
@@ -673,18 +914,24 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     style={{
                                         position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, width: l.width, height: l.height,
                                         transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost})`,
-                                        opacity: (l.isHistorical ? 0.6 : 1) * fadeOpacity, // Fade historic POIs slightly + Fade-In
+                                        opacity: (effectiveIsHistorical ? 0.5 : 1) * fadeOpacity,
                                         color: iconColor, cursor: 'pointer', pointerEvents: 'auto',
                                         // Use drop-shadow filter for true shape contour ("Halo")
-                                        // Selected/Next get glowing/colored halos, Normal gets paper-colored cutout halo
-                                        filter: l.id === currentNarratedId
-                                            ? `drop-shadow(0 0 3px ${ARTISTIC_MAP_STYLES.colors.icon.selectedHalo}) drop-shadow(0 0 5px ${ARTISTIC_MAP_STYLES.colors.icon.selectedHalo})`
-                                            : l.id === preparingId
-                                                ? `drop-shadow(0 0 3px ${ARTISTIC_MAP_STYLES.colors.icon.nextHalo})`
-                                                : `drop-shadow(0 0 2px ${ARTISTIC_MAP_STYLES.colors.icon.normalHalo}) drop-shadow(0 0 1px ${ARTISTIC_MAP_STYLES.colors.icon.normalHalo})`
+                                        filter: dropShadowFilter,
+                                        zIndex: 15
                                     }}
                                 >
-                                    <InlineSVG src={iconUrl} style={{ width: '100%', height: '100%' }} className="stamped-icon" />
+                                    <InlineSVG
+                                        src={iconUrl}
+                                        style={{
+                                            width: '100%', height: '100%',
+                                            // @ts-ignore - custom CSS variables for the stamped-icon class
+                                            '--stamped-stroke': outlineColor,
+                                            '--stamped-width': `${outlineWeight}px`,
+                                            filter: silhouette ? 'contrast(0) brightness(0)' : undefined
+                                        }}
+                                        className="stamped-icon"
+                                    />
                                 </div>
 
                                 {l.secondaryLabel && l.secondaryLabelPos && (
@@ -706,6 +953,24 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     </div>
                                 )}
                             </React.Fragment>
+                        );
+                    }
+
+                    if (l.type === 'compass') {
+                        return (
+                            <div
+                                key={l.id}
+                                style={{
+                                    position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, width: l.width, height: l.height,
+                                    transform: `translate(-50%, -50%)`,
+                                    opacity: 0.8 * fadeOpacity,
+                                    color: ARTISTIC_MAP_STYLES.colors.icon.compass,
+                                    pointerEvents: 'none',
+                                    zIndex: 5
+                                }}
+                            >
+                                <CompassRose size={l.width} />
+                            </div>
                         );
                     }
 
@@ -760,8 +1025,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 .stamped-icon svg { width: 100%; height: 100%; overflow: visible; }
                 .stamped-icon path, .stamped-icon circle, .stamped-icon rect, .stamped-icon polygon, .stamped-icon ellipse, .stamped-icon line {
                     fill: currentColor !important;
-                    stroke: ${ARTISTIC_MAP_STYLES.colors.icon.stroke} !important;
-                    stroke-width: 0.8px !important;
+                    stroke: var(--stamped-stroke, ${ARTISTIC_MAP_STYLES.colors.icon.stroke}) !important;
+                    stroke-width: var(--stamped-width, 0.8px) !important;
                     stroke-linejoin: round !important;
                     vector-effect: non-scaling-stroke;
                 }
