@@ -153,7 +153,7 @@ export class PlacementEngine {
                 cx = pos.x + ((state.radialDist || 0) * zoomScale * Math.cos(state.radialAngle || 0));
                 cy = pos.y + ((state.radialDist || 0) * zoomScale * Math.sin(state.radialAngle || 0));
             } else {
-                const markerW = (candidate.type === 'settlement' && !candidate.icon) ? 6 * zoomScale : candidate.width * zoomScale;
+                const markerW = candidate.width * zoomScale;
                 const pointRadius = (markerW / 2) + 2;
                 const anchorDef = anchors.find(a => a.type === state.anchor);
                 if (anchorDef) {
@@ -218,12 +218,13 @@ export class PlacementEngine {
             const halfH = (candidate.height / 2) + padding;
             candidate.rotation = 0;
 
-            // 1. For Icon-only POI: Try true position FIRST
-            if (candidate.type === 'poi' && !candidate.text) {
+            // 1. For Settlements and Icon-only POI: Try true position FIRST
+            // Design Correction: Settlements MUST be centered on origin (no offsets).
+            if (candidate.type === 'settlement' || (candidate.type === 'poi' && !candidate.text)) {
                 const item: LabelItem = {
                     minX: pos.x - halfW, minY: pos.y - halfH,
                     maxX: pos.x + halfW, maxY: pos.y + halfH,
-                    ownerId: candidate.id, type: 'marker'
+                    ownerId: candidate.id, type: candidate.type === 'settlement' ? 'label' : 'marker'
                 };
 
                 const potentialCollisions = this.tree.search(item);
@@ -246,7 +247,10 @@ export class PlacementEngine {
                     placed.push(candidate);
                     continue;
                 }
-                // If blocked, fall through to anchor/radial search
+
+                // If a settlement is blocked at its origin, it's dropped (no legacy anchors)
+                if (candidate.type === 'settlement') continue;
+                // If blocked POI, fall through to anchor/radial search
             }
 
             // 3. Search for available space (Labels OR Blocked POIs)
@@ -355,7 +359,7 @@ export class PlacementEngine {
     ): boolean {
         const halfW = (candidate.width / 2) + padding;
         const halfH = (candidate.height / 2) + padding;
-        const pointRadius = ((candidate.type === 'poi' || candidate.icon) ? (candidate.width / 2) : 6) + 2;
+        const pointRadius = (candidate.width / 2) + 2;
 
         let cx = baseX;
         let cy = baseY;

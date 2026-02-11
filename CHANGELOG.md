@@ -1,5 +1,11 @@
 ﻿Release History
 
+## v0.3.160 (2026-02-11)
+- **Improvement**: **Artistic Map Refinement**. Reduced historic (played) POI opacity to 0.6 and synchronized label calculation with font loading to prevent bounding box race conditions.
+- **Improvement**: **Centered Settlement Origin**. Settlement labels on the artistic map are now placed exactly on their geographic origin without legacy offsets.
+- **Improved**: **POI Label Normalization**. Extended name sanitization (splitting by comma or slash) to secondary POI labels in the artistic map.
+- **Improved**: **Robust SQLite Scanning**. Finalized refactoring of database scanning with safe `NULL` field handling and reduced cyclomatic complexity.
+
 ## v0.3.159 (2026-02-11)
 - **Fix**: **Settlement Label Stability**. Resolved issues where labels would "jump" positions due to aggressive state resets on zoom boundaries and unstable record identification.
 - **Improvement**: **Better Settlement Label Exclusion**. Implemented a hybrid dynamic radius (elliptical) system that scales with name length, preventing overcrowding and "uncomfortable" vertical stacking.

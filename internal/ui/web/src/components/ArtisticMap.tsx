@@ -132,6 +132,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<maplibregl.Map | null>(null);
     const [styleLoaded, setStyleLoaded] = useState(false);
+    const [fontsLoaded, setFontsLoaded] = useState(false);
 
     // -- Placement Engine (Persistent across ticks) --
     const engine = useMemo(() => new PlacementEngine(), []);
@@ -150,6 +151,16 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     useEffect(() => { telemetryRef.current = telemetry; }, [telemetry]);
     useEffect(() => { poisRef.current = pois; }, [pois]);
     useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+
+    // Design: Sync with font loading to avoid optimistic (narrow) bounding boxes
+    useEffect(() => {
+        if (document.fonts) {
+            document.fonts.ready.then(() => setFontsLoaded(true));
+        } else {
+            // Fallback for browsers without FontFaceSet
+            setFontsLoaded(true);
+        }
+    }, []);
     // -- THE SINGLE ATOMIC STATE --
     const [frame, setFrame] = useState<MapFrame>({
         labels: [],
@@ -438,7 +449,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     // Runs only when sync labels, local POIs, or viewport changes.
     const computedLabels = useMemo<LabelCandidate[]>(() => {
         const m = map.current;
-        if (!m || !styleLoaded || !zoomReady.current) return [];
+        if (!m || !styleLoaded || !zoomReady.current || !fontsLoaded) return [];
 
         engine.clear();
 
@@ -499,7 +510,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             // Secondary Label for Champion OR already Labeled POIs
             let secondaryLabel = undefined;
             if (labeledPoiIds.current.has(p.wikidata_id) || (champion && p.wikidata_id === champion.wikidata_id)) {
-                let text = p.name_en.split('(')[0].trim();
+                let text = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
                 if (secondaryFont.uppercase) text = text.toUpperCase();
                 const dims = measureText(text, secondaryFont.font, secondaryFont.letterSpacing);
                 secondaryLabel = { text, width: dims.width, height: dims.height };
@@ -540,7 +551,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
         return result;
 
-    }, [lastSyncLabels, pois, frame.zoom, frame.center, frame.offset, styleLoaded, settlementCategories]);
+    }, [lastSyncLabels, pois, frame.zoom, frame.center, frame.offset, styleLoaded, settlementCategories, fontsLoaded]);
 
     // Update frame with computed labels
     useEffect(() => {
@@ -644,7 +655,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     style={{
                                         position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, width: l.width, height: l.height,
                                         transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost})`,
-                                        opacity: (l.isHistorical ? 0.8 : 1) * fadeOpacity, // Fade historic POIs slightly + Fade-In
+                                        opacity: (l.isHistorical ? 0.6 : 1) * fadeOpacity, // Fade historic POIs slightly + Fade-In
                                         color: iconColor, cursor: 'pointer', pointerEvents: 'auto',
                                         // Use drop-shadow filter for true shape contour ("Halo")
                                         // Selected/Next get glowing/colored halos, Normal gets paper-colored cutout halo
