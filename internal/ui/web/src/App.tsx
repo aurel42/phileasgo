@@ -385,7 +385,9 @@ function App() {
               paperOpacityClear={paperOpacityClear}
               parchmentSaturation={parchmentSaturation}
               selectedPOI={selectedPOI}
+              isAutoOpened={autoOpenedRef.current}
               onPOISelect={handlePOISelect}
+              onMapClick={handlePanelClose}
             />
           ) : (
             <Map

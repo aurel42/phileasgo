@@ -1,5 +1,13 @@
 ﻿Release History
 
+## v0.3.163 (2026-02-11)
+- **New Feature**: **Granular Map Zoom**. Implemented 0.5-step zoom level increments for the artistic map, providing smoother transitions while maintaining tile sharpness.
+- **Improvement**: **Maximized Visibility Viewport**. Eliminated safety padding around the visibility cone, allowing the discovered geography to fill the entire screen more aggressively.
+- **Improvement**: **Differentiated Selection Highlights**. Reserved the neon-cyan glow exclusively for user-initiated POI clicks, keeping auto-opened POIs aesthetically consistent with the score-based metallic system.
+- **Improvement**: **Precision POI Placement**. Significantly tightened the placement engine's radial search parameters, allowed POI markers to find snappier, more accurate positions in dense clusters.
+- **Refinement**: **Synchronized Marker Scaling**. Corrected a discrepancy between placement and rendering zoom levels, ensuring POI and label sizes strictly follow the 0.5-step granularity without distortion.
+
+
 ## v0.3.162 (2026-02-11)
 - **Improvement**: **Artistic Map Aesthetics**. Refined calligraphic tethers with increased stroke width, smoother S-curves, and a deeper "inky" color for better visual weight.
 - **Improvement**: **Localized Typography Polish**. Implemented design-spec font adjustments for the artistic map, increasing secondary label sizes by 2px for better legibility while maintaining settlement reductions.

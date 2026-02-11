@@ -104,8 +104,9 @@ export class PlacementEngine {
         });
 
         const placed: LabelCandidate[] = [];
-        const labelPadding = 4; // Spec: 4px buffer for text
-        const iconPadding = 0;  // User: No padding for icons
+        const labelPadding = 4; // Text labels have 4px padding
+        const iconPadding = 0; // POI icons have 0px padding
+        const LOG_PLACEMENT = false; // Toggle for systematic debugging
 
         // Markers are now inserted alongside their labels according to the Sorted Intake Queue (greedy).
         // This ensures high-priority features can claim space before low-priority features block them.
@@ -143,7 +144,7 @@ export class PlacementEngine {
             candidate.trueY = Math.round(pos.y);
 
             // Scale collision box by discrete zoom ratio
-            // Both current zoom and placedZoom MUST be integers to maintain the discrete parchment design.
+            // Maintain the discrete parchment design using 0.5 step granularity.
             const zoomScale = Math.pow(2, zoom - state.placedZoom);
             const p = (candidate.type === 'poi' || candidate.type === 'compass') ? iconPadding : labelPadding;
             const halfW = ((candidate.width * zoomScale) / 2) + p;
@@ -173,16 +174,19 @@ export class PlacementEngine {
             cx = Math.round(cx);
             cy = Math.round(cy);
 
-            const item: LabelItem = {
+            // Force-insert: claim space unconditionally so new items must work around us
+            const box = {
                 minX: cx - halfW, minY: cy - halfH,
                 maxX: cx + halfW, maxY: cy + halfH,
                 ownerId: candidate.id, type: itemType
             };
+            if (LOG_PLACEMENT) console.log(`[Placement] PHASE1-INSERT: ${candidate.id} (${itemType}) bounds=[${box.minX.toFixed(1)}, ${box.minY.toFixed(1)}, ${box.maxX.toFixed(1)}, ${box.maxY.toFixed(1)}]`);
+            this.tree.insert(box);
 
             // COMPASS EXEMPTION: If a locked compass collides with a higher-priority settlement/landmark,
             // we drop it here so the map heartbeat can swap it to a better corner.
             if (candidate.type === 'compass') {
-                const potentialCollisions = this.tree.search(item);
+                const potentialCollisions = this.tree.search(box); // Use the newly inserted box for search
                 // We must filter out OTHER parts of the same candidate (like its secondary label if it had one, 
                 // though compass doesn't typically have one) and definitely its own previous marker box.
                 if (potentialCollisions.some(other => other.ownerId !== candidate.id && !other.ownerId.startsWith(candidate.id))) {
@@ -190,8 +194,6 @@ export class PlacementEngine {
                 }
             }
 
-            // Force-insert: claim space unconditionally so new items must work around us
-            this.tree.insert(item);
             candidate.anchor = state.anchor;
             candidate.finalX = cx;
             candidate.finalY = cy;
@@ -202,8 +204,8 @@ export class PlacementEngine {
             if (candidate.secondaryLabel && state.secondaryAnchor) {
                 const sHalfW = (candidate.secondaryLabel.width * zoomScale) / 2;
                 const sHalfH = (candidate.secondaryLabel.height * zoomScale) / 2;
-                const p = (candidate.type === 'poi' || candidate.type === 'compass') ? iconPadding : labelPadding;
-                const sPointRadius = ((candidate.width * zoomScale) / 2) + p + 2;
+                const pSec = (candidate.type === 'poi' || candidate.type === 'compass') ? iconPadding : labelPadding; // Secondary label padding
+                const sPointRadius = ((candidate.width * zoomScale) / 2) + pSec + 2;
 
                 const sAnchor = anchors.find(a => a.type === state.secondaryAnchor);
                 if (sAnchor) {
@@ -217,6 +219,7 @@ export class PlacementEngine {
                         maxX: scx + sHalfW, maxY: scy + sHalfH,
                         ownerId: candidate.id + "_sec", type: 'label'
                     };
+                    if (LOG_PLACEMENT) console.log(`[Placement] PHASE1-INSERT: ${sItem.ownerId} (secondary) bounds=[${sItem.minX.toFixed(1)}, ${sItem.minY.toFixed(1)}, ${sItem.maxX.toFixed(1)}, ${sItem.maxY.toFixed(1)}]`);
                     this.tree.insert(sItem);
                     candidate.secondaryLabelPos = {
                         x: Math.round(scx),
@@ -243,24 +246,15 @@ export class PlacementEngine {
             // 1. For Settlements and Icon-only POI: Try true position FIRST
             // Design Correction: Settlements MUST be centered on origin (no offsets).
             if (candidate.type === 'settlement' || candidate.type === 'compass' || (candidate.type === 'poi' && !candidate.text)) {
-                const item: LabelItem = {
-                    minX: pos.x - halfW, minY: pos.y - halfH,
-                    maxX: pos.x + halfW, maxY: pos.y + halfH,
-                    ownerId: candidate.id, type: candidate.type === 'settlement' ? 'label' : (candidate.type === 'compass' ? 'compass' : 'marker')
-                };
-
-                const potentialCollisions = this.tree.search(item);
-                const isBlocked = potentialCollisions.some(other => other.ownerId !== candidate.id);
-
-                if (!isBlocked) {
-                    this.tree.insert(item);
+                const itemType: 'marker' | 'label' | 'compass' = candidate.type === 'compass' ? 'compass' : (candidate.text ? 'label' : 'marker');
+                if (this.checkCollisionAndInsert(candidate.id, itemType, pos.x - halfW, pos.y - halfH, pos.x + halfW, pos.y + halfH)) {
                     candidate.finalX = Math.round(pos.x);
                     candidate.finalY = Math.round(pos.y);
                     candidate.anchor = 'center';
-                    candidate.placedZoom = Math.floor(zoom);
+                    candidate.placedZoom = zoom;
 
                     // Cache MUST be set before tryPlaceSecondary (it updates secondaryAnchor on this entry)
-                    this.placedCache.set(candidate.id, { anchor: 'center', placedZoom: Math.floor(zoom) });
+                    this.placedCache.set(candidate.id, { anchor: 'center', placedZoom: zoom });
 
                     if (candidate.secondaryLabel) {
                         this.tryPlaceSecondary(candidate, pos.x, pos.y, viewportWidth, viewportHeight);
@@ -282,10 +276,10 @@ export class PlacementEngine {
             for (const textAnchor of anchors) {
                 if (this.tryPlace(candidate, pos.x, pos.y, textAnchor.dx, textAnchor.dy, p, textAnchor.type, viewportWidth, viewportHeight)) {
                     isPlaced = true;
-                    candidate.placedZoom = Math.floor(zoom);
+                    candidate.placedZoom = zoom;
 
                     // Cache MUST be set before tryPlaceSecondary (it updates secondaryAnchor on this entry)
-                    this.placedCache.set(candidate.id, { anchor: textAnchor.type, placedZoom: Math.floor(zoom) });
+                    this.placedCache.set(candidate.id, { anchor: textAnchor.type, placedZoom: zoom });
 
                     if (candidate.secondaryLabel) {
                         this.tryPlaceSecondary(candidate, candidate.finalX!, candidate.finalY!, viewportWidth, viewportHeight);
@@ -299,8 +293,8 @@ export class PlacementEngine {
             // STAGE 2: Radial Search Fallback
             if (!isPlaced) {
                 const maxRadius = 80;
-                const radiusStep = 5;
-                const angleStep = 15 * (Math.PI / 180);
+                const radiusStep = 2; // Tighter search (was 5)
+                const angleStep = 10 * (Math.PI / 180); // Denser rings (was 15)
 
                 for (let r = radiusStep; r <= maxRadius; r += radiusStep) {
                     for (let theta = 0; theta < 2 * Math.PI; theta += angleStep) {
@@ -309,19 +303,23 @@ export class PlacementEngine {
                         const cx = pos.x + (r * dx);
                         const cy = pos.y + (r * dy);
 
-                        if (this.isOutsideViewport(cx, cy, halfW, halfH, viewportWidth, viewportHeight)) continue;
+                        const itemType: 'marker' | 'label' | 'compass' = candidate.text ? 'label' : 'marker';
+                        const currentHalfW = (candidate.width / 2) + p;
+                        const currentHalfH = (candidate.height / 2) + p;
 
-                        if (this.checkCollisionAndInsert(candidate, cx, cy, p)) {
+                        if (this.isOutsideViewport(cx, cy, currentHalfW, currentHalfH, viewportWidth, viewportHeight)) continue;
+
+                        if (this.checkCollisionAndInsert(candidate.id, itemType, cx - currentHalfW, cy - currentHalfH, cx + currentHalfW, cy + currentHalfH)) {
                             candidate.anchor = 'radial';
                             candidate.finalX = Math.round(cx);
                             candidate.finalY = Math.round(cy);
-                            candidate.placedZoom = Math.floor(zoom);
+                            candidate.placedZoom = zoom;
 
                             this.placedCache.set(candidate.id, {
                                 anchor: 'radial',
                                 radialAngle: theta,
                                 radialDist: r,
-                                placedZoom: Math.floor(zoom)
+                                placedZoom: zoom
                             });
 
                             // No secondary label for radial placements — marker is too far from true position
@@ -401,7 +399,8 @@ export class PlacementEngine {
             return false;
         }
 
-        if (this.checkCollisionAndInsert(candidate, cx, cy, padding)) {
+        const itemType: 'marker' | 'label' | 'compass' = candidate.type === 'compass' ? 'compass' : (candidate.text ? 'label' : 'marker');
+        if (this.checkCollisionAndInsert(candidate.id, itemType, cx - halfW, cy - halfH, cx + halfW, cy + halfH)) {
             candidate.anchor = anchorType;
             candidate.finalX = Math.round(cx);
             candidate.finalY = Math.round(cy);
@@ -410,30 +409,25 @@ export class PlacementEngine {
         return false;
     }
 
-    private checkCollisionAndInsert(candidate: LabelCandidate, cx: number, cy: number, padding: number): boolean {
-        const halfW = (candidate.width / 2) + padding;
-        const halfH = (candidate.height / 2) + padding;
+    private checkCollisionAndInsert(id: string, type: 'marker' | 'label' | 'compass', minX: number, minY: number, maxX: number, maxY: number): boolean {
+        const item = { minX, minY, maxX, maxY };
+        const collisions = this.tree.search(item);
 
-        const minX = cx - halfW;
-        const minY = cy - halfH;
-        const maxX = cx + halfW;
-        const maxY = cy + halfH;
-
-        const item: LabelItem = {
-            minX, minY, maxX, maxY,
-            ownerId: candidate.id,
-            type: 'label'
-        };
-
-        const potentialCollisions = this.tree.search(item);
-        for (const other of potentialCollisions) {
+        if (collisions.length > 0) {
             // A secondary label (ownerId: X_sec) SHOULD collide with its own primary (ownerId: X)
-            // to ensure it clears the icon properly.
-            if (other.ownerId === item.ownerId) continue;
-            return false; // Collision
+            // But we must check if the ONLY collision is itself (which shouldn't happen with RBush if we haven't inserted yet)
+            const LOG_PLACEMENT = true;
+            if (LOG_PLACEMENT) {
+                const collidedWith = collisions.map(c => c.ownerId).join(', ');
+                console.log(`[Placement] REJECTED: ${id} (${type}) collided with: [${collidedWith}] rect=[${minX.toFixed(1)}, ${minY.toFixed(1)}, ${maxX.toFixed(1)}, ${maxY.toFixed(1)}]`);
+            }
+            return false;
         }
 
-        this.tree.insert(item);
+        const box = { minX, minY, maxX, maxY, ownerId: id, type };
+        const LOG_PLACEMENT = true;
+        if (LOG_PLACEMENT) console.log(`[Placement] PLACED: ${id} (${type}) rect=[${minX.toFixed(1)}, ${minY.toFixed(1)}, ${maxX.toFixed(1)}, ${maxY.toFixed(1)}]`);
+        this.tree.insert(box);
         return true;
     }
 

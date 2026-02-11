@@ -15,7 +15,7 @@ import { useNarrator } from '../hooks/useNarrator';
 import { CompassRose } from './CompassRose';
 import { WaxSeal } from './WaxSeal';
 
-const DEBUG_FLOURISHES = true;
+const DEBUG_FLOURISHES = false;
 
 const HotAirBalloon: React.FC<{
     x: number;
@@ -88,7 +88,9 @@ interface ArtisticMapProps {
     paperOpacityClear: number;
     parchmentSaturation: number;
     selectedPOI?: POI | null;
+    isAutoOpened?: boolean;
     onPOISelect?: (poi: POI) => void;
+    onMapClick?: () => void;
 }
 
 // Single Atomic Frame state for strict synchronization
@@ -160,7 +162,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     paperOpacityClear = 0.1,
     parchmentSaturation = 1.0,
     selectedPOI,
-    onPOISelect
+    isAutoOpened = false,
+    onPOISelect,
+    onMapClick
 }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<maplibregl.Map | null>(null);
@@ -412,56 +416,64 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     let newZoom = lockedZoom === -1 ? targetZoomBase : lockedZoom;
                     if (lastMaskData?.geometry) {
                         const coneBbox = turf.bbox(lastMaskData.geometry);
-                        if (coneBbox && !coneBbox.some(isNaN)) {
-                            const camera = m.cameraForBounds(coneBbox as [number, number, number, number], { padding: 120, maxZoom: 13 });
-                            if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
-                                newZoom = Math.min(Math.max(camera.zoom, 9), 13);
-                            }
+                        const camera = m.cameraForBounds(coneBbox as [number, number, number, number], { padding: 0, maxZoom: 13 });
+                        if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
+                            newZoom = Math.min(Math.max(camera.zoom, 9), 13);
                         }
                     }
-
-                    // COMPUTE REAL ZOOM (Discrete Integer Snap)
-                    // We only render at integer levels where tiles are 1:1 with screen pixels.
-                    lockedZoom = Math.floor(newZoom);
+                    // COMPUTE REAL ZOOM (Discrete 0.5 Step Snap)
+                    // We render at 0.5 increments to soften the jump while keeping HD tiles.
+                    lockedZoom = Math.round(newZoom * 2) / 2;
 
                     // Move map to locked position BEFORE projecting
-                    m.easeTo({ center: lockedCenter, zoom: lockedZoom, offset: lockedOffset, duration: 0 });
+                    m.easeTo({ center: lockedCenter as maplibregl.LngLatLike, zoom: lockedZoom, offset: lockedOffset, duration: 0 });
+                }
 
-                    // -- SMART SYNC: Fetch labels on move/snap (backend handles density limit) --
-                    const b = m.getBounds();
-                    labelService.fetchLabels({
-                        bbox: [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()],
-                        ac_lat: t.Latitude,
-                        ac_lon: t.Longitude,
-                        heading: t.Heading,
-                        zoom: lockedZoom
-                    }).then(newLabels => {
-                        newLabels.forEach(l => accumulatedSettlements.current.set(l.id, l));
-                        setLastSyncLabels(newLabels);
-                    }).catch(e => console.error("Label Sync Failed:", e));
+                // -- SMART SYNC: Fetch labels on move/snap (backend handles density limit) --
+                const b = m.getBounds();
+                labelService.fetchLabels({
+                    bbox: [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()],
+                    ac_lat: t.Latitude,
+                    ac_lon: t.Longitude,
+                    heading: t.Heading,
+                    zoom: lockedZoom
+                }).then(newLabels => {
+                    newLabels.forEach(l => accumulatedSettlements.current.set(l.id, l));
+                    setLastSyncLabels(newLabels);
+                }).catch(e => console.error("Label Sync Failed:", e));
 
-                    if (firstTick) {
-                        firstTick = false;
-                        zoomReady.current = true;
-                    }
+                if (firstTick) {
+                    firstTick = false;
+                    zoomReady.current = true;
                 }
 
                 const targetZoom = lockedZoom;
 
-                // Tileset level change detection
-                const currentZoomInt = Math.floor(targetZoom);
-                if (prevZoomInt === -1) prevZoomInt = currentZoomInt;
+                // Tileset level change detection (0.5 granularity)
+                const currentZoomSnap = Math.round(targetZoom * 2) / 2;
+                if (prevZoomInt === -1) prevZoomInt = currentZoomSnap;
 
-                if (currentZoomInt !== prevZoomInt) {
-                    accumulatedSettlements.current.clear();
-                    // Permanence: We no longer clear accumulatedPois or the engine cache here.
-                    // Instead, we rely on the periodic Breadcrumb Pruning below.
-                    
-                    // Clear failures so we retry labeling at the new zoom scale/density
+                // Pruning Helper
+                const pruneOffscreen = (bounds: maplibregl.LngLatBounds) => {
+                    const checkPrune = (map: Map<string, any>) => {
+                        for (const [id, item] of map.entries()) {
+                            // Basic LngLat check: if any of the coordinates is outside bounds
+                            if (!bounds.contains([item.lon, item.lat])) {
+                                map.delete(id);
+                                engine.forget(id);
+                            }
+                        }
+                    };
+                    checkPrune(accumulatedSettlements.current);
+                    checkPrune(accumulatedPois.current);
+                    // Clear failures so we retry labeling in the newly visible/scaled areas
                     failedPoiLabelIds.current.clear();
-                    // Reset labeled POIs on zoom change as well
                     labeledPoiIds.current.clear();
-                    prevZoomInt = currentZoomInt;
+                };
+
+                if (currentZoomSnap !== prevZoomInt) {
+                    pruneOffscreen(m.getBounds());
+                    prevZoomInt = currentZoomSnap;
                 }
 
                 // 5. PROJECT using the STABLE map state
@@ -501,11 +513,12 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     // Reset failure bit so we give the new corner a chance
                     lastPlacementResults.current = { wasPlaced: true, id: nextCompass.id };
                 } else if (needsRecenter && nextCompass) {
-                    // Map moved: Keep current ID but update its Lng/Lat to stay pinned to the same corner
+                    // Map moved (Snap Pan): Update LngLat to stay pinned to the corner, AND prune offscreen items
                     const choice = corners.find(c => c.id === nextCompass?.id) || corners[0];
                     const lngLat = m.unproject([choice.x, choice.y]);
                     nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
                     setCompassRose(nextCompass);
+                    pruneOffscreen(m.getBounds());
                 }
 
                 if (nextCompass) {
@@ -723,7 +736,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     };
 
     return (
-        <div className={className} style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+        <div className={className}
+            onClick={() => onMapClick?.()}
+            style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
             <div ref={mapContainer} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', color: 'black' }} />
 
             {/* Labels Overlay (Atomic from Frame) */}
@@ -731,7 +746,12 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 {frame.labels.map(l => {
                     // Zoom-relative scale: markers shrink/grow to stay the same size on the map surface
                     // Both frame.zoom (Real Zoom) and l.placedZoom (Placement Real Zoom) are integers.
-                    const zoomScale = l.placedZoom != null ? Math.pow(2, frame.zoom - l.placedZoom) : 1;
+                    let zoomScale = l.placedZoom != null ? Math.pow(2, frame.zoom - l.placedZoom) : 1;
+
+                    // Settlement Scale Cap: Avoid "HUGE TEXT" when zooming in (stay <= 1.0x native)
+                    if (l.type === 'settlement') {
+                        zoomScale = Math.min(zoomScale, 1.0);
+                    }
 
                     // Fade-In Logic
                     const now = Date.now();
@@ -759,64 +779,51 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         const tDist = Math.ceil(Math.sqrt(tDx * tDx + tDy * tDy));
                         const isDisplaced = !effectiveIsHistorical && tDist > 68;
 
-                        // Icon color: score-based metallic for active/non-historic, dull for historic
+                        const score = l.score || 0;
+                        const isHero = score >= 20 && !effectiveIsHistorical;
+
+                        // 1. Icon Fill Color: Strictly Score-based (Silver -> Gold) unless Historical
                         let iconColor = ARTISTIC_MAP_STYLES.colors.icon.copper;
                         if (effectiveIsHistorical) {
                             iconColor = ARTISTIC_MAP_STYLES.colors.icon.historical;
                         } else {
-                            // Score Interpolation: Silver (<=0) -> Gold (>=20)
-                            const score = l.score || 0;
                             if (score <= 0) {
                                 iconColor = ARTISTIC_MAP_STYLES.colors.icon.silver;
                             } else if (score >= 20) {
                                 iconColor = ARTISTIC_MAP_STYLES.colors.icon.gold;
                             } else {
-                                // 0 < score < 20
                                 const t = score / 20.0;
                                 iconColor = lerpColor(ARTISTIC_MAP_STYLES.colors.icon.silver, ARTISTIC_MAP_STYLES.colors.icon.gold, t);
                             }
                         }
 
-                        // Flourish Style Logic: Calculate Halo Properties
+                        // 2. Halo Properties
                         const isActive = l.id === currentNarratedId;
                         const isPreparing = l.id === preparingId;
                         const isSelected = selectedPOI && l.id === selectedPOI.wikidata_id;
                         const isDeferred = poi?.is_deferred || poi?.badges?.includes('deferred');
-                        const score = l.score || 0;
-                        const isHero = score > 20 && !effectiveIsHistorical;
 
-                        let activeHalo = isActive ? 'selected' : (isPreparing ? 'next' : (effectiveIsHistorical ? 'none' : 'normal'));
-                        if (isSelected) activeHalo = 'neon-cyan';
-                        if (isDeferred) activeHalo = 'none';
-                        if (l.custom?.halo) activeHalo = l.custom.halo;
-
-                        let hColor = ARTISTIC_MAP_STYLES.colors.icon.normalHalo;
+                        let hColor = ARTISTIC_MAP_STYLES.colors.icon.normalHalo; // Paper White
                         let hSize = 2;
-                        let hLayers = 1;
+                        let hLayers = isActive ? 3 : (isPreparing ? 2 : 1);
 
-                        if (isHero) hColor = ARTISTIC_MAP_STYLES.colors.icon.gold;
+                        if (isHero) {
+                            hColor = ARTISTIC_MAP_STYLES.colors.icon.gold;
+                        }
+
+                        if (isSelected && !isAutoOpened) {
+                            hColor = ARTISTIC_MAP_STYLES.colors.icon.neonCyan;
+                            hLayers = 3;
+                        }
+
                         if (score > 30 && !effectiveIsHistorical) {
                             // Non-linear scaling: 2px at 30, ~5px at 150 (X=3.5)
                             hSize = 2 + (Math.sqrt(score / 10 - 2) - 1) * 3.5;
                         }
 
-                        // State-based Color/Intensity overrides
-                        if (activeHalo === 'neon-cyan') {
-                            hColor = ARTISTIC_MAP_STYLES.colors.icon.neonCyan;
-                            hLayers = 3;
-                        } else if (activeHalo === 'selected') {
-                            hLayers = 3;
-                            // Keep Golden color if Hero status is active
-                            if (!isHero) hColor = ARTISTIC_MAP_STYLES.colors.icon.selectedHalo;
-                        } else if (activeHalo === 'next') {
-                            hLayers = 2;
-                            if (!isHero) hColor = ARTISTIC_MAP_STYLES.colors.icon.nextHalo;
-                        }
-
                         let silhouette = false;
                         if (isDeferred) {
                             silhouette = true;
-                            activeHalo = 'none';
                         }
 
                         let outlineWeight = 1.2; // Optimized from 0.8 (+50%) for better ink clarity
@@ -829,7 +836,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         let outlineColor = effectiveIsHistorical ? iconColor : ARTISTIC_MAP_STYLES.colors.icon.stroke;
 
                         if (l.custom) {
-                            if (l.custom.halo) activeHalo = l.custom.halo;
                             if (l.custom.silhouette) silhouette = true;
                             if (l.custom.weight) outlineWeight = l.custom.weight;
                             if (l.custom.color) outlineColor = l.custom.color;
@@ -837,9 +843,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                         // Filter mapping for Halos (applying dynamic size and layers)
                         let dropShadowFilter = '';
-                        if (activeHalo === 'none') {
+                        if (effectiveIsHistorical || (l.custom?.halo === 'none')) {
                             dropShadowFilter = 'none';
-                        } else if (activeHalo === 'organic' || (l.id.startsWith('dbg-2') && DEBUG_FLOURISHES)) {
+                        } else if (l.custom?.halo === 'organic' || (l.id.startsWith('dbg-2') && DEBUG_FLOURISHES)) {
                             dropShadowFilter = `drop-shadow(1px 1px 2px ${ARTISTIC_MAP_STYLES.colors.icon.organicSmudge}) drop-shadow(-1px -1px 2px ${ARTISTIC_MAP_STYLES.colors.icon.organicSmudge})`;
                         } else {
                             // Standard or Special (Neon, Gold, Selected)
@@ -907,7 +913,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     </div>
                                 )}
                                 <div
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        e.stopPropagation();
                                         const poi = accumulatedPois.current.get(l.id);
                                         if (poi && onPOISelect) onPOISelect(poi);
                                     }}
@@ -942,6 +949,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                             left: l.secondaryLabelPos.x,
                                             top: l.secondaryLabelPos.y,
                                             transform: `translate(-50%, -50%) scale(${zoomScale})`,
+                                            fontSize: '17px', // Match secondaryFont adjustment (+2)
                                             opacity: fadeOpacity,
                                             pointerEvents: 'none',
                                             zIndex: 25,
@@ -981,6 +989,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                 className={l.tier === 'city' ? 'role-title' : (l.tier === 'town' ? 'role-header' : 'role-text-lg')}
                                 style={{
                                     position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, transform: `translate(-50%, -50%) scale(${zoomScale})`,
+                                    fontSize: l.tier === 'city' ? '24px' : (l.tier === 'town' ? '16px' : '14px'), // Match role font adjustments (-4)
                                     color: l.isHistorical ? ARTISTIC_MAP_STYLES.colors.text.historical : ARTISTIC_MAP_STYLES.colors.text.active,
                                     textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere,
                                     whiteSpace: 'nowrap',

@@ -11,11 +11,11 @@ export const ARTISTIC_MAP_STYLES = {
             historical: '#484848', // Cast Iron — visited/historic (Dark Grey to contrast with Silver)
             // Harmonized with Red Balloon (#E63946)
             // Complementary contrast for visibility
-            selected: '#2A9D8F',     // Peacock Teal — Active (Complement to Red)
+            selected: '#e63946',     // Comic Red — Active (Matches Balloon/Seal)
             next: '#E9C46A',         // Saffron Gold — Preparing
-            selectedHalo: '#264653', // Deep Charcoal/Blue — Contrast glow
-            nextHalo: '#F4A261',     // Sandy Orange — Warm glow
-            normalHalo: '#f4ecd8',   // Paper color — Cutout effect
+            normalHalo: '#f4ecd8',   // Paper color — Cutout effect for Low Score (< 20)
+            selectedHalo: '#f4ecd8', // Reverting to Paper — Thickness handles state, color handles score
+            nextHalo: '#f4ecd8',     // Reverting to Paper — Thickness handles state, color handles score
             neonCyan: '#00f3ff',     // Cyberpunk Neon
             neonPink: '#ff00ff',     // Cyberpunk Neon
             organicSmudge: '#3a2a1d', // Ink smudge

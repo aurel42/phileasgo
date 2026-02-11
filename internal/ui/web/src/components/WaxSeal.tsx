@@ -15,6 +15,12 @@ export const WaxSeal: React.FC<{ size: number }> = ({ size }) => {
             <g transform="matrix(1.3333333,0,0,-1.3333333,0,800)">
                 <g>
                     {/* --- THE SPLAT (Vibrant Organic Pool) --- */}
+                    {/* 
+                        AESTHETIC GUARD: Maintain "Comic Red" (#e63946 / #d62828).
+                        The wax seal NEEDS this bright, vibrant red to be correctly read as a "wax seal" 
+                        on the parchment. Any other color (muted or darker) causes it to collapse 
+                        into a generic, unidentifiable reddish blob.
+                    */}
                     <path
                         d="m 244.887,507.737 c 40.567,13.875 91.349,58.555 126.859,16.075 7.709,-9.222 -4.252,-58.568 18.588,-63.31 32.258,-6.695 46.078,-44.842 50.814,-58.218 9.227,-26.046 -28.896,-33.925 -14.724,-75.319 19.07,-55.697 -26.375,-32.791 -51.701,-81.574 -26.819,-51.659 -49.383,-73.789 -122.091,-16.295 -20.238,16.002 -52.049,-1.852 -75.559,19.109 -26.24,23.397 -3.284,30.471 -28.346,90.549 -12.341,29.582 -47.752,50.017 -23.477,77.913 20.552,23.618 28.047,22.083 31.625,44.72 11.592,73.382 10.435,19.818 88.012,46.35"
                         style={{ fill: '#d62828', fillOpacity: 1, fillRule: 'evenodd', stroke: 'none' }}
