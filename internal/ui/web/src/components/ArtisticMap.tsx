@@ -14,6 +14,7 @@ import type { LabelDTO } from '../types/mapLabels';
 import { useNarrator } from '../hooks/useNarrator';
 import { CompassRose } from './CompassRose';
 import { WaxSeal } from './WaxSeal';
+import { ScaleBar } from './ScaleBar';
 
 const DEBUG_FLOURISHES = false;
 
@@ -471,6 +472,43 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     labeledPoiIds.current.clear();
                 };
 
+                // 8. COMPASS ROSE PERSISTENCE & FALLBACKS
+                // Placed on zoom change; persists at geo coords (stamped on map) between zooms.
+                // Repositioned only if its center scrolls outside the viewport after a pan.
+                let nextCompass = compassRoseRef.current;
+                const results = lastPlacementResults.current;
+                const corners = spawnCompassRose(m, t.Heading);
+
+                if (!nextCompass || currentZoomSnap !== prevZoomInt) {
+                    // First placement or zoom changed: stamp in best corner
+                    const choice = corners[0];
+                    const lngLat = m.unproject([choice.x, choice.y]);
+                    nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
+                    setCompassRose(nextCompass);
+                    lastPlacementResults.current = { wasPlaced: true, id: nextCompass.id };
+                } else if (!results.wasPlaced && frame.labels.length > 0 && results.id === nextCompass.id) {
+                    // Blocked by placement engine: cycle to next best corner
+                    const idx = corners.findIndex(c => c.id === nextCompass?.id);
+                    const nextIdx = (idx + 1) % corners.length;
+                    const choice = corners[nextIdx];
+                    const lngLat = m.unproject([choice.x, choice.y]);
+                    nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
+                    setCompassRose(nextCompass);
+                    lastPlacementResults.current = { wasPlaced: true, id: nextCompass.id };
+                }
+
+                // Between zooms: compass persists at its geo coords.
+                // Reposition only if center scrolled outside the viewport after a pan.
+                if (nextCompass) {
+                    const compassPx = m.project([nextCompass.lon, nextCompass.lat]);
+                    if (compassPx.x < 0 || compassPx.x > mapWidth || compassPx.y < 0 || compassPx.y > mapHeight) {
+                        const choice = corners[0];
+                        const lngLat = m.unproject([choice.x, choice.y]);
+                        nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
+                        setCompassRose(nextCompass);
+                    }
+                }
+
                 if (currentZoomSnap !== prevZoomInt) {
                     pruneOffscreen(m.getBounds());
                     prevZoomInt = currentZoomSnap;
@@ -495,43 +533,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 };
                 const lineSource = m.getSource('bearing-line') as maplibregl.GeoJSONSource;
                 if (lineSource) lineSource.setData(bLine);
-
-                // 8. COMPASS ROSE PERSISTENCE & FALLBACKS
-                // Check if the PREVIOUS tick's placement engine run actually placed the compass
-                let nextCompass = compassRoseRef.current;
-                const results = lastPlacementResults.current;
-                const corners = spawnCompassRose(m, t.Heading);
-
-                if (!nextCompass || (!results.wasPlaced && frame.labels.length > 0 && results.id === nextCompass.id)) {
-                    // Blocked: Cycle to next best corner
-                    const idx = nextCompass ? corners.findIndex(c => c.id === nextCompass?.id) : -1;
-                    const nextIdx = (idx + 1) % corners.length;
-                    const choice = corners[nextIdx];
-                    const lngLat = m.unproject([choice.x, choice.y]);
-                    nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
-                    setCompassRose(nextCompass);
-                    // Reset failure bit so we give the new corner a chance
-                    lastPlacementResults.current = { wasPlaced: true, id: nextCompass.id };
-                } else if (needsRecenter && nextCompass) {
-                    // Map moved (Snap Pan): Update LngLat to stay pinned to the corner, AND prune offscreen items
-                    const choice = corners.find(c => c.id === nextCompass?.id) || corners[0];
-                    const lngLat = m.unproject([choice.x, choice.y]);
-                    nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
-                    setCompassRose(nextCompass);
-                    pruneOffscreen(m.getBounds());
-                }
-
-                if (nextCompass) {
-                    const compassPx = m.project([nextCompass.lon, nextCompass.lat]);
-                    const buffer = 40;
-                    if (compassPx.x < -buffer || compassPx.x > mapWidth + buffer || compassPx.y < -buffer || compassPx.y > mapHeight + buffer) {
-                        // Hard reset to best corner if totally OOB
-                        const choice = corners[0];
-                        const lngLat = m.unproject([choice.x, choice.y]);
-                        nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
-                        setCompassRose(nextCompass);
-                    }
-                }
 
                 // 9. COMMIT (Labels now computed via useMemo outside this loop)
                 setFrame(prev => ({
@@ -740,6 +741,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             onClick={() => onMapClick?.()}
             style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
             <div ref={mapContainer} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', color: 'black' }} />
+
+            {/* Dual-Scale Bar (above paper, below labels) */}
+            <ScaleBar zoom={frame.zoom} latitude={frame.center[0]} />
 
             {/* Labels Overlay (Atomic from Frame) */}
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>
