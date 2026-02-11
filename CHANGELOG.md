@@ -1,5 +1,11 @@
 ﻿Release History
 
+## v0.3.161 (2026-02-11)
+- **New Feature**: **Calligraphic Map Tethers**. Replaced simple lines with variable-width "ink strokes" on the artistic map for a more premium hand-drawn look.
+- **Improvement**: **Better Tether Aesthetics**. Enhanced tether prominence with larger origin dots and optimized S-curve angles for better visual balance.
+- **Improvement**: **Localized Typography Scale**. Refined font sizes for map settlements (4px reduction) while preserving the original global UI scale for the rest of the application.
+- **Improvement**: **Optimized Tether Density**. Increased minimum distance threshold for tethers by 50% to ensure map clarity in dense areas.
+
 ## v0.3.160 (2026-02-11)
 - **Improvement**: **Artistic Map Refinement**. Reduced historic (played) POI opacity to 0.6 and synchronized label calculation with font loading to prevent bounding box race conditions.
 - **Improvement**: **Centered Settlement Origin**. Settlement labels on the artistic map are now placed exactly on their geographic origin without legacy offsets.

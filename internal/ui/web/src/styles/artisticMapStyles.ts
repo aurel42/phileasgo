@@ -27,7 +27,7 @@ export const ARTISTIC_MAP_STYLES = {
         stroke: '#333',
         width: '0.5',
         opacity: 0.6,
-        dotRadius: 1.5,
+        dotRadius: 3.0,
         dotOpacity: 0.8
     }
 };

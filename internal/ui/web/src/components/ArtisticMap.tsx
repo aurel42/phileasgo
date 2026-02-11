@@ -115,6 +115,12 @@ const lerpColor = (c1: string, c2: string, t: number): string => {
     return `rgb(${r}, ${g}, ${b})`;
 };
 
+// Helper to apply design-spec 4px reduction for Artistic Map only
+const reduceFont = (f: { font: string, uppercase: boolean, letterSpacing: number }) => ({
+    ...f,
+    font: f.font.replace(/(\d+)px/, (_, s) => `${Math.max(1, parseInt(s) - 4)}px`)
+});
+
 export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     className,
     center,
@@ -453,10 +459,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
         engine.clear();
 
-        // 0. Extract Fonts from CSS Roles
-        const cityFont = getFontFromClass('role-title');
-        const townFont = getFontFromClass('role-header');
-        const villageFont = getFontFromClass('role-text-lg');
+        // 0. Extract Fonts from CSS Roles (Apply -4px reduction per design spec)
+        const cityFont = reduceFont(getFontFromClass('role-title'));
+        const townFont = reduceFont(getFontFromClass('role-header'));
+        const villageFont = reduceFont(getFontFromClass('role-text-lg'));
         const secondaryFont = getFontFromClass('role-label');
 
         // 1. Process Sync Labels (Settlements from DB)
@@ -580,7 +586,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     const dx = (l.finalX || 0) - tx;
                     const dy = (l.finalY || 0) - ty;
                     const dist = Math.ceil(Math.sqrt(dx * dx + dy * dy));
-                    const isDisplaced = dist > 30;
+                    const isDisplaced = dist > 45;
 
                     // Zoom-relative scale: markers shrink/grow to stay the same size on the map surface
                     const zoomScale = l.placedZoom != null ? Math.pow(2, Math.floor(frame.zoom) - l.placedZoom) : 1;
@@ -621,7 +627,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         }
                         const activeBoost = l.id === currentNarratedId ? 1.5 : l.id === preparingId ? 1.25 : 1;
 
-                        const sway = 15;
+                        const swayOut = 32;
+                        const swayIn = 28;
                         // Deterministic sway direction based on ID to keep it stable but organic
                         const swayDir = (l.id.charCodeAt(0) % 2 === 0 ? 1 : -1);
                         const startX = l.trueX || 0;
@@ -630,20 +637,23 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         const endY = l.finalY || 0;
                         const dy = endY - startY;
 
-                        // Cubic Bezier with 2 control points pulling in opposite directions
-                        // CP1 pulls Right (relative to swayDir) at 1/3 distance
-                        // CP2 pulls Left (relative to swayDir) at 2/3 distance
-                        const cp1X = startX + (sway * swayDir);
-                        const cp1Y = startY + (dy * 0.33);
-                        const cp2X = endX - (sway * swayDir);
-                        const cp2Y = startY + (dy * 0.66);
+                        // Calligraphic stroke: Two Bezier curves (Outer/Inner) forming a filled shape that's bulky in the center
+                        const cp1OutX = startX + (swayOut * swayDir);
+                        const cp1OutY = startY + (dy * 0.1);
+                        const cp2OutX = endX - (swayOut * swayDir);
+                        const cp2OutY = startY + (dy * 0.9);
+
+                        const cp1InX = startX + (swayIn * swayDir);
+                        const cp1InY = startY + (dy * 0.1);
+                        const cp2InX = endX - (swayIn * swayDir);
+                        const cp2InY = startY + (dy * 0.9);
 
                         return (
                             <React.Fragment key={l.id}>
                                 {isDisplaced && (
                                     <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15, opacity: fadeOpacity * ARTISTIC_MAP_STYLES.tethers.opacity }}>
-                                        <path d={`M ${startX},${startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${endX},${endY}`}
-                                            fill="none" stroke={ARTISTIC_MAP_STYLES.tethers.stroke} strokeWidth={ARTISTIC_MAP_STYLES.tethers.width} />
+                                        <path d={`M ${startX},${startY} C ${cp1OutX},${cp1OutY} ${cp2OutX},${cp2OutY} ${endX},${endY} C ${cp2InX},${cp2InY} ${cp1InX},${cp1InY} ${startX},${startY} Z`}
+                                            fill={ARTISTIC_MAP_STYLES.tethers.stroke} stroke="none" />
                                         <circle cx={startX} cy={startY} r={ARTISTIC_MAP_STYLES.tethers.dotRadius} fill={ARTISTIC_MAP_STYLES.tethers.stroke} opacity={ARTISTIC_MAP_STYLES.tethers.dotOpacity} />
                                     </svg>
                                 )}
