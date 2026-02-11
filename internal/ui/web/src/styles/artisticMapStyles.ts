@@ -24,8 +24,8 @@ export const ARTISTIC_MAP_STYLES = {
         }
     },
     tethers: {
-        stroke: '#333',
-        width: '0.5',
+        stroke: '#292929',
+        width: '1.2',
         opacity: 0.6,
         dotRadius: 3.0,
         dotOpacity: 0.8

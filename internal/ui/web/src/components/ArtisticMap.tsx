@@ -115,10 +115,10 @@ const lerpColor = (c1: string, c2: string, t: number): string => {
     return `rgb(${r}, ${g}, ${b})`;
 };
 
-// Helper to apply design-spec 4px reduction for Artistic Map only
-const reduceFont = (f: { font: string, uppercase: boolean, letterSpacing: number }) => ({
+// Helper to apply design-spec font adjustments for Artistic Map only
+const adjustFont = (f: { font: string, uppercase: boolean, letterSpacing: number }, offset: number) => ({
     ...f,
-    font: f.font.replace(/(\d+)px/, (_, s) => `${Math.max(1, parseInt(s) - 4)}px`)
+    font: f.font.replace(/(\d+)px/, (_, s) => `${Math.max(1, parseInt(s) + offset)}px`)
 });
 
 export const ArtisticMap: React.FC<ArtisticMapProps> = ({
@@ -459,11 +459,11 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
         engine.clear();
 
-        // 0. Extract Fonts from CSS Roles (Apply -4px reduction per design spec)
-        const cityFont = reduceFont(getFontFromClass('role-title'));
-        const townFont = reduceFont(getFontFromClass('role-header'));
-        const villageFont = reduceFont(getFontFromClass('role-text-lg'));
-        const secondaryFont = getFontFromClass('role-label');
+        // 0. Extract Fonts from CSS Roles (Apply adjustments per design spec)
+        const cityFont = adjustFont(getFontFromClass('role-title'), -4);
+        const townFont = adjustFont(getFontFromClass('role-header'), -4);
+        const villageFont = adjustFont(getFontFromClass('role-text-lg'), -4);
+        const secondaryFont = adjustFont(getFontFromClass('role-label'), 2);
 
         // 1. Process Sync Labels (Settlements from DB)
         Array.from(accumulatedSettlements.current.values()).forEach(l => {
@@ -479,7 +479,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 role = townFont;
             }
 
-            let text = l.name.split(',')[0].split('/')[0].trim();
+            let text = l.name.split('(')[0].split(',')[0].split('/')[0].trim();
             if (role.uppercase) text = text.toUpperCase();
 
             const dims = measureText(text, role.font, role.letterSpacing);
@@ -497,6 +497,11 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         let champion: POI | null = null;
         pois.forEach(p => {
             if (settlementCatSet.has(p.category?.toLowerCase())) return;
+
+            // Name Length Constraint: Normalized name must not exceed 24 characters
+            const normalizedName = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
+            if (normalizedName.length > 24) return;
+
             if (p.score >= 10 && !failedPoiLabelIds.current.has(p.wikidata_id) && !labeledPoiIds.current.has(p.wikidata_id)) {
                 if (!champion || (p.score > champion.score)) {
                     champion = p;
@@ -589,7 +594,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     const isDisplaced = dist > 45;
 
                     // Zoom-relative scale: markers shrink/grow to stay the same size on the map surface
-                    const zoomScale = l.placedZoom != null ? Math.pow(2, Math.floor(frame.zoom) - l.placedZoom) : 1;
+                    const zoomScale = l.placedZoom != null ? Math.pow(2, frame.zoom - l.placedZoom) : 1;
 
                     // Fade-In Logic
                     const now = Date.now();
@@ -627,8 +632,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         }
                         const activeBoost = l.id === currentNarratedId ? 1.5 : l.id === preparingId ? 1.25 : 1;
 
-                        const swayOut = 32;
-                        const swayIn = 28;
+                        const swayOut = 36;
+                        const swayIn = 24;
                         // Deterministic sway direction based on ID to keep it stable but organic
                         const swayDir = (l.id.charCodeAt(0) % 2 === 0 ? 1 : -1);
                         const startX = l.trueX || 0;
@@ -653,7 +658,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                 {isDisplaced && (
                                     <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15, opacity: fadeOpacity * ARTISTIC_MAP_STYLES.tethers.opacity }}>
                                         <path d={`M ${startX},${startY} C ${cp1OutX},${cp1OutY} ${cp2OutX},${cp2OutY} ${endX},${endY} C ${cp2InX},${cp2InY} ${cp1InX},${cp1InY} ${startX},${startY} Z`}
-                                            fill={ARTISTIC_MAP_STYLES.tethers.stroke} stroke="none" />
+                                            fill={ARTISTIC_MAP_STYLES.tethers.stroke}
+                                            stroke={ARTISTIC_MAP_STYLES.tethers.stroke}
+                                            strokeWidth={ARTISTIC_MAP_STYLES.tethers.width}
+                                            strokeLinejoin="round" />
                                         <circle cx={startX} cy={startY} r={ARTISTIC_MAP_STYLES.tethers.dotRadius} fill={ARTISTIC_MAP_STYLES.tethers.stroke} opacity={ARTISTIC_MAP_STYLES.tethers.dotOpacity} />
                                     </svg>
                                 )}

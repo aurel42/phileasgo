@@ -137,8 +137,7 @@ export class PlacementEngine {
             candidate.trueY = Math.round(pos.y);
 
             // Scale collision box by zoom ratio so markers stay map-relative
-            // Must use Math.floor(zoom) to match the renderer's zoomScale calculation
-            const zoomScale = Math.pow(2, Math.floor(zoom) - state.placedZoom);
+            const zoomScale = Math.pow(2, zoom - state.placedZoom);
             const halfW = ((candidate.width * zoomScale) / 2) + padding;
             const halfH = ((candidate.height * zoomScale) / 2) + padding;
 

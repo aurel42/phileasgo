@@ -1,5 +1,12 @@
 ﻿Release History
 
+## v0.3.162 (2026-02-11)
+- **Improvement**: **Artistic Map Aesthetics**. Refined calligraphic tethers with increased stroke width, smoother S-curves, and a deeper "inky" color for better visual weight.
+- **Improvement**: **Localized Typography Polish**. Implemented design-spec font adjustments for the artistic map, increasing secondary label sizes by 2px for better legibility while maintaining settlement reductions.
+- **Improvement**: **Flexible Character Limits**. Introduced a 24-character limit for POI labels on the artistic map to prevent cluttered layouts in dense regions.
+- **Improvement**: **Continuous Zoom Scaling**. Synchronized the placement engine and renderer to use linear zoom scaling, eliminating "snap" transitions for collision boxes and markers.
+- **POI Label Normalization**: Refined name sanitization to intelligently handle parenthesis `(` in both settlement and POI names.
+
 ## v0.3.161 (2026-02-11)
 - **New Feature**: **Calligraphic Map Tethers**. Replaced simple lines with variable-width "ink strokes" on the artistic map for a more premium hand-drawn look.
 - **Improvement**: **Better Tether Aesthetics**. Enhanced tether prominence with larger origin dots and optimized S-curve angles for better visual balance.
@@ -9,7 +16,8 @@
 ## v0.3.160 (2026-02-11)
 - **Improvement**: **Artistic Map Refinement**. Reduced historic (played) POI opacity to 0.6 and synchronized label calculation with font loading to prevent bounding box race conditions.
 - **Improvement**: **Centered Settlement Origin**. Settlement labels on the artistic map are now placed exactly on their geographic origin without legacy offsets.
-- **Improved**: **POI Label Normalization**. Extended name sanitization (splitting by comma or slash) to secondary POI labels in the artistic map.
+- **POI Label Normalization**: Extended name sanitization (splitting by comma, slash, or open bracket `(`) to secondary POI labels and the "Champion" selection process.
+- **Settlement Label Normalization**: Applied the same splitting logic (comma, slash, or bracket) to settlement names for consistency.
 - **Improved**: **Robust SQLite Scanning**. Finalized refactoring of database scanning with safe `NULL` field handling and reduced cyclomatic complexity.
 
 ## v0.3.159 (2026-02-11)
