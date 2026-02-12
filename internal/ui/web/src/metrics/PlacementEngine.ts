@@ -12,7 +12,7 @@ export interface LabelCandidate {
     height: number;
 
     // New fields for sorting
-    type: 'settlement' | 'poi' | 'compass';
+    type: 'settlement' | 'poi';
     isHistorical: boolean;
     size?: 'S' | 'M' | 'L' | 'XL';
     icon?: string;
@@ -41,7 +41,7 @@ export interface LabelCandidate {
 
 interface LabelItem extends BBox {
     ownerId: string;
-    type: 'label' | 'marker' | 'compass';
+    type: 'label' | 'marker';
     custom?: any; // For debugging or extra data
 }
 
@@ -55,6 +55,7 @@ export interface PlacementState {
 }
 
 export class PlacementEngine {
+    private static readonly LOG_PLACEMENT = false; // Toggle for systematic debugging
     private tree: RBush<LabelItem>;
     private queue: LabelCandidate[] = [];
     private placedCache: Map<string, PlacementState> = new Map();
@@ -116,7 +117,7 @@ export class PlacementEngine {
         const placed: LabelCandidate[] = [];
         const labelPadding = 4; // Text labels have 4px padding
         const iconPadding = 0; // POI icons have 0px padding
-        const LOG_PLACEMENT = false; // Toggle for systematic debugging
+        const LOG_PLACEMENT = PlacementEngine.LOG_PLACEMENT;
 
         // Markers are now inserted alongside their labels according to the Sorted Intake Queue (greedy).
         // This ensures high-priority features can claim space before low-priority features block them.
@@ -149,6 +150,9 @@ export class PlacementEngine {
         }
 
         // PHASE 1: Locked Items — unconditional force-insert. These never move or get dropped.
+        // NOTE: The artistic map is STATIC between snaps — projected screen coordinates
+        // never change. This is why skipping R-tree re-insertion for items already in the
+        // tree (via placedIds) is safe: their bounding boxes remain at the correct positions.
         for (const candidate of lockedCandidates) {
             // Skip R-tree insertion if already present (incremental mode)
             const isAlreadyInTree = this.placedIds.has(candidate.id);
@@ -161,15 +165,15 @@ export class PlacementEngine {
             // Scale collision box by discrete zoom ratio
             // Maintain the discrete parchment design using 0.5 step granularity.
             const zoomScale = Math.pow(2, zoom - state.placedZoom);
-            const p = (candidate.type === 'poi' || candidate.type === 'compass') ? iconPadding : labelPadding;
+            const p = candidate.type === 'poi' ? iconPadding : labelPadding;
             const halfW = ((candidate.width * zoomScale) / 2) + p;
             const halfH = ((candidate.height * zoomScale) / 2) + p;
 
             let cx = pos.x;
             let cy = pos.y;
-            const itemType: 'marker' | 'label' | 'compass' = candidate.type === 'compass' ? 'compass' : (candidate.text ? 'label' : 'marker');
+            const itemType: 'marker' | 'label' = candidate.text ? 'label' : 'marker';
 
-            // Apply cached anchor offset (for both icon-only POIs and text labels)
+            // Compute SCALED position for R-tree collision box (actual screen-space footprint)
             if (state.anchor === 'center') {
                 // Stays at projected position
             } else if (state.anchor === 'radial') {
@@ -201,37 +205,45 @@ export class PlacementEngine {
                 this.placedIds.add(candidate.id);
             }
 
-            // COMPASS EXEMPTION: If a locked compass collides with a higher-priority settlement/landmark,
-            // we drop it here so the map heartbeat can swap it to a better corner.
-            if (candidate.type === 'compass' && !isAlreadyInTree) {
-                const box = {
-                    minX: cx - halfW, minY: cy - halfH,
-                    maxX: cx + halfW, maxY: cy + halfH,
-                    ownerId: candidate.id, type: itemType
-                };
-                const potentialCollisions = this.tree.search(box); // Use the newly inserted box for search
-                // We must filter out OTHER parts of the same candidate (like its secondary label if it had one, 
-                // though compass doesn't typically have one) and definitely its own previous marker box.
-                if (potentialCollisions.some(other => other.ownerId !== candidate.id && !other.ownerId.startsWith(candidate.id))) {
-                    continue; // Skip placement to trigger fallback
+            // Compute UNSCALED displacement for rendering output.
+            // The rendering formula is: renderPos = geoPos + (finalX - trueX) * renderZoomScale.
+            // Phase 2 stores unscaled displacements (zoomScale=1 at placement time), so the
+            // rendering formula correctly scales them. Phase 1 must do the same — store the
+            // BASE displacement so the rendering doesn't double-scale it.
+            let fx = pos.x;
+            let fy = pos.y;
+            if (state.anchor === 'center') {
+                // No displacement
+            } else if (state.anchor === 'radial') {
+                fx = pos.x + ((state.radialDist || 0) * Math.cos(state.radialAngle || 0));
+                fy = pos.y + ((state.radialDist || 0) * Math.sin(state.radialAngle || 0));
+            } else {
+                const basePointRadius = (candidate.width / 2) + 2;
+                const baseHalfW = (candidate.width / 2) + p;
+                const baseHalfH = (candidate.height / 2) + p;
+                const anchorDef = anchors.find(a => a.type === state.anchor);
+                if (anchorDef) {
+                    if (anchorDef.dx !== 0) fx = pos.x + (anchorDef.dx * (basePointRadius + baseHalfW));
+                    if (anchorDef.dy !== 0) fy = pos.y + (anchorDef.dy * (basePointRadius + baseHalfH));
                 }
             }
 
             candidate.anchor = state.anchor;
-            candidate.finalX = cx;
-            candidate.finalY = cy;
+            candidate.finalX = Math.round(fx);
+            candidate.finalY = Math.round(fy);
             candidate.placedZoom = state.placedZoom;
             candidate.rotation = 0;
 
-            // RE-REGISTER SECONDARY LABEL if it was persistent
+            // RE-REGISTER SECONDARY LABEL collision box (scaled for R-tree)
             if (candidate.secondaryLabel && state.secondaryAnchor) {
                 const sHalfW = (candidate.secondaryLabel.width * zoomScale) / 2;
                 const sHalfH = (candidate.secondaryLabel.height * zoomScale) / 2;
-                const pSec = (candidate.type === 'poi' || candidate.type === 'compass') ? iconPadding : labelPadding; // Secondary label padding
+                const pSec = candidate.type === 'poi' ? iconPadding : labelPadding;
                 const sPointRadius = ((candidate.width * zoomScale) / 2) + pSec + 2;
 
                 const sAnchor = anchors.find(a => a.type === state.secondaryAnchor);
                 if (sAnchor) {
+                    // Scaled position for R-tree
                     let scx = cx;
                     let scy = cy;
                     if (sAnchor.dx !== 0) scx = cx + (sAnchor.dx * (sPointRadius + sHalfW));
@@ -247,9 +259,19 @@ export class PlacementEngine {
                         this.tree.insert(sItem);
                         this.placedIds.add(candidate.id + "_sec");
                     }
+
+                    // Unscaled position for rendering
+                    const baseSPointRadius = (candidate.width / 2) + pSec + 2;
+                    const baseSHalfW = candidate.secondaryLabel.width / 2;
+                    const baseSHalfH = candidate.secondaryLabel.height / 2;
+                    let sfx = fx;
+                    let sfy = fy;
+                    if (sAnchor.dx !== 0) sfx = fx + (sAnchor.dx * (baseSPointRadius + baseSHalfW));
+                    if (sAnchor.dy !== 0) sfy = fy + (sAnchor.dy * (baseSPointRadius + baseSHalfH));
+
                     candidate.secondaryLabelPos = {
-                        x: Math.round(scx),
-                        y: Math.round(scy),
+                        x: Math.round(sfx),
+                        y: Math.round(sfy),
                         anchor: state.secondaryAnchor
                     };
                 }
@@ -264,15 +286,15 @@ export class PlacementEngine {
             candidate.trueX = Math.round(pos.x);
             candidate.trueY = Math.round(pos.y);
 
-            const p = (candidate.type === 'poi' || candidate.type === 'compass') ? iconPadding : labelPadding;
+            const p = candidate.type === 'poi' ? iconPadding : labelPadding;
             const halfW = (candidate.width / 2) + p;
             const halfH = (candidate.height / 2) + p;
             candidate.rotation = 0;
 
             // 1. For Settlements and Icon-only POI: Try true position FIRST
             // Design Correction: Settlements MUST be centered on origin (no offsets).
-            if (candidate.type === 'settlement' || candidate.type === 'compass' || (candidate.type === 'poi' && !candidate.text)) {
-                const itemType: 'marker' | 'label' | 'compass' = candidate.type === 'compass' ? 'compass' : (candidate.text ? 'label' : 'marker');
+            if (candidate.type === 'settlement' || (candidate.type === 'poi' && !candidate.text)) {
+                const itemType: 'marker' | 'label' = candidate.text ? 'label' : 'marker';
 
                 if (this.checkCollisionAndInsert(candidate.id, itemType, pos.x - halfW, pos.y - halfH, pos.x + halfW, pos.y + halfH)) {
                     candidate.finalX = Math.round(pos.x);
@@ -291,8 +313,8 @@ export class PlacementEngine {
                     continue;
                 }
 
-                // If a settlement or compass is blocked at its origin, it's dropped (no legacy anchors)
-                if (candidate.type === 'settlement' || candidate.type === 'compass') continue;
+                // If a settlement is blocked at its origin, it's dropped (no legacy anchors)
+                if (candidate.type === 'settlement') continue;
                 // If blocked POI, fall through to anchor/radial search
             }
 
@@ -330,7 +352,7 @@ export class PlacementEngine {
                         const cx = pos.x + (r * dx);
                         const cy = pos.y + (r * dy);
 
-                        const itemType: 'marker' | 'label' | 'compass' = candidate.text ? 'label' : 'marker';
+                        const itemType: 'marker' | 'label' = candidate.text ? 'label' : 'marker';
                         const currentHalfW = (candidate.width / 2) + p;
                         const currentHalfH = (candidate.height / 2) + p;
 
@@ -368,6 +390,11 @@ export class PlacementEngine {
         return this.lastVisibleLabels;
     }
 
+    /** Returns all R-tree bounding boxes for debug visualization. */
+    public getDebugBoxes(): { minX: number, minY: number, maxX: number, maxY: number, ownerId: string, type: string }[] {
+        return this.tree.all();
+    }
+
     private isOutsideViewport(cx: number, cy: number, hw: number, hh: number, vw: number, vh: number): boolean {
         return (cx - hw < 0 || cx + hw > vw || cy - hh < 0 || cy + hh > vh);
     }
@@ -377,9 +404,6 @@ export class PlacementEngine {
 
         // 0. Landmarks (Fixed Viewport Elements)
         if (c.tier === 'landmark') return 300;
-
-        // 1. Compass Rose (200)
-        if (c.type === 'compass') return 200;
 
         // 1. Highest-Tier Settlements (100)
         if (c.type === 'settlement') {
@@ -426,7 +450,7 @@ export class PlacementEngine {
             return false;
         }
 
-        const itemType: 'marker' | 'label' | 'compass' = candidate.type === 'compass' ? 'compass' : (candidate.text ? 'label' : 'marker');
+        const itemType: 'marker' | 'label' = candidate.text ? 'label' : 'marker';
         if (this.checkCollisionAndInsert(candidate.id, itemType, cx - halfW, cy - halfH, cx + halfW, cy + halfH)) {
             candidate.anchor = anchorType;
             candidate.finalX = Math.round(cx);
@@ -436,17 +460,20 @@ export class PlacementEngine {
         return false;
     }
 
-    private checkCollisionAndInsert(id: string, type: 'marker' | 'label' | 'compass', minX: number, minY: number, maxX: number, maxY: number): boolean {
+    private checkCollisionAndInsert(id: string, type: 'marker' | 'label', minX: number, minY: number, maxX: number, maxY: number): boolean {
         const item = { minX, minY, maxX, maxY };
         const collisions = this.tree.search(item);
 
         if (collisions.length > 0) {
-            // A secondary label (ownerId: X_sec) SHOULD collide with its own primary (ownerId: X)
-            // But we must check if the ONLY collision is itself (which shouldn't happen with RBush if we haven't inserted yet)
+            if (PlacementEngine.LOG_PLACEMENT) {
+                const collidedWith = collisions.map(c => c.ownerId).join(', ');
+                console.log(`[Placement] REJECTED: ${id} (${type}) collided with: [${collidedWith}] rect=[${minX.toFixed(1)}, ${minY.toFixed(1)}, ${maxX.toFixed(1)}, ${maxY.toFixed(1)}]`);
+            }
             return false;
         }
 
         const box = { minX, minY, maxX, maxY, ownerId: id, type };
+        if (PlacementEngine.LOG_PLACEMENT) console.log(`[Placement] PLACED: ${id} (${type}) rect=[${minX.toFixed(1)}, ${minY.toFixed(1)}, ${maxX.toFixed(1)}, ${maxY.toFixed(1)}]`);
         this.tree.insert(box);
         this.placedIds.add(id);
         return true;
@@ -476,7 +503,7 @@ export class PlacementEngine {
         const halfH = candidate.secondaryLabel.height / 2;
         // Padding removal: POI labels (secondary) now have 0 padding as per user request.
         // Settlement labels (primary) keep 4px.
-        const sPadding = (candidate.type === 'poi' || candidate.type === 'compass') ? 0 : 4;
+        const sPadding = candidate.type === 'poi' ? 0 : 4;
         const pointRadius = (candidate.width / 2) + sPadding + 2;
 
         for (const anchor of anchors) {

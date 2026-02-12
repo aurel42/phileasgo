@@ -1,5 +1,9 @@
 ﻿Release History
 
+## v0.3.170 (2026-02-13)
+- **New Feature**: **Wax Seal Refinements**. Implemented a 30-second linear fade-in for "preparing" POIs and raised z-indices to ensure active items stay visually above settlement labels and the parchment grain.
+- **Fix**: **Replay Icon Scaling**. Resolved a regression where icons appeared incorrectly large during debriefing by synchronizing the map's atomic zoom state with the placement engine during route-fitting.
+
 ## v0.3.169 (2026-02-12)
 - **Improvement**: **Interpolated Replay Telemetry**. Corrected a regression in Replay Mode by unifying aircraft state, ensuring labels and markers correctly follow the interpolated flight path even when Sim telemetry is absent.
 - **Improvement**: **Stateful Label Fading**. Refined the settlement manager to distinguish between entering and leaving labels, preventing newly discovered cities from prematurely vanishing while clearing slots for distant ones.

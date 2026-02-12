@@ -129,7 +129,7 @@ const lerpColor = (c1: string, c2: string, t: number): string => {
 // Helper to apply design-spec font adjustments for Artistic Map only
 const adjustFont = (f: { font: string, uppercase: boolean, letterSpacing: number }, offset: number) => ({
     ...f,
-    font: f.font.replace(/(\d+)px/, (_, s) => `${Math.max(1, parseInt(s) + offset)} px`)
+    font: f.font.replace(/(\d+)px/, (_, s) => `${Math.max(1, parseInt(s) + offset)}px`)
 });
 
 /**
@@ -278,8 +278,17 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             });
             const camera = map.current.cameraForBounds(bbox as [number, number, number, number], { padding: 100 });
             console.log('[Replay] fitBounds:', { bbox, camera: camera ? { center: camera.center, zoom: camera.zoom } : null });
-            if (camera) {
+            if (camera && camera.center) {
                 map.current.easeTo({ center: camera.center, zoom: Math.min(camera.zoom || 12, 12), duration: 2000 });
+                // ATOMIC UPDATE: Ensure the frame state matches the replay target so zoom-relative scaling (labels/icons) is correct.
+                const centerVal = camera.center as any;
+                const lng = centerVal.lng !== undefined ? centerVal.lng : centerVal[0];
+                const lat = centerVal.lat !== undefined ? centerVal.lat : centerVal[1];
+                setFrame(prev => ({
+                    ...prev,
+                    center: [lng, lat],
+                    zoom: Math.min(camera.zoom || 12, 12)
+                }));
             }
         }
     }, [isReplayMode, pathPoints, styleLoaded]);
@@ -393,12 +402,14 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         const timeout = setTimeout(() => {
             const w = m.getCanvas().clientWidth;
             const h = m.getCanvas().clientHeight;
+            // Use frame zoom to ensure scaling matches the initial snap/ease target.
+            const targetZoom = frame.zoom;
             const placed = eng.compute(
                 (lat, lon) => {
                     const pos = m.project([lon, lat]);
                     return { x: pos.x, y: pos.y };
                 },
-                w, h, m.getZoom()
+                w, h, targetZoom
             );
 
             console.log('[Replay] Static Placement Complete:', placed.length, 'items');
@@ -432,14 +443,11 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const accumulatedSettlements = useRef<Map<string, LabelDTO>>(new Map());
     const accumulatedPois = useRef<Map<string, POI>>(new Map());
     const labelAppearanceRef = useRef<Map<string, number>>(new Map());
+    const preparingStartRef = useRef<Map<string, number>>(new Map());
     const failedPoiLabelIds = useRef<Set<string>>(new Set());
     const labeledPoiIds = useRef<Set<string>>(new Set());
-    const lastPlacementResults = useRef<{ wasPlaced: boolean, id: string }>({ wasPlaced: true, id: '' });
     const zoomReady = useRef(false); // Gate placement until heartbeat establishes real zoom
     const [lastSyncLabels, setLastSyncLabels] = useState<LabelDTO[]>([]);
-    const [compassRose, setCompassRose] = useState<{ id: string, lat: number, lon: number } | null>(null);
-    const compassRoseRef = useRef(compassRose);
-    useEffect(() => { compassRoseRef.current = compassRose; }, [compassRose]);
 
     // Tracking for damped solver execution
     const lastPoiCount = useRef(0);
@@ -516,32 +524,15 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         return () => { map.current?.remove(); map.current = null; };
     }, []);
 
-    const spawnCompassRose = (mapInstance: maplibregl.Map, acHeading: number) => {
-        const canvas = mapInstance.getCanvas();
-        const w = canvas.clientWidth;
-        const h = canvas.clientHeight;
-        const padding = 80;
-
-        const candidates = [
-            { id: 'tl', x: padding, y: padding, angle: 315 },
-            { id: 'tr', x: w - padding, y: padding, angle: 45 },
-            { id: 'bl', x: padding, y: h - padding, angle: 225 },
-            { id: 'br', x: w - padding, y: h - padding, angle: 135 }
-        ];
-
-        const normHdg = (acHeading % 360 + 360) % 360;
-        candidates.sort((a, b) => {
-            const da = Math.abs((a.angle - normHdg + 180 + 360) % 360 - 180);
-            const db = Math.abs((b.angle - normHdg + 180 + 360) % 360 - 180);
-            return da - db;
-        });
-
-        return candidates;
-    };
     // useLayoutEffect ensures the map snapped in the SAME paint cycle as the labels
     React.useLayoutEffect(() => {
         const m = map.current;
         if (!m || !styleLoaded) return;
+
+        // Bypassing snap-to-center logic during replay initialization or active animations
+        // keeps maplibre ease motions smooth while still ensuring frame consistency.
+        if (effectiveReplayMode && m.isEasing()) return;
+
         m.easeTo({
             center: frame.center,
             zoom: frame.zoom,
@@ -753,43 +744,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     labeledPoiIds.current.clear();
                 };
 
-                // 8. COMPASS ROSE PERSISTENCE & FALLBACKS
-                // Placed on zoom change; persists at geo coords (stamped on map) between zooms.
-                // Repositioned only if its center scrolls outside the viewport after a pan.
-                let nextCompass = compassRoseRef.current;
-                const results = lastPlacementResults.current;
-                const corners = spawnCompassRose(m, t.Heading);
-
-                if (!nextCompass || currentZoomSnap !== prevZoomInt) {
-                    // First placement or zoom changed: stamp in best corner
-                    const choice = corners[0];
-                    const lngLat = m.unproject([choice.x, choice.y]);
-                    nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
-                    setCompassRose(nextCompass);
-                    lastPlacementResults.current = { wasPlaced: true, id: nextCompass.id };
-                } else if (!results.wasPlaced && lastLabels.length > 0 && results.id === nextCompass.id) {
-                    // Blocked by placement engine: cycle to next best corner
-                    const idx = corners.findIndex(c => c.id === nextCompass?.id);
-                    const nextIdx = (idx + 1) % corners.length;
-                    const choice = corners[nextIdx];
-                    const lngLat = m.unproject([choice.x, choice.y]);
-                    nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
-                    setCompassRose(nextCompass);
-                    lastPlacementResults.current = { wasPlaced: true, id: nextCompass.id };
-                }
-
-                // Between zooms: compass persists at its geo coords.
-                // Reposition only if center scrolled outside the viewport after a pan.
-                if (nextCompass) {
-                    const compassPx = m.project([nextCompass.lon, nextCompass.lat]);
-                    if (compassPx.x < 0 || compassPx.x > mapWidth || compassPx.y < 0 || compassPx.y > mapHeight) {
-                        const choice = corners[0];
-                        const lngLat = m.unproject([choice.x, choice.y]);
-                        nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
-                        setCompassRose(nextCompass);
-                    }
-                }
-
                 if (currentZoomSnap !== prevZoomInt) {
                     if (!effectiveReplayMode) {
                         pruneOffscreen(m.getBounds());
@@ -834,10 +788,20 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 let labels = lastLabels;
                 let finalMaskPath = lastMask;
 
+                // IMPORTANT: The artistic map is STATIC between snaps. The map, all icons,
+                // and all labels remain frozen at fixed pixel positions. Only the balloon
+                // moves across the map. Positions only change on snap-zoom or snap-pan events.
+                // This means: between snaps, projected screen coordinates never change, and
+                // the placement engine's R-tree entries remain valid without re-insertion.
                 const isSnap = needsRecenter || viewChanged || firstTick;
                 if (isSnap) {
                     engine.clear();
                     registeredIds.current.clear();
+                    // NOTE: placedCache is intentionally NOT cleared on snap. Items scale
+                    // uniformly with the map (their collision boxes and displacements are
+                    // multiplied by zoomScale), so items that don't overlap at one zoom
+                    // level cannot overlap at another. Preserving cached anchors provides
+                    // label stability across snaps.
                 }
 
                 if (isSnap || dataChanged) {
@@ -874,17 +838,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         });
                         registeredIds.current.add(l.id);
                     });
-
-                    // 1.5. Process Compass Rose
-                    if (nextCompass && !registeredIds.current.has(nextCompass.id)) {
-                        const size = 58;
-                        engine.register({
-                            id: nextCompass.id, lat: nextCompass.lat, lon: nextCompass.lon,
-                            text: "", tier: 'village', score: 200,
-                            width: size, height: size, type: 'compass', isHistorical: false
-                        });
-                        registeredIds.current.add(nextCompass.id);
-                    }
 
                     // 2. Identify the "Champion POI" for labeling
                     const settlementCatSet = new Set(settlementCategories.map(c => c.toLowerCase()));
@@ -1026,27 +979,29 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         lastPlacementView.current = { lng: lockedCenter![0], lat: lockedCenter![1], zoom: lockedZoom };
                     }
 
-                    // 10. COMMIT
+                    // Update cached results when placement ran
                     lastLabels = labels;
                     lastMask = finalMaskPath;
-
-                    if (effectiveReplayMode) {
-                        console.log('[Replay] tick: committing frame', { center: lockedCenter, zoom: targetZoom, aircraftX, aircraftY, labelCount: labels.length });
-                    }
-                    setFrame(prev => ({
-                        ...prev,
-                        maskPath: finalMaskPath,
-                        center: lockedCenter!,
-                        zoom: targetZoom,
-                        offset: lockedOffset,
-                        heading: t.Heading,
-                        bearingLine: bLine,
-                        aircraftX,
-                        aircraftY,
-                        agl: t.AltitudeAGL,
-                        labels: labels
-                    }));
                 }
+
+                // 10. COMMIT — Always update frame so the balloon and visibility cone
+                // stay current every tick, even when placement didn't need to re-run.
+                if (effectiveReplayMode) {
+                    console.log('[Replay] tick: committing frame', { center: lockedCenter, zoom: targetZoom, aircraftX, aircraftY, labelCount: lastLabels.length });
+                }
+                setFrame(prev => ({
+                    ...prev,
+                    maskPath: lastMask,
+                    center: lockedCenter!,
+                    zoom: targetZoom,
+                    offset: lockedOffset,
+                    heading: t.Heading,
+                    bearingLine: bLine,
+                    aircraftX,
+                    aircraftY,
+                    agl: t.AltitudeAGL,
+                    labels: lastLabels
+                }));
             } catch (err) {
                 console.error("Heartbeat Loop Crash:", err);
             } finally {
@@ -1078,6 +1033,15 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
             {/* Dual-Scale Bar (above paper, below labels) */}
             <ScaleBar zoom={frame.zoom} latitude={frame.center[1]} />
+
+            {/* Compass Rose — fixed bottom-right, vertically centered with ScaleBar */}
+            <div style={{
+                position: 'absolute', right: 20, bottom: 20, zIndex: 15,
+                opacity: 0.8, pointerEvents: 'none',
+                color: ARTISTIC_MAP_STYLES.colors.icon.compass
+            }}>
+                <CompassRose size={58} />
+            </div>
 
             {/* Labels Overlay (Atomic from Frame) */}
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>
@@ -1176,6 +1140,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         const isPreparing = l.id === preparingId;
                         const isSelected = selectedPOI && l.id === selectedPOI.wikidata_id;
                         const isDeferred = !isReplayItem && (poi?.is_deferred || poi?.badges?.includes('deferred'));
+                        const isLOSBlocked = poi?.los_status === 2;
 
                         let hColor = ARTISTIC_MAP_STYLES.colors.icon.normalHalo; // Paper White
                         let hSize = 2;
@@ -1196,7 +1161,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         }
 
                         let silhouette = false;
-                        if (isDeferred) {
+                        if (isDeferred || isLOSBlocked) {
                             silhouette = true;
                         }
 
@@ -1287,9 +1252,16 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                         position: 'absolute', left: finalX, top: finalY,
                                         // Stable random rotation based on ID bytes
                                         transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost}) rotate(${(l.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360)}deg)`,
-                                        opacity: l.id === currentNarratedId ? 1 : 0.5,
+                                        opacity: (() => {
+                                            if (l.id === currentNarratedId) return 1;
+                                            if (!preparingStartRef.current.has(l.id)) {
+                                                preparingStartRef.current.set(l.id, now);
+                                            }
+                                            const start = preparingStartRef.current.get(l.id)!;
+                                            return Math.min(0.8, (now - start) / 30000);
+                                        })(),
                                         pointerEvents: 'none',
-                                        zIndex: 14
+                                        zIndex: l.id === currentNarratedId ? 99 : 89
                                     }}>
                                         <WaxSeal size={l.width} />
                                     </div>
@@ -1307,7 +1279,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                         color: iconColor, cursor: 'pointer', pointerEvents: 'auto',
                                         // Use drop-shadow filter for true shape contour ("Halo")
                                         filter: dropShadowFilter,
-                                        zIndex: 15
+                                        zIndex: l.id === currentNarratedId ? 100 : (l.id === preparingId ? 90 : 15)
                                     }}
                                 >
                                     <InlineSVG
@@ -1342,24 +1314,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     </div>
                                 )}
                             </React.Fragment>
-                        );
-                    }
-
-                    if (l.type === 'compass') {
-                        return (
-                            <div
-                                key={l.id}
-                                style={{
-                                    position: 'absolute', left: finalX, top: finalY, width: l.width, height: l.height,
-                                    transform: `translate(-50%, -50%)`,
-                                    opacity: 0.8 * fadeOpacity,
-                                    color: ARTISTIC_MAP_STYLES.colors.icon.compass,
-                                    pointerEvents: 'none',
-                                    zIndex: 5
-                                }}
-                            >
-                                <CompassRose size={l.width} />
-                            </div>
                         );
                     }
 
