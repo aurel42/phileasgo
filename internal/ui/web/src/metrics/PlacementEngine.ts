@@ -58,6 +58,7 @@ export class PlacementEngine {
     private tree: RBush<LabelItem>;
     private queue: LabelCandidate[] = [];
     private placedCache: Map<string, PlacementState> = new Map();
+    private placedIds: Set<string> = new Set();
     private lastVisibleLabels: LabelCandidate[] = [];
 
     constructor() {
@@ -66,7 +67,14 @@ export class PlacementEngine {
 
     public register(candidate: LabelCandidate) {
         // Deduplicate by ID
-        if (this.queue.some(c => c.id === candidate.id)) {
+        const existingIdx = this.queue.findIndex(c => c.id === candidate.id);
+        if (existingIdx !== -1) {
+            // Update the existing candidate if it gained a secondary label
+            const existing = this.queue[existingIdx];
+            if (candidate.secondaryLabel && !existing.secondaryLabel) {
+                existing.secondaryLabel = candidate.secondaryLabel;
+                // Force re-compute? No, just wait for next compute() call
+            }
             return;
         }
         this.queue.push(candidate);
@@ -75,6 +83,8 @@ export class PlacementEngine {
     public clear() {
         this.tree.clear();
         this.queue = [];
+        this.placedIds.clear();
+        this.lastVisibleLabels = [];
         // Do NOT clear placedCache here. That's for resetCache().
     }
 
@@ -129,6 +139,8 @@ export class PlacementEngine {
         const newCandidates: LabelCandidate[] = [];
 
         for (const candidate of this.queue) {
+            // If already in the final results and NOT a Snap (tree not cleared), we skip.
+            // But we need to build the full results list.
             if (this.placedCache.has(candidate.id)) {
                 lockedCandidates.push(candidate);
             } else {
@@ -138,6 +150,9 @@ export class PlacementEngine {
 
         // PHASE 1: Locked Items — unconditional force-insert. These never move or get dropped.
         for (const candidate of lockedCandidates) {
+            // Skip R-tree insertion if already present (incremental mode)
+            const isAlreadyInTree = this.placedIds.has(candidate.id);
+
             const pos = projector(candidate.lat, candidate.lon);
             const state = this.placedCache.get(candidate.id)!;
             candidate.trueX = Math.round(pos.x);
@@ -174,18 +189,26 @@ export class PlacementEngine {
             cx = Math.round(cx);
             cy = Math.round(cy);
 
-            // Force-insert: claim space unconditionally so new items must work around us
-            const box = {
-                minX: cx - halfW, minY: cy - halfH,
-                maxX: cx + halfW, maxY: cy + halfH,
-                ownerId: candidate.id, type: itemType
-            };
-            if (LOG_PLACEMENT) console.log(`[Placement] PHASE1-INSERT: ${candidate.id} (${itemType}) bounds=[${box.minX.toFixed(1)}, ${box.minY.toFixed(1)}, ${box.maxX.toFixed(1)}, ${box.maxY.toFixed(1)}]`);
-            this.tree.insert(box);
+            if (!isAlreadyInTree) {
+                // Force-insert: claim space unconditionally so new items must work around us
+                const box = {
+                    minX: cx - halfW, minY: cy - halfH,
+                    maxX: cx + halfW, maxY: cy + halfH,
+                    ownerId: candidate.id, type: itemType
+                };
+                if (LOG_PLACEMENT) console.log(`[Placement] PHASE1-INSERT: ${candidate.id} (${itemType}) bounds=[${box.minX.toFixed(1)}, ${box.minY.toFixed(1)}, ${box.maxX.toFixed(1)}, ${box.maxY.toFixed(1)}]`);
+                this.tree.insert(box);
+                this.placedIds.add(candidate.id);
+            }
 
             // COMPASS EXEMPTION: If a locked compass collides with a higher-priority settlement/landmark,
             // we drop it here so the map heartbeat can swap it to a better corner.
-            if (candidate.type === 'compass') {
+            if (candidate.type === 'compass' && !isAlreadyInTree) {
+                const box = {
+                    minX: cx - halfW, minY: cy - halfH,
+                    maxX: cx + halfW, maxY: cy + halfH,
+                    ownerId: candidate.id, type: itemType
+                };
                 const potentialCollisions = this.tree.search(box); // Use the newly inserted box for search
                 // We must filter out OTHER parts of the same candidate (like its secondary label if it had one, 
                 // though compass doesn't typically have one) and definitely its own previous marker box.
@@ -214,13 +237,16 @@ export class PlacementEngine {
                     if (sAnchor.dx !== 0) scx = cx + (sAnchor.dx * (sPointRadius + sHalfW));
                     if (sAnchor.dy !== 0) scy = cy + (sAnchor.dy * (sPointRadius + sHalfH));
 
-                    const sItem: LabelItem = {
-                        minX: scx - sHalfW, minY: scy - sHalfH,
-                        maxX: scx + sHalfW, maxY: scy + sHalfH,
-                        ownerId: candidate.id + "_sec", type: 'label'
-                    };
-                    if (LOG_PLACEMENT) console.log(`[Placement] PHASE1-INSERT: ${sItem.ownerId} (secondary) bounds=[${sItem.minX.toFixed(1)}, ${sItem.minY.toFixed(1)}, ${sItem.maxX.toFixed(1)}, ${sItem.maxY.toFixed(1)}]`);
-                    this.tree.insert(sItem);
+                    if (!this.placedIds.has(candidate.id + "_sec")) {
+                        const sItem: LabelItem = {
+                            minX: scx - sHalfW, minY: scy - sHalfH,
+                            maxX: scx + sHalfW, maxY: scy + sHalfH,
+                            ownerId: candidate.id + "_sec", type: 'label'
+                        };
+                        if (LOG_PLACEMENT) console.log(`[Placement] PHASE1-INSERT: ${sItem.ownerId} (secondary) bounds=[${sItem.minX.toFixed(1)}, ${sItem.minY.toFixed(1)}, ${sItem.maxX.toFixed(1)}, ${sItem.maxY.toFixed(1)}]`);
+                        this.tree.insert(sItem);
+                        this.placedIds.add(candidate.id + "_sec");
+                    }
                     candidate.secondaryLabelPos = {
                         x: Math.round(scx),
                         y: Math.round(scy),
@@ -417,18 +443,12 @@ export class PlacementEngine {
         if (collisions.length > 0) {
             // A secondary label (ownerId: X_sec) SHOULD collide with its own primary (ownerId: X)
             // But we must check if the ONLY collision is itself (which shouldn't happen with RBush if we haven't inserted yet)
-            const LOG_PLACEMENT = false;
-            if (LOG_PLACEMENT) {
-                const collidedWith = collisions.map(c => c.ownerId).join(', ');
-                console.log(`[Placement] REJECTED: ${id} (${type}) collided with: [${collidedWith}] rect=[${minX.toFixed(1)}, ${minY.toFixed(1)}, ${maxX.toFixed(1)}, ${maxY.toFixed(1)}]`);
-            }
             return false;
         }
 
         const box = { minX, minY, maxX, maxY, ownerId: id, type };
-        const LOG_PLACEMENT = false;
-        if (LOG_PLACEMENT) console.log(`[Placement] PLACED: ${id} (${type}) rect=[${minX.toFixed(1)}, ${minY.toFixed(1)}, ${maxX.toFixed(1)}, ${maxY.toFixed(1)}]`);
         this.tree.insert(box);
+        this.placedIds.add(id);
         return true;
     }
 

@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach } from 'vitest';
 import { PlacementEngine, type LabelCandidate } from './PlacementEngine';
 
 describe('PlacementEngine', () => {

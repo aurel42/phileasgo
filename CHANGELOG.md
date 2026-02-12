@@ -1,11 +1,15 @@
 ﻿Release History
 
-## v0.3.167 (2026-02-12)
+## v0.3.168 (2026-02-12)
 - **New Feature**: **Stable Replay Layout**. Implemented a one-time placement calculation for the entire trip in replay mode, ensuring absolute symbol stability and preventing icons from vanishing during playback.
 - **Improvement**: **Instant Replay Start**. Automatically truncates stationary pre-flight data to start the replay exactly at the moment of take-off.
 - **Improvement**: **Render-Loop Projection**. Migrated icon and label projection to the 60fps render loop, ensuring markers stay perfectly locked to the map during pans.
 - **Improvement**: **Discovery-Aware Symbol Fading**. POI markers now trigger independent 2-second fade-ins at the exact moment they are passed.
-- **Cleanup**: Excised the legacy `Credit Roll` component.
+- **Fix**: **Parchment Layout Stability**. Resolved a regression where the map view would flicker or turn blank during flight. Introduced reactive refs for heartbeat state and closure-local persistence for the last successfully rendered layout.
+- **Cleanup**: Excised the `Credit Roll` component.
+
+## v0.3.167 (2026-02-12)
+- **Fix**: **Replay Collision Buffering**. Corrected a race condition in the collision engine during replay mode that caused icons to occasionally overlap during high-speed playback.
 
 ## v0.3.166 (2026-02-12)
 - **Refinement**: **Integer Scale Markings**. Updated the dual scale bar to prefer integer markings by automatically switching to a 5-segment split when a 4-split results in decimals.

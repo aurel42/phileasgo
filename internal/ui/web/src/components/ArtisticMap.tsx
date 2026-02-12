@@ -232,6 +232,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     useEffect(() => { progressRef.current = progress; }, [progress]);
     const animationRef = useRef<number | null>(null);
     const [replayLabels, setReplayLabels] = useState<LabelCandidate[]>([]);
+    const registeredIds = useRef<Set<string>>(new Set());
 
     // Filter and sort events chronologically for stable replay
     const validEvents = useMemo(() => {
@@ -414,14 +415,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         ? narratorStatus?.current_poi?.wikidata_id : undefined;
     const preparingId = narratorStatus?.preparing_poi?.wikidata_id;
 
-    // -- Data Refs for Heartbeat --
-    const telemetryRef = useRef(telemetry);
-    const poisRef = useRef(pois);
-    const zoomRef = useRef(zoom);
-
-    useEffect(() => { telemetryRef.current = telemetry; }, [telemetry]);
-    useEffect(() => { poisRef.current = pois; }, [pois]);
-    useEffect(() => { zoomRef.current = zoom; }, [zoom]);
     // -- THE SINGLE ATOMIC STATE --
     const [frame, setFrame] = useState<MapFrame>({
         labels: [],
@@ -545,7 +538,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
         return candidates;
     };
-
     // useLayoutEffect ensures the map snapped in the SAME paint cycle as the labels
     React.useLayoutEffect(() => {
         const m = map.current;
@@ -557,6 +549,25 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             duration: 0
         });
     }, [frame.center, frame.zoom, frame.offset, styleLoaded]);
+
+    // -- Data Refs for Heartbeat (Reactive Sync) --
+    const telemetryRef = useRef(telemetry);
+    const poisRef = useRef(pois);
+    const zoomRef = useRef(zoom);
+    const lastSyncLabelsRef = useRef(lastSyncLabels);
+    const replayLabelsRef = useRef(replayLabels);
+    const validEventsRef = useRef(validEvents);
+    const poiDiscoveryTimesRef = useRef(poiDiscoveryTimes);
+    const totalTripTimeRef = useRef(totalTripTime);
+
+    useEffect(() => { telemetryRef.current = telemetry; }, [telemetry]);
+    useEffect(() => { poisRef.current = pois; }, [pois]);
+    useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+    useEffect(() => { lastSyncLabelsRef.current = lastSyncLabels; }, [lastSyncLabels]);
+    useEffect(() => { replayLabelsRef.current = replayLabels; }, [replayLabels]);
+    useEffect(() => { validEventsRef.current = validEvents; }, [validEvents]);
+    useEffect(() => { poiDiscoveryTimesRef.current = poiDiscoveryTimes; }, [poiDiscoveryTimes]);
+    useEffect(() => { totalTripTimeRef.current = totalTripTime; }, [totalTripTime]);
 
     // --- THE HEARTBEAT (Strict 0.5Hz / 2000ms) ---
     useEffect(() => {
@@ -571,14 +582,19 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         let lockedCenter: [number, number] | null = null; // [lng, lat]
         let lockedOffset: [number, number] = [0, 0];
         let lockedZoom = -1;
+        let lastLabels: LabelCandidate[] = [];
+        let lastMask: string = '';
 
         const tick = async () => {
             if (isRunning) return;
             isRunning = true;
 
+            const effectiveReplayMode = isReplayModeRef.current;
+            const currentReplayLabels = replayLabelsRef.current;
+
             // Stability Bypass: If we are in replay mode and already have our static layout,
             // we stop the heartbeat to preserve CPU and ensure absolute position freezing.
-            if (effectiveReplayMode && replayLabels.length > 0) {
+            if (effectiveReplayMode && currentReplayLabels.length > 0) {
                 isRunning = false;
                 return;
             }
@@ -590,14 +606,21 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 }
                 const m = map.current;
                 const t = telemetryRef.current;
+                const currentValidEvents = validEventsRef.current;
 
-                if (!m || !t || (!isReplayModeRef.current && t.SimState === 'disconnected')) return;
+                if (!m || !t || (!effectiveReplayMode && t.SimState === 'disconnected')) {
+                    isRunning = false;
+                    return;
+                }
 
                 // 1. Snapshot State
                 const bounds = m.getBounds();
                 const targetZoomBase = zoomRef.current;
 
-                if (!bounds) return;
+                if (!bounds) {
+                    isRunning = false;
+                    return;
+                }
 
                 // 2. BACKGROUND FETCH (Visibility Mask)
                 const fetchMask = async () => {
@@ -624,12 +647,12 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 let needsRecenter = !lockedCenter; // First tick always centers
 
                 if (lockedCenter) {
-                    const currentPos = isReplayModeRef.current && validEvents.length >= 2
-                        ? interpolatePositionFromEvents(validEvents, progressRef.current).position.reverse() as [number, number]
+                    const currentPos = effectiveReplayMode && currentValidEvents.length >= 2
+                        ? interpolatePositionFromEvents(currentValidEvents, progressRef.current).position.reverse() as [number, number]
                         : [t.Longitude, t.Latitude] as [number, number];
                     const aircraftOnMap = m.project(currentPos);
-                    const hdgRad = (isReplayModeRef.current && validEvents.length >= 2
-                        ? interpolatePositionFromEvents(validEvents, progressRef.current).heading
+                    const hdgRad = (effectiveReplayMode && currentValidEvents.length >= 2
+                        ? interpolatePositionFromEvents(currentValidEvents, progressRef.current).heading
                         : t.Heading) * (Math.PI / 180);
 
                     const adx = Math.sin(hdgRad);
@@ -672,7 +695,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     lockedZoom = Math.round(newZoom * 2) / 2;
                 }
 
-                if (isReplayModeRef.current) {
+                if (effectiveReplayMode) {
                     // PASSIVE REPLAY: Read camera from map instance (controlled by fitBounds/animations)
                     const c = m.getCenter();
                     lockedCenter = [c.lng, c.lat];
@@ -740,7 +763,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     nextCompass = { id: choice.id, lat: lngLat.lat, lon: lngLat.lng };
                     setCompassRose(nextCompass);
                     lastPlacementResults.current = { wasPlaced: true, id: nextCompass.id };
-                } else if (!results.wasPlaced && frame.labels.length > 0 && results.id === nextCompass.id) {
+                } else if (!results.wasPlaced && lastLabels.length > 0 && results.id === nextCompass.id) {
                     // Blocked by placement engine: cycle to next best corner
                     const idx = corners.findIndex(c => c.id === nextCompass?.id);
                     const nextIdx = (idx + 1) % corners.length;
@@ -764,20 +787,20 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 }
 
                 if (currentZoomSnap !== prevZoomInt) {
-                    if (!isReplayModeRef.current) {
+                    if (!effectiveReplayMode) {
                         pruneOffscreen(m.getBounds());
                     }
                     prevZoomInt = currentZoomSnap;
                 }
 
                 // 5. PROJECT using the STABLE map state
-                const currentPos = isReplayModeRef.current && validEvents.length >= 2
-                    ? interpolatePositionFromEvents(validEvents, progressRef.current).position.reverse() as [number, number]
+                const currentPos = effectiveReplayMode && currentValidEvents.length >= 2
+                    ? interpolatePositionFromEvents(currentValidEvents, progressRef.current).position.reverse() as [number, number]
                     : [t.Longitude, t.Latitude] as [number, number];
                 const aircraftPos = m.project(currentPos);
                 const aircraftX = Math.round(aircraftPos.x);
                 const aircraftY = Math.round(aircraftPos.y);
-                if (isReplayModeRef.current) {
+                if (effectiveReplayMode) {
                     console.log('[Replay] tick: aircraft projected', { currentPos, aircraftX, aircraftY, mapSize: [mapWidth, mapHeight] });
                 }
 
@@ -798,21 +821,25 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                 // 9. DAMPED COLLISION SOLVER
                 // Only execute if geography (snap/pan) or data (discovery) changes.
-                const labelsJson = JSON.stringify(lastSyncLabels.map(l => l.id));
-                const dataChanged = poisRef.current.length !== lastPoiCount.current || labelsJson !== lastLabelsJson.current;
+                const currentSyncLabels = lastSyncLabelsRef.current;
+                const currentPois = poisRef.current;
+                const labelsJson = JSON.stringify(currentSyncLabels.map(l => l.id));
+                const dataChanged = currentPois.length !== lastPoiCount.current || labelsJson !== lastLabelsJson.current;
                 const viewChanged = !lastPlacementView.current || !lockedCenter ||
                     Math.abs(lastPlacementView.current.zoom - lockedZoom) > 0.05 ||
                     Math.abs(lastPlacementView.current.lng - lockedCenter![0]) > 0.0001 ||
                     Math.abs(lastPlacementView.current.lat - lockedCenter![1]) > 0.0001;
 
-                let labels = frame.labels;
-                let finalMaskPath = frame.maskPath;
+                let labels = lastLabels;
+                let finalMaskPath = lastMask;
 
-                if (needsRecenter || dataChanged || viewChanged || firstTick) {
-                    // MUST clear every tick to avoid candidate duplication. 
-                    // Stability is provided by PlacementEngine's internal cache.
+                const isSnap = needsRecenter || viewChanged || firstTick;
+                if (isSnap) {
                     engine.clear();
+                    registeredIds.current.clear();
+                }
 
+                if (isSnap || dataChanged) {
                     // Extract Fonts from CSS Roles
                     const cityFont = adjustFont(getFontFromClass('role-title'), -4);
                     const townFont = adjustFont(getFontFromClass('role-header'), -4);
@@ -821,6 +848,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                     // 1. Process Sync Labels (Settlements from DB)
                     Array.from(accumulatedSettlements.current.values()).forEach(l => {
+                        if (registeredIds.current.has(l.id)) return;
+
                         let tierName: 'city' | 'town' | 'village' = 'village';
                         let role = villageFont;
 
@@ -842,27 +871,27 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             width: dims.width, height: dims.height, type: 'settlement', score: l.pop || 0,
                             isHistorical: false, size: 'L'
                         });
+                        registeredIds.current.add(l.id);
                     });
 
                     // 1.5. Process Compass Rose
-                    if (nextCompass) {
+                    if (nextCompass && !registeredIds.current.has(nextCompass.id)) {
                         const size = 58;
                         engine.register({
                             id: nextCompass.id, lat: nextCompass.lat, lon: nextCompass.lon,
                             text: "", tier: 'village', score: 200,
                             width: size, height: size, type: 'compass', isHistorical: false
                         });
+                        registeredIds.current.add(nextCompass.id);
                     }
 
                     // 2. Identify the "Champion POI" for labeling
                     const settlementCatSet = new Set(settlementCategories.map(c => c.toLowerCase()));
                     let champion: POI | null = null;
-                    const currentPois = poisRef.current;
 
                     currentPois.forEach(p => {
                         if (settlementCatSet.has(p.category?.toLowerCase())) return;
 
-                        // Replay Discovery Logic removed - handled in render pass
                         const normalizedName = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
                         if (normalizedName.length > 24) return;
 
@@ -873,25 +902,29 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         }
                     });
 
-                    if (isReplayModeRef.current) {
-                        const simulatedElapsed = progressRef.current * totalTripTime;
+                    let registeredNewPoi = false;
+                    if (effectiveReplayMode) {
+                        const totalTime = totalTripTimeRef.current;
+                        const discoveryTimes = poiDiscoveryTimesRef.current;
+                        const simulatedElapsed = progressRef.current * totalTime;
                         const sizePx = 26;
                         const processedIds = new Set<string>();
 
-                        validEvents.forEach(e => {
+                        currentValidEvents.forEach(e => {
                             if (!e.metadata) return;
                             const eid = e.metadata.poi_id || e.metadata.qid;
                             if (!eid || processedIds.has(eid)) return;
                             processedIds.add(eid);
 
                             // DISCOVERY-AWARE REGISTRATION:
-                            // Only register POIs in the collision system if they have already been "passed"
-                            // by the balloon's current progression.
-                            const discoveryTime = poiDiscoveryTimes.get(eid);
+                            const discoveryTime = discoveryTimes.get(eid);
                             if (discoveryTime != null) {
                                 const eventElapsed = discoveryTime - firstEventTime;
                                 if (eventElapsed > simulatedElapsed) return;
                             }
+
+                            // If already registered AND not a candidate for secondary label, skip.
+                            if (registeredIds.current.has(eid)) return;
 
                             const lat = e.metadata.poi_lat ? parseFloat(e.metadata.poi_lat) : e.lat;
                             const lon = e.metadata.poi_lon ? parseFloat(e.metadata.poi_lon) : e.lon;
@@ -914,6 +947,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                 size: (e.metadata.poi_size || 'M') as any, icon,
                                 secondaryLabel
                             });
+                            registeredIds.current.add(eid);
+                            registeredNewPoi = true;
                         });
                     } else {
                         // Live flight: use accumulated POIs from /api/pois/tracked
@@ -923,11 +958,18 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         });
 
                         Array.from(accumulatedPois.current.values()).forEach(p => {
+                            const isChampion = champion && p.wikidata_id === champion.wikidata_id;
+                            const isLabeled = labeledPoiIds.current.has(p.wikidata_id);
+                            const needsSecondary = isChampion || isLabeled;
+
+                            // Skip if already registered AND doesn't need a label update
+                            if (registeredIds.current.has(p.wikidata_id) && !needsSecondary) return;
+
                             const sizePx = 26;
                             const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
 
                             let secondaryLabel = undefined;
-                            if (labeledPoiIds.current.has(p.wikidata_id) || (champion && p.wikidata_id === champion.wikidata_id)) {
+                            if (needsSecondary) {
                                 let text = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
                                 if (secondaryFont.uppercase) text = text.toUpperCase();
                                 const dims = measureText(text, secondaryFont.font, secondaryFont.letterSpacing);
@@ -940,63 +982,70 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                 visibility: p.visibility,
                                 secondaryLabel
                             });
+                            registeredIds.current.add(p.wikidata_id);
+                            registeredNewPoi = true;
                         });
                     }
 
-                    labels = engine.compute(
-                        (lat: number, lon: number) => {
-                            // PROJECT using the TARGET map state (the one we're about to set)
-                            // This ensures the labels are placed relative to where the map WILL be.
-                            const pos = m.project([lon, lat]);
+                    if (isSnap || registeredNewPoi) {
+                        labels = engine.compute(
+                            (lat: number, lon: number) => {
+                                // PROJECT using the TARGET map state (the one we're about to set)
+                                // This ensures the labels are placed relative to where the map WILL be.
+                                const pos = m.project([lon, lat]);
 
-                            // Adjust for the offset we're about to apply
-                            return {
-                                x: pos.x - (lockedOffset[0] || 0),
-                                y: pos.y - (lockedOffset[1] || 0)
-                            };
-                        },
-                        mapWidth,
-                        mapHeight,
-                        lockedZoom
-                    );
+                                // Adjust for the offset we're about to apply
+                                return {
+                                    x: pos.x - (lockedOffset[0] || 0),
+                                    y: pos.y - (lockedOffset[1] || 0)
+                                };
+                            },
+                            mapWidth,
+                            mapHeight,
+                            lockedZoom
+                        );
 
-                    // Update fail/success memory for Champion
-                    if (champion) {
-                        const placedChamp = labels.find(l => l.id === (champion as POI).wikidata_id);
-                        if (placedChamp && placedChamp.secondaryLabel) {
-                            if (placedChamp.secondaryLabelPos) {
-                                labeledPoiIds.current.add((champion as POI).wikidata_id);
-                            } else {
-                                failedPoiLabelIds.current.add((champion as POI).wikidata_id);
+                        // Update fail/success memory for Champion
+                        if (champion) {
+                            const placedChamp = labels.find(l => l.id === (champion as POI).wikidata_id);
+                            if (placedChamp && placedChamp.secondaryLabel) {
+                                if (placedChamp.secondaryLabelPos) {
+                                    labeledPoiIds.current.add((champion as POI).wikidata_id);
+                                } else {
+                                    failedPoiLabelIds.current.add((champion as POI).wikidata_id);
+                                }
                             }
                         }
+
+                        finalMaskPath = lastMaskData ? maskToPath(lastMaskData, m) : '';
+
+                        // Update tracking refs
+                        lastPoiCount.current = currentPois.length;
+                        lastLabelsJson.current = labelsJson;
+                        lastPlacementView.current = { lng: lockedCenter![0], lat: lockedCenter![1], zoom: lockedZoom };
                     }
 
-                    finalMaskPath = lastMaskData ? maskToPath(lastMaskData, m) : '';
+                    // 10. COMMIT
+                    lastLabels = labels;
+                    lastMask = finalMaskPath;
 
-                    // Update tracking refs
-                    lastPoiCount.current = currentPois.length;
-                    lastLabelsJson.current = labelsJson;
-                    lastPlacementView.current = { lng: lockedCenter![0], lat: lockedCenter![1], zoom: lockedZoom };
+                    if (effectiveReplayMode) {
+                        console.log('[Replay] tick: committing frame', { center: lockedCenter, zoom: targetZoom, aircraftX, aircraftY, labelCount: labels.length });
+                    }
+                    setFrame(prev => ({
+                        ...prev,
+                        maskPath: finalMaskPath,
+                        center: lockedCenter!,
+                        zoom: targetZoom,
+                        offset: lockedOffset,
+                        heading: t.Heading,
+                        bearingLine: bLine,
+                        aircraftX,
+                        aircraftY,
+                        agl: t.AltitudeAGL,
+                        labels: labels
+                    }));
                 }
-
-                // 10. COMMIT
-                if (isReplayModeRef.current) {
-                    console.log('[Replay] tick: committing frame', { center: lockedCenter, zoom: targetZoom, aircraftX, aircraftY, labelCount: labels.length });
-                }
-                setFrame(prev => ({
-                    ...prev,
-                    maskPath: finalMaskPath,
-                    center: lockedCenter!,
-                    zoom: targetZoom,
-                    offset: lockedOffset,
-                    heading: t.Heading,
-                    bearingLine: bLine,
-                    aircraftX,
-                    aircraftY,
-                    agl: t.AltitudeAGL,
-                    labels: labels
-                }));
             } catch (err) {
                 console.error("Heartbeat Loop Crash:", err);
             } finally {
@@ -1007,7 +1056,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         tick();
         const interval = setInterval(tick, 2000);
         return () => clearInterval(interval);
-    }, [styleLoaded, memoizedCategories, fontsLoaded]);
+    }, [styleLoaded, memoizedCategories]);
 
     // Discovery filter is now in the render loop. Placement is in the heartbeat.
 
