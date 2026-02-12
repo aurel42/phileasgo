@@ -1,9 +1,12 @@
 ﻿Release History
 
+## v0.3.166 (2026-02-12)
+- **Refinement**: **Integer Scale Markings**. Updated the dual scale bar to prefer integer markings by automatically switching to a 5-segment split when a 4-split results in decimals.
+
+
 ## v0.3.165 (2026-02-12)
 - **Removal**: **Visibility Map Feature**. Completely excised the "Render Visibility Layer as Map" debug feature from both frontend and backend to simplify the codebase and map aesthetics.
 - **Refinement**: **Simplified Visibility Layer**. Gutted over 100 lines of complex canvas compositing logic in the web UI while preserving the core flight-assist visibility rings.
-
 
 ## v0.3.164 (2026-02-11)
 - **New Feature**: **Navigator's Dual-Scale Bar**. Added an antique-style scale bar to the bottom-left of the artistic map, displaying both Kilometers and Nautical Miles with checkered hatching. Mercator-corrected for latitude, with clean number snapping.

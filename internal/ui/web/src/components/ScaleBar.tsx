@@ -5,7 +5,6 @@ const CLEAN_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 20
 
 // Faded blue ink palette (antique cartographic blue)
 const BLUE_INK = 'rgba(45, 65, 105, 0.85)';
-const SEGMENT_COUNT = 4;
 
 interface ScaleBarProps {
     zoom: number;
@@ -28,8 +27,18 @@ function computeAxis(metersPerPixel: number, targetPx: number, unitMeters: numbe
     const rawDistance = (metersPerPixel * targetPx) / unitMeters;
     const cleanValue = snapToClean(rawDistance);
     const barWidthPx = (cleanValue * unitMeters) / metersPerPixel;
-    const segmentWidthPx = barWidthPx / SEGMENT_COUNT;
-    return { cleanValue, barWidthPx, segmentWidthPx };
+
+    // Heuristic: Prefer 4 splits, but switch to 5 if 4 results in decimals and 5 results in integers
+    const isInt = (n: number) => n % 1 === 0;
+    let segmentCount = 4;
+    // Check if 4-split is messy (decimals) but 5-split is clean (integers)
+    // Only applies for values >= 1 to avoid over-complicating sub-unit scales
+    if (cleanValue >= 1 && !isInt(cleanValue / 4) && isInt(cleanValue / 5)) {
+        segmentCount = 5;
+    }
+
+    const segmentWidthPx = barWidthPx / segmentCount;
+    return { cleanValue, barWidthPx, segmentWidthPx, segmentCount };
 }
 
 /**
@@ -65,7 +74,7 @@ export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
     const fmt = (v: number) => (v >= 1 ? String(v) : v.toFixed(1));
 
     const renderAxis = (
-        axis: { cleanValue: number; barWidthPx: number; segmentWidthPx: number },
+        axis: { cleanValue: number; barWidthPx: number; segmentWidthPx: number; segmentCount: number },
         unit: string,
         yOffset: number,
         labelAbove: boolean
@@ -74,7 +83,7 @@ export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
         const ticks = [];
         const labels = [];
 
-        for (let i = 0; i < SEGMENT_COUNT; i++) {
+        for (let i = 0; i < axis.segmentCount; i++) {
             const x = i * axis.segmentWidthPx;
             const fill = i % 2 === 0 ? 'url(#scale-hatch)' : 'none';
             segments.push(
@@ -92,7 +101,7 @@ export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
         }
 
         // Tick marks and number labels at each division
-        for (let i = 0; i <= SEGMENT_COUNT; i++) {
+        for (let i = 0; i <= axis.segmentCount; i++) {
             const x = i * axis.segmentWidthPx;
             const ty = labelAbove ? yOffset - tickHeight : yOffset + barHeight;
 
@@ -110,7 +119,7 @@ export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
 
             // Number label at each tick (skip 0 to avoid clutter)
             if (i > 0) {
-                const value = (axis.cleanValue / SEGMENT_COUNT) * i;
+                const value = (axis.cleanValue / axis.segmentCount) * i;
                 const ly = labelAbove ? yOffset - tickHeight - 3 : yOffset + barHeight + tickHeight + 10;
 
                 labels.push(
