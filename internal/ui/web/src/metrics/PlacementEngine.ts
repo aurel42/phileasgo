@@ -416,7 +416,7 @@ export class PlacementEngine {
         if (collisions.length > 0) {
             // A secondary label (ownerId: X_sec) SHOULD collide with its own primary (ownerId: X)
             // But we must check if the ONLY collision is itself (which shouldn't happen with RBush if we haven't inserted yet)
-            const LOG_PLACEMENT = true;
+            const LOG_PLACEMENT = false;
             if (LOG_PLACEMENT) {
                 const collidedWith = collisions.map(c => c.ownerId).join(', ');
                 console.log(`[Placement] REJECTED: ${id} (${type}) collided with: [${collidedWith}] rect=[${minX.toFixed(1)}, ${minY.toFixed(1)}, ${maxX.toFixed(1)}, ${maxY.toFixed(1)}]`);
@@ -425,7 +425,7 @@ export class PlacementEngine {
         }
 
         const box = { minX, minY, maxX, maxY, ownerId: id, type };
-        const LOG_PLACEMENT = true;
+        const LOG_PLACEMENT = false;
         if (LOG_PLACEMENT) console.log(`[Placement] PLACED: ${id} (${type}) rect=[${minX.toFixed(1)}, ${minY.toFixed(1)}, ${maxX.toFixed(1)}, ${maxY.toFixed(1)}]`);
         this.tree.insert(box);
         return true;

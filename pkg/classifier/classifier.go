@@ -94,11 +94,12 @@ func (c *Classifier) Classify(ctx context.Context, qid string) (*model.Classific
 
 // ExplanationResult provides details about classification
 type ExplanationResult struct {
-	Category   string
-	Size       string
-	Ignored    bool
-	Reason     string
-	MatchedQID string
+	Category     string
+	Size         string
+	Ignored      bool
+	Reason       string
+	MatchedQID   string
+	SitelinksMin int
 }
 
 // Explain analyzes a QID and returns details on why it was classified (or not).
@@ -124,11 +125,17 @@ func (c *Classifier) Explain(ctx context.Context, qid string) (*ExplanationResul
 		if res != nil {
 			if !res.Ignored {
 				// Found proper match
+				sMin := 0
+				if cat, ok := c.config.Categories[res.Category]; ok {
+					sMin = cat.SitelinksMin
+				}
+
 				return &ExplanationResult{
-					Category:   res.Category,
-					Size:       res.Size,
-					Reason:     fmt.Sprintf("Matched via instance %s", inst),
-					MatchedQID: inst,
+					Category:     res.Category,
+					Size:         res.Size,
+					Reason:       fmt.Sprintf("Matched via instance %s", inst),
+					MatchedQID:   inst,
+					SitelinksMin: sMin,
 				}, nil
 			}
 			// Track ignored result as fallback

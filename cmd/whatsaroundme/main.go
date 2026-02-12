@@ -230,7 +230,14 @@ func printResults(ctx context.Context, cls *classifier.Classifier, st *store.SQL
 				reason = fmt.Sprintf("%s (%s)", exp.Reason, resolveName(ctx, st, wd, exp.MatchedQID))
 			case exp.Category != "":
 				cat = fmt.Sprintf("%s (%s)", exp.Category, exp.Size)
-				reason = fmt.Sprintf("via %s (%s)", exp.MatchedQID, resolveName(ctx, st, wd, exp.MatchedQID))
+
+				// Quality Check: Sitelinks
+				if a.Article.Sitelinks < exp.SitelinksMin {
+					cat = "FILTERED(SL)"
+					reason = fmt.Sprintf("[SKIP: %d/%d SL] via %s (%s)", a.Article.Sitelinks, exp.SitelinksMin, exp.MatchedQID, resolveName(ctx, st, wd, exp.MatchedQID))
+				} else {
+					reason = fmt.Sprintf("via %s (%s)", exp.MatchedQID, resolveName(ctx, st, wd, exp.MatchedQID))
+				}
 			default:
 				reason = exp.Reason
 			}

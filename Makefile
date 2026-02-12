@@ -31,7 +31,7 @@ build-web:
 run: build
 	./$(APP_NAME).exe
 
-test: lint unit-test
+test: lint unit-test test-web
 
 lint:
 	golangci-lint run
@@ -39,6 +39,9 @@ lint:
 
 unit-test:
 	go test ./...
+
+test-web:
+	cd $(WEB_PATH) && npm run test
 
 vendor:
 	go mod vendor

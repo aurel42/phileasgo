@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import * as d3 from 'd3-force';
 import type { TripEvent } from '../hooks/useTripEvents';
+import { interpolatePosition, isTransitionEvent, isAirportNearTerminal, type CreditItem } from '../utils/replay';
+import { CreditRoll } from './CreditRoll';
 
 interface TripReplayOverlayProps {
     events: TripEvent[];
@@ -57,12 +59,7 @@ const COLORS = {
 // Credit Roll timing - when to add a name to the roll (at spawn)
 const CREDIT_TRIGGER_AGE = 0; // Trigger immediately when marker appears
 
-// Credit roll item with timestamp for animation
-interface CreditItem {
-    id: string;
-    name: string;
-    addedAt: number; // Timestamp when added to the roll
-}
+// CreditItem moved to ../utils/replay
 
 // Interpolate between two hex colors
 const lerpColor = (colorA: string, colorB: string, t: number): string => {
@@ -148,168 +145,14 @@ const miniPlaneSvg = `
 </svg>
 `;
 
-// Calculate heading from point A to point B
-const calculateHeading = (from: [number, number], to: [number, number]): number => {
-    const dLon = (to[1] - from[1]) * Math.PI / 180;
-    const lat1 = from[0] * Math.PI / 180;
-    const lat2 = to[0] * Math.PI / 180;
-    const y = Math.sin(dLon) * Math.cos(lat2);
-    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-    const bearing = Math.atan2(y, x) * 180 / Math.PI;
-    return (bearing + 360) % 360;
-};
-
-// Check if an event is a non-content transition (take-off, landing, flight stage)
-const isTransitionEvent = (type: string): boolean => type === 'transition' || type === 'flight_stage';
-
-// Helper to check if a POI is an airport near departure/destination (within 5km)
-const isAirportNearTerminal = (poi: TripEvent, departure: [number, number] | null, destination: [number, number] | null): boolean => {
-    // Check if this is an airport/aerodrome by icon or category
-    const icon = poi.metadata?.icon?.toLowerCase() || '';
-    const poiCategory = poi.metadata?.poi_category?.toLowerCase() || '';
-    const isAirport = icon === 'airfield' || poiCategory === 'aerodrome';
-    if (!isAirport) return false;
-
-    const lat = poi.metadata?.poi_lat ? parseFloat(poi.metadata.poi_lat) : poi.lat;
-    const lon = poi.metadata?.poi_lon ? parseFloat(poi.metadata.poi_lon) : poi.lon;
-    const threshold = 0.045; // ~5km in degrees
-
-    // Check distance from departure or destination
-    if (departure) {
-        const dLat = Math.abs(lat - departure[0]);
-        const dLon = Math.abs(lon - departure[1]);
-        if (dLat < threshold && dLon < threshold) return true;
-    }
-    if (destination) {
-        const dLat = Math.abs(lat - destination[0]);
-        const dLon = Math.abs(lon - destination[1]);
-        if (dLat < threshold && dLon < threshold) return true;
-    }
-    return false;
-};
-
 // Interpolate position along a polyline based on progress (0-1)
-const interpolatePosition = (
-    points: [number, number][],
-    progress: number
-): { position: [number, number]; heading: number; segmentIndex: number } => {
-    if (points.length < 2) {
-        return { position: points[0] || [0, 0], heading: 0, segmentIndex: 0 };
-    }
+// Deleted duplication here as it is now imported from ../utils/replay
 
-    // Calculate total distance
-    let totalDist = 0;
-    const segmentDists: number[] = [];
-    for (let i = 1; i < points.length; i++) {
-        const d = Math.sqrt(
-            Math.pow(points[i][0] - points[i - 1][0], 2) +
-            Math.pow(points[i][1] - points[i - 1][1], 2)
-        );
-        segmentDists.push(d);
-        totalDist += d;
-    }
+// isTransitionEvent and isAirportNearTerminal moved to ../utils/replay
 
-    const targetDist = progress * totalDist;
-    let accumulated = 0;
+// interpolatePosition moved to ../utils/replay
 
-    for (let i = 0; i < segmentDists.length; i++) {
-        if (accumulated + segmentDists[i] >= targetDist) {
-            const remaining = targetDist - accumulated;
-            const ratio = remaining / segmentDists[i];
-            const lat = points[i][0] + (points[i + 1][0] - points[i][0]) * ratio;
-            const lon = points[i][1] + (points[i + 1][1] - points[i][1]) * ratio;
-            const heading = calculateHeading(points[i], points[i + 1]);
-            return { position: [lat, lon], heading, segmentIndex: i };
-        }
-        accumulated += segmentDists[i];
-    }
-
-    // Fallback to end
-    const lastIdx = points.length - 1;
-    return {
-        position: points[lastIdx],
-        heading: calculateHeading(points[lastIdx - 1], points[lastIdx]),
-        segmentIndex: segmentDists.length - 1,
-    };
-};
-
-// Credit Roll component - scrolling POI names
-// Uses absolute positioning per item to prevent layout jumps when new items are added
-const CreditRoll = ({ items, totalPOICount, mapContainer, currentTime }: {
-    items: CreditItem[];
-    totalPOICount: number;
-    mapContainer: HTMLElement | null;
-    currentTime: number;
-}) => {
-    const now = currentTime;
-
-    // Adaptive timing: more POIs = faster scroll
-    // Base: 9s visible time for few POIs, down to 3s for many (50% slower than original)
-    const visibleDuration = Math.max(3000, 9000 - (totalPOICount * 75));
-
-    // Filter to items still in view (not yet scrolled off)
-    const visibleItems = items.filter(item => {
-        const age = now - item.addedAt;
-        return age < visibleDuration;
-    });
-
-    if (visibleItems.length === 0 || !mapContainer) return null;
-
-    // Get map bounds for positioning
-    const mapRect = mapContainer.getBoundingClientRect();
-    const mapHeight = mapRect.height;
-
-    return (
-        <div style={{
-            position: 'fixed',
-            top: mapRect.top,
-            left: mapRect.left,
-            width: mapRect.width,
-            height: mapRect.height,
-            overflow: 'hidden', // Clip items outside map bounds
-            pointerEvents: 'none',
-            zIndex: 9999,
-        }}>
-            {visibleItems.map((item) => {
-                const age = now - item.addedAt;
-                const progress = age / visibleDuration;
-
-                // Scroll from bottom to top of map
-                // progress 0 = bottom of map, progress 1 = top of map
-                const yPos = mapHeight * (1 - progress);
-
-                return (
-                    <div
-                        key={item.id}
-                        className="role-title"
-                        style={{
-                            position: 'absolute',
-                            left: '50%',
-                            top: yPos,
-                            transform: 'translate(-50%, -50%)',
-                            fontSize: '18px',
-                            fontWeight: 500,
-                            // White text with black outline
-                            color: '#ffffff',
-                            textShadow: `
-                                -1px -1px 0 #000,
-                                1px -1px 0 #000,
-                                -1px 1px 0 #000,
-                                1px 1px 0 #000,
-                                0 0 4px rgba(0,0,0,0.8)
-                            `,
-                            textAlign: 'center',
-                            maxWidth: '90%',
-                            padding: '0 5%',
-                        }}
-                    >
-                        {item.name}
-                    </div>
-                );
-            })}
-        </div>
-    );
-};
+// CreditRoll moved to ./CreditRoll.tsx
 
 // Smart POI marker component with tether line, lifecycle animation
 const SmartReplayMarker = ({ node }: { node: ReplayNode }) => {
