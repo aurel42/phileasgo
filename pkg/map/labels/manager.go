@@ -177,6 +177,7 @@ func (m *Manager) SelectLabels(
 	lonSpan := maxLon - minLon
 
 	activeBeforePrune := len(m.activeSettlements)
+	_ = activeBeforePrune
 
 	// 1. Zoom-level change: clear all state
 	zoomFloor := int(math.Floor(zoom))
@@ -198,6 +199,7 @@ func (m *Manager) SelectLabels(
 	exp := expandBbox(vp, heading)
 	m.pruneActive(exp, latSpan*0.2, lonSpan*0.2)
 	activeAfterPrune := len(m.activeSettlements)
+	_ = activeAfterPrune
 
 	// 3. Get candidates from the expanded bbox
 	var scored []LabelCandidate
@@ -209,6 +211,7 @@ func (m *Manager) SelectLabels(
 	// 3b. Filter by settlement tier
 	tier := m.getTier()
 	beforeTier := len(scored)
+	_ = beforeTier
 	scored = filterByTier(scored, tier)
 
 	sort.Slice(scored, func(i, j int) bool {
@@ -224,28 +227,21 @@ func (m *Manager) SelectLabels(
 		msrRatio = math.Max(0.10, MinSeparationRatio-float64(limit-6)*0.01)
 	}
 	msrDegSq := math.Pow(shortSpan*msrRatio, 2)
-	msrDeg := math.Sqrt(msrDegSq)
 
-	slog.Debug("[labels] sync",
-		"vp", fmt.Sprintf("%.3f,%.3f→%.3f,%.3f", minLat, minLon, maxLat, maxLon),
-		"zoom", fmt.Sprintf("%.1f", zoom),
-		"heading", fmt.Sprintf("%.0f", heading),
-		"limit", limit,
-		"tier", tier,
-		"global", len(globalCands),
-		"local", len(localCands),
-		"afterTier", len(scored),
-		"tierFiltered", beforeTier-len(scored),
-		"activeBefore", activeBeforePrune,
-		"activeAfterPrune", activeAfterPrune,
-		"msrDeg", fmt.Sprintf("%.4f", msrDeg),
-		"msrRatio", fmt.Sprintf("%.2f", msrRatio),
-		"shortSpan", fmt.Sprintf("%.4f", shortSpan),
-	)
+	// NEW: Track which settlements were "Inner" (visible and not fading/shadow) before the greedy selection
+	// to implement directional/stateful fading.
+	wasInner := make(map[string]bool)
+	for id, s := range m.activeSettlements {
+		if !s.IsShadow && !s.Fading {
+			wasInner[id] = true
+		}
+	}
 
 	stats := m.greedySelect(scored, vp, existingLabels, limit, msrDegSq)
 
-	// 5. Mark fading: settlements near/past viewport edge are tracked but not counted or returned
+	// 5. Mark fading: settlements leaving the viewport move to Margin and free up slots.
+	// To prevent newly entering labels from being dropped, we only toggle Fading if the label
+	// was previously in the "Inner" area.
 	insetVp := bbox{
 		minLat: vp.minLat + latSpan*0.05,
 		minLon: vp.minLon + lonSpan*0.05,
@@ -255,7 +251,11 @@ func (m *Manager) SelectLabels(
 	fadingCount := 0
 	for _, s := range m.activeSettlements {
 		if !s.IsShadow {
-			s.Fading = !insetVp.contains(s.City.Lat, s.City.Lon)
+			inMargin := !insetVp.contains(s.City.Lat, s.City.Lon)
+			// Stateful Fade: Only fade if it was "Stable" and moved to Margin, or if it was already Fading.
+			// Labels entering from Shadow (IsEntering) remain non-fading even if they hit the margin first.
+			s.Fading = inMargin && (s.Fading || wasInner[s.GenericID])
+
 			if s.Fading {
 				fadingCount++
 			}

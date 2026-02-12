@@ -613,6 +613,14 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     return;
                 }
 
+                // 1. Unified Aircraft State (Live vs Replay)
+                const acState = effectiveReplayMode && currentValidEvents.length >= 2
+                    ? (() => {
+                        const interp = interpolatePositionFromEvents(currentValidEvents, progressRef.current);
+                        return { lat: interp.position[0], lon: interp.position[1], heading: interp.heading };
+                    })()
+                    : { lat: t.Latitude, lon: t.Longitude, heading: t.Heading };
+
                 // 1. Snapshot State
                 const bounds = m.getBounds();
                 const targetZoomBase = zoomRef.current;
@@ -647,13 +655,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 let needsRecenter = !lockedCenter; // First tick always centers
 
                 if (lockedCenter) {
-                    const currentPos = effectiveReplayMode && currentValidEvents.length >= 2
-                        ? interpolatePositionFromEvents(currentValidEvents, progressRef.current).position.reverse() as [number, number]
-                        : [t.Longitude, t.Latitude] as [number, number];
+                    const currentPos: [number, number] = [acState.lon, acState.lat];
                     const aircraftOnMap = m.project(currentPos);
-                    const hdgRad = (effectiveReplayMode && currentValidEvents.length >= 2
-                        ? interpolatePositionFromEvents(currentValidEvents, progressRef.current).heading
-                        : t.Heading) * (Math.PI / 180);
+                    const hdgRad = acState.heading * (Math.PI / 180);
 
                     const adx = Math.sin(hdgRad);
                     const ady = -Math.cos(hdgRad);
@@ -675,11 +679,11 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 if (needsRecenter) {
                     // Re-center: place aircraft with heading offset (35% pushes it well behind center)
                     const offsetPx = Math.min(mapWidth, mapHeight) * 0.35;
-                    const hdgRad = t.Heading * (Math.PI / 180);
+                    const hdgRad = acState.heading * (Math.PI / 180);
                     const dx = offsetPx * Math.sin(hdgRad);
                     const dy = -offsetPx * Math.cos(hdgRad);
 
-                    lockedCenter = [t.Longitude, t.Latitude];
+                    lockedCenter = [acState.lon, acState.lat];
                     lockedOffset = [-dx, -dy];
 
                     // Compute zoom: fit visibility cone if available, otherwise use base
@@ -711,9 +715,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 const b = m.getBounds();
                 labelService.fetchLabels({
                     bbox: [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()],
-                    ac_lat: t.Latitude,
-                    ac_lon: t.Longitude,
-                    heading: t.Heading,
+                    ac_lat: acState.lat,
+                    ac_lon: acState.lon,
+                    heading: acState.heading,
                     zoom: lockedZoom
                 }).then(newLabels => {
                     newLabels.forEach(l => accumulatedSettlements.current.set(l.id, l));
@@ -794,27 +798,24 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 }
 
                 // 5. PROJECT using the STABLE map state
-                const currentPos = effectiveReplayMode && currentValidEvents.length >= 2
-                    ? interpolatePositionFromEvents(currentValidEvents, progressRef.current).position.reverse() as [number, number]
-                    : [t.Longitude, t.Latitude] as [number, number];
-                const aircraftPos = m.project(currentPos);
+                const aircraftPos = m.project([acState.lon, acState.lat]);
                 const aircraftX = Math.round(aircraftPos.x);
                 const aircraftY = Math.round(aircraftPos.y);
                 if (effectiveReplayMode) {
-                    console.log('[Replay] tick: aircraft projected', { currentPos, aircraftX, aircraftY, mapSize: [mapWidth, mapHeight] });
+                    console.log('[Replay] tick: aircraft projected', { currentPos: [acState.lon, acState.lat], aircraftX, aircraftY, mapSize: [mapWidth, mapHeight] });
                 }
 
                 // 7. BEARING LINE
-                const lat1 = t.Latitude * Math.PI / 180;
-                const lon1 = t.Longitude * Math.PI / 180;
-                const brng = t.Heading * Math.PI / 180;
+                const lat1 = acState.lat * Math.PI / 180;
+                const lon1 = acState.lon * Math.PI / 180;
+                const brng = acState.heading * Math.PI / 180;
                 const R = 3440.065; const d = 50.0;
                 const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d / R) + Math.cos(lat1) * Math.sin(d / R) * Math.cos(brng));
                 const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d / R) * Math.cos(lat1), Math.cos(d / R) - Math.sin(lat1) * Math.sin(lat2));
 
                 const bLine: Feature<any> = {
                     type: 'Feature', properties: {},
-                    geometry: { type: 'LineString', coordinates: [[t.Longitude, t.Latitude], [lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]] }
+                    geometry: { type: 'LineString', coordinates: [[acState.lon, acState.lat], [lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]] }
                 };
                 const lineSource = m.getSource('bearing-line') as maplibregl.GeoJSONSource;
                 if (lineSource) lineSource.setData(bLine);
@@ -1252,8 +1253,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         const swayIn = 24;
                         // Deterministic sway direction based on ID to keep it stable but organic
                         const swayDir = (l.id.charCodeAt(0) % 2 === 0 ? 1 : -1);
-                        const startX = l.trueX || 0;
-                        const startY = l.trueY || 0;
+                        const startX = geoPos.x;
+                        const startY = geoPos.y;
                         const endX = finalX;
                         const endY = finalY;
                         const dy = endY - startY;

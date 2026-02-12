@@ -1,14 +1,20 @@
 ﻿Release History
 
+## v0.3.169 (2026-02-12)
+- **Improvement**: **Interpolated Replay Telemetry**. Corrected a regression in Replay Mode by unifying aircraft state, ensuring labels and markers correctly follow the interpolated flight path even when Sim telemetry is absent.
+- **Improvement**: **Stateful Label Fading**. Refined the settlement manager to distinguish between entering and leaving labels, preventing newly discovered cities from prematurely vanishing while clearing slots for distant ones.
+- **Improvement**: **Dynamic Map Tethers**. Anchored calligraphic tethers to the 60fps render-loop projection, ensuring they stay perfectly locked to POI centers during pans and snaps.
+- **Refinement**: **Reordered System Dashboard**. Moved the System Diagnostics card to the bottom of the dashboard sidebar, prioritizing active flight data and telemetry.
+
 ## v0.3.168 (2026-02-12)
+- **Fix**: **Parchment Layout Stability**. Resolved a regression where the map view would flicker or turn blank during flight. Introduced reactive refs for heartbeat state and closure-local persistence for the last successfully rendered layout.
+
+## v0.3.167 (2026-02-12)
 - **New Feature**: **Stable Replay Layout**. Implemented a one-time placement calculation for the entire trip in replay mode, ensuring absolute symbol stability and preventing icons from vanishing during playback.
 - **Improvement**: **Instant Replay Start**. Automatically truncates stationary pre-flight data to start the replay exactly at the moment of take-off.
 - **Improvement**: **Render-Loop Projection**. Migrated icon and label projection to the 60fps render loop, ensuring markers stay perfectly locked to the map during pans.
 - **Improvement**: **Discovery-Aware Symbol Fading**. POI markers now trigger independent 2-second fade-ins at the exact moment they are passed.
-- **Fix**: **Parchment Layout Stability**. Resolved a regression where the map view would flicker or turn blank during flight. Introduced reactive refs for heartbeat state and closure-local persistence for the last successfully rendered layout.
 - **Cleanup**: Excised the `Credit Roll` component.
-
-## v0.3.167 (2026-02-12)
 - **Fix**: **Replay Collision Buffering**. Corrected a race condition in the collision engine during replay mode that caused icons to occasionally overlap during high-speed playback.
 
 ## v0.3.166 (2026-02-12)

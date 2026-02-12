@@ -30,6 +30,7 @@ export const InfoPanel = ({
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [stats, setStats] = useState<any>(null);
+    const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
     const { location } = useGeography(telemetry);
 
     // Use ref to access latest telemetry in interval without resetting it
@@ -123,26 +124,11 @@ export const InfoPanel = ({
     const agl = Math.round(telemetry.AltitudeAGL);
     const msl = Math.round(telemetry.AltitudeMSL);
 
-    const sysMem = stats?.system?.memory_alloc_mb || 0;
-    const sysMemMax = stats?.system?.memory_max_mb || 0;
     const trackedCount = stats?.tracking?.active_pois || 0;
+    const diagnostics = stats?.diagnostics || [];
 
     return (
         <div className="hud-container">
-            <div className="hud-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <div className="status-dot" style={{
-                        width: '8px',
-                        height: '8px',
-                        marginRight: '8px',
-                        backgroundColor: simStateDisplay === 'disconnected' ? '#ef4444' : (simStateDisplay === 'paused' ? '#fbbf24' : '#22c55e')
-                    }}></div>
-                    <span className="role-label" style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>
-                        SIM {simStateDisplay}
-                    </span>
-                </div>
-            </div>
-
             {/* Flight Data Flex Layout */}
             <div className="flex-container">
                 {/* 1. HDG @ GS */}
@@ -222,6 +208,7 @@ export const InfoPanel = ({
                     </div>
                 </div>
             </div>
+
 
             {/* Statistics Flex Layout (API stats) */}
             <div className="stats-container">
@@ -303,9 +290,23 @@ export const InfoPanel = ({
             <div className="hud-footer">
                 <div className="hud-card footer" onClick={onSettingsClick} style={{ flexDirection: 'column', gap: '8px', padding: '10px 16px', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                        <div className="role-label" style={{ display: 'flex', gap: '12px' }}>
-                            <span>POI(vis) <span className="role-num-sm">{nonBlueCount}</span><span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px', marginLeft: '4px', marginRight: '4px' }}>◆</span><span className="role-num-sm" style={{ color: '#3b82f6' }}>{blueCount}</span></span>
-                            <span>POI(tracked) <span className="role-num-sm">{trackedCount}</span></span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <div className="status-dot" style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    marginRight: '8px',
+                                    backgroundColor: simStateDisplay === 'disconnected' ? '#ef4444' : (simStateDisplay === 'paused' ? '#fbbf24' : '#22c55e')
+                                }}></div>
+                                <span className="role-label" style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '11px' }}>
+                                    SIM {simStateDisplay}
+                                </span>
+                            </div>
+
+                            <div className="role-label" style={{ display: 'flex', gap: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '12px' }}>
+                                <span>POI(vis) <span className="role-num-sm">{nonBlueCount}</span><span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px', marginLeft: '4px', marginRight: '4px' }}>◆</span><span className="role-num-sm" style={{ color: '#3b82f6' }}>{blueCount}</span></span>
+                                <span>POI(tracked) <span className="role-num-sm">{trackedCount}</span></span>
+                            </div>
                         </div>
                         {versionMatch ? (
                             <div className="role-num-sm" style={{ opacity: 0.5 }}>{frontendVersion}</div>
@@ -343,13 +344,53 @@ export const InfoPanel = ({
                                 </div>
                             </div>
                         </div>
-
-                        <div className="role-label" style={{ opacity: 0.6 }}>
-                            MEM {sysMem}MB / {sysMemMax}MB
-                        </div>
                     </div>
                 </div>
+
+                {/* Diagnostics Table moved to bottom */}
+                {diagnostics.length > 0 && (
+                    <div className="flex-card" style={{ marginTop: '12px', padding: '12px 16px' }}>
+                        <div
+                            className="role-header"
+                            style={{
+                                marginBottom: isDiagnosticsOpen ? '8px' : '0',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                cursor: 'pointer'
+                            }}
+                            onClick={() => setIsDiagnosticsOpen(!isDiagnosticsOpen)}
+                        >
+                            <span>System Diagnostics</span>
+                            <span style={{ fontSize: '10px', opacity: 0.5 }}>{isDiagnosticsOpen ? '▼' : '▶'}</span>
+                        </div>
+                        {isDiagnosticsOpen && (
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ textAlign: 'left' }}>
+                                        <th className="role-label" style={{ paddingBottom: '4px' }}>Process</th>
+                                        <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right' }}>Memory</th>
+                                        <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right', opacity: 0.5 }}>(Max)</th>
+                                        <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right' }}>CPU/s</th>
+                                        <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right', opacity: 0.5 }}>(Max)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {diagnostics.map((d: any) => (
+                                        <tr key={d.name} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <td className="role-label" style={{ padding: '4px 0', color: 'var(--text-color)' }}>{d.name}</td>
+                                            <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right' }}>{d.memory_mb}MB</td>
+                                            <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right', opacity: 0.5 }}>{d.memory_max_mb}</td>
+                                            <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right' }}>{d.cpu_sec.toFixed(2)}</td>
+                                            <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right', opacity: 0.5 }}>{d.cpu_max_sec.toFixed(2)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                )}
             </div>
-        </div >
+        </div>
     );
 };
