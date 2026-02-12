@@ -18,6 +18,9 @@ export const CompassRose: React.FC<{ size: number }> = ({ size }) => {
                 {/* Through Lines (Opposite Points) */}
                 <line x1="50" y1="5" x2="50" y2="95" stroke="currentColor" strokeWidth="0.3" opacity="0.4" />
                 <line x1="5" y1="50" x2="95" y2="50" stroke="currentColor" strokeWidth="0.3" opacity="0.4" />
+                {/* Diagonal Through Lines */}
+                <line x1="18" y1="18" x2="82" y2="82" stroke="currentColor" strokeWidth="0.3" opacity="0.4" />
+                <line x1="82" y1="18" x2="18" y2="82" stroke="currentColor" strokeWidth="0.3" opacity="0.4" />
 
                 {/* Sub-Star (Diagonals) - Slimmer, solid, fully dark */}
                 <g opacity="0.8">

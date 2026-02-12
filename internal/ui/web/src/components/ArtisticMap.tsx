@@ -743,7 +743,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             <div ref={mapContainer} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', color: 'black' }} />
 
             {/* Dual-Scale Bar (above paper, below labels) */}
-            <ScaleBar zoom={frame.zoom} latitude={frame.center[0]} />
+            <ScaleBar zoom={frame.zoom} latitude={frame.center[1]} />
 
             {/* Labels Overlay (Atomic from Frame) */}
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>

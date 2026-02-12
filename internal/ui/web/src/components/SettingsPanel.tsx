@@ -13,8 +13,6 @@ interface SettingsPanelProps {
     onCacheLayerChange: (val: boolean) => void;
     showVisibilityLayer: boolean;
     onVisibilityLayerChange: (val: boolean) => void;
-    renderVisibilityAsMap: boolean;
-    onRenderVisibilityAsMapChange: (val: boolean) => void;
     activeMapStyle: string;
     onActiveMapStyleChange: (val: string) => void;
     minPoiScore: number;
@@ -127,7 +125,6 @@ interface DraftState {
     units: 'km' | 'nm';
     showCacheLayer: boolean;
     showVisibilityLayer: boolean;
-    renderVisibilityAsMap: boolean;
     activeMapStyle: string;
     streamingMode: boolean;
     // Scorer tab
@@ -183,8 +180,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     onNarrationLengthChange,
     streamingMode,
     onStreamingModeChange,
-    renderVisibilityAsMap,
-    onRenderVisibilityAsMapChange,
     activeMapStyle,
     onActiveMapStyleChange,
     settlementLabelLimit,
@@ -245,7 +240,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     units: data.range_ring_units || units,
                     showCacheLayer: data.show_cache_layer ?? showCacheLayer,
                     showVisibilityLayer: data.show_visibility_layer ?? showVisibilityLayer,
-                    renderVisibilityAsMap: data.render_visibility_as_map ?? renderVisibilityAsMap,
                     activeMapStyle: data.active_map_style || activeMapStyle,
                     streamingMode,
                     deferralThreshold: data.deferral_threshold ?? 1.05,
@@ -306,7 +300,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.units !== units ||
             draft.showCacheLayer !== showCacheLayer ||
             draft.showVisibilityLayer !== showVisibilityLayer ||
-            draft.renderVisibilityAsMap !== renderVisibilityAsMap ||
             draft.activeMapStyle !== activeMapStyle ||
             draft.streamingMode !== streamingMode ||
             draft.deferralThreshold !== (serverConfig.deferral_threshold ?? 1.05) ||
@@ -390,7 +383,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             if (draft.units !== units) onUnitsChange(draft.units);
             if (draft.showCacheLayer !== showCacheLayer) onCacheLayerChange(draft.showCacheLayer);
             if (draft.showVisibilityLayer !== showVisibilityLayer) onVisibilityLayerChange(draft.showVisibilityLayer);
-            if (draft.renderVisibilityAsMap !== renderVisibilityAsMap) onRenderVisibilityAsMapChange(draft.renderVisibilityAsMap);
             if (draft.activeMapStyle !== activeMapStyle) onActiveMapStyleChange(draft.activeMapStyle);
             if (draft.streamingMode !== streamingMode) onStreamingModeChange(draft.streamingMode);
 
@@ -861,11 +853,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                         label="Show Visibility Layer"
                                         checked={draft.showVisibilityLayer}
                                         onChange={val => updateDraft('showVisibilityLayer', val)}
-                                    />
-                                    <VictorianToggle
-                                        label="Render Visibility Layer as Map"
-                                        checked={draft.renderVisibilityAsMap}
-                                        onChange={val => updateDraft('renderVisibilityAsMap', val)}
                                     />
                                 </>
                             )}

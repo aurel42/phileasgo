@@ -44,7 +44,6 @@ type Provider interface {
 	// UI / Overlay
 	ShowCacheLayer(ctx context.Context) bool
 	ShowVisibilityLayer(ctx context.Context) bool
-	RenderVisibilityAsMap(ctx context.Context) bool
 	SettlementLabelLimit(ctx context.Context) int
 	SettlementTier(ctx context.Context) int
 	FilterMode(ctx context.Context) string
@@ -213,10 +212,6 @@ func (p *UnifiedProvider) ShowCacheLayer(ctx context.Context) bool {
 
 func (p *UnifiedProvider) ShowVisibilityLayer(ctx context.Context) bool {
 	return p.getBool(ctx, KeyShowVisibility, false)
-}
-
-func (p *UnifiedProvider) RenderVisibilityAsMap(ctx context.Context) bool {
-	return p.getBool(ctx, KeyRenderVisibilityAsMap, p.base.Overlay.RenderVisibilityAsMap)
 }
 
 func (p *UnifiedProvider) SettlementLabelLimit(ctx context.Context) int {

@@ -73,6 +73,7 @@ func TestHandleGetConfig(t *testing.T) {
 			storeState: map[string]string{
 				"sim_source":                            "mock",
 				"show_cache_layer":                      "true",
+				"show_visibility_layer":                 "true",
 				"filter_mode":                           "adaptive",
 				"target_poi_count":                      "15",
 				"text_length":                           "4",
@@ -147,9 +148,8 @@ func TestHandleGetConfig(t *testing.T) {
 			if got.DeferralProximityBoostPower != tt.wantBoostPower && tt.wantBoostPower != 0 {
 				t.Errorf("DeferralProximityBoostPower = %f, want %f", got.DeferralProximityBoostPower, tt.wantBoostPower)
 			}
-			if tt.name == "Azure Config with Store Overrides" && got.RenderVisibilityAsMap != false {
-				// We didn't set RenderVisibilityAsMap in the test struct, but it's in the response
-				// Let's add it to the test struct for completeness if needed, but for now just check existence
+			if tt.name == "Azure Config with Store Overrides" && got.ShowVisibilityLayer != true {
+				t.Errorf("expected ShowVisibilityLayer true from override")
 			}
 		})
 	}
@@ -244,9 +244,9 @@ func TestHandleSetConfig(t *testing.T) {
 			wantVal: "1.50",
 		},
 		{
-			name:    "Update Render Visibility As Map",
-			req:     ConfigRequest{RenderVisibilityAsMap: ptrBool(true)},
-			wantKey: "render_visibility_as_map",
+			name:    "Update Show Visibility Layer",
+			req:     ConfigRequest{ShowVisibilityLayer: ptrBool(true)},
+			wantKey: "show_visibility_layer",
 			wantVal: "true",
 		},
 	}

@@ -53,7 +53,6 @@ type OverlayConfig struct {
 	POIInfo               bool `yaml:"poi_info"`
 	InfoBar               bool `yaml:"info_bar"`
 	LogLine               bool `yaml:"log_line"`
-	RenderVisibilityAsMap bool `yaml:"render_visibility_as_map"`
 	SettlementLabelLimit  int  `yaml:"settlement_label_limit"`
 	SettlementTier        int  `yaml:"settlement_tier"`
 }
@@ -535,7 +534,6 @@ func DefaultConfig() *Config {
 			POIInfo:               true,
 			InfoBar:               true,
 			LogLine:               true,
-			RenderVisibilityAsMap: false,
 			SettlementLabelLimit:  5,
 		},
 	}

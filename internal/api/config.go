@@ -38,7 +38,6 @@ type ConfigResponse struct {
 	TTSEngine                   string   `json:"tts_engine"`
 	ShowCacheLayer              bool     `json:"show_cache_layer"`
 	ShowVisibilityLayer         bool     `json:"show_visibility_layer"`
-	RenderVisibilityAsMap       bool     `json:"render_visibility_as_map"`
 	SettlementLabelLimit        int      `json:"settlement_label_limit"`
 	SettlementTier              int      `json:"settlement_tier"`
 	MinPOIScore                 float64  `json:"min_poi_score"`
@@ -71,18 +70,18 @@ type ConfigResponse struct {
 	DeferralProximityBoostPower float64  `json:"deferral_proximity_boost_power"`
 	TwoPassScriptGeneration     bool     `json:"two_pass_script_generation"`
 	// Beacon
-	BeaconEnabled           bool    `json:"beacon_enabled"`
-	BeaconFormationEnabled  bool    `json:"beacon_formation_enabled"`
-	BeaconFormationDistance float64 `json:"beacon_formation_distance"`
-	BeaconFormationCount    int     `json:"beacon_formation_count"`
-	BeaconMinSpawnAltitude  float64 `json:"beacon_min_spawn_altitude"`
-	BeaconAltitudeFloor     float64 `json:"beacon_altitude_floor"`
-	BeaconSinkDistanceFar   float64 `json:"beacon_sink_distance_far"`
-	BeaconSinkDistanceClose float64 `json:"beacon_sink_distance_close"`
-	BeaconMaxTargets        int     `json:"beacon_max_targets"`
-	AutoNarrate             bool    `json:"auto_narrate"`
-	PauseBetweenNarrations  float64 `json:"pause_between_narrations"`
-	RepeatTTL               string  `json:"repeat_ttl"`
+	BeaconEnabled           bool     `json:"beacon_enabled"`
+	BeaconFormationEnabled  bool     `json:"beacon_formation_enabled"`
+	BeaconFormationDistance float64  `json:"beacon_formation_distance"`
+	BeaconFormationCount    int      `json:"beacon_formation_count"`
+	BeaconMinSpawnAltitude  float64  `json:"beacon_min_spawn_altitude"`
+	BeaconAltitudeFloor     float64  `json:"beacon_altitude_floor"`
+	BeaconSinkDistanceFar   float64  `json:"beacon_sink_distance_far"`
+	BeaconSinkDistanceClose float64  `json:"beacon_sink_distance_close"`
+	BeaconMaxTargets        int      `json:"beacon_max_targets"`
+	AutoNarrate             bool     `json:"auto_narrate"`
+	PauseBetweenNarrations  float64  `json:"pause_between_narrations"`
+	RepeatTTL               string   `json:"repeat_ttl"`
 	NarrationLengthShort    int      `json:"narration_length_short_words"`
 	NarrationLengthLong     int      `json:"narration_length_long_words"`
 	SettlementCategories    []string `json:"settlement_categories"`
@@ -95,7 +94,6 @@ type ConfigRequest struct {
 	RangeRingUnits              string   `json:"range_ring_units,omitempty"`      // Map display units (km/nm)
 	ShowCacheLayer              *bool    `json:"show_cache_layer,omitempty"`      // Pointer to detect false vs missing
 	ShowVisibilityLayer         *bool    `json:"show_visibility_layer,omitempty"` // Pointer to detect false vs missing
-	RenderVisibilityAsMap       *bool    `json:"render_visibility_as_map,omitempty"`
 	SettlementLabelLimit        *int     `json:"settlement_label_limit,omitempty"`
 	SettlementTier              *int     `json:"settlement_tier,omitempty"`
 	MinPOIScore                 *float64 `json:"min_poi_score,omitempty"`
@@ -188,7 +186,6 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		TTSEngine:                   h.appCfg.TTS.Engine,
 		ShowCacheLayer:              h.cfgProv.ShowCacheLayer(ctx),
 		ShowVisibilityLayer:         h.cfgProv.ShowVisibilityLayer(ctx),
-		RenderVisibilityAsMap:       h.cfgProv.RenderVisibilityAsMap(ctx),
 		SettlementLabelLimit:        h.cfgProv.SettlementLabelLimit(ctx),
 		SettlementTier:              h.cfgProv.SettlementTier(ctx),
 		MinPOIScore:                 h.cfgProv.MinScoreThreshold(ctx),
@@ -302,9 +299,6 @@ func (h *ConfigHandler) applyUIUpdates(ctx context.Context, req *ConfigRequest) 
 
 	if req.ShowVisibilityLayer != nil {
 		h.updateBoolState(ctx, config.KeyShowVisibility, *req.ShowVisibilityLayer)
-	}
-	if req.RenderVisibilityAsMap != nil {
-		h.updateBoolState(ctx, config.KeyRenderVisibilityAsMap, *req.RenderVisibilityAsMap)
 	}
 	if req.SettlementLabelLimit != nil {
 		h.updateIntState(ctx, config.KeySettlementLabelLimit, *req.SettlementLabelLimit)

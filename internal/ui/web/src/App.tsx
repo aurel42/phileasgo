@@ -36,7 +36,6 @@ function App() {
   const [units, setUnits] = useState<Units>('km');
   const [showCacheLayer, setShowCacheLayer] = useState(false);
   const [showVisibilityLayer, setShowVisibilityLayer] = useState(false);
-  const [renderVisibilityAsMap, setRenderVisibilityAsMap] = useState(false);
   const [activeMapStyle, setActiveMapStyle] = useState('dark');
   const [minPoiScore, setMinPoiScore] = useState(0.5);
   const [filterMode, setFilterMode] = useState<string>('fixed');
@@ -202,7 +201,6 @@ function App() {
           setUnits(data.range_ring_units || 'km');
           setShowCacheLayer(data.show_cache_layer || false);
           setShowVisibilityLayer(data.show_visibility_layer || false);
-          setRenderVisibilityAsMap(data.render_visibility_as_map || false);
           setActiveMapStyle(data.active_map_style || 'dark');
           setMinPoiScore(data.min_poi_score ?? 0.5);
           setFilterMode(data.filter_mode || 'fixed');
@@ -250,15 +248,6 @@ function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ show_visibility_layer: show })
     }).catch(e => console.error("Failed to update visibility layer config", e));
-  }, []);
-
-  const handleRenderVisibilityAsMapChange = useCallback((render: boolean) => {
-    setRenderVisibilityAsMap(render);
-    fetch('/api/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ render_visibility_as_map: render })
-    }).catch(e => console.error("Failed to update visibility rendering config", e));
   }, []);
 
   const handleActiveMapStyleChange = useCallback((style: string) => {
@@ -314,8 +303,6 @@ function App() {
           onCacheLayerChange={(val) => updateConfig('show_cache_layer', val)}
           showVisibilityLayer={showVisibilityLayer}
           onVisibilityLayerChange={handleVisibilityLayerChange}
-          renderVisibilityAsMap={renderVisibilityAsMap}
-          onRenderVisibilityAsMapChange={handleRenderVisibilityAsMapChange}
           activeMapStyle={activeMapStyle}
           onActiveMapStyleChange={handleActiveMapStyleChange}
           minPoiScore={minPoiScore}
@@ -394,7 +381,6 @@ function App() {
               units={units}
               showCacheLayer={showCacheLayer}
               showVisibilityLayer={showVisibilityLayer}
-              renderVisibilityAsMap={renderVisibilityAsMap}
               pois={pois}
               selectedPOI={selectedPOI}
               onPOISelect={handlePOISelect}

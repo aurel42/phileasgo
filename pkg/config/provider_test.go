@@ -133,9 +133,6 @@ func TestUnifiedProvider(t *testing.T) {
 		if p.ShowVisibilityLayer(ctx) != false {
 			t.Error("expected false")
 		}
-		if p.RenderVisibilityAsMap(ctx) != false {
-			t.Error("expected default false for RenderVisibilityAsMap")
-		}
 		if p.FilterMode(ctx) != "fixed" {
 			t.Errorf("expected fixed, got %s", p.FilterMode(ctx))
 		}
@@ -197,7 +194,6 @@ func TestUnifiedProvider(t *testing.T) {
 		store.SetState(ctx, KeyMockDurParked, "120s")
 		store.SetState(ctx, KeyShowCacheLayer, "true")
 		store.SetState(ctx, KeyShowVisibility, "true")
-		store.SetState(ctx, KeyRenderVisibilityAsMap, "true")
 		store.SetState(ctx, KeyFilterMode, "dynamic")
 		store.SetState(ctx, KeyTargetPOICount, "10")
 		store.SetState(ctx, KeyActiveStyle, "style2")
@@ -269,9 +265,6 @@ func TestUnifiedProvider(t *testing.T) {
 		}
 		if p.ShowVisibilityLayer(ctx) != true {
 			t.Error("expected true")
-		}
-		if p.RenderVisibilityAsMap(ctx) != true {
-			t.Error("expected true for RenderVisibilityAsMap from store")
 		}
 		if p.FilterMode(ctx) != "dynamic" {
 			t.Errorf("expected dynamic, got %s", p.FilterMode(ctx))
