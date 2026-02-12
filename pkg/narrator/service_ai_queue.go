@@ -164,11 +164,15 @@ func (s *AIService) summarizeAndLogEvent(ctx context.Context, n *model.Narrative
 
 	switch {
 	case n.POI != nil:
-		event.Metadata["qid"] = n.POI.WikidataID
+		event.Metadata["poi_id"] = n.POI.WikidataID
+		event.Metadata["poi_name"] = n.POI.DisplayName()
 		event.Metadata["icon"] = n.POI.Icon
+		event.Metadata["icon_artistic"] = n.POI.IconArtistic
 		event.Metadata["poi_lat"] = fmt.Sprintf("%.6f", n.POI.Lat)
 		event.Metadata["poi_lon"] = fmt.Sprintf("%.6f", n.POI.Lon)
 		event.Metadata["poi_category"] = n.POI.Category
+		event.Metadata["poi_score"] = fmt.Sprintf("%.1f", n.POI.Score)
+		event.Metadata["poi_size"] = n.POI.Size
 	case n.Type == model.NarrativeTypeScreenshot:
 		event.Metadata["icon"] = "attraction"
 	case n.Type == model.NarrativeTypeEssay && n.EssayIcon != "":

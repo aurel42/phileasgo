@@ -28,8 +28,16 @@ export function getFontFromClass(className: string): { font: string, uppercase: 
     return result;
 }
 
-const canvas = document.createElement('canvas');
-const context = canvas.getContext('2d');
+let canvas: HTMLCanvasElement | null = null;
+let context: CanvasRenderingContext2D | null = null;
+
+function ensureContext() {
+    if (!context) {
+        canvas = document.createElement('canvas');
+        context = canvas.getContext('2d');
+    }
+    return context;
+}
 
 const measurementCache = new Map<string, { width: number, height: number }>();
 
@@ -43,12 +51,13 @@ export function measureText(text: string, font: string, letterSpacing: number = 
         return measurementCache.get(key)!;
     }
 
-    if (!context) {
+    const ctx = ensureContext();
+    if (!ctx) {
         return { width: text.length * 8, height: 16 }; // Fallback
     }
 
-    context.font = font;
-    const metrics = context.measureText(text);
+    ctx.font = font;
+    const metrics = ctx.measureText(text);
 
     // Height is tricky in canvas. 'actualBoundingBoxAscent' + 'actualBoundingBoxDescent' is precise but newer.
     // Fallback to estimation if needed, but modern browsers support these.
@@ -62,5 +71,11 @@ export function measureText(text: string, font: string, letterSpacing: number = 
 }
 
 export function clearMeasurementCache() {
+    measurementCache.clear();
+}
+
+export function __resetForTests() {
+    context = null;
+    canvas = null;
     measurementCache.clear();
 }

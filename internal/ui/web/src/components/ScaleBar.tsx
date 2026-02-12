@@ -53,8 +53,11 @@ function computeAxis(metersPerPixel: number, targetPx: number, unitMeters: numbe
  */
 export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
     const scaleData = useMemo(() => {
-        // Mercator-corrected meters per pixel at this latitude and zoom
-        const metersPerPixel = (156543.03 * Math.cos((latitude * Math.PI) / 180)) / Math.pow(2, zoom);
+        // Mercator-corrected meters per pixel at this latitude and zoom.
+        // Below Z10, the artistic map uses 128px HD tiles (tileSize=128) which display
+        // Z+1 content at Z (e.g. Z10 tiles at Z9), doubling the effective scale.
+        const effectiveZoom = zoom < 10 ? zoom + 1 : zoom;
+        const metersPerPixel = (156543.03 * Math.cos((latitude * Math.PI) / 180)) / Math.pow(2, effectiveZoom);
 
         // Target bar width: ~28% of a typical viewport width (use 400px as a sensible default)
         // The component itself will use the computed pixel width, so this is approximate

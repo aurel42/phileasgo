@@ -60,7 +60,6 @@ describe('replay utilities', () => {
 
     describe('isAirportNearTerminal', () => {
         const mockAirport: TripEvent = {
-            id: '1',
             type: 'poi',
             timestamp: new Date().toISOString(),
             lat: 10,

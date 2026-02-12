@@ -241,7 +241,7 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
 
     // Filter events with valid coordinates
     const validEvents = useMemo(() => {
-        return events.filter(e => e.lat !== 0 || e.lon !== 0);
+        return events;
     }, [events]);
 
     // Extract path as [lat, lon] tuples

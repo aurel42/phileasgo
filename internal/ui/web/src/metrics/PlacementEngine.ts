@@ -247,6 +247,7 @@ export class PlacementEngine {
             // Design Correction: Settlements MUST be centered on origin (no offsets).
             if (candidate.type === 'settlement' || candidate.type === 'compass' || (candidate.type === 'poi' && !candidate.text)) {
                 const itemType: 'marker' | 'label' | 'compass' = candidate.type === 'compass' ? 'compass' : (candidate.text ? 'label' : 'marker');
+
                 if (this.checkCollisionAndInsert(candidate.id, itemType, pos.x - halfW, pos.y - halfH, pos.x + halfW, pos.y + halfH)) {
                     candidate.finalX = Math.round(pos.x);
                     candidate.finalY = Math.round(pos.y);

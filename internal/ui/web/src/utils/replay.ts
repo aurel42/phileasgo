@@ -1,4 +1,5 @@
 import type { TripEvent } from '../hooks/useTripEvents';
+export type { TripEvent };
 
 // Calculate heading from point A to point B
 export const calculateHeading = (from: [number, number], to: [number, number]): number => {
@@ -19,6 +20,7 @@ export interface CreditItem {
 }
 
 // Interpolate position along a polyline based on progress (0-1)
+// DEPRECATED: Use interpolatePositionFromEvents for synchronized replay
 export const interpolatePosition = (
     points: [number, number][],
     progress: number
@@ -63,6 +65,48 @@ export const interpolatePosition = (
     };
 };
 
+/**
+ * Interpolates aircraft position based on event timestamps.
+ * This ensures the aircraft moves at the recorded speed and stays in sync with POI discoveries.
+ */
+export const interpolatePositionFromEvents = (
+    events: TripEvent[],
+    progress: number
+): { position: [number, number]; heading: number; segmentIndex: number; currentTime: number } => {
+    if (events.length === 0) {
+        return { position: [0, 0], heading: 0, segmentIndex: 0, currentTime: Date.now() };
+    }
+    if (events.length === 1) {
+        return { position: [events[0].lat, events[0].lon], heading: 0, segmentIndex: 0, currentTime: new Date(events[0].timestamp).getTime() };
+    }
+
+    const firstTime = new Date(events[0].timestamp).getTime();
+    const lastTime = new Date(events[events.length - 1].timestamp).getTime();
+    const totalTime = lastTime - firstTime;
+    const targetTime = firstTime + progress * totalTime;
+
+    for (let i = 0; i < events.length - 1; i++) {
+        const t0 = new Date(events[i].timestamp).getTime();
+        const t1 = new Date(events[i + 1].timestamp).getTime();
+
+        if (t1 >= targetTime) {
+            const ratio = (t1 === t0) ? 0 : (targetTime - t0) / (t1 - t0);
+            const lat = events[i].lat + (events[i + 1].lat - events[i].lat) * ratio;
+            const lon = events[i].lon + (events[i + 1].lon - events[i].lon) * ratio;
+            const heading = calculateHeading([events[i].lat, events[i].lon], [events[i + 1].lat, events[i + 1].lon]);
+            return { position: [lat, lon], heading, segmentIndex: i, currentTime: targetTime };
+        }
+    }
+
+    const lastIdx = events.length - 1;
+    return {
+        position: [events[lastIdx].lat, events[lastIdx].lon],
+        heading: calculateHeading([events[lastIdx - 1].lat, events[lastIdx - 1].lon], [events[lastIdx].lat, events[lastIdx].lon]),
+        segmentIndex: lastIdx - 1,
+        currentTime: targetTime
+    };
+};
+
 export const isTransitionEvent = (type: string): boolean => type === 'transition' || type === 'flight_stage';
 
 export const isAirportNearTerminal = (poi: TripEvent, departure: [number, number] | null, destination: [number, number] | null): boolean => {
@@ -88,4 +132,20 @@ export const isAirportNearTerminal = (poi: TripEvent, departure: [number, number
         if (dLat < threshold && dLon < threshold) return true;
     }
     return false;
+};
+
+/**
+ * Truncates trip events to the segment between take-off and landing.
+ * If take-off is missing, starts at the first movement.
+ */
+export const getSignificantTripEvents = (events: TripEvent[]): TripEvent[] => {
+    if (events.length < 2) return events;
+
+    const takeoffIdx = events.findIndex(e => isTransitionEvent(e.type) && e.title?.toLowerCase().includes('take-off'));
+    const landedIdx = events.slice().reverse().findIndex(e => isTransitionEvent(e.type) && e.title?.toLowerCase().includes('landed'));
+
+    const startIdx = takeoffIdx !== -1 ? takeoffIdx : 0;
+    const endIdx = landedIdx !== -1 ? (events.length - 1 - landedIdx) : (events.length - 1);
+
+    return events.slice(startIdx, endIdx + 1);
 };

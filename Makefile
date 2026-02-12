@@ -41,7 +41,7 @@ unit-test:
 	go test ./...
 
 test-web:
-	cd $(WEB_PATH) && npm run test
+	cd $(WEB_PATH) && npx tsc -p tsconfig.app.json --noEmit && npm run test
 
 vendor:
 	go mod vendor

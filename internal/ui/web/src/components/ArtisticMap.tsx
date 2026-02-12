@@ -17,8 +17,7 @@ import { CompassRose } from './CompassRose';
 import { WaxSeal } from './WaxSeal';
 import { ScaleBar } from './ScaleBar';
 import { InkTrail } from './InkTrail';
-import { CreditRoll } from './CreditRoll';
-import { interpolatePosition, type CreditItem } from '../utils/replay';
+import { interpolatePositionFromEvents, isTransitionEvent, getSignificantTripEvents } from '../utils/replay';
 
 const DEBUG_FLOURISHES = false;
 
@@ -176,6 +175,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const { status: narratorStatus } = useNarrator();
     const { data: tripEvents } = useTripEvents();
 
+    const mapContainer = useRef<HTMLDivElement>(null);
+    const map = useRef<maplibregl.Map | null>(null);
+    const [styleLoaded, setStyleLoaded] = useState(false);
+
     const isDisconnected = telemetry?.SimState === 'disconnected';
 
     // Determine if we are in debriefing replay mode
@@ -183,8 +186,22 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const isIdleReplay = isDisconnected && tripEvents && tripEvents.length > 1;
     const isReplayMode = isIdleReplay || isDebriefing;
 
+    // Sticky persistence: stay in replay view until SimState becomes active
+    const [stickyReplay, setStickyReplay] = useState(false);
+    useEffect(() => {
+        if (isReplayMode) setStickyReplay(true);
+        if (telemetry?.SimState === 'active') setStickyReplay(false);
+    }, [isReplayMode, telemetry?.SimState]);
+
+    const effectiveReplayMode = isReplayMode || stickyReplay;
+
+
     // Track replay mode transitions to force state resets/refetches
     const prevReplayModeRef = useRef(false);
+
+    // Ref to expose effectiveReplayMode to the heartbeat closure (avoids stale capture)
+    const isReplayModeRef = useRef(effectiveReplayMode);
+    isReplayModeRef.current = effectiveReplayMode;
 
     // Default duration for idle replay is 2 mins, otherwise use actual audio duration
     const replayDuration = isDebriefing ? (narratorStatus?.current_duration_ms || 120000) : 120000;
@@ -202,85 +219,69 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
     // When entering replay mode, invalidate trip events to get fresh data and force remount of animations
     useEffect(() => {
-        if (isReplayMode && !prevReplayModeRef.current) {
+        if (effectiveReplayMode && !prevReplayModeRef.current) {
             queryClient.invalidateQueries({ queryKey: ['tripEvents'] });
         }
-        prevReplayModeRef.current = isReplayMode;
-    }, [isReplayMode, queryClient]);
+        prevReplayModeRef.current = effectiveReplayMode;
+    }, [effectiveReplayMode, queryClient]);
 
     // -- REPLAY ANIMATION STATE --
     const [progress, setProgress] = useState(0);
-    const [currentTime, setCurrentTime] = useState(Date.now());
-    const [creditItems, setCreditItems] = useState<CreditItem[]>([]);
-    const creditedPoiIds = useRef<Set<string>>(new Set());
     const startTimeRef = useRef<number | null>(null);
+    const progressRef = useRef(progress);
+    useEffect(() => { progressRef.current = progress; }, [progress]);
     const animationRef = useRef<number | null>(null);
+    const [replayLabels, setReplayLabels] = useState<LabelCandidate[]>([]);
 
-    // Filter events with valid coordinates for replay path
+    // Filter and sort events chronologically for stable replay
     const validEvents = useMemo(() => {
-        return (tripEvents || []).filter(e => e.lat !== 0 || e.lon !== 0);
+        const sorted = [...(tripEvents || [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        return getSignificantTripEvents(sorted);
     }, [tripEvents]);
 
     const pathPoints = useMemo((): [number, number][] => {
         return validEvents.map(e => [e.lat, e.lon] as [number, number]);
     }, [validEvents]);
 
+    // Departure / destination airports for replay X-marks
+    const { departure, destination } = useMemo(() => {
+        const dep = validEvents.find(e => isTransitionEvent(e.type) && e.title?.toLowerCase().includes('take-off'));
+        const dest = validEvents.slice().reverse().find(e => isTransitionEvent(e.type) && e.title?.toLowerCase().includes('landed'));
+        return {
+            departure: dep ? [dep.lat, dep.lon] as [number, number] : (pathPoints.length > 0 ? pathPoints[0] : null),
+            destination: dest ? [dest.lat, dest.lon] as [number, number] : (pathPoints.length > 1 ? pathPoints[pathPoints.length - 1] : null),
+        };
+    }, [validEvents, pathPoints]);
+
     // Optimize POI discovery lookup (O(1) instead of O(N) in render loop)
     const poiDiscoveryTimes = useMemo(() => {
         const map = new Map<string, number>();
         validEvents.forEach(e => {
-            if (e.type === 'poi' && e.metadata?.poi_id) {
-                map.set(e.metadata.poi_id, new Date(e.timestamp).getTime());
+            const poiId = e.metadata?.poi_id || e.metadata?.qid;
+            if (poiId) {
+                map.set(poiId, new Date(e.timestamp).getTime());
             }
         });
         return map;
     }, [validEvents]);
 
-    // Update credit roll as POIs are discovered
-    useEffect(() => {
-        if (!isReplayMode) {
-            setCreditItems([]);
-            creditedPoiIds.current.clear();
-            return;
-        }
-
-        const simulatedElapsed = progress * totalTripTime;
-        const newCredits: CreditItem[] = [];
-
-        poiDiscoveryTimes.forEach((discoveryTime, poiId) => {
-            if (creditedPoiIds.current.has(poiId)) return;
-
-            if (discoveryTime <= simulatedElapsed) {
-                creditedPoiIds.current.add(poiId);
-                // Find event to get name (only happens once per POI)
-                const event = validEvents.find(e => e.metadata?.poi_id === poiId);
-                newCredits.push({
-                    id: poiId,
-                    name: event?.title || event?.metadata?.poi_name || 'Point of Interest',
-                    addedAt: currentTime
-                });
-            }
-        });
-
-        if (newCredits.length > 0) {
-            setCreditItems(prev => [...prev, ...newCredits]);
-        }
-    }, [progress, isReplayMode, validEvents, firstEventTime, totalTripTime, currentTime]);
-
     // Fit map to route on replay start
     useEffect(() => {
-        if (isReplayMode && pathPoints.length >= 2 && map.current) {
+        if (effectiveReplayMode && pathPoints.length >= 2 && map.current) {
+            // Lower minZoom for replay so the full route can fit
+            map.current.setMinZoom(5);
             const bbox = turf.bbox({
                 type: 'Feature',
                 properties: {},
                 geometry: { type: 'LineString', coordinates: pathPoints.map(p => [p[1], p[0]]) }
             });
             const camera = map.current.cameraForBounds(bbox as [number, number, number, number], { padding: 100 });
+            console.log('[Replay] fitBounds:', { bbox, camera: camera ? { center: camera.center, zoom: camera.zoom } : null });
             if (camera) {
                 map.current.easeTo({ center: camera.center, zoom: Math.min(camera.zoom || 12, 12), duration: 2000 });
             }
         }
-    }, [isReplayMode, pathPoints]);
+    }, [isReplayMode, pathPoints, styleLoaded]);
 
     // Animation loop (mirrors TripReplayOverlay)
     useEffect(() => {
@@ -295,7 +296,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             if (!startTimeRef.current) return;
             const now = Date.now();
             const elapsed = now - startTimeRef.current;
-            setCurrentTime(now);
             const p = Math.min(1, elapsed / replayDuration);
             setProgress(p);
 
@@ -322,10 +322,90 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         }
     }, []);
 
-    const mapContainer = useRef<HTMLDivElement>(null);
-    const map = useRef<maplibregl.Map | null>(null);
-    const [styleLoaded, setStyleLoaded] = useState(false);
     const [fontsLoaded, setFontsLoaded] = useState(false);
+
+    // Replay: Pre-calculate ALL item placements ONCE at the start
+    useEffect(() => {
+        if (!effectiveReplayMode || !map.current || !fontsLoaded || validEvents.length === 0) {
+            if (!effectiveReplayMode) setReplayLabels([]);
+            return;
+        }
+
+        const m = map.current;
+        const eng = new PlacementEngine(); // Use a fresh engine instance for the one-time layout
+
+        // Extract Fonts
+        const cityFont = adjustFont(getFontFromClass('role-title'), -4);
+        const townFont = adjustFont(getFontFromClass('role-header'), -4);
+        const villageFont = adjustFont(getFontFromClass('role-text-lg'), -4);
+        const secondaryFont = adjustFont(getFontFromClass('role-label'), 2);
+
+        // 1. Register Settlements
+        Array.from(accumulatedSettlements.current.values()).forEach(l => {
+            let role = villageFont;
+            let tierName: 'city' | 'town' | 'village' = 'village';
+            if (l.category === 'city') { tierName = 'city'; role = cityFont; }
+            else if (l.category === 'town') { tierName = 'town'; role = townFont; }
+
+            let text = l.name.split('(')[0].split(',')[0].split('/')[0].trim();
+            if (role.uppercase) text = text.toUpperCase();
+            const dims = measureText(text, role.font, role.letterSpacing);
+
+            eng.register({
+                id: l.id, lat: l.lat, lon: l.lon, text, tier: tierName,
+                width: dims.width, height: dims.height, type: 'settlement', score: l.pop || 0,
+                isHistorical: false, size: 'L'
+            });
+        });
+
+        // 2. Register ALL Trip POIs
+        const processedIds = new Set<string>();
+        validEvents.forEach(e => {
+            if (!e.metadata) return;
+            const eid = e.metadata.poi_id || e.metadata.qid;
+            if (!eid || processedIds.has(eid)) return;
+            processedIds.add(eid);
+
+            const lat = e.metadata.poi_lat ? parseFloat(e.metadata.poi_lat) : e.lat;
+            const lon = e.metadata.poi_lon ? parseFloat(e.metadata.poi_lon) : e.lon;
+            const icon = e.metadata.icon_artistic || e.metadata.icon || 'attraction';
+            const name = e.title || e.metadata.poi_name || 'Point of Interest';
+            const score = e.metadata.poi_score ? parseFloat(e.metadata.poi_score) : 30;
+
+            let secondaryLabel = undefined;
+            if (score >= 10) {
+                let text = name.split('(')[0].split(',')[0].split('/')[0].trim();
+                if (secondaryFont.uppercase) text = text.toUpperCase();
+                const dims = measureText(text, secondaryFont.font, secondaryFont.letterSpacing);
+                secondaryLabel = { text, width: dims.width, height: dims.height };
+            }
+
+            eng.register({
+                id: eid, lat, lon, text: "", tier: 'village', score,
+                width: 26, height: 26, type: 'poi', isHistorical: false,
+                size: (e.metadata.poi_size || 'M') as any, icon,
+                secondaryLabel
+            });
+        });
+
+        // Use a small delay to ensure the map scale/bounds are stable after the initial fitBounds
+        const timeout = setTimeout(() => {
+            const w = m.getCanvas().clientWidth;
+            const h = m.getCanvas().clientHeight;
+            const placed = eng.compute(
+                (lat, lon) => {
+                    const pos = m.project([lon, lat]);
+                    return { x: pos.x, y: pos.y };
+                },
+                w, h, m.getZoom()
+            );
+
+            console.log('[Replay] Static Placement Complete:', placed.length, 'items');
+            setReplayLabels(placed);
+        }, 500);
+
+        return () => clearTimeout(timeout);
+    }, [effectiveReplayMode, fontsLoaded, validEvents.length]);
 
     // -- Placement Engine (Persistent across ticks) --
     const engine = useMemo(() => new PlacementEngine(), []);
@@ -368,12 +448,17 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const compassRoseRef = useRef(compassRose);
     useEffect(() => { compassRoseRef.current = compassRose; }, [compassRose]);
 
+    // Tracking for damped solver execution
+    const lastPoiCount = useRef(0);
+    const lastLabelsJson = useRef("");
+    const lastPlacementView = useRef<{ lng: number, lat: number, zoom: number } | null>(null);
+
     const replayBalloonPos = useMemo(() => {
-        if (!isReplayMode || pathPoints.length < 2 || !map.current) return null;
-        const { position } = interpolatePosition(pathPoints, progress);
+        if (!effectiveReplayMode || pathPoints.length < 2 || !map.current) return null;
+        const { position } = interpolatePositionFromEvents(validEvents, progress);
         const pt = map.current.project([position[1], position[0]]);
         return { x: pt.x, y: pt.y };
-    }, [isReplayMode, pathPoints, progress, styleLoaded, frame.zoom, frame.center, frame.offset]);
+    }, [effectiveReplayMode, pathPoints, progress, styleLoaded, frame.zoom, frame.center, frame.offset, validEvents]);
     const getMaskColor = (opacity: number) => {
         const val = Math.floor(opacity * 255);
         return `rgb(${val}, ${val}, ${val})`;
@@ -491,6 +576,13 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             if (isRunning) return;
             isRunning = true;
 
+            // Stability Bypass: If we are in replay mode and already have our static layout,
+            // we stop the heartbeat to preserve CPU and ensure absolute position freezing.
+            if (effectiveReplayMode && replayLabels.length > 0) {
+                isRunning = false;
+                return;
+            }
+
             try {
                 // Design Section 6: Ensure fonts are loaded before measurement
                 if (document.fonts) {
@@ -499,7 +591,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 const m = map.current;
                 const t = telemetryRef.current;
 
-                if (!m || !t || (t.Latitude === 0 && t.Longitude === 0)) return;
+                if (!m || !t || (!isReplayModeRef.current && t.SimState === 'disconnected')) return;
 
                 // 1. Snapshot State
                 const bounds = m.getBounds();
@@ -516,11 +608,13 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         console.error("Background Mask Fetch Failed:", e);
                     }
                 };
-                if (firstTick) {
-                    await fetchMask();
-                    // firstTick logic for labels moved to needsRecenter
-                } else {
-                    fetchMask();
+                const simActive = t.SimState === 'active';
+                if (simActive) {
+                    if (firstTick) {
+                        await fetchMask();
+                    } else {
+                        fetchMask();
+                    }
                 }
 
                 const mapWidth = m.getCanvas().clientWidth;
@@ -530,13 +624,17 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 let needsRecenter = !lockedCenter; // First tick always centers
 
                 if (lockedCenter) {
-                    const aircraftOnMap = m.project([t.Longitude, t.Latitude]);
-                    const hdgRad = t.Heading * (Math.PI / 180);
-                    // Ray direction in screen coords (Y-down)
+                    const currentPos = isReplayModeRef.current && validEvents.length >= 2
+                        ? interpolatePositionFromEvents(validEvents, progressRef.current).position.reverse() as [number, number]
+                        : [t.Longitude, t.Latitude] as [number, number];
+                    const aircraftOnMap = m.project(currentPos);
+                    const hdgRad = (isReplayModeRef.current && validEvents.length >= 2
+                        ? interpolatePositionFromEvents(validEvents, progressRef.current).heading
+                        : t.Heading) * (Math.PI / 180);
+
                     const adx = Math.sin(hdgRad);
                     const ady = -Math.cos(hdgRad);
 
-                    // Distance from point to viewport edge along a ray direction
                     const rayToEdge = (px: number, py: number, dx: number, dy: number): number => {
                         let tMin = Infinity;
                         if (dx > 0) tMin = Math.min(tMin, (mapWidth - px) / dx);
@@ -571,10 +669,18 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         }
                     }
                     // COMPUTE REAL ZOOM (Discrete 0.5 Step Snap)
-                    // We render at 0.5 increments to soften the jump while keeping HD tiles.
                     lockedZoom = Math.round(newZoom * 2) / 2;
+                }
 
-                    // Move map to locked position BEFORE projecting
+                if (isReplayModeRef.current) {
+                    // PASSIVE REPLAY: Read camera from map instance (controlled by fitBounds/animations)
+                    const c = m.getCenter();
+                    lockedCenter = [c.lng, c.lat];
+                    lockedZoom = m.getZoom();
+                    lockedOffset = [0, 0];
+                    console.log('[Replay] tick: passive camera', { center: lockedCenter, zoom: lockedZoom });
+                } else if (needsRecenter) {
+                    // ACTIVE FLIGHT: Force-snap the map to follow the aircraft
                     m.easeTo({ center: lockedCenter as maplibregl.LngLatLike, zoom: lockedZoom, offset: lockedOffset, duration: 0 });
                 }
 
@@ -658,14 +764,22 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 }
 
                 if (currentZoomSnap !== prevZoomInt) {
-                    pruneOffscreen(m.getBounds());
+                    if (!isReplayModeRef.current) {
+                        pruneOffscreen(m.getBounds());
+                    }
                     prevZoomInt = currentZoomSnap;
                 }
 
                 // 5. PROJECT using the STABLE map state
-                const aircraftPos = m.project([t.Longitude, t.Latitude]);
+                const currentPos = isReplayModeRef.current && validEvents.length >= 2
+                    ? interpolatePositionFromEvents(validEvents, progressRef.current).position.reverse() as [number, number]
+                    : [t.Longitude, t.Latitude] as [number, number];
+                const aircraftPos = m.project(currentPos);
                 const aircraftX = Math.round(aircraftPos.x);
                 const aircraftY = Math.round(aircraftPos.y);
+                if (isReplayModeRef.current) {
+                    console.log('[Replay] tick: aircraft projected', { currentPos, aircraftX, aircraftY, mapSize: [mapWidth, mapHeight] });
+                }
 
                 // 7. BEARING LINE
                 const lat1 = t.Latitude * Math.PI / 180;
@@ -682,120 +796,197 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 const lineSource = m.getSource('bearing-line') as maplibregl.GeoJSONSource;
                 if (lineSource) lineSource.setData(bLine);
 
-                // 9. COLLISION SOLVER (Capped to Heartbeat Frequency)
-                engine.clear();
+                // 9. DAMPED COLLISION SOLVER
+                // Only execute if geography (snap/pan) or data (discovery) changes.
+                const labelsJson = JSON.stringify(lastSyncLabels.map(l => l.id));
+                const dataChanged = poisRef.current.length !== lastPoiCount.current || labelsJson !== lastLabelsJson.current;
+                const viewChanged = !lastPlacementView.current || !lockedCenter ||
+                    Math.abs(lastPlacementView.current.zoom - lockedZoom) > 0.05 ||
+                    Math.abs(lastPlacementView.current.lng - lockedCenter![0]) > 0.0001 ||
+                    Math.abs(lastPlacementView.current.lat - lockedCenter![1]) > 0.0001;
 
-                // Extract Fonts from CSS Roles
-                const cityFont = adjustFont(getFontFromClass('role-title'), -4);
-                const townFont = adjustFont(getFontFromClass('role-header'), -4);
-                const villageFont = adjustFont(getFontFromClass('role-text-lg'), -4);
-                const secondaryFont = adjustFont(getFontFromClass('role-label'), 2);
+                let labels = frame.labels;
+                let finalMaskPath = frame.maskPath;
 
-                // 1. Process Sync Labels (Settlements from DB)
-                Array.from(accumulatedSettlements.current.values()).forEach(l => {
-                    let tierName: 'city' | 'town' | 'village' = 'village';
-                    let role = villageFont;
+                if (needsRecenter || dataChanged || viewChanged || firstTick) {
+                    // MUST clear every tick to avoid candidate duplication. 
+                    // Stability is provided by PlacementEngine's internal cache.
+                    engine.clear();
 
-                    if (l.category === 'city') {
-                        tierName = 'city';
-                        role = cityFont;
-                    } else if (l.category === 'town') {
-                        tierName = 'town';
-                        role = townFont;
+                    // Extract Fonts from CSS Roles
+                    const cityFont = adjustFont(getFontFromClass('role-title'), -4);
+                    const townFont = adjustFont(getFontFromClass('role-header'), -4);
+                    const villageFont = adjustFont(getFontFromClass('role-text-lg'), -4);
+                    const secondaryFont = adjustFont(getFontFromClass('role-label'), 2);
+
+                    // 1. Process Sync Labels (Settlements from DB)
+                    Array.from(accumulatedSettlements.current.values()).forEach(l => {
+                        let tierName: 'city' | 'town' | 'village' = 'village';
+                        let role = villageFont;
+
+                        if (l.category === 'city') {
+                            tierName = 'city';
+                            role = cityFont;
+                        } else if (l.category === 'town') {
+                            tierName = 'town';
+                            role = townFont;
+                        }
+
+                        let text = l.name.split('(')[0].split(',')[0].split('/')[0].trim();
+                        if (role.uppercase) text = text.toUpperCase();
+
+                        const dims = measureText(text, role.font, role.letterSpacing);
+
+                        engine.register({
+                            id: l.id, lat: l.lat, lon: l.lon, text, tier: tierName,
+                            width: dims.width, height: dims.height, type: 'settlement', score: l.pop || 0,
+                            isHistorical: false, size: 'L'
+                        });
+                    });
+
+                    // 1.5. Process Compass Rose
+                    if (nextCompass) {
+                        const size = 58;
+                        engine.register({
+                            id: nextCompass.id, lat: nextCompass.lat, lon: nextCompass.lon,
+                            text: "", tier: 'village', score: 200,
+                            width: size, height: size, type: 'compass', isHistorical: false
+                        });
                     }
 
-                    let text = l.name.split('(')[0].split(',')[0].split('/')[0].trim();
-                    if (role.uppercase) text = text.toUpperCase();
+                    // 2. Identify the "Champion POI" for labeling
+                    const settlementCatSet = new Set(settlementCategories.map(c => c.toLowerCase()));
+                    let champion: POI | null = null;
+                    const currentPois = poisRef.current;
 
-                    const dims = measureText(text, role.font, role.letterSpacing);
+                    currentPois.forEach(p => {
+                        if (settlementCatSet.has(p.category?.toLowerCase())) return;
 
-                    engine.register({
-                        id: l.id, lat: l.lat, lon: l.lon, text, tier: tierName,
-                        width: dims.width, height: dims.height, type: 'settlement', score: l.pop || 0,
-                        isHistorical: false, size: 'L'
+                        // Replay Discovery Logic removed - handled in render pass
+                        const normalizedName = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
+                        if (normalizedName.length > 24) return;
+
+                        if (p.score >= 10 && !failedPoiLabelIds.current.has(p.wikidata_id) && !labeledPoiIds.current.has(p.wikidata_id)) {
+                            if (!champion || (p.score > champion.score)) {
+                                champion = p;
+                            }
+                        }
                     });
-                });
 
-                // 1.5. Process Compass Rose
-                if (nextCompass) {
-                    const size = 58;
-                    engine.register({
-                        id: nextCompass.id, lat: nextCompass.lat, lon: nextCompass.lon,
-                        text: "", tier: 'village', score: 200,
-                        width: size, height: size, type: 'compass', isHistorical: false
-                    });
-                }
+                    if (isReplayModeRef.current) {
+                        const simulatedElapsed = progressRef.current * totalTripTime;
+                        const sizePx = 26;
+                        const processedIds = new Set<string>();
 
-                // 2. Identify the "Champion POI" for labeling
-                const settlementCatSet = new Set(settlementCategories.map(c => c.toLowerCase()));
-                let champion: POI | null = null;
-                const currentPois = poisRef.current;
+                        validEvents.forEach(e => {
+                            if (!e.metadata) return;
+                            const eid = e.metadata.poi_id || e.metadata.qid;
+                            if (!eid || processedIds.has(eid)) return;
+                            processedIds.add(eid);
 
-                currentPois.forEach(p => {
-                    if (settlementCatSet.has(p.category?.toLowerCase())) return;
+                            // DISCOVERY-AWARE REGISTRATION:
+                            // Only register POIs in the collision system if they have already been "passed"
+                            // by the balloon's current progression.
+                            const discoveryTime = poiDiscoveryTimes.get(eid);
+                            if (discoveryTime != null) {
+                                const eventElapsed = discoveryTime - firstEventTime;
+                                if (eventElapsed > simulatedElapsed) return;
+                            }
 
-                    // Replay Discovery Logic removed - handled in render pass
-                    const normalizedName = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
-                    if (normalizedName.length > 24) return;
+                            const lat = e.metadata.poi_lat ? parseFloat(e.metadata.poi_lat) : e.lat;
+                            const lon = e.metadata.poi_lon ? parseFloat(e.metadata.poi_lon) : e.lon;
+                            if (!lat || !lon) return;
+                            const icon = e.metadata.icon_artistic || e.metadata.icon || 'attraction';
+                            const name = e.title || e.metadata.poi_name || 'Point of Interest';
+                            const score = e.metadata.poi_score ? parseFloat(e.metadata.poi_score) : 30;
 
-                    if (p.score >= 10 && !failedPoiLabelIds.current.has(p.wikidata_id) && !labeledPoiIds.current.has(p.wikidata_id)) {
-                        if (!champion || (p.score > champion.score)) {
-                            champion = p;
+                            let secondaryLabel = undefined;
+                            if (score >= 10) {
+                                let text = name.split('(')[0].split(',')[0].split('/')[0].trim();
+                                if (secondaryFont.uppercase) text = text.toUpperCase();
+                                const dims = measureText(text, secondaryFont.font, secondaryFont.letterSpacing);
+                                secondaryLabel = { text, width: dims.width, height: dims.height };
+                            }
+
+                            engine.register({
+                                id: eid, lat, lon, text: "", tier: 'village', score,
+                                width: sizePx, height: sizePx, type: 'poi', isHistorical: false,
+                                size: (e.metadata.poi_size || 'M') as any, icon,
+                                secondaryLabel
+                            });
+                        });
+                    } else {
+                        // Live flight: use accumulated POIs from /api/pois/tracked
+                        currentPois.forEach(p => {
+                            if (!p.lat || !p.lon) return;
+                            accumulatedPois.current.set(p.wikidata_id, p);
+                        });
+
+                        Array.from(accumulatedPois.current.values()).forEach(p => {
+                            const sizePx = 26;
+                            const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
+
+                            let secondaryLabel = undefined;
+                            if (labeledPoiIds.current.has(p.wikidata_id) || (champion && p.wikidata_id === champion.wikidata_id)) {
+                                let text = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
+                                if (secondaryFont.uppercase) text = text.toUpperCase();
+                                const dims = measureText(text, secondaryFont.font, secondaryFont.letterSpacing);
+                                secondaryLabel = { text, width: dims.width, height: dims.height };
+                            }
+
+                            engine.register({
+                                id: p.wikidata_id, lat: p.lat, lon: p.lon, text: "", tier: 'village', score: p.score || 0,
+                                width: sizePx, height: sizePx, type: 'poi', isHistorical, size: p.size as any, icon: p.icon,
+                                visibility: p.visibility,
+                                secondaryLabel
+                            });
+                        });
+                    }
+
+                    labels = engine.compute(
+                        (lat: number, lon: number) => {
+                            // PROJECT using the TARGET map state (the one we're about to set)
+                            // This ensures the labels are placed relative to where the map WILL be.
+                            const pos = m.project([lon, lat]);
+
+                            // Adjust for the offset we're about to apply
+                            return {
+                                x: pos.x - (lockedOffset[0] || 0),
+                                y: pos.y - (lockedOffset[1] || 0)
+                            };
+                        },
+                        mapWidth,
+                        mapHeight,
+                        lockedZoom
+                    );
+
+                    // Update fail/success memory for Champion
+                    if (champion) {
+                        const placedChamp = labels.find(l => l.id === (champion as POI).wikidata_id);
+                        if (placedChamp && placedChamp.secondaryLabel) {
+                            if (placedChamp.secondaryLabelPos) {
+                                labeledPoiIds.current.add((champion as POI).wikidata_id);
+                            } else {
+                                failedPoiLabelIds.current.add((champion as POI).wikidata_id);
+                            }
                         }
                     }
-                });
 
-                currentPois.forEach(p => {
-                    if (!p.lat || !p.lon) return;
-                    accumulatedPois.current.set(p.wikidata_id, p);
-                });
+                    finalMaskPath = lastMaskData ? maskToPath(lastMaskData, m) : '';
 
-                Array.from(accumulatedPois.current.values()).forEach(p => {
-                    const sizePx = 26;
-                    const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
-
-                    let secondaryLabel = undefined;
-                    if (labeledPoiIds.current.has(p.wikidata_id) || (champion && p.wikidata_id === champion.wikidata_id)) {
-                        let text = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
-                        if (secondaryFont.uppercase) text = text.toUpperCase();
-                        const dims = measureText(text, secondaryFont.font, secondaryFont.letterSpacing);
-                        secondaryLabel = { text, width: dims.width, height: dims.height };
-                    }
-
-                    engine.register({
-                        id: p.wikidata_id, lat: p.lat, lon: p.lon, text: "", tier: 'village', score: p.score || 0,
-                        width: sizePx, height: sizePx, type: 'poi', isHistorical, size: p.size as any, icon: p.icon,
-                        visibility: p.visibility,
-                        secondaryLabel
-                    });
-                });
-
-                const labels = engine.compute(
-                    (lat: number, lon: number) => {
-                        const p = m.project([lon, lat]);
-                        return { x: p.x, y: p.y };
-                    },
-                    mapWidth,
-                    mapHeight,
-                    lockedZoom
-                );
-
-                // Update fail/success memory for Champion
-                if (champion) {
-                    const placedChamp = labels.find(l => l.id === (champion as POI).wikidata_id);
-                    if (placedChamp && placedChamp.secondaryLabel) {
-                        if (placedChamp.secondaryLabelPos) {
-                            labeledPoiIds.current.add((champion as POI).wikidata_id);
-                        } else {
-                            failedPoiLabelIds.current.add((champion as POI).wikidata_id);
-                        }
-                    }
+                    // Update tracking refs
+                    lastPoiCount.current = currentPois.length;
+                    lastLabelsJson.current = labelsJson;
+                    lastPlacementView.current = { lng: lockedCenter![0], lat: lockedCenter![1], zoom: lockedZoom };
                 }
 
                 // 10. COMMIT
+                if (isReplayModeRef.current) {
+                    console.log('[Replay] tick: committing frame', { center: lockedCenter, zoom: targetZoom, aircraftX, aircraftY, labelCount: labels.length });
+                }
                 setFrame(prev => ({
                     ...prev,
-                    maskPath: lastMaskData ? maskToPath(lastMaskData, m) : '',
+                    maskPath: finalMaskPath,
                     center: lockedCenter!,
                     zoom: targetZoom,
                     offset: lockedOffset,
@@ -840,35 +1031,50 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
             {/* Labels Overlay (Atomic from Frame) */}
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>
-                {isReplayMode && pathPoints.length >= 2 && map.current && (
-                    <InkTrail
-                        pathPoints={pathPoints}
-                        progress={progress}
-                        project={(lnglat) => {
-                            const pt = map.current!.project(lnglat);
-                            return { x: pt.x, y: pt.y };
-                        }}
-                    />
+                {effectiveReplayMode && pathPoints.length >= 2 && map.current && (
+                    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}>
+                        <InkTrail
+                            pathPoints={pathPoints}
+                            validEvents={validEvents}
+                            progress={progress}
+                            departure={departure}
+                            destination={destination}
+                            project={(lnglat) => {
+                                const pt = map.current!.project(lnglat);
+                                return { x: pt.x, y: pt.y };
+                            }}
+                        />
+                    </div>
                 )}
-                {frame.labels.map(l => {
+                {/* Labels Overlay */}
+                {(effectiveReplayMode ? replayLabels : frame.labels).map(l => {
                     // Replay Discovery Filter: Skip rendering if not yet discovered
-                    if (isReplayMode && l.type === 'poi') {
+                    if (effectiveReplayMode && l.type === 'poi') {
                         const discoveryTime = poiDiscoveryTimes.get(l.id);
                         if (discoveryTime != null) {
                             const eventElapsed = discoveryTime - firstEventTime;
                             const simulatedElapsed = progress * totalTripTime;
-                            if (eventElapsed > simulatedElapsed) return null;
+                            // Only apply filter if we've discovered it and we're currently animating (progress < 1)
+                            if (progress < 0.999 && eventElapsed > simulatedElapsed) return null;
                         }
                     }
 
-                    // Zoom-relative scale: markers shrink/grow to stay the same size on the map surface
-                    // Both frame.zoom (Real Zoom) and l.placedZoom (Placement Real Zoom) are integers.
-                    let zoomScale = l.placedZoom != null ? Math.pow(2, frame.zoom - l.placedZoom) : 1;
+                    // RESOLUTION: Project coordinates in the render loop to ensure labels stay locked to the map
+                    // background during pans, avoiding the "lag" associated with the 2s heartbeat.
+                    const m = map.current;
+                    if (!m) return null;
 
-                    // Settlement Scale Cap: Avoid "HUGE TEXT" when zooming in (stay <= 1.0x native)
-                    if (l.type === 'settlement') {
-                        zoomScale = Math.min(zoomScale, 1.0);
-                    }
+                    const geoPos = m.project([l.lon, l.lat]);
+                    // Zoom-relative scale: markers shrink/grow to stay the same size on the map surface
+                    let zoomScale = l.placedZoom != null ? Math.pow(2, frame.zoom - l.placedZoom) : 1;
+                    if (l.type === 'settlement') zoomScale = Math.min(zoomScale, 1.0);
+
+                    // APPLY relative offsets from the placement engine to maintain collision avoidance
+                    // while still following the map during pans.
+                    const offsetX = ((l.finalX ?? 0) - (l.trueX ?? 0)) * zoomScale;
+                    const offsetY = ((l.finalY ?? 0) - (l.trueY ?? 0)) * zoomScale;
+                    const finalX = geoPos.x + offsetX;
+                    const finalY = geoPos.y + offsetY;
 
                     // Fade-In Logic
                     const now = Date.now();
@@ -882,22 +1088,23 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         // ... POI Icon Rendering ...
                         const poi = accumulatedPois.current.get(l.id);
                         const iconName = (poi?.icon_artistic || l.icon || 'attraction');
-                        const iconUrl = `/ icons / ${iconName}.svg`;
+                        const iconUrl = `/icons/${iconName}.svg`;
 
                         // Semantic Logic Simplification: Playing or Preparing items are NEVER treated as historic
                         const isLive = l.id === currentNarratedId || l.id === preparingId;
                         const effectiveIsHistorical = l.isHistorical && !isLive;
 
                         // Tether logic: Historic items never get tethers, regardless of distance.
-                        const tTx = l.trueX ?? 0;
-                        const tTy = l.trueY ?? 0;
-                        const tDx = (l.finalX || 0) - tTx;
-                        const tDy = (l.finalY || 0) - tTy;
+                        const tTx = geoPos.x;
+                        const tTy = geoPos.y;
+                        const tDx = finalX - tTx;
+                        const tDy = finalY - tTy;
                         const tDist = Math.ceil(Math.sqrt(tDx * tDx + tDy * tDy));
                         const isDisplaced = !effectiveIsHistorical && tDist > 68;
 
                         const score = l.score || 0;
                         const isHero = score >= 20 && !effectiveIsHistorical;
+                        const isReplayItem = isReplayMode && isReplayModeRef.current;
 
                         // 1. Icon Fill Color: Strictly Score-based (Silver -> Gold) unless Historical
                         let iconColor = ARTISTIC_MAP_STYLES.colors.icon.copper;
@@ -918,7 +1125,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         const isActive = l.id === currentNarratedId;
                         const isPreparing = l.id === preparingId;
                         const isSelected = selectedPOI && l.id === selectedPOI.wikidata_id;
-                        const isDeferred = poi?.is_deferred || poi?.badges?.includes('deferred');
+                        const isDeferred = !isReplayItem && (poi?.is_deferred || poi?.badges?.includes('deferred'));
 
                         let hColor = ARTISTIC_MAP_STYLES.colors.icon.normalHalo; // Paper White
                         let hSize = 2;
@@ -971,15 +1178,15 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         if (effectiveIsHistorical || (l.custom?.halo === 'none')) {
                             dropShadowFilter = 'none';
                         } else if (l.custom?.halo === 'organic' || (l.id.startsWith('dbg-2') && DEBUG_FLOURISHES)) {
-                            dropShadowFilter = `drop - shadow(1px 1px 2px ${ARTISTIC_MAP_STYLES.colors.icon.organicSmudge}) drop - shadow(-1px - 1px 2px ${ARTISTIC_MAP_STYLES.colors.icon.organicSmudge})`;
+                            dropShadowFilter = `drop-shadow(1px 1px 2px ${ARTISTIC_MAP_STYLES.colors.icon.organicSmudge}) drop-shadow(-1px -1px 2px ${ARTISTIC_MAP_STYLES.colors.icon.organicSmudge})`;
                         } else {
                             // Standard or Special (Neon, Gold, Selected)
                             if (hLayers === 3) {
-                                dropShadowFilter = `drop - shadow(0 0 ${hSize / 2}px ${hColor}) drop - shadow(0 0 ${hSize}px ${hColor}) drop - shadow(0 0 ${hSize * 2}px ${hColor})`;
+                                dropShadowFilter = `drop-shadow(0 0 ${hSize / 2}px ${hColor}) drop-shadow(0 0 ${hSize}px ${hColor}) drop-shadow(0 0 ${hSize * 2}px ${hColor})`;
                             } else if (hLayers === 2) {
-                                dropShadowFilter = `drop - shadow(0 0 ${hSize / 2}px ${hColor}) drop - shadow(0 0 ${hSize}px ${hColor})`;
+                                dropShadowFilter = `drop-shadow(0 0 ${hSize / 2}px ${hColor}) drop-shadow(0 0 ${hSize}px ${hColor})`;
                             } else {
-                                dropShadowFilter = `drop - shadow(0 0 ${hSize}px ${hColor})`;
+                                dropShadowFilter = `drop-shadow(0 0 ${hSize}px ${hColor})`;
                             }
                         }
 
@@ -998,8 +1205,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         const swayDir = (l.id.charCodeAt(0) % 2 === 0 ? 1 : -1);
                         const startX = l.trueX || 0;
                         const startY = l.trueY || 0;
-                        const endX = l.finalX || 0;
-                        const endY = l.finalY || 0;
+                        const endX = finalX;
+                        const endY = finalY;
                         const dy = endY - startY;
 
                         // Calligraphic stroke: Two Bezier curves (Outer/Inner) forming a filled shape that's bulky in the center
@@ -1027,9 +1234,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                 )}
                                 {(l.id === currentNarratedId || l.id === preparingId) && (
                                     <div style={{
-                                        position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0,
+                                        position: 'absolute', left: finalX, top: finalY,
                                         // Stable random rotation based on ID bytes
-                                        transform: `translate(-50 %, -50 %) scale(${zoomScale * activeBoost}) rotate(${(l.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360)}deg)`,
+                                        transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost}) rotate(${(l.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360)}deg)`,
                                         opacity: l.id === currentNarratedId ? 1 : 0.5,
                                         pointerEvents: 'none',
                                         zIndex: 14
@@ -1044,8 +1251,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                         if (poi && onPOISelect) onPOISelect(poi);
                                     }}
                                     style={{
-                                        position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, width: l.width, height: l.height,
-                                        transform: `translate(-50 %, -50 %) scale(${zoomScale * activeBoost})`,
+                                        position: 'absolute', left: finalX, top: finalY, width: l.width, height: l.height,
+                                        transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost})`,
                                         opacity: (effectiveIsHistorical ? 0.5 : 1) * fadeOpacity,
                                         color: iconColor, cursor: 'pointer', pointerEvents: 'auto',
                                         // Use drop-shadow filter for true shape contour ("Halo")
@@ -1058,7 +1265,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                         style={{
                                             // @ts-ignore - custom CSS variables for the stamped-icon class
                                             '--stamped-stroke': outlineColor,
-                                            '--stamped-width': `${outlineWeight} px`
+                                            '--stamped-width': `${outlineWeight}px`
                                         }}
                                         className="stamped-icon"
                                     />
@@ -1069,9 +1276,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                         className="role-label"
                                         style={{
                                             position: 'absolute',
-                                            left: l.secondaryLabelPos.x,
-                                            top: l.secondaryLabelPos.y,
-                                            transform: `translate(-50 %, -50 %) scale(${zoomScale})`,
+                                            // Project the secondary label anchor displacement relative to the dynamic final coordinate
+                                            left: finalX + ((l.secondaryLabelPos.x - (l.finalX ?? 0)) * zoomScale),
+                                            top: finalY + ((l.secondaryLabelPos.y - (l.finalY ?? 0)) * zoomScale),
+                                            transform: `translate(-50%, -50%) scale(${zoomScale})`,
                                             fontSize: '17px', // Match secondaryFont adjustment (+2)
                                             opacity: fadeOpacity,
                                             pointerEvents: 'none',
@@ -1092,8 +1300,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             <div
                                 key={l.id}
                                 style={{
-                                    position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, width: l.width, height: l.height,
-                                    transform: `translate(-50 %, -50 %)`,
+                                    position: 'absolute', left: finalX, top: finalY, width: l.width, height: l.height,
+                                    transform: `translate(-50%, -50%)`,
                                     opacity: 0.8 * fadeOpacity,
                                     color: ARTISTIC_MAP_STYLES.colors.icon.compass,
                                     pointerEvents: 'none',
@@ -1111,7 +1319,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             <div
                                 className={l.tier === 'city' ? 'role-title' : (l.tier === 'town' ? 'role-header' : 'role-text-lg')}
                                 style={{
-                                    position: 'absolute', left: l.finalX ?? 0, top: l.finalY ?? 0, transform: `translate(-50 %, -50 %) scale(${zoomScale})`,
+                                    position: 'absolute', left: finalX, top: finalY, transform: `translate(-50%, -50%) scale(${zoomScale})`,
                                     fontSize: l.tier === 'city' ? '24px' : (l.tier === 'town' ? '16px' : '14px'), // Match role font adjustments (-4)
                                     color: l.isHistorical ? ARTISTIC_MAP_STYLES.colors.text.historical : ARTISTIC_MAP_STYLES.colors.text.active,
                                     textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere,
@@ -1129,27 +1337,18 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                 {/* Hot Air Balloon Aircraft Icon (Atomic from Frame) */}
                 <HotAirBalloon
-                    x={isReplayMode && replayBalloonPos ? replayBalloonPos.x : frame.aircraftX}
-                    y={isReplayMode && replayBalloonPos ? replayBalloonPos.y : frame.aircraftY}
-                    agl={isReplayMode ? 5000 : frame.agl}
+                    x={(isReplayMode || effectiveReplayMode) && replayBalloonPos ? replayBalloonPos.x : frame.aircraftX}
+                    y={(isReplayMode || effectiveReplayMode) && replayBalloonPos ? replayBalloonPos.y : frame.aircraftY}
+                    agl={(isReplayMode || effectiveReplayMode) ? 5000 : frame.agl}
                 />
-
-                {isReplayMode && (
-                    <CreditRoll
-                        items={creditItems}
-                        totalPOICount={validEvents.filter(e => e.type === 'poi').length}
-                        mapContainer={mapContainer.current}
-                        currentTime={currentTime}
-                    />
-                )}
             </div>
 
             {/* SVG Filter Definitions */}
             <svg style={{ position: 'absolute', width: 0, height: 0 }}>
                 <defs>
                     <mask id="paper-mask" maskContentUnits="userSpaceOnUse">
-                        <rect x="0" y="0" width="10000" height="10000" fill={getMaskColor(paperOpacityFog)} />
-                        <path d={frame.maskPath} fill={getMaskColor(paperOpacityClear)} />
+                        <rect x="0" y="0" width="10000" height="10000" fill={getMaskColor(isReplayMode ? paperOpacityClear : paperOpacityFog)} />
+                        {!isReplayMode && <path d={frame.maskPath} fill={getMaskColor(paperOpacityClear)} />}
                     </mask>
                 </defs>
             </svg>
@@ -1162,14 +1361,14 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 filter: `saturate(${parchmentSaturation})`
             }} />
             <style>{`
-    .stamped - icon { display: flex; justify - content: center; align - items: center; }
-                .stamped - icon svg { width: 100 %; height: 100 %; overflow: visible; }
-                .stamped - icon path, .stamped - icon circle, .stamped - icon rect, .stamped - icon polygon, .stamped - icon ellipse, .stamped - icon line {
+    .stamped-icon { display: flex; justify-content: center; align-items: center; }
+                .stamped-icon svg { width: 100%; height: 100%; overflow: visible; }
+                .stamped-icon path, .stamped-icon circle, .stamped-icon rect, .stamped-icon polygon, .stamped-icon ellipse, .stamped-icon line {
     fill: currentColor!important;
-    stroke: var(--stamped - stroke, ${ARTISTIC_MAP_STYLES.colors.icon.stroke}) !important;
-    stroke - width: var(--stamped - width, 0.8px) !important;
-    stroke - linejoin: round!important;
-    vector - effect: non - scaling - stroke;
+    stroke: var(--stamped-stroke, ${ARTISTIC_MAP_STYLES.colors.icon.stroke}) !important;
+    stroke-width: var(--stamped-width, 0.8px) !important;
+    stroke-linejoin: round!important;
+    vector-effect: non-scaling-stroke;
 }
 `}</style>
         </div>
