@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## v0.3.174 (2026-02-13)
+- **Fix**: **Artistic Map Bounds**. Fixed the "snap-back" issue during debriefing by ignoring camera updates during intermediate easing transitions.
+- **Refinement**: **Replay Map Aesthetics**. Hidden the dashed aircraft heading line during trip replay for a cleaner look.
+- **Improvement**: **Free Flight POI Selection**. Excluded previously visited (historic) POIs from being candidates for artistic map labels, reducing overall map clutter and noise.
+
+
 ## v0.3.173 (2026-02-13)
 - **New Feature**: **Stamped POI Iconography**. Replaced Unicode star markers with a sharp, custom SVG star that features a defined dark outline for better clarity against the map background.
 - **Improved**: **Flight Debriefing Logic**. Implemented leg-tracking to ensure debriefings only trigger once per take-off, preventing loops during multi-hop flights.

@@ -291,7 +291,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 }));
             }
         }
-    }, [isReplayMode, pathPoints, styleLoaded]);
+    }, [effectiveReplayMode, pathPoints, styleLoaded]);
 
     // Animation loop (mirrors TripReplayOverlay)
     useEffect(() => {
@@ -695,6 +695,11 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                 if (effectiveReplayMode) {
                     // PASSIVE REPLAY: Read camera from map instance (controlled by fitBounds/animations)
+                    // If the map is currently easing (e.g. initial fitBounds), skip capture to avoid snap-back
+                    if (m.isEasing()) {
+                        isRunning = false;
+                        return;
+                    }
                     const c = m.getCenter();
                     lockedCenter = [c.lng, c.lat];
                     lockedZoom = m.getZoom();
@@ -776,6 +781,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 };
                 const lineSource = m.getSource('bearing-line') as maplibregl.GeoJSONSource;
                 if (lineSource) lineSource.setData(bLine);
+                if (m.getLayer('bearing-line-layer')) {
+                    m.setPaintProperty('bearing-line-layer', 'line-opacity', effectiveReplayMode ? 0 : 0.7);
+                }
 
                 // 9. DAMPED COLLISION SOLVER
                 // Only execute if geography (snap/pan) or data (discovery) changes.
@@ -850,6 +858,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                         const normalizedName = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
                         if (normalizedName.length > 24) return;
+
+                        const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
+                        if (isHistorical) return;
 
                         if (p.score >= 10 && !failedPoiLabelIds.current.has(p.wikidata_id) && !labeledPoiIds.current.has(p.wikidata_id)) {
                             if (!champion || (p.score > champion.score)) {
