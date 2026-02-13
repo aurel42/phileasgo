@@ -3,6 +3,9 @@ package openai
 import (
 	"context"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -97,10 +100,16 @@ func TestOpenAI_GenerateImageText(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create a dummy image
+	// Create a valid PNG image
 	tmpFile, _ := os.CreateTemp("", "test_img_*.png")
 	defer os.Remove(tmpFile.Name())
-	tmpFile.Write([]byte("fake image content"))
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 100; x++ {
+			img.Set(x, y, color.White)
+		}
+	}
+	_ = png.Encode(tmpFile, img)
 	tmpFile.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})

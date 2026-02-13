@@ -36,7 +36,7 @@ type Border struct {
 
 func NewBorder(cfg *config.Config, geo LocationProvider, dp DataProvider, events EventRecorder) *Border {
 	b := &Border{
-		Base:            NewBase("border", model.NarrativeTypeBorder, false, dp, events),
+		Base:            NewBase("border", model.NarrativeTypeBorder, true, dp, events), // BY DESIGN: repeatable: true
 		geo:             geo,
 		provider:        dp,
 		cfg:             cfg,

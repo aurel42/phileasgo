@@ -53,14 +53,20 @@ function computeAxis(metersPerPixel: number, targetPx: number, unitMeters: numbe
  */
 export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
     const scaleData = useMemo(() => {
-        // Mercator-corrected meters per pixel at this latitude and zoom.
-        // Below Z10, the artistic map uses 128px HD tiles (tileSize=128) which display
-        // Z+1 content at Z (e.g. Z10 tiles at Z9), doubling the effective scale.
-        const effectiveZoom = zoom < 10 ? zoom + 1 : zoom;
-        const metersPerPixel = (156543.03 * Math.cos((latitude * Math.PI) / 180)) / Math.pow(2, effectiveZoom);
+        // MapLibre GL JS operates on a 512px base for its coordinate system (1 tile = 512px at its native zoom).
+        // The standard resolution constant for a 512px world is EquatorCircumference / 512 = 78271.516.
+        //
+        // NON-STANDARD TILE HANDLING (Artistic Map):
+        // 1. Minimum Zoom: We only use Z9 and higher.
+        // 2. HD/Retina Tiles: At Z < 10, the Artistic Map uses 128px tiles (source: stamen-watercolor-hd).
+        //    This causes MapLibre to fetch Z+2 tiles (e.g., Z11 tiles at Z9) to fill the screen,
+        //    providing extra detail on the "faded paper" at low altitudes.
+        // 3. Scale Invariance: Regardless of tile size (128, 256, or 512), MapLibre's camera Zoom 
+        //    value (map.getZoom()) defines the geographic resolution. We do NOT need to compensate 
+        //    for tile sizes here; doing so creates a 2x jump at the Z10 boundary.
+        const metersPerPixel = (78271.516 * Math.cos((latitude * Math.PI) / 180)) / Math.pow(2, zoom);
 
-        // Target bar width: ~28% of a typical viewport width (use 400px as a sensible default)
-        // The component itself will use the computed pixel width, so this is approximate
+        // Target bar width: ~300px
         const targetPx = 300;
 
         const km = computeAxis(metersPerPixel, targetPx, 1000);

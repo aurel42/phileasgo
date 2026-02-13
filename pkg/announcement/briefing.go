@@ -17,7 +17,7 @@ type Briefing struct {
 
 func NewBriefing(cfg *config.Config, dp DataProvider, events EventRecorder) *Briefing {
 	b := &Briefing{
-		Base:     NewBase("briefing", model.NarrativeTypeBriefing, false, dp, events),
+		Base:     NewBase("briefing", model.NarrativeTypeBriefing, false, dp, events), // BY DESIGN: repeatable: false
 		cfg:      cfg,
 		provider: dp,
 	}

@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## v0.3.172 (2026-02-13)
+- **Fix**: **Border Crossing Regression**. Restored border announcements by marking them as repeatable, ensuring multiple crossings in a single session are correctly detected.
+- **Improvement**: **Artistic Map Detail**. Synchronized tile fetching to use Z10 assets at Z9 view for crisper hand-drawn aesthetics.
+- **Refinement**: **Artistic Map Zoom Limits**. Capped maximum zoom at Z12 as per design specification.
+- **Improved**: **Announcement Resilience**. Enabled repeatable debriefings and added "by design" source comments to prevent future logic regressions.
+- **Fix**: **Image Conversion Lint**. Resolved an unrelated result naming issue in the LLM image utility.
+
 ## v0.3.171 (2026-02-13)
 - **Fix**: **Visibility Cone Jitter**. The fog-of-war now re-projects every 2 seconds, ensuring smooth updates even when the map is stationary.
 - **Improvement**: **Condensed Dashboard Footer**. Unified sim status and narrator configuration into a single space-efficient line.

@@ -16,7 +16,7 @@ type Debriefing struct {
 
 func NewDebriefing(cfg *config.Config, dp DataProvider, events EventRecorder) *Debriefing {
 	d := &Debriefing{
-		Base: NewBase("debriefing", model.NarrativeTypeDebriefing, false, dp, events),
+		Base: NewBase("debriefing", model.NarrativeTypeDebriefing, true, dp, events), // BY DESIGN: repeatable: true
 		cfg:  cfg,
 		dp:   dp,
 	}

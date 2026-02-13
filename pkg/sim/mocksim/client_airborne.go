@@ -3,6 +3,7 @@ package mocksim
 import (
 	"math"
 	"math/rand"
+	"phileasgo/pkg/geo"
 	"time"
 )
 
@@ -21,12 +22,17 @@ func (m *MockClient) updateAirborne(dt float64, now time.Time) {
 
 	m.updateScenario(dt, now)
 
-	// Move
-	distNm := m.tel.GroundSpeed * (dt / 3600.0)
-	distDeg := distNm / 60.0
-	radHeading := m.tel.Heading * (math.Pi / 180.0)
-	m.tel.Latitude += distDeg * math.Cos(radHeading)
-	m.tel.Longitude += distDeg * math.Sin(radHeading)
+	// Move using Geodesic Math
+	distMeters := m.tel.GroundSpeed * 0.514444 * dt // knots to m/s
+	if distMeters > 0 {
+		nextPos := geo.DestinationPoint(
+			geo.Point{Lat: m.tel.Latitude, Lon: m.tel.Longitude},
+			distMeters,
+			m.tel.Heading,
+		)
+		m.tel.Latitude = nextPos.Lat
+		m.tel.Longitude = nextPos.Lon
+	}
 
 	// TERRAIN FOLLOWING: Ensure we don't crash into mountains.
 	// Enforce min 500ft AGL if airborne, BUT only after we've naturally reached it to avoid takeoff snap.

@@ -167,7 +167,7 @@ func NewService(citiesPath, admin1Path string) (*Service, error) {
 			// format: code <tab> name <tab> nameAscii <tab> ...
 			// We use name (index 1) which is UTF-8
 			if len(parts) >= 2 {
-				adminMap[parts[0]] = parts[1]
+				adminMap[parts[0]] = strings.Clone(parts[1])
 			}
 		}
 		adminFile.Close()
@@ -202,12 +202,12 @@ func NewService(citiesPath, admin1Path string) (*Service, error) {
 		pop, _ := strconv.Atoi(parts[14]) // Ignore error, default to 0
 
 		city := City{
-			Name:        parts[1],
+			Name:        strings.Clone(parts[1]),
 			Lat:         lat,
 			Lon:         lon,
-			CountryCode: country,
-			Admin1Code:  admin1,
-			Admin1Name:  adminMap[country+"."+admin1], // Lookup full name
+			CountryCode: strings.Clone(country),
+			Admin1Code:  strings.Clone(admin1),
+			Admin1Name:  adminMap[country+"."+admin1], // Already cloned during admin load
 			Population:  pop,
 		}
 

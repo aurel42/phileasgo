@@ -477,8 +477,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     'stamen-watercolor-hd': {
                         type: 'raster',
                         tiles: ['https://watercolormaps.collection.cooperhewitt.org/tile/watercolor/{z}/{x}/{y}.jpg'],
-                        tileSize: 128 // HD Source: 128px tiles (displays Z+1 content at Z)
+                        tileSize: 256 // HD Source: 256px tiles (displays Z+1 content at Z)
                     },
+
                     'stamen-watercolor-std': {
                         type: 'raster',
                         tiles: ['https://watercolormaps.collection.cooperhewitt.org/tile/watercolor/{z}/{x}/{y}.jpg'],
@@ -504,7 +505,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             center: [center[1], center[0]],
             zoom: zoom,
             minZoom: 9, // Allowed now that we have higher-res tiles (Z10 tiles at Z9 view)
-            maxZoom: 13,
+            maxZoom: 12,
             attributionControl: false,
             interactive: false
         });
@@ -681,9 +682,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     let newZoom = lockedZoom === -1 ? targetZoomBase : lockedZoom;
                     if (lastMaskData?.geometry) {
                         const coneBbox = turf.bbox(lastMaskData.geometry);
-                        const camera = m.cameraForBounds(coneBbox as [number, number, number, number], { padding: 0, maxZoom: 13 });
+                        const camera = m.cameraForBounds(coneBbox as [number, number, number, number], { padding: 0, maxZoom: 12 });
                         if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
-                            newZoom = Math.min(Math.max(camera.zoom, 9), 13);
+                            newZoom = Math.min(Math.max(camera.zoom, 9), 12);
                         }
                     }
                     // COMPUTE REAL ZOOM (Discrete 0.5 Step Snap)

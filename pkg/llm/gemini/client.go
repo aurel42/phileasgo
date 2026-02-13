@@ -16,6 +16,7 @@ import (
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm"
+	"phileasgo/pkg/llm/imageutil"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
 )
@@ -205,16 +206,10 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 		return "", fmt.Errorf("gemini client not configured")
 	}
 
-	// Read image file
-	imgData, err := os.ReadFile(imagePath)
+	// Prepare image: crop center 60%, scale to 1080p, convert to JPEG
+	imgData, mimeType, err := imageutil.PrepareForLLM(imagePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read image file: %w", err)
-	}
-
-	// Determine MIME type (simple heuristic)
-	mimeType := "image/jpeg"
-	if strings.HasSuffix(strings.ToLower(imagePath), ".png") {
-		mimeType = "image/png"
+		return "", fmt.Errorf("failed to prepare image: %w", err)
 	}
 
 	slog.Debug("Gemini: Attaching image to multimodal request",

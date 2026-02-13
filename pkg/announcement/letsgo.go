@@ -17,7 +17,7 @@ type Letsgo struct {
 
 func NewLetsgo(cfg *config.Config, dp DataProvider, events EventRecorder) *Letsgo {
 	return &Letsgo{
-		Base:     NewBase("letsgo", model.NarrativeTypeLetsgo, false, dp, events),
+		Base:     NewBase("letsgo", model.NarrativeTypeLetsgo, false, dp, events), // BY DESIGN: repeatable: false
 		cfg:      cfg,
 		provider: dp,
 	}

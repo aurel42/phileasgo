@@ -84,6 +84,7 @@ function App() {
   // POI selection state (lifted from Map.tsx)
   const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
   const [showGenericPanel, setShowGenericPanel] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false); // [NEW] Lifted state
   const autoOpenedRef = useRef(false);
   const userDismissedRef = useRef<string | null>(null); // Track ID of user-dismissed POI
   const lastAutoOpenedIdRef = useRef<string | null>(null); // Track ID of last auto-opened POI to prevent loops
@@ -93,9 +94,14 @@ function App() {
   const nonBlueCount = pois.length - bluePOIs.length;
   const blueCount = bluePOIs.length;
 
-  // Auto-open panel when narrator starts playing (unless user dismissed it)
+  // Auto-open panel when narrator starts playing (unless user dismissed it OR diagnostics is open)
   useEffect(() => {
     if (narratorStatus?.playback_status === 'playing' && narratorStatus?.show_info_panel) {
+      // BLOCK AUTO-OPEN if Diagnostics is expanded
+      if (isDiagnosticsOpen) {
+        return;
+      }
+
       if (narratorStatus.current_type === 'poi' && narratorStatus.current_poi) {
         const poiId = narratorStatus.current_poi.wikidata_id;
         // Don't auto-open if user manually closed the panel for THIS specific POI
@@ -131,7 +137,7 @@ function App() {
         }
       }
     }
-  }, [narratorStatus?.playback_status, narratorStatus?.current_poi?.wikidata_id, narratorStatus?.current_type, narratorStatus?.current_title, narratorStatus?.show_info_panel, pois]);
+  }, [narratorStatus?.playback_status, narratorStatus?.current_poi?.wikidata_id, narratorStatus?.current_type, narratorStatus?.current_title, narratorStatus?.show_info_panel, pois, isDiagnosticsOpen]);
 
   // Auto-close panel when narrator stops or switches to content that shouldn't show the panel
   useEffect(() => {
@@ -148,10 +154,15 @@ function App() {
 
   // Handler for manual POI selection (from map)
   const handlePOISelect = useCallback((poi: POI) => {
+    // BLOCK MANUAL SELECTION if Diagnostics is expanded
+    if (isDiagnosticsOpen) {
+      return;
+    }
+
     setSelectedPOI(poi);
     autoOpenedRef.current = false; // User manually selected, don't auto-close
     userDismissedRef.current = null; // New selection, reset dismissed suppression
-  }, []);
+  }, [isDiagnosticsOpen]);
 
   // Handler for closing the panel
   const handlePanelClose = useCallback(() => {
@@ -427,6 +438,8 @@ function App() {
             narrationFrequency={narrationFrequency}
             textLength={textLength}
             onSettingsClick={() => navigate('/settings')}
+            isDiagnosticsOpen={isDiagnosticsOpen}
+            onDiagnosticsToggle={setIsDiagnosticsOpen}
           />
         )}
       </div>

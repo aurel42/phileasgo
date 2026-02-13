@@ -14,6 +14,8 @@ interface InfoPanelProps {
     narrationFrequency?: number;
     textLength?: number;
     onSettingsClick?: () => void;
+    isDiagnosticsOpen?: boolean;
+    onDiagnosticsToggle?: (open: boolean) => void;
 }
 
 import { useGeography } from '../hooks/useGeography';
@@ -24,13 +26,14 @@ export const InfoPanel = ({
     nonBlueCount, blueCount,
     minPoiScore, targetCount, filterMode,
     narrationFrequency, textLength,
-    onSettingsClick
+    onSettingsClick,
+    isDiagnosticsOpen = false,
+    onDiagnosticsToggle
 }: InfoPanelProps) => {
 
     const [backendVersion, setBackendVersion] = useState<string | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [stats, setStats] = useState<any>(null);
-    const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
     const { location } = useGeography(telemetry);
 
     // Use ref to access latest telemetry in interval without resetting it
@@ -370,7 +373,7 @@ export const InfoPanel = ({
                                 alignItems: 'center',
                                 cursor: 'pointer'
                             }}
-                            onClick={() => setIsDiagnosticsOpen(!isDiagnosticsOpen)}
+                            onClick={() => onDiagnosticsToggle?.(!isDiagnosticsOpen)}
                         >
                             <span>System Diagnostics</span>
                             <span style={{ fontSize: '10px', opacity: 0.5 }}>{isDiagnosticsOpen ? '▼' : '▶'}</span>

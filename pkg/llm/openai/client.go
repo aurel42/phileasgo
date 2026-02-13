@@ -12,6 +12,7 @@ import (
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm"
+	"phileasgo/pkg/llm/imageutil"
 	"phileasgo/pkg/request"
 )
 
@@ -214,14 +215,9 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 		return "", err
 	}
 
-	data, err := os.ReadFile(imagePath)
+	data, mimeType, err := imageutil.PrepareForLLM(imagePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read image file: %w", err)
-	}
-
-	mimeType := "image/jpeg"
-	if strings.HasSuffix(strings.ToLower(imagePath), ".png") {
-		mimeType = "image/png"
+		return "", fmt.Errorf("failed to prepare image: %w", err)
 	}
 
 	b64Data := base64.StdEncoding.EncodeToString(data)

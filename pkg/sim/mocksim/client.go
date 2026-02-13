@@ -59,6 +59,7 @@ type MockClient struct {
 	groundAlt        float64
 	safeAltReached   bool
 	elevation        *terrain.ElevationProvider
+	lastUpdate       time.Time // Wall-clock time of the last physics update
 
 	// Ground Track Calculation
 	trackBuf *geo.TrackBuffer
@@ -95,6 +96,7 @@ func NewClient(cfg Config) *MockClient {
 		trackBuf:     geo.NewTrackBuffer(5),
 		vsBuf:        sim.NewVerticalSpeedBuffer(5 * time.Second),
 		stageMachine: sim.NewStageMachine(),
+		lastUpdate:   time.Now(),
 	}
 
 	m.wg.Add(1)
@@ -210,68 +212,86 @@ func (m *MockClient) update() {
 	defer m.mu.Unlock()
 
 	now := time.Now()
-	dt := float64(tickRateMs) / 1000.0 // seconds
-	stateDuration := now.Sub(m.stateStart)
+	dt := now.Sub(m.lastUpdate).Seconds()
+	m.lastUpdate = now
 
-	m.tel.EngineOn = true // Default mock behavior (engines on)
+	stateDuration := now.Sub(m.stateStart)
+	m.tel.EngineOn = true
 
 	switch m.state {
 	case StageParked:
-		m.tel.EngineOn = false
-		m.tel.GroundSpeed = 0
-		m.tel.IsOnGround = true
-		if stateDuration >= m.config.DurationParked {
-			m.state = StageTaxiing
-			m.stateStart = now
-		}
-
+		m.updateParked(stateDuration)
 	case StageTaxiing:
-		m.tel.IsOnGround = true
-		m.tel.GroundSpeed = 15.0
-		// Move straight
-		distNm := m.tel.GroundSpeed * (dt / 3600.0)
-		distDeg := distNm / 60.0
-		radHeading := m.tel.Heading * (math.Pi / 180.0)
-		m.tel.Latitude += distDeg * math.Cos(radHeading)
-		m.tel.Longitude += distDeg * math.Sin(radHeading)
-
-		if stateDuration >= m.config.DurationTaxi {
-			m.state = StageHolding
-			m.stateStart = now
-		}
-
+		m.updateTaxiing(dt, stateDuration)
 	case StageHolding:
-		m.tel.IsOnGround = true
-		m.tel.GroundSpeed = 0
-		if stateDuration >= m.config.DurationHold {
-			m.state = StageTakeoff
-			m.stateStart = now
-		}
-
+		m.updateHolding(stateDuration)
 	case StageTakeoff:
-		m.tel.IsOnGround = true
-		// Accelerate at a reasonable rate (~5 kts per second)
-		m.tel.GroundSpeed += 5.0 * dt
-
-		// Move straight along ground
-		distNm := m.tel.GroundSpeed * (dt / 3600.0)
-		distDeg := distNm / 60.0
-		radHeading := m.tel.Heading * (math.Pi / 180.0)
-		m.tel.Latitude += distDeg * math.Cos(radHeading)
-		m.tel.Longitude += distDeg * math.Sin(radHeading)
-
-		// Rotate and take off at 80 kts
-		if m.tel.GroundSpeed >= 80.0 {
-			m.state = StageAirborne
-			m.stateStart = now
-			m.initScenario()
-		}
-
+		m.updateTakeoff(dt)
 	case StageAirborne:
 		m.updateAirborne(dt, now)
 	}
 
-	// Update Prediction for ALL stages
+	m.updateDerivedState(now)
+}
+
+func (m *MockClient) updateParked(stateDuration time.Duration) {
+	m.tel.EngineOn = false
+	m.tel.GroundSpeed = 0
+	m.tel.IsOnGround = true
+	if stateDuration >= m.config.DurationParked {
+		m.state = StageTaxiing
+		m.stateStart = time.Now()
+	}
+}
+
+func (m *MockClient) updateTaxiing(dt float64, stateDuration time.Duration) {
+	m.tel.IsOnGround = true
+	m.tel.GroundSpeed = 15.0
+	m.moveGeodesic(dt)
+
+	if stateDuration >= m.config.DurationTaxi {
+		m.state = StageHolding
+		m.stateStart = time.Now()
+	}
+}
+
+func (m *MockClient) updateHolding(stateDuration time.Duration) {
+	m.tel.IsOnGround = true
+	m.tel.GroundSpeed = 0
+	if stateDuration >= m.config.DurationHold {
+		m.state = StageTakeoff
+		m.stateStart = time.Now()
+	}
+}
+
+func (m *MockClient) updateTakeoff(dt float64) {
+	m.tel.IsOnGround = true
+	m.tel.GroundSpeed += 5.0 * dt // Accelerate ~5 kts/s
+	m.moveGeodesic(dt)
+
+	if m.tel.GroundSpeed >= 80.0 {
+		m.state = StageAirborne
+		m.stateStart = time.Now()
+		m.initScenario()
+	}
+}
+
+func (m *MockClient) moveGeodesic(dt float64) {
+	distMeters := m.tel.GroundSpeed * 0.514444 * dt
+	if distMeters <= 0 {
+		return
+	}
+	nextPos := geo.DestinationPoint(
+		geo.Point{Lat: m.tel.Latitude, Lon: m.tel.Longitude},
+		distMeters,
+		m.tel.Heading,
+	)
+	m.tel.Latitude = nextPos.Lat
+	m.tel.Longitude = nextPos.Lon
+}
+
+func (m *MockClient) updateDerivedState(now time.Time) {
+	// Update Prediction
 	distMetersPred := m.tel.GroundSpeed * 0.514444 * m.predictionWindow.Seconds()
 	if distMetersPred > 0 {
 		pred := geo.DestinationPoint(
@@ -282,20 +302,18 @@ func (m *MockClient) update() {
 		m.tel.PredictedLatitude = pred.Lat
 		m.tel.PredictedLongitude = pred.Lon
 	} else {
-		// Stationary: predicted position = current position
 		m.tel.PredictedLatitude = m.tel.Latitude
 		m.tel.PredictedLongitude = m.tel.Longitude
 	}
 
-	// Update Ground Altitude from ETOPO1 if available
+	// Terrain Following
 	if m.elevation != nil {
 		elev, err := m.elevation.GetElevation(m.tel.Latitude, m.tel.Longitude)
 		if err == nil {
-			m.groundAlt = float64(elev) * 3.28084 // feet
+			m.groundAlt = float64(elev) * 3.28084
 		}
 	}
 
-	// Always update IsOnGround based on state and altitude
 	isOnGround := true
 	if m.state == StageAirborne {
 		isOnGround = m.tel.AltitudeMSL-m.groundAlt < 50
@@ -304,24 +322,14 @@ func (m *MockClient) update() {
 		m.tel.AltitudeAGL = 0
 	}
 
-	// Calculate TrackTrue (Ground Track) - Optional debug or smooth
-	currentPos := geo.Point{Lat: m.tel.Latitude, Lon: m.tel.Longitude}
-
-	// Update track buffer for internal consistency but DO NOT overwrite Heading
-	// because m.tel.Heading is the driver (Input) for the mock physics.
+	m.tel.IsOnGround = isOnGround
 	if isOnGround {
 		m.trackBuf.Reset()
 	} else {
-		m.trackBuf.Push(currentPos, m.tel.Heading)
+		m.trackBuf.Push(geo.Point{Lat: m.tel.Latitude, Lon: m.tel.Longitude}, m.tel.Heading)
 	}
 
-	m.tel.IsOnGround = isOnGround
-	// m.tel.Heading is already updated by updateAirborne (wander logic)
-
-	// Update Vertical Speed calculation
 	m.tel.VerticalSpeed = m.vsBuf.Update(now, m.tel.AltitudeMSL)
-
-	// Update Stage Machine
 	m.tel.FlightStage = m.stageMachine.Update(&m.tel)
 }
 
