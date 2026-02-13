@@ -1,4 +1,9 @@
-﻿Release History
+﻿# Changelog
+
+## v0.3.171 (2026-02-13)
+- **Fix**: **Visibility Cone Jitter**. The fog-of-war now re-projects every 2 seconds, ensuring smooth updates even when the map is stationary.
+- **Improvement**: **Condensed Dashboard Footer**. Unified sim status and narrator configuration into a single space-efficient line.
+- **New Feature**: **Go Runtime Diagnostics**. Added Heap, Stack, and GC statistics to the system diagnostics panel.
 
 ## v0.3.170 (2026-02-13)
 - **New Feature**: **Wax Seal Refinements**. Implemented a 30-second linear fade-in for "preparing" POIs and raised z-indices to ensure active items stay visually above settlement labels and the parchment grain.
