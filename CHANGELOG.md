@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## v0.3.175 (2026-02-13)
+- **New Feature**: **Testing Map Tab**. Added a new "Testing" tab to the GUI navigation to facilitate isolated map-styling development and real-time zoom debugging.
+
 ## v0.3.174 (2026-02-13)
 - **Fix**: **Artistic Map Bounds**. Fixed the "snap-back" issue during debriefing by ignoring camera updates during intermediate easing transitions.
 - **Refinement**: **Replay Map Aesthetics**. Hidden the dashed aircraft heading line during trip replay for a cleaner look.
