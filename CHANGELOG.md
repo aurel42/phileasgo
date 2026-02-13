@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## v0.3.176 (2026-02-13)
+- **Improvement**: **Artistic Map Detail**. Synchronized the Artistic Map with the "perfect" Testing Map look by implementing the Super-HD resolution trick (`tileSize: 128`), doubling the perceived detail density.
+- **Improved**: **Verified Scale Accuracy**. Confirmed and documented that the dual-scale bar remains 100% accurate across all tile sizes due to our scale-invariant 512px resolution model.
+- **New Feature**: **Artistic Terrain & Infrastructure**. Integrated Stadia Terrarium hillshading (Z0-Z9) and OpenFreeMap vector runways (Z8+) into the hand-drawn Artistic Map style.
+- **Refinement**: **Runway Aesthetics**. Implemented material-based coloring for runways (green for grass/dirt, grey for paved) ensuring consistent and readable airport layouts.
+
 ## v0.3.175 (2026-02-13)
 - **New Feature**: **Testing Map Tab**. Added a new "Testing" tab to the GUI navigation to facilitate isolated map-styling development and real-time zoom debugging.
 
