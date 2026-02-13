@@ -126,6 +126,7 @@ export const InfoPanel = ({
 
     const trackedCount = stats?.tracking?.active_pois || 0;
     const diagnostics = stats?.diagnostics || [];
+    const goMem = stats?.go_mem;
 
     return (
         <div className="hud-container">
@@ -288,26 +289,65 @@ export const InfoPanel = ({
             {/* Removed CONFIGURATION section - moved to SettingsPanel */}
 
             <div className="hud-footer">
-                <div className="hud-card footer" onClick={onSettingsClick} style={{ flexDirection: 'column', gap: '8px', padding: '10px 16px', cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                                <div className="status-dot" style={{
-                                    width: '8px',
-                                    height: '8px',
-                                    marginRight: '8px',
-                                    backgroundColor: simStateDisplay === 'disconnected' ? '#ef4444' : (simStateDisplay === 'paused' ? '#fbbf24' : '#22c55e')
-                                }}></div>
-                                <span className="role-label" style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '11px' }}>
-                                    SIM {simStateDisplay}
-                                </span>
-                            </div>
+                <div className="hud-card footer" onClick={onSettingsClick} style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: '12px 24px',
+                    padding: '10px 16px',
+                    cursor: 'pointer',
+                    alignItems: 'center',
+                    justifyContent: 'flex-start'
+                }}>
+                    {/* 1. SIM & POI STATS */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <div className="status-dot" style={{
+                                width: '8px',
+                                height: '8px',
+                                marginRight: '8px',
+                                backgroundColor: simStateDisplay === 'disconnected' ? '#ef4444' : (simStateDisplay === 'paused' ? '#fbbf24' : '#22c55e')
+                            }}></div>
+                            <span className="role-label" style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '11px' }}>
+                                SIM {simStateDisplay}
+                            </span>
+                        </div>
 
-                            <div className="role-label" style={{ display: 'flex', gap: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '12px' }}>
-                                <span>POI(vis) <span className="role-num-sm">{nonBlueCount}</span><span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px', marginLeft: '4px', marginRight: '4px' }}>◆</span><span className="role-num-sm" style={{ color: '#3b82f6' }}>{blueCount}</span></span>
-                                <span>POI(tracked) <span className="role-num-sm">{trackedCount}</span></span>
+                        <div className="role-label" style={{ display: 'flex', gap: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '12px' }}>
+                            <span>POI(vis) <span className="role-num-sm">{nonBlueCount}</span><span style={{ color: 'var(--muted)', fontSize: '0.6em', verticalAlign: 'middle', position: 'relative', top: '-1px', marginLeft: '4px', marginRight: '4px' }}>◆</span><span className="role-num-sm" style={{ color: '#3b82f6' }}>{blueCount}</span></span>
+                            <span>POI(tracked) <span className="role-num-sm">{trackedCount}</span></span>
+                        </div>
+                    </div>
+
+                    {/* 2. NARRATOR CONFIG */}
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="role-label" style={{ color: 'var(--accent)' }}>{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
+                            <span className="role-num-sm" style={{ color: 'var(--muted)' }}>
+                                {filterMode === 'adaptive' ? targetCount : minPoiScore}
+                            </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="role-label" style={{ color: 'var(--muted)' }}>FRQ</span>
+                            <div className="pip-container">
+                                {[1, 2, 3, 4].map(v => (
+                                    <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 2 ? 'high' : ''}`} />
+                                ))}
                             </div>
                         </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="role-label" style={{ color: 'var(--muted)' }}>LEN</span>
+                            <div className="pip-container">
+                                {[1, 2, 3, 4, 5].map(v => (
+                                    <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''} ${(textLength || 0) >= v && v > 4 ? 'high' : ''}`} />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 3. VERSION (Pushed right if space permits) */}
+                    <div style={{ marginLeft: 'auto' }}>
                         {versionMatch ? (
                             <div className="role-num-sm" style={{ opacity: 0.5 }}>{frontendVersion}</div>
                         ) : (
@@ -315,35 +355,6 @@ export const InfoPanel = ({
                                 ⚠ {frontendVersion}
                             </div>
                         )}
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
-                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span className="role-label" style={{ color: 'var(--accent)' }}>{filterMode === 'adaptive' ? '⚡' : '🎯'}</span>
-                                <span className="role-num-sm" style={{ color: 'var(--muted)' }}>
-                                    {filterMode === 'adaptive' ? targetCount : minPoiScore}
-                                </span>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span className="role-label" style={{ color: 'var(--muted)' }}>FRQ</span>
-                                <div className="pip-container">
-                                    {[1, 2, 3, 4].map(v => (
-                                        <div key={v} className={`pip ${(narrationFrequency || 0) >= v ? 'active' : ''} ${(narrationFrequency || 0) >= v && v > 2 ? 'high' : ''}`} />
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span className="role-label" style={{ color: 'var(--muted)' }}>LEN</span>
-                                <div className="pip-container">
-                                    {[1, 2, 3, 4, 5].map(v => (
-                                        <div key={v} className={`pip ${(textLength || 0) >= v ? 'active' : ''} ${(textLength || 0) >= v && v > 4 ? 'high' : ''}`} />
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -365,28 +376,66 @@ export const InfoPanel = ({
                             <span style={{ fontSize: '10px', opacity: 0.5 }}>{isDiagnosticsOpen ? '▼' : '▶'}</span>
                         </div>
                         {isDiagnosticsOpen && (
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ textAlign: 'left' }}>
-                                        <th className="role-label" style={{ paddingBottom: '4px' }}>Process</th>
-                                        <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right' }}>Memory</th>
-                                        <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right', opacity: 0.5 }}>(Max)</th>
-                                        <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right' }}>CPU/s</th>
-                                        <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right', opacity: 0.5 }}>(Max)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {diagnostics.map((d: any) => (
-                                        <tr key={d.name} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <td className="role-label" style={{ padding: '4px 0', color: 'var(--text-color)' }}>{d.name}</td>
-                                            <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right' }}>{d.memory_mb}MB</td>
-                                            <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right', opacity: 0.5 }}>{d.memory_max_mb}</td>
-                                            <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right' }}>{d.cpu_sec.toFixed(2)}</td>
-                                            <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right', opacity: 0.5 }}>{d.cpu_max_sec.toFixed(2)}</td>
+                            <>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ textAlign: 'left' }}>
+                                            <th className="role-label" style={{ paddingBottom: '4px' }}>Process</th>
+                                            <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right' }}>Memory</th>
+                                            <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right', opacity: 0.5 }}>(Max)</th>
+                                            <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right' }}>CPU/s</th>
+                                            <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right', opacity: 0.5 }}>(Max)</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {diagnostics.map((d: any) => (
+                                            <tr key={d.name} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <td className="role-label" style={{ padding: '4px 0', color: 'var(--text-color)' }}>{d.name}</td>
+                                                <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right' }}>{d.memory_mb}MB</td>
+                                                <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right', opacity: 0.5 }}>{d.memory_max_mb}MB</td>
+                                                <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right' }}>{d.cpu_sec.toFixed(2)}</td>
+                                                <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right', opacity: 0.5 }}>{d.cpu_max_sec.toFixed(2)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+
+                                {goMem && (
+                                    <>
+                                        <div className="role-header" style={{ marginTop: '12px', marginBottom: '6px' }}>Go Runtime Memory</div>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                            <thead>
+                                                <tr style={{ textAlign: 'left' }}>
+                                                    <th className="role-label" style={{ paddingBottom: '4px' }}>Region</th>
+                                                    <th className="role-label" style={{ paddingBottom: '4px', textAlign: 'right' }}>MB</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {[
+                                                    { label: 'Heap (live)', value: goMem.heap_alloc_mb },
+                                                    { label: 'Heap (in-use spans)', value: goMem.heap_inuse_mb },
+                                                    { label: 'Heap (idle spans)', value: goMem.heap_idle_mb },
+                                                    { label: 'Heap (from OS)', value: goMem.heap_sys_mb, bold: true },
+                                                    { label: 'Stack', value: goMem.stack_inuse_mb },
+                                                    { label: 'GC metadata', value: goMem.gc_sys_mb },
+                                                    { label: 'Runtime other', value: goMem.other_sys_mb + goMem.mspan_inuse_mb + goMem.mcache_inuse_mb },
+                                                    { label: 'Total from OS', value: goMem.total_sys_mb, bold: true },
+                                                ].map((row) => (
+                                                    <tr key={row.label} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                                        <td className="role-label" style={{ padding: '4px 0', color: 'var(--text-color)', fontWeight: row.bold ? 600 : 400 }}>{row.label}</td>
+                                                        <td className="role-num-sm" style={{ padding: '4px 0', textAlign: 'right', fontWeight: row.bold ? 600 : 400 }}>{row.value.toFixed(1)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        <div style={{ marginTop: '6px', display: 'flex', gap: '16px' }}>
+                                            <span className="role-label">Goroutines <span className="role-num-sm">{goMem.num_goroutine}</span></span>
+                                            <span className="role-label">Heap objects <span className="role-num-sm">{goMem.heap_objects.toLocaleString()}</span></span>
+                                            <span className="role-label">GC cycles <span className="role-num-sm">{goMem.num_gc}</span></span>
+                                        </div>
+                                    </>
+                                )}
+                            </>
                         )}
                     </div>
                 )}

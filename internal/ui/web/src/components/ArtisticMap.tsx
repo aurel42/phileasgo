@@ -786,7 +786,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     Math.abs(lastPlacementView.current.lat - lockedCenter![1]) > 0.0001;
 
                 let labels = lastLabels;
-                let finalMaskPath = lastMask;
 
                 // IMPORTANT: The artistic map is STATIC between snaps. The map, all icons,
                 // and all labels remain frozen at fixed pixel positions. Only the balloon
@@ -971,8 +970,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             }
                         }
 
-                        finalMaskPath = lastMaskData ? maskToPath(lastMaskData, m) : '';
-
                         // Update tracking refs
                         lastPoiCount.current = currentPois.length;
                         lastLabelsJson.current = labelsJson;
@@ -981,7 +978,11 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                     // Update cached results when placement ran
                     lastLabels = labels;
-                    lastMask = finalMaskPath;
+                }
+
+                // 9.5 VISIBILITY MASK UPDATE — Un-gated to ensure smooth movement even in dead-zones
+                if (lastMaskData) {
+                    lastMask = maskToPath(lastMaskData, m);
                 }
 
                 // 10. COMMIT — Always update frame so the balloon and visibility cone

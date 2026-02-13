@@ -6,6 +6,7 @@ import (
 	"os"
 	"phileasgo/pkg/poi"
 	"phileasgo/pkg/tracker"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -56,8 +57,26 @@ type TrackingStats struct {
 	ActivePOIs int `json:"active_pois"`
 }
 
+// GoMemStats provides a breakdown of Go runtime memory usage.
+type GoMemStats struct {
+	HeapAllocMB   float64 `json:"heap_alloc_mb"`   // Live heap objects
+	HeapInuseMB   float64 `json:"heap_inuse_mb"`   // Heap spans in use (includes fragmentation)
+	HeapIdleMB    float64 `json:"heap_idle_mb"`     // Heap spans not in use (returned or reusable)
+	HeapSysMB     float64 `json:"heap_sys_mb"`      // Heap memory obtained from OS
+	StackInuseMB  float64 `json:"stack_inuse_mb"`   // Stack memory
+	MSpanInuseMB  float64 `json:"mspan_inuse_mb"`   // Runtime mspan structures
+	MCacheInuseMB float64 `json:"mcache_inuse_mb"`  // Runtime mcache structures
+	GCSysMB       float64 `json:"gc_sys_mb"`        // GC metadata
+	OtherSysMB    float64 `json:"other_sys_mb"`     // Other runtime allocations
+	TotalSysMB    float64 `json:"total_sys_mb"`     // Total memory from OS
+	NumGC         uint32  `json:"num_gc"`           // Completed GC cycles
+	NumGoroutine  int     `json:"num_goroutine"`    // Active goroutines
+	HeapObjects   uint64  `json:"heap_objects"`     // Live heap object count
+}
+
 type StatsResponse struct {
 	Diagnostics []ComponentStats            `json:"diagnostics"`
+	GoMem       GoMemStats                  `json:"go_mem"`
 	Tracking    TrackingStats               `json:"tracking"`
 	Providers   map[string]ProviderStatsDTO `json:"providers"`
 	LLMFallback []string                    `json:"llm_fallback"`
@@ -71,9 +90,29 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	diagnostics := h.gatherDiagnostics()
 	h.mu.Unlock()
 
-	// 2. Build Response
+	// 2. Go runtime memory stats
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	goMem := GoMemStats{
+		HeapAllocMB:   bytesToMBf(ms.HeapAlloc),
+		HeapInuseMB:   bytesToMBf(ms.HeapInuse),
+		HeapIdleMB:    bytesToMBf(ms.HeapIdle),
+		HeapSysMB:     bytesToMBf(ms.HeapSys),
+		StackInuseMB:  bytesToMBf(ms.StackInuse),
+		MSpanInuseMB:  bytesToMBf(ms.MSpanInuse),
+		MCacheInuseMB: bytesToMBf(ms.MCacheInuse),
+		GCSysMB:       bytesToMBf(ms.GCSys),
+		OtherSysMB:    bytesToMBf(ms.OtherSys),
+		TotalSysMB:    bytesToMBf(ms.Sys),
+		NumGC:         ms.NumGC,
+		NumGoroutine:  runtime.NumGoroutine(),
+		HeapObjects:   ms.HeapObjects,
+	}
+
+	// 3. Build Response
 	resp := StatsResponse{
 		Diagnostics: diagnostics,
+		GoMem:       goMem,
 		Tracking: TrackingStats{
 			ActivePOIs: h.poiMgr.ActiveCount(),
 		},
@@ -195,4 +234,8 @@ func (h *StatsHandler) gatherDiagnostics() []ComponentStats {
 
 func bToMb(b uint64) uint64 {
 	return b / 1024 / 1024
+}
+
+func bytesToMBf(b uint64) float64 {
+	return float64(b) / 1024 / 1024
 }

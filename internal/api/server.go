@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"time"
 
 	"phileasgo/internal/ui"
@@ -78,6 +79,16 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 	if labelH != nil {
 		mux.HandleFunc("POST /api/map/labels/sync", labelH.HandleSync)
 	}
+
+	// 2m. Profiling Endpoints (pprof)
+	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+	mux.Handle("GET /debug/pprof/heap", pprof.Handler("heap"))
+	mux.Handle("GET /debug/pprof/goroutine", pprof.Handler("goroutine"))
+	mux.Handle("GET /debug/pprof/allocs", pprof.Handler("allocs"))
 
 	// 3. Shutdown Endpoint
 	mux.HandleFunc("POST /api/shutdown", func(w http.ResponseWriter, r *http.Request) {
