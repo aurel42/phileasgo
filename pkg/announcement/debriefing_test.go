@@ -48,4 +48,54 @@ func TestDebriefing_Triggers(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Loop Prevention", func(t *testing.T) {
+		tel := &sim.Telemetry{FlightStage: sim.StageTaxi}
+
+		// 1. Initial takeoff 30 mins ago
+		takeoff1 := time.Now().Add(-30 * time.Minute)
+		dp.GetLastTransitionFunc = func(s string) time.Time {
+			if s == sim.StageTakeOff {
+				return takeoff1
+			}
+			return time.Time{}
+		}
+
+		// First time: should generate
+		if !a.ShouldGenerate(tel) {
+			t.Fatal("First ShouldGenerate expected true")
+		}
+
+		// Simulate successful generation start
+		a.GetPromptData(tel) // sets lastGeneratedAt to Now
+
+		// Second time: should NOT generate (leg has not changed)
+		if a.ShouldGenerate(tel) {
+			t.Error("Second ShouldGenerate expected false (loop prevention)")
+		}
+
+		// 2. New takeoff:
+		// We mock lastGeneratedAt to the past to simulate time passing
+		a.mu.Lock()
+		a.lastGeneratedAt = time.Now().Add(-1 * time.Hour)
+		a.mu.Unlock()
+
+		takeoff2 := time.Now().Add(-10 * time.Minute) // Newer than lastGeneratedAt AND > 5 mins old
+		dp.GetLastTransitionFunc = func(s string) time.Time {
+			if s == sim.StageTakeOff {
+				return takeoff2
+			}
+			return time.Time{}
+		}
+		if !a.ShouldGenerate(tel) {
+			t.Error("ShouldGenerate expected true after new takeoff")
+		}
+	})
+
+	t.Run("Reset Session", func(t *testing.T) {
+		a.Reset()
+		// lastGeneratedAt is NOT reset by Reset (Base),
+		// but if we were looking for Airborne state, Reset usually happens on Teleport.
+		// For now, only new takeoff or deep reset should clear it.
+	})
 }

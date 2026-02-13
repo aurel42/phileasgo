@@ -10,8 +10,9 @@ import (
 
 type Debriefing struct {
 	*Base
-	cfg *config.Config
-	dp  DataProvider
+	cfg             *config.Config
+	dp              DataProvider
+	lastGeneratedAt time.Time
 }
 
 func NewDebriefing(cfg *config.Config, dp DataProvider, events EventRecorder) *Debriefing {
@@ -29,7 +30,8 @@ func (a *Debriefing) Title() string {
 }
 
 // ShouldGenerate returns true if we are on the ground (landed, taxi, hold)
-// AND we have been airborne for at least 5 minutes in this session.
+// AND we have been airborne for at least 5 minutes in this session
+// AND we haven't already generated a debriefing for this specific flight leg.
 func (a *Debriefing) ShouldGenerate(t *sim.Telemetry) bool {
 	if a.Status() != StatusIdle {
 		return false
@@ -65,7 +67,12 @@ func (a *Debriefing) ShouldGenerate(t *sim.Telemetry) bool {
 		return false
 	}
 
-	// 3. No longer check for trip summary length (per user request)
+	// 3. Prevent loops: Ensure the flight started AFTER we last generated a debriefing.
+	// This ensures we only get one debriefing per take-off leg.
+	if !a.lastGeneratedAt.IsZero() && !startTime.After(a.lastGeneratedAt) {
+		return false
+	}
+
 	return true
 }
 
@@ -76,6 +83,11 @@ func (a *Debriefing) ShouldPlay(t *sim.Telemetry) bool {
 }
 
 func (a *Debriefing) GetPromptData(t *sim.Telemetry) (any, error) {
+	// Mark as generated now to prevent immediate re-triggering if generation takes time
+	a.mu.Lock()
+	a.lastGeneratedAt = time.Now()
+	a.mu.Unlock()
+
 	// Use AssembleGeneric to get standard context (Language, TripSummary, etc.)
 	data := a.dp.AssembleGeneric(context.Background(), t)
 	return data, nil

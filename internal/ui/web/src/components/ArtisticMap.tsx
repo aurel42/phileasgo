@@ -334,6 +334,27 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
     const [fontsLoaded, setFontsLoaded] = useState(false);
 
+    // -- Placement Engine (Persistent across ticks) --
+    const engine = useMemo(() => new PlacementEngine(), []);
+
+    const currentNarratedId = (narratorStatus?.playback_status === 'playing' || narratorStatus?.playback_status === 'paused')
+        ? narratorStatus?.current_poi?.wikidata_id : undefined;
+    const preparingId = narratorStatus?.preparing_poi?.wikidata_id;
+
+    // -- THE SINGLE ATOMIC STATE --
+    const [frame, setFrame] = useState<MapFrame>({
+        labels: [],
+        maskPath: '',
+        center: [center[1], center[0]],
+        zoom: zoom,
+        offset: [0, 0],
+        heading: 0,
+        bearingLine: null,
+        aircraftX: 0,
+        aircraftY: 0,
+        agl: 0
+    });
+
     // Replay: Pre-calculate ALL item placements ONCE at the start
     useEffect(() => {
         if (!effectiveReplayMode || !map.current || !fontsLoaded || validEvents.length === 0) {
@@ -399,11 +420,13 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         });
 
         // Use a small delay to ensure the map scale/bounds are stable after the initial fitBounds
+        // We MUST use the target frame.zoom here, not map.getZoom(), because map.getZoom()
+        // might still be in the middle of a 2s ease duration.
+        const targetZoom = frame.zoom;
         const timeout = setTimeout(() => {
             const w = m.getCanvas().clientWidth;
             const h = m.getCanvas().clientHeight;
-            // Use frame zoom to ensure scaling matches the initial snap/ease target.
-            const targetZoom = frame.zoom;
+
             const placed = eng.compute(
                 (lat, lon) => {
                     const pos = m.project([lon, lat]);
@@ -412,33 +435,12 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 w, h, targetZoom
             );
 
-            console.log('[Replay] Static Placement Complete:', placed.length, 'items');
+            console.log('[Replay] Static Placement Complete:', placed.length, 'items', 'at zoom:', targetZoom);
             setReplayLabels(placed);
         }, 500);
 
         return () => clearTimeout(timeout);
-    }, [effectiveReplayMode, fontsLoaded, validEvents.length]);
-
-    // -- Placement Engine (Persistent across ticks) --
-    const engine = useMemo(() => new PlacementEngine(), []);
-
-    const currentNarratedId = (narratorStatus?.playback_status === 'playing' || narratorStatus?.playback_status === 'paused')
-        ? narratorStatus?.current_poi?.wikidata_id : undefined;
-    const preparingId = narratorStatus?.preparing_poi?.wikidata_id;
-
-    // -- THE SINGLE ATOMIC STATE --
-    const [frame, setFrame] = useState<MapFrame>({
-        labels: [],
-        maskPath: '',
-        center: [center[1], center[0]],
-        zoom: zoom,
-        offset: [0, 0],
-        heading: 0,
-        bearingLine: null,
-        aircraftX: 0,
-        aircraftY: 0,
-        agl: 0
-    });
+    }, [effectiveReplayMode, fontsLoaded, validEvents.length, frame.zoom]);
 
     const accumulatedSettlements = useRef<Map<string, LabelDTO>>(new Map());
     const accumulatedPois = useRef<Map<string, POI>>(new Map());
@@ -1294,6 +1296,31 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                         className="stamped-icon"
                                     />
                                 </div>
+                                {poi?.is_msfs_poi && !isReplayItem && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        left: finalX,
+                                        top: finalY,
+                                        width: 18 * zoomScale * activeBoost,
+                                        height: 18 * zoomScale * activeBoost,
+                                        // Position star at top-right of the scaled icon
+                                        transform: `translate(${(l.width / 2 - 4) * zoomScale * activeBoost}px, ${(-l.height / 2 + 4) * zoomScale * activeBoost}px) translate(-50%, -50%)`,
+                                        color: ARTISTIC_MAP_STYLES.colors.icon.gold,
+                                        zIndex: l.id === currentNarratedId ? 101 : (l.id === preparingId ? 91 : 16),
+                                        pointerEvents: 'none',
+                                        opacity: fadeOpacity
+                                    }}>
+                                        <InlineSVG
+                                            src="/icons/star.svg"
+                                            style={{
+                                                // @ts-ignore
+                                                '--stamped-stroke': ARTISTIC_MAP_STYLES.colors.icon.stroke,
+                                                '--stamped-width': '1.2px'
+                                            }}
+                                            className="stamped-icon"
+                                        />
+                                    </div>
+                                )}
 
                                 {l.secondaryLabel && l.secondaryLabelPos && (
                                     <div

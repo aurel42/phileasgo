@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## v0.3.173 (2026-02-13)
+- **New Feature**: **Stamped POI Iconography**. Replaced Unicode star markers with a sharp, custom SVG star that features a defined dark outline for better clarity against the map background.
+- **Improved**: **Flight Debriefing Logic**. Implemented leg-tracking to ensure debriefings only trigger once per take-off, preventing loops during multi-hop flights.
+- **Fix**: **Replay Map Framing**. Resolved a regression in the Artistic Map where labels and symbols were missing or incorrectly scaled during the initial debriefing zoom-out.
+
 ## v0.3.172 (2026-02-13)
 - **Fix**: **Border Crossing Regression**. Restored border announcements by marking them as repeatable, ensuring multiple crossings in a single session are correctly detected.
 - **Improvement**: **Artistic Map Detail**. Synchronized tile fetching to use Z10 assets at Z9 view for crisper hand-drawn aesthetics.
