@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -67,13 +66,8 @@ func NewOrchestrator(
 	beaconSvc BeaconProvider,
 	simClient sim.Client,
 	beaconRegistry config.BeaconRegistry,
+	beaconOrder []string,
 ) *Orchestrator {
-	keys := make([]string, 0, len(beaconRegistry))
-	for k := range beaconRegistry {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
 	return &Orchestrator{
 		gen:            gen,
 		audio:          audioMgr,
@@ -82,7 +76,7 @@ func NewOrchestrator(
 		beaconSvc:      beaconSvc,
 		sim:            simClient,
 		beaconRegistry: beaconRegistry,
-		colorKeys:      keys,
+		colorKeys:      beaconOrder,
 		pacingDuration: 3 * time.Second,
 	}
 }
@@ -251,7 +245,7 @@ func (o *Orchestrator) PlayNarrative(ctx context.Context, n *model.Narrative) er
 			entry := o.getRegistryEntryByColor(n.POI.BeaconColor)
 			if entry != nil {
 				go func() {
-					if err := o.beaconSvc.SetTarget(context.Background(), n.Lat, n.Lon, entry.Title, entry.Livery); err != nil {
+					if err := o.beaconSvc.SetTarget(context.Background(), n.POI.Lat, n.POI.Lon, entry.Title, entry.Livery); err != nil {
 						slog.Error("Orchestrator: Failed to spawn beacon", "error", err)
 					}
 				}()

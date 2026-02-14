@@ -323,7 +323,7 @@ func initNarrator(ctx context.Context, cfg config.Provider, svcs *CoreServices, 
 		beaconProvider = beaconSvc
 	}
 
-	beaconReg, err := config.LoadBeacons("configs/beacons.yaml")
+	beaconReg, beaconOrder, err := config.LoadBeacons("configs/beacons.yaml")
 	if err != nil {
 		slog.Warn("Failed to load beacons registry, using empty", "error", err)
 		beaconReg = make(config.BeaconRegistry)
@@ -332,7 +332,7 @@ func initNarrator(ctx context.Context, cfg config.Provider, svcs *CoreServices, 
 	pbQ := playback.NewManager()
 	gen := createAIService(cfg, llmProv, ttsProv, promptMgr, svcs.PoiMgr, svcs.WikiSvc, simClient, st, tr, catCfg, sessionMgr, densityMgr)
 
-	orch := narrator.NewOrchestrator(gen, audio.New(&appCfg.Narrator), pbQ, sessionMgr, beaconProvider, simClient, beaconReg)
+	orch := narrator.NewOrchestrator(gen, audio.New(&appCfg.Narrator), pbQ, sessionMgr, beaconProvider, simClient, beaconReg, beaconOrder)
 	gen.SetOnPlayback(orch.EnqueuePlayback)
 
 	// Restore Volume

@@ -1,12 +1,14 @@
 ﻿# Changelog
 
 ## v0.3.177 (2026-02-14)
-- **New Feature**: **Dynamic Beacon Color System**. Replaced the monolithic balloon color with a multi-channel infrastructure supporting individual beacon colors driven by a new `beacons.yaml` registry.
-- **New Feature**: **Automated Landing Sequence**. The Mock Simulator now supports a full "Land" command featuring automated descent, flare, and taxi logic.
-- **Refinement**: **Precision Artistic Map Markers**. Implemented a pixel-perfect 2px scaled gap for `POIBeacon` components and restored high-fidelity map layers (hillshade, runways).
-- **New Feature**: **Remote Simulator Command API**. Added infrastructure to trigger simulator actions directly from the Web UI.
-- **Improvement**: **SimConnect Enumeration**. Integrated native SimObject and livery enumeration for enhanced aircraft management.
-- **Improved**: **Beacon Persistence**. Refined the `has_balloon` logic to ensure persistent target beacons are correctly synchronized with the Art Map's placement engine.
+- **Feature**: **Dynamic Beacon Color System**. Replaced the monolithic balloon color with a multi-channel infrastructure supporting individual beacon colors driven by a new `beacons.yaml` registry.
+- **Feature**: **Remote Simulator Command API**. Added infrastructure to trigger simulator actions directly from the Web UI.
+- **Feature**: **Automated Landing Sequence**. The Mock Simulator now supports a full "Land" command featuring automated descent, flare, and taxi logic.
+
+## v0.3.178 (2026-02-14)
+- **Feature**: **Ordered Beacon Priority**. Implemented an explicit priority system for beacon colors in `beacons.yaml`, ensuring that special/high-value balloons (e.g. Gold, Silver) always take precedence over generic ones when allocating the limited physical balloon quota.
+- **Fix**: **Formation Beacon Alignment**. Corrected the geospatial offset math for formation balloons to ensure they spawn in the correct relative position and altitude to the target POI, eliminating "sliding" artifacts.
+- **Improvement**: **Smart Balloon Allocation**. The map now intelligently manages the balloon quota by filling high-priority slots first and using remaining capacity for recently played POIs.
 
 ## v0.3.176 (2026-02-13)
 - **Improvement**: **Artistic Map Detail**. Synchronized the Artistic Map with the "perfect" Testing Map look by implementing the Super-HD resolution trick (`tileSize: 128`), doubling the perceived detail density.

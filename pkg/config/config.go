@@ -102,6 +102,7 @@ type BeaconConfig struct {
 	MaxTargets              int            `yaml:"max_targets"`
 	RegistryPath            string         `yaml:"registry_path"`
 	Registry                BeaconRegistry `yaml:"-"` // Loaded on startup
+	RegistryOrder           []string       `yaml:"-"` // Color rotation order
 }
 
 // LLMConfig holds settings for the Large Language Model providers.
@@ -604,8 +605,9 @@ func Load(path string) (*Config, error) {
 
 	// Load Beacon Registry
 	if cfg.Beacon.RegistryPath != "" {
-		if reg, err := LoadBeacons(cfg.Beacon.RegistryPath); err == nil {
+		if reg, order, err := LoadBeacons(cfg.Beacon.RegistryPath); err == nil {
 			cfg.Beacon.Registry = reg
+			cfg.Beacon.RegistryOrder = order
 		} else {
 			// If it fails to load, we just log it or handle it (here we log it implicitly by not setting it)
 			fmt.Fprintf(os.Stderr, "Warning: failed to load beacon registry from %s: %v\n", cfg.Beacon.RegistryPath, err)

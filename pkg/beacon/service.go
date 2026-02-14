@@ -220,19 +220,25 @@ func (s *Service) enforceTargetQuota(ctx context.Context) {
 func (s *Service) spawnFormationBalloons(ctx context.Context, title, livery string, tel *sim.Telemetry) {
 	count := s.prov.BeaconFormationCount(ctx)
 	dist := s.prov.BeaconFormationDistance(ctx)
-	offsets := computeFormationOffsets(count)
+	altOffsets := computeFormationOffsets(count)
+
+	// Calculate bearing toward the target POI and spawn all formation balloons
+	// at the same lat/lon (formDistance from aircraft toward POI), vertically separated.
+	bearingRad, _ := s.calculateBearing(tel.Latitude, tel.Longitude, s.targetLat, s.targetLon)
+	latRad := tel.Latitude * (math.Pi / 180.0)
+	fLat, fLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, float64(dist)/1000.0)
 
 	slog.Info("Spawning formation beacons", "count", count, "livery", livery)
-	for i, offset := range offsets {
+	for i, altOffset := range altOffsets {
 		reqID := uint32(200 + i)
-		flat, flon := offsetPos(tel.Latitude, tel.Longitude, float64(dist), tel.Heading+offset)
+		absAlt := s.targetAlt + altOffset
 
-		objID, err := s.SpawnAirTraffic(title, livery, "", flat, flon, s.targetAlt+100, reqID)
+		objID, err := s.SpawnAirTraffic(title, livery, "", fLat, fLon, absAlt, reqID)
 		if err != nil {
 			slog.Error("Failed to spawn formation beacon", "index", i, "error", err)
 			continue
 		}
-		s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{ID: objID, IsTarget: false, AltOffset: 100, Lat: flat, Lon: flon, BaseAlt: s.targetAlt})
+		s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{ID: objID, IsTarget: false, AltOffset: altOffset, Lat: fLat, Lon: fLon, BaseAlt: s.targetAlt})
 	}
 	s.formationActive = true
 }
@@ -241,16 +247,6 @@ func (s *Service) SpawnAirTraffic(title, livery, tail string, lat, lon, alt floa
 	// The client implementation (SimConnect or Mock) handles the specific SimConnect calls
 	// (e.g. AICreateNonATCAircraft_EX1 for MSFS 2024 livery support)
 	return s.client.SpawnAirTraffic(reqID, title, livery, tail, lat, lon, alt, 0)
-}
-
-// Simple approximation for lat/lon offset
-func offsetPos(lat, lon, distMeters, angle float64) (offsetLat, offsetLon float64) {
-	const EarthRadius = 6371000.0
-	// Entry Angle is in degrees (tel.Heading + offset)
-	angleRad := angle * math.Pi / 180.0
-	dLat := (distMeters * math.Cos(angleRad)) / EarthRadius
-	dLon := (distMeters * math.Sin(angleRad)) / (EarthRadius * math.Cos(lat*math.Pi/180.0))
-	return lat + dLat*180.0/math.Pi, lon + dLon*180.0/math.Pi
 }
 
 // Clear removes all beacons.

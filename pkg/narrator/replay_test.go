@@ -59,7 +59,7 @@ func TestOrchestrator_ReplayLast(t *testing.T) {
 			sess := session.NewManager(nil)
 
 			// Orchestrator needs a Generator, we can use nil or a dummy if it's not called
-			o := NewOrchestrator(nil, mockAudio, pbQ, sess, nil, nil, nil)
+			o := NewOrchestrator(nil, mockAudio, pbQ, sess, nil, nil, nil, nil)
 
 			// Run Setup
 			tt.setup(o, mockAudio)

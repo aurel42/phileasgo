@@ -15,7 +15,7 @@ func TestBeaconNotClearedOnPlayback(t *testing.T) {
 	mockGen := &MockAIService{}
 	pbQ := playback.NewManager()
 	sess := session.NewManager(nil)
-	o := NewOrchestrator(mockGen, &MockAudio{}, pbQ, sess, mockBeacon, nil, nil)
+	o := NewOrchestrator(mockGen, &MockAudio{}, pbQ, sess, mockBeacon, nil, nil, nil)
 
 	// Use a mock audio that doesn't block and runs synchronously
 	o.audio = &MockAudio{CanReplay: true, PlaySync: true}
@@ -61,7 +61,7 @@ func TestBeaconNotClearedOnPlayback(t *testing.T) {
 
 func TestOrchestrator_Pause(t *testing.T) {
 	mockAudio := &MockAudio{}
-	o := NewOrchestrator(&MockAIService{}, mockAudio, playback.NewManager(), nil, nil, nil, nil)
+	o := NewOrchestrator(&MockAIService{}, mockAudio, playback.NewManager(), nil, nil, nil, nil, nil)
 
 	mockAudio.SetUserPaused(true)
 	if !o.IsPaused() {

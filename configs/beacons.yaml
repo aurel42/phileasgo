@@ -1,3 +1,5 @@
+order: [ 'red', 'blue', 'yellow', 'green', 'orange', 'cyan' ]
+
 red:
   title: Asobo PassiveAircraft Hot Air Balloon
   livery: OFFICIAL_STATIC_01

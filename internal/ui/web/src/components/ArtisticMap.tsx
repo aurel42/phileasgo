@@ -103,7 +103,7 @@ const POIBeacon: React.FC<POIBeaconProps> = ({ color, size, showHalo = true, act
                 // Offset upwards by 25.5px (scaled) to clear the 32px icon with a 2px gap.
                 // Displacement consists of: 16px (icon radius) + 2px (gap) + 7.5px (balloon radius) = 25.5px.
                 // Using transform ensures the displacement scales perfectly along with the balloon and icon.
-                transform: `translate(-50%, calc(-50% - 25.5px)) scale(${zoomScale * activeBoost})`,
+                transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost}) translateY(-25.5px)`,
                 zIndex: 110,
                 filter: showHalo ? 'drop-shadow(0 0 1px white)' : 'none',
                 pointerEvents: 'none'
@@ -660,6 +660,11 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const poiDiscoveryTimesRef = useRef(poiDiscoveryTimes);
     const totalTripTimeRef = useRef(totalTripTime);
 
+    const currentNarratedIdRef = useRef<string | undefined>(currentNarratedId);
+    const preparingIdRef = useRef<string | undefined>(preparingId);
+    const lastNarratedId = useRef<string | undefined>(undefined);
+    const lastPreparingId = useRef<string | undefined>(undefined);
+
     useEffect(() => { telemetryRef.current = telemetry; }, [telemetry]);
     useEffect(() => { poisRef.current = pois; }, [pois]);
     useEffect(() => { zoomRef.current = zoom; }, [zoom]);
@@ -668,6 +673,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     useEffect(() => { validEventsRef.current = validEvents; }, [validEvents]);
     useEffect(() => { poiDiscoveryTimesRef.current = poiDiscoveryTimes; }, [poiDiscoveryTimes]);
     useEffect(() => { totalTripTimeRef.current = totalTripTime; }, [totalTripTime]);
+    useEffect(() => { currentNarratedIdRef.current = currentNarratedId; }, [currentNarratedId]);
+    useEffect(() => { preparingIdRef.current = preparingId; }, [preparingId]);
 
     // --- THE HEARTBEAT (Strict 0.5Hz / 2000ms) ---
     useEffect(() => {
@@ -902,12 +909,14 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                 let labels = lastLabels;
 
+                const statusChanged = currentNarratedIdRef.current !== lastNarratedId.current || preparingIdRef.current !== lastPreparingId.current;
+
                 // IMPORTANT: The artistic map is STATIC between snaps. The map, all icons,
                 // and all labels remain frozen at fixed pixel positions. Only the balloon
                 // moves across the map. Positions only change on snap-zoom or snap-pan events.
                 // This means: between snaps, projected screen coordinates never change, and
                 // the placement engine's R-tree entries remain valid without re-insertion.
-                const isSnap = needsRecenter || viewChanged || firstTick;
+                const isSnap = needsRecenter || viewChanged || firstTick || statusChanged;
                 if (isSnap) {
                     engine.clear();
                     registeredIds.current.clear();
@@ -1025,6 +1034,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         // Live flight: use accumulated POIs from /api/pois/tracked
                         currentPois.forEach(p => {
                             if (!p.lat || !p.lon) return;
+                            const existing = accumulatedPois.current.get(p.wikidata_id);
+                            if (existing?.has_balloon) p.has_balloon = true;
                             accumulatedPois.current.set(p.wikidata_id, p);
                         });
 
@@ -1092,6 +1103,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         lastPoiCount.current = currentPois.length;
                         lastLabelsJson.current = labelsJson;
                         lastPlacementView.current = { lng: lockedCenter![0], lat: lockedCenter![1], zoom: lockedZoom };
+                        lastNarratedId.current = currentNarratedIdRef.current;
+                        lastPreparingId.current = preparingIdRef.current;
                     }
 
                     // Update cached results when placement ran
@@ -1107,19 +1120,32 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 // stay current every tick, even when placement didn't need to re-run.
                 setFrame(prev => {
                     // -- SYNC BEACON FLAGS in accumulatedPois --
-                    // We treat the "Top N" balloons as a POI state decoration
+                    // We treat balloons as a POI state decoration
                     const beaconSource = effectiveReplayMode ? [] : Array.from(accumulatedPois.current.values());
 
                     if (isSnap && beaconSource.length > 0) {
                         // Clear all flags first
                         beaconSource.forEach(p => p.has_balloon = false);
 
-                        // Assign Top N flags
-                        beaconSource
-                            .filter(p => p.beacon_color)
-                            .sort((a, b) => new Date(b.last_played).getTime() - new Date(a.last_played).getTime())
-                            .slice(0, beaconMaxTargets)
-                            .forEach(p => p.has_balloon = true);
+                        // 1. Priority: Playing and Preparing POIs MUST have balloons
+                        const priorityIds = new Set<string>();
+                        if (currentNarratedIdRef.current) priorityIds.add(currentNarratedIdRef.current);
+                        if (preparingIdRef.current) priorityIds.add(preparingIdRef.current);
+
+                        priorityIds.forEach(id => {
+                            const p = accumulatedPois.current.get(id);
+                            if (p && p.beacon_color) p.has_balloon = true;
+                        });
+
+                        // 2. Fill remaining slots with N most recently played POIs (by lastPlayed desc)
+                        const remainingSlots = beaconMaxTargets - priorityIds.size;
+                        if (remainingSlots > 0) {
+                            beaconSource
+                                .filter(p => p.beacon_color && !priorityIds.has(p.wikidata_id))
+                                .sort((a, b) => new Date(b.last_played).getTime() - new Date(a.last_played).getTime())
+                                .slice(0, remainingSlots)
+                                .forEach(p => p.has_balloon = true);
+                        }
                     }
 
                     return {
@@ -1473,8 +1499,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     </div>
                                 )}
 
-                                {/* POI Balloon Badge (Synced Effect) */}
-                                {(isActive || isPreparing || poi?.has_balloon || isSelected) && poi?.beacon_color && !isReplayItem && (
+                                {/* POI Balloon Badge: render for playing/preparing (render-scoped) OR all other POIs via has_balloon flag */}
+                                {(isActive || isPreparing || poi?.has_balloon) && poi?.beacon_color && !isReplayItem && (
                                     <POIBeacon
                                         x={finalX}
                                         y={finalY}
