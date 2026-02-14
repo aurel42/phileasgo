@@ -167,7 +167,7 @@ func (c *Client) Close() error {
 }
 
 // SpawnAirTraffic spawns a non-ATC aircraft (AI object) and returns its ObjectID.
-func (c *Client) SpawnAirTraffic(reqID uint32, title, tailNum string, lat, lon, alt, hdg float64) (uint32, error) {
+func (c *Client) SpawnAirTraffic(reqID uint32, title, livery, tailNum string, lat, lon, alt, hdg float64) (uint32, error) {
 	initPos := InitPosition{
 		Latitude:    lat,
 		Longitude:   lon,
@@ -192,16 +192,14 @@ func (c *Client) SpawnAirTraffic(reqID uint32, title, tailNum string, lat, lon, 
 	c.spawnMu.Unlock()
 
 	// Clean up map on exit if timed out or failed
-	// We only remove if it's still there (i.e., timeout or error)
-	// Actually, careful with double close if we delete.
-	// Best pattern: The receiver closes or we rely on map removal.
 	defer func() {
 		c.spawnMu.Lock()
 		delete(c.pendingSpawns, reqID)
 		c.spawnMu.Unlock()
 	}()
 
-	if err := AICreateNonATCAircraft(c.handle, title, tailNum, &initPos, reqID); err != nil {
+	// MSFS 2024: Use EX1 variant to support liveries
+	if err := AICreateNonATCAircraftEX1(c.handle, title, livery, tailNum, &initPos, reqID); err != nil {
 		return 0, err
 	}
 
@@ -564,6 +562,7 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 				APStatus:           formatAPStatus(data),
 				Squawk:             int(data.Squawk),
 				Ident:              data.Ident != 0,
+				Provider:           "simconnect",
 			}
 
 			// Update Stage Machine
@@ -693,4 +692,9 @@ func (c *Client) SetEventRecorder(r sim.EventRecorder) {
 	if c.stageMachine != nil {
 		c.stageMachine.SetRecorder(r)
 	}
+}
+
+// ExecuteCommand is not supported for SimConnect client.
+func (c *Client) ExecuteCommand(ctx context.Context, cmd string, args map[string]any) error {
+	return fmt.Errorf("command %s not supported for SimConnect", cmd)
 }

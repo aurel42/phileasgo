@@ -45,7 +45,7 @@ func TestOrchestrator_CurrentDuration(t *testing.T) {
 			mockAudio := &MockAudio{PlaySync: false} // Ensure it's async
 			pbQ := playback.NewManager()
 			sess := session.NewManager(nil)
-			o := NewOrchestrator(mockGen, mockAudio, pbQ, sess, nil, nil)
+			o := NewOrchestrator(mockGen, mockAudio, pbQ, sess, nil, nil, nil)
 			o.pacingDuration = 0 // Avoid sleep in finalize
 
 			// 1. Initial duration should be 0

@@ -174,8 +174,35 @@ export const InfoPanel = ({
                     <div className="role-header">POSITION</div>
 
                     {simStateDisplay !== 'disconnected' && (
-                        <div className={`flight-stage ${telemetry.IsOnGround ? '' : 'active'} role-btn`} style={{ position: 'absolute', top: '8px', right: '8px', padding: '2px 6px' }}>
-                            {telemetry.FlightStage || (telemetry.IsOnGround ? 'GROUND' : 'AIR')}
+                        <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '8px' }}>
+                            {!telemetry.IsOnGround && telemetry.Provider === 'mock' && (
+                                <button
+                                    className="role-btn"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        fetch('/api/sim/command', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ command: 'land' })
+                                        }).catch(err => console.error("Failed to land:", err));
+                                    }}
+                                    style={{
+                                        padding: '2px 8px',
+                                        backgroundColor: 'var(--accent)',
+                                        color: 'white',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        fontSize: '11px',
+                                        fontWeight: 'bold',
+                                        textTransform: 'uppercase'
+                                    }}
+                                >
+                                    Land
+                                </button>
+                            )}
+                            <div className={`flight-stage ${telemetry.IsOnGround ? '' : 'active'} role-btn`} style={{ padding: '2px 6px' }}>
+                                {telemetry.FlightStage || (telemetry.IsOnGround ? 'GROUND' : 'AIR')}
+                            </div>
                         </div>
                     )}
 

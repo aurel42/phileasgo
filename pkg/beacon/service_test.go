@@ -45,6 +45,8 @@ type MockClient struct {
 type SpawnCall struct {
 	ReqID              uint32
 	Title              string
+	Livery             string
+	TailNum            string
 	Lat, Lon, Alt, Hdg float64
 }
 
@@ -73,10 +75,14 @@ func (m *MockClient) GetStageState() sim.StageState        { return sim.StageSta
 func (m *MockClient) RestoreStageState(s sim.StageState)   {}
 func (m *MockClient) SetEventRecorder(r sim.EventRecorder) {}
 
-func (m *MockClient) SpawnAirTraffic(reqID uint32, title, tailNum string, lat, lon, alt, hdg float64) (uint32, error) {
+func (m *MockClient) ExecuteCommand(ctx context.Context, cmd string, args map[string]any) error {
+	return nil
+}
+
+func (m *MockClient) SpawnAirTraffic(reqID uint32, title, livery, tailNum string, lat, lon, alt, hdg float64) (uint32, error) {
 	m.nextID++
 	id := m.nextID
-	m.Spawns = append(m.Spawns, SpawnCall{reqID, title, lat, lon, alt, hdg})
+	m.Spawns = append(m.Spawns, SpawnCall{reqID, title, livery, tailNum, lat, lon, alt, hdg})
 	return id, nil
 }
 
@@ -112,7 +118,7 @@ func TestSetTarget_SpawnsBeacons(t *testing.T) {
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	// Set Target
-	err := svc.SetTarget(context.Background(), 45.0, -72.0) // Target East
+	err := svc.SetTarget(context.Background(), 45.0, -72.0, "Title", "Livery") // Target East
 	if err != nil {
 		t.Fatalf("SetTarget failed: %v", err)
 	}
@@ -131,6 +137,9 @@ func TestSetTarget_SpawnsBeacons(t *testing.T) {
 			foundTarget = true
 			if s.Lat != 45.0 || s.Lon != -72.0 {
 				t.Errorf("Target spawned at wrong loc: %v", s)
+			}
+			if s.Title != "Title" || s.Livery != "Livery" {
+				t.Errorf("Target spawned with wrong title/livery: %s/%s", s.Title, s.Livery)
 			}
 		}
 	}
@@ -159,7 +168,7 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
-	if err := svc.SetTarget(context.Background(), 45.0, -72.0); err != nil {
+	if err := svc.SetTarget(context.Background(), 45.0, -72.0, "Title", "Livery"); err != nil {
 		t.Fatalf("SetTarget failed: %v", err)
 	}
 
@@ -220,7 +229,7 @@ func TestSetTarget_LowAGL(t *testing.T) {
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	// Set Target
-	err := svc.SetTarget(context.Background(), 45.0, -72.0)
+	err := svc.SetTarget(context.Background(), 45.0, -72.0, "Title", "Livery")
 	if err != nil {
 		t.Fatalf("SetTarget failed: %v", err)
 	}
@@ -261,7 +270,7 @@ func TestSetTarget_HighAGL(t *testing.T) {
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	// Set Target
-	err := svc.SetTarget(context.Background(), 45.0, -72.0)
+	err := svc.SetTarget(context.Background(), 45.0, -72.0, "Title", "Livery")
 	if err != nil {
 		t.Fatalf("SetTarget failed: %v", err)
 	}
@@ -303,7 +312,7 @@ func TestUpdateLoop_AltitudeLock(t *testing.T) {
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	// 1. Spawn High (3000ft AGL) -> Logic follows MSL
-	if err := svc.SetTarget(context.Background(), 45.0, -72.0); err != nil {
+	if err := svc.SetTarget(context.Background(), 45.0, -72.0, "Title", "Livery"); err != nil {
 		t.Fatalf("SetTarget failed: %v", err)
 	}
 
@@ -413,7 +422,7 @@ func TestSetTarget_OnGround(t *testing.T) {
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
 	// Set Target while on ground
-	err := svc.SetTarget(context.Background(), 45.0, -72.0)
+	err := svc.SetTarget(context.Background(), 45.0, -72.0, "Title", "Livery")
 	if err != nil {
 		t.Fatalf("SetTarget failed: %v", err)
 	}

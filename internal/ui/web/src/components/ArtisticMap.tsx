@@ -80,6 +80,51 @@ const HotAirBalloon: React.FC<{
     );
 };
 
+interface POIBeaconProps {
+    color: string;
+    size: number;
+    showHalo?: boolean;
+    activeBoost?: number;
+    zoomScale?: number;
+    x: number;
+    y: number;
+}
+
+const POIBeacon: React.FC<POIBeaconProps> = ({ color, size, showHalo = true, activeBoost = 1, zoomScale = 1, x, y }) => {
+    return (
+        <svg
+            viewBox="0 0 40 50"
+            style={{
+                position: 'absolute',
+                left: x,
+                top: y,
+                width: size,
+                height: size * 1.25,
+                // Offset upwards by 25.5px (scaled) to clear the 32px icon with a 2px gap.
+                // Displacement consists of: 16px (icon radius) + 2px (gap) + 7.5px (balloon radius) = 25.5px.
+                // Using transform ensures the displacement scales perfectly along with the balloon and icon.
+                transform: `translate(-50%, calc(-50% - 25.5px)) scale(${zoomScale * activeBoost})`,
+                zIndex: 110,
+                filter: showHalo ? 'drop-shadow(0 0 1px white)' : 'none',
+                pointerEvents: 'none'
+            }}
+        >
+            {/* Envelope */}
+            <path
+                d="M20,5 C12,5 5,12 5,22 C5,28 10,35 20,42 C30,35 35,28 35,22 C35,12 28,5 20,5"
+                fill={color}
+                stroke="black"
+                strokeWidth="1.5"
+            />
+            {/* Strings */}
+            <line x1="12" y1="36" x2="16" y2="42" stroke="black" strokeWidth="1" />
+            <line x1="28" y1="36" x2="24" y2="42" stroke="black" strokeWidth="1" />
+            {/* Gondola/Basket */}
+            <rect x="16" y="42" width="8" height="6" rx="1" fill="#1a1a1a" stroke="black" strokeWidth="1" />
+        </svg>
+    );
+};
+
 interface ArtisticMapProps {
     className?: string;
     center: [number, number];
@@ -95,6 +140,7 @@ interface ArtisticMapProps {
     isAutoOpened?: boolean;
     onPOISelect: (poi: POI) => void;
     onMapClick: () => void;
+    beaconMaxTargets?: number;
 }
 
 // Single Atomic Frame state for strict synchronization
@@ -103,7 +149,7 @@ interface MapFrame {
     maskPath: string;
     center: [number, number];
     zoom: number;
-    offset: [number, number]; // [dx, dy] pixels
+    offset: [number, number];
     heading: number;
     bearingLine: Feature<any> | null;
     aircraftX: number;
@@ -168,7 +214,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     selectedPOI,
     isAutoOpened = false,
     onPOISelect,
-    onMapClick
+    onMapClick,
+    beaconMaxTargets = 2
 }) => {
     const memoizedCategories = useMemo(() => settlementCategories, [JSON.stringify(settlementCategories)]);
     const queryClient = useQueryClient();
@@ -340,6 +387,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const currentNarratedId = (narratorStatus?.playback_status === 'playing' || narratorStatus?.playback_status === 'paused')
         ? narratorStatus?.current_poi?.wikidata_id : undefined;
     const preparingId = narratorStatus?.preparing_poi?.wikidata_id;
+
 
     // -- THE SINGLE ATOMIC STATE --
     const [frame, setFrame] = useState<MapFrame>({
@@ -787,8 +835,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 }
 
                 const targetZoom = lockedZoom;
-
-                // Tileset level change detection (0.5 granularity)
                 const currentZoomSnap = Math.round(targetZoom * 2) / 2;
                 if (prevZoomInt === -1) prevZoomInt = currentZoomSnap;
 
@@ -1059,22 +1105,37 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                 // 10. COMMIT — Always update frame so the balloon and visibility cone
                 // stay current every tick, even when placement didn't need to re-run.
-                if (effectiveReplayMode) {
-                    console.log('[Replay] tick: committing frame', { center: lockedCenter, zoom: targetZoom, aircraftX, aircraftY, labelCount: lastLabels.length });
-                }
-                setFrame(prev => ({
-                    ...prev,
-                    maskPath: lastMask,
-                    center: lockedCenter!,
-                    zoom: targetZoom,
-                    offset: lockedOffset,
-                    heading: t.Heading,
-                    bearingLine: bLine,
-                    aircraftX,
-                    aircraftY,
-                    agl: t.AltitudeAGL,
-                    labels: lastLabels
-                }));
+                setFrame(prev => {
+                    // -- SYNC BEACON FLAGS in accumulatedPois --
+                    // We treat the "Top N" balloons as a POI state decoration
+                    const beaconSource = effectiveReplayMode ? [] : Array.from(accumulatedPois.current.values());
+
+                    if (isSnap && beaconSource.length > 0) {
+                        // Clear all flags first
+                        beaconSource.forEach(p => p.has_balloon = false);
+
+                        // Assign Top N flags
+                        beaconSource
+                            .filter(p => p.beacon_color)
+                            .sort((a, b) => new Date(b.last_played).getTime() - new Date(a.last_played).getTime())
+                            .slice(0, beaconMaxTargets)
+                            .forEach(p => p.has_balloon = true);
+                    }
+
+                    return {
+                        ...prev,
+                        maskPath: lastMask,
+                        center: lockedCenter!,
+                        zoom: targetZoom,
+                        offset: lockedOffset,
+                        heading: acState.heading,
+                        bearingLine: bLine,
+                        aircraftX: aircraftX,
+                        aircraftY: aircraftY,
+                        agl: t.AltitudeAGL,
+                        labels: lastLabels
+                    };
+                });
             } catch (err) {
                 console.error("Heartbeat Loop Crash:", err);
             } finally {
@@ -1410,6 +1471,18 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     >
                                         {l.secondaryLabel.text}
                                     </div>
+                                )}
+
+                                {/* POI Balloon Badge (Synced Effect) */}
+                                {(isActive || isPreparing || poi?.has_balloon || isSelected) && poi?.beacon_color && !isReplayItem && (
+                                    <POIBeacon
+                                        x={finalX}
+                                        y={finalY}
+                                        color={poi.beacon_color}
+                                        size={12}
+                                        activeBoost={activeBoost}
+                                        zoomScale={zoomScale}
+                                    />
                                 )}
                             </React.Fragment>
                         );

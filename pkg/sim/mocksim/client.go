@@ -2,6 +2,7 @@ package mocksim
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/rand"
 	"sync"
@@ -60,6 +61,9 @@ type MockClient struct {
 	safeAltReached   bool
 	elevation        *terrain.ElevationProvider
 	lastUpdate       time.Time // Wall-clock time of the last physics update
+	isLanding        bool
+	landingStartTime time.Time
+	turnCount        int
 
 	// Ground Track Calculation
 	trackBuf *geo.TrackBuffer
@@ -89,6 +93,7 @@ func NewClient(cfg Config) *MockClient {
 			PredictedLongitude: cfg.StartLon, // Initialize to start position
 			Squawk:             1200,
 			Ident:              false,
+			Provider:           "mock",
 		},
 		groundAlt:    cfg.StartAlt,
 		stateStart:   time.Now(),
@@ -183,6 +188,24 @@ func (c *MockClient) RestoreStageState(s sim.StageState) {
 	// No-op for mock
 }
 
+// ExecuteCommand handles external commands for the mock simulator.
+func (m *MockClient) ExecuteCommand(ctx context.Context, cmd string, args map[string]any) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	switch cmd {
+	case "land":
+		if m.state == StageAirborne {
+			m.isLanding = true
+			m.landingStartTime = time.Now()
+			return nil
+		}
+		return fmt.Errorf("cannot land: not airborne (state: %s)", m.state)
+	default:
+		return fmt.Errorf("unknown command: %s", cmd)
+	}
+}
+
 // SetEventRecorder delegates to the stage machine.
 func (c *MockClient) SetEventRecorder(r sim.EventRecorder) {
 	c.mu.Lock()
@@ -190,6 +213,20 @@ func (c *MockClient) SetEventRecorder(r sim.EventRecorder) {
 	if c.stageMachine != nil {
 		c.stageMachine.SetRecorder(r)
 	}
+}
+
+// ObjectClient Implementation
+
+func (m *MockClient) SpawnAirTraffic(reqID uint32, title, livery, tailNum string, lat, lon, alt, hdg float64) (uint32, error) {
+	return 0, nil // No-op for mock
+}
+
+func (m *MockClient) RemoveObject(objectID, reqID uint32) error {
+	return nil // No-op for mock
+}
+
+func (m *MockClient) SetObjectPosition(objectID uint32, lat, lon, alt, pitch, bank, hdg float64) error {
+	return nil // No-op for mock
 }
 
 func (m *MockClient) physicsLoop() {
@@ -238,6 +275,17 @@ func (m *MockClient) updateParked(stateDuration time.Duration) {
 	m.tel.EngineOn = false
 	m.tel.GroundSpeed = 0
 	m.tel.IsOnGround = true
+
+	// If we just landed, wait 5 minutes before restarting takeoff sequence
+	if !m.landingStartTime.IsZero() {
+		if stateDuration < 5*time.Minute {
+			return
+		}
+		// Reset landing state to allow normal scenario to resume
+		m.landingStartTime = time.Time{}
+		m.safeAltReached = false
+	}
+
 	if stateDuration >= m.config.DurationParked {
 		m.state = StageTaxiing
 		m.stateStart = time.Now()

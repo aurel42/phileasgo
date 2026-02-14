@@ -11,16 +11,18 @@ import (
 
 // DLL and procedure handles
 var (
-	dll                        *syscall.LazyDLL
-	procOpen                   *syscall.LazyProc
-	procClose                  *syscall.LazyProc
-	procAddToDataDefinition    *syscall.LazyProc
-	procRequestDataOnSimObject *syscall.LazyProc
-	procGetNextDispatch        *syscall.LazyProc
-	procAICreateNonATCAircraft *syscall.LazyProc
-	procSetDataOnSimObject     *syscall.LazyProc
-	procAIRemoveObject         *syscall.LazyProc
-	procSubscribeToSystemEvent *syscall.LazyProc
+	dll                                *syscall.LazyDLL
+	procOpen                           *syscall.LazyProc
+	procClose                          *syscall.LazyProc
+	procAddToDataDefinition            *syscall.LazyProc
+	procRequestDataOnSimObject         *syscall.LazyProc
+	procGetNextDispatch                *syscall.LazyProc
+	procAICreateNonATCAircraft         *syscall.LazyProc
+	procSetDataOnSimObject             *syscall.LazyProc
+	procAIRemoveObject                 *syscall.LazyProc
+	procSubscribeToSystemEvent         *syscall.LazyProc
+	procEnumerateSimObjectsAndLiveries *syscall.LazyProc
+	procAICreateNonATCAircraftEX1      *syscall.LazyProc
 )
 
 // Error codes
@@ -54,24 +56,26 @@ const (
 
 // Object types
 const (
-	SIMOBJECT_TYPE_USER       uint32 = 0
-	SIMOBJECT_TYPE_ALL        uint32 = 1
-	SIMOBJECT_TYPE_AIRCRAFT   uint32 = 2
-	SIMOBJECT_TYPE_HELICOPTER uint32 = 3
-	SIMOBJECT_TYPE_BOAT       uint32 = 4
-	SIMOBJECT_TYPE_GROUND     uint32 = 5
+	SIMOBJECT_TYPE_USER            uint32 = 0
+	SIMOBJECT_TYPE_ALL             uint32 = 1
+	SIMOBJECT_TYPE_AIRCRAFT        uint32 = 2
+	SIMOBJECT_TYPE_HELICOPTER      uint32 = 3
+	SIMOBJECT_TYPE_BOAT            uint32 = 4
+	SIMOBJECT_TYPE_GROUND          uint32 = 5
+	SIMOBJECT_TYPE_HOT_AIR_BALLOON uint32 = 6
 )
 
 // Recv IDs
 const (
-	RECV_ID_NULL                  uint32 = 0
-	RECV_ID_EXCEPTION             uint32 = 1
-	RECV_ID_OPEN                  uint32 = 2
-	RECV_ID_QUIT                  uint32 = 3
-	RECV_ID_EVENT                 uint32 = 4
-	RECV_ID_SIMOBJECT_DATA        uint32 = 8
-	RECV_ID_SIMOBJECT_DATA_BYTYPE uint32 = 9
-	RECV_ID_ASSIGNED_OBJECT_ID    uint32 = 12
+	RECV_ID_NULL                              uint32 = 0
+	RECV_ID_EXCEPTION                         uint32 = 1
+	RECV_ID_OPEN                              uint32 = 2
+	RECV_ID_QUIT                              uint32 = 3
+	RECV_ID_EVENT                             uint32 = 4
+	RECV_ID_SIMOBJECT_DATA                    uint32 = 8
+	RECV_ID_SIMOBJECT_DATA_BYTYPE             uint32 = 9
+	RECV_ID_ASSIGNED_OBJECT_ID                uint32 = 12
+	RECV_ID_ENUMERATE_SIMOBJECTS_AND_LIVERIES uint32 = 38
 )
 
 // Special Object IDs
@@ -129,13 +133,22 @@ func LoadDLL(path string) error {
 	procSetDataOnSimObject = dll.NewProc("SimConnect_SetDataOnSimObject")
 	procAIRemoveObject = dll.NewProc("SimConnect_AIRemoveObject")
 	procSubscribeToSystemEvent = dll.NewProc("SimConnect_SubscribeToSystemEvent")
-
+	procEnumerateSimObjectsAndLiveries = dll.NewProc("SimConnect_EnumerateSimObjectsAndLiveries")
+	procAICreateNonATCAircraftEX1 = dll.NewProc("SimConnect_AICreateNonATCAircraft_EX1")
 	return nil
+}
+
+// IsLoaded returns true if the SimConnect DLL and procedures are loaded.
+func IsLoaded() bool {
+	return dll != nil && procOpen != nil
 }
 
 // Open establishes a connection to SimConnect.
 // Returns the handle on success.
 func Open(name string) (uintptr, error) {
+	if !IsLoaded() {
+		return 0, fmt.Errorf("SimConnect DLL not loaded")
+	}
 	var handle uintptr
 	namePtr, _ := syscall.UTF16PtrFromString(name)
 
@@ -157,6 +170,9 @@ func Open(name string) (uintptr, error) {
 
 // Close terminates the SimConnect connection.
 func Close(handle uintptr) error {
+	if !IsLoaded() {
+		return nil // already closed or not loaded
+	}
 	r1, _, err := procClose.Call(handle)
 	if int32(r1) < 0 {
 		return fmt.Errorf("SimConnect_Close failed: %v (0x%x)", err, r1)
@@ -166,6 +182,9 @@ func Close(handle uintptr) error {
 
 // AddToDataDefinition adds a SimVar to a data definition.
 func AddToDataDefinition(handle uintptr, defineID uint32, datumName, unitsName string, datumType uint32) error {
+	if !IsLoaded() {
+		return fmt.Errorf("DLL not loaded")
+	}
 	namePtr := append([]byte(datumName), 0)
 	var unitsPtr []byte
 	if unitsName != "" {
@@ -196,6 +215,9 @@ func AddToDataDefinition(handle uintptr, defineID uint32, datumName, unitsName s
 
 // RequestDataOnSimObject requests data updates for a sim object.
 func RequestDataOnSimObject(handle uintptr, requestID, defineID, objectID, period, flags, origin, interval, limit uint32) error {
+	if !IsLoaded() {
+		return fmt.Errorf("DLL not loaded")
+	}
 	r1, _, err := procRequestDataOnSimObject.Call(
 		handle,
 		uintptr(requestID),
@@ -218,6 +240,9 @@ func RequestDataOnSimObject(handle uintptr, requestID, defineID, objectID, perio
 // GetNextDispatch retrieves the next message from SimConnect.
 // Returns nil, 0, nil if no message is available.
 func GetNextDispatch(handle uintptr) (ppData unsafe.Pointer, cbData uint32, err error) {
+	if !IsLoaded() {
+		return nil, 0, fmt.Errorf("DLL not loaded")
+	}
 	r1, _, _ := procGetNextDispatch.Call(
 		handle,
 		uintptr(unsafe.Pointer(&ppData)),
@@ -238,6 +263,9 @@ func GetNextDispatch(handle uintptr) (ppData unsafe.Pointer, cbData uint32, err 
 
 // SetDataOnSimObject sets data on a sim object.
 func SetDataOnSimObject(handle uintptr, defineID, objectID, flags, arrayCount, cbUnitSize uint32, pDataSet unsafe.Pointer) error {
+	if !IsLoaded() {
+		return fmt.Errorf("DLL not loaded")
+	}
 	r1, _, err := procSetDataOnSimObject.Call(
 		handle,
 		uintptr(defineID),
@@ -257,6 +285,9 @@ func SetDataOnSimObject(handle uintptr, defineID, objectID, flags, arrayCount, c
 
 // AICreateNonATCAircraft spawns an AI aircraft.
 func AICreateNonATCAircraft(handle uintptr, containerTitle, tailNumber string, initPos *InitPosition, requestID uint32) error {
+	if !IsLoaded() {
+		return fmt.Errorf("DLL not loaded")
+	}
 	titlePtr := append([]byte(containerTitle), 0)
 	tailPtr := append([]byte(tailNumber), 0)
 
@@ -277,6 +308,9 @@ func AICreateNonATCAircraft(handle uintptr, containerTitle, tailNumber string, i
 
 // AIRemoveObject removes an AI object.
 func AIRemoveObject(handle uintptr, objectID, requestID uint32) error {
+	if !IsLoaded() {
+		return fmt.Errorf("DLL not loaded")
+	}
 	r1, _, err := procAIRemoveObject.Call(
 		handle,
 		uintptr(objectID),
@@ -292,6 +326,9 @@ func AIRemoveObject(handle uintptr, objectID, requestID uint32) error {
 
 // SubscribeToSystemEvent subscribes to a system event like "SimStart" or "SimStop".
 func SubscribeToSystemEvent(handle uintptr, clientEventID uint32, eventName string) error {
+	if !IsLoaded() {
+		return fmt.Errorf("DLL not loaded")
+	}
 	namePtr := append([]byte(eventName), 0)
 
 	r1, _, err := procSubscribeToSystemEvent.Call(
@@ -302,6 +339,43 @@ func SubscribeToSystemEvent(handle uintptr, clientEventID uint32, eventName stri
 
 	if int32(r1) < 0 {
 		return fmt.Errorf("SimConnect_SubscribeToSystemEvent failed for %s: %v (0x%x)", eventName, err, r1)
+	}
+
+	return nil
+}
+
+// EnumerateSimObjectsAndLiveries retrieves a list of spawnable SimObjects and their liveries.
+func EnumerateSimObjectsAndLiveries(handle uintptr, requestID, objType uint32) error {
+	r1, _, err := procEnumerateSimObjectsAndLiveries.Call(
+		handle,
+		uintptr(requestID),
+		uintptr(objType),
+	)
+
+	if int32(r1) < 0 {
+		return fmt.Errorf("SimConnect_EnumerateSimObjectsAndLiveries failed: %v (0x%x)", err, r1)
+	}
+
+	return nil
+}
+
+// AICreateNonATCAircraftEX1 spawns an AI aircraft with a specific livery (MSFS 2024).
+func AICreateNonATCAircraftEX1(handle uintptr, containerTitle, livery, tailNumber string, initPos *InitPosition, requestID uint32) error {
+	titlePtr := append([]byte(containerTitle), 0)
+	liveryPtr := append([]byte(livery), 0)
+	tailPtr := append([]byte(tailNumber), 0)
+
+	r1, _, err := procAICreateNonATCAircraftEX1.Call(
+		handle,
+		uintptr(unsafe.Pointer(&titlePtr[0])),
+		uintptr(unsafe.Pointer(&liveryPtr[0])),
+		uintptr(unsafe.Pointer(&tailPtr[0])),
+		uintptr(unsafe.Pointer(initPos)),
+		uintptr(requestID),
+	)
+
+	if int32(r1) < 0 {
+		return fmt.Errorf("SimConnect_AICreateNonATCAircraft_EX1 failed: %v (0x%x)", err, r1)
 	}
 
 	return nil

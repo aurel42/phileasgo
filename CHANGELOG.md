@@ -1,5 +1,13 @@
 ﻿# Changelog
 
+## v0.3.177 (2026-02-14)
+- **New Feature**: **Dynamic Beacon Color System**. Replaced the monolithic balloon color with a multi-channel infrastructure supporting individual beacon colors driven by a new `beacons.yaml` registry.
+- **New Feature**: **Automated Landing Sequence**. The Mock Simulator now supports a full "Land" command featuring automated descent, flare, and taxi logic.
+- **Refinement**: **Precision Artistic Map Markers**. Implemented a pixel-perfect 2px scaled gap for `POIBeacon` components and restored high-fidelity map layers (hillshade, runways).
+- **New Feature**: **Remote Simulator Command API**. Added infrastructure to trigger simulator actions directly from the Web UI.
+- **Improvement**: **SimConnect Enumeration**. Integrated native SimObject and livery enumeration for enhanced aircraft management.
+- **Improved**: **Beacon Persistence**. Refined the `has_balloon` logic to ensure persistent target beacons are correctly synchronized with the Art Map's placement engine.
+
 ## v0.3.176 (2026-02-13)
 - **Improvement**: **Artistic Map Detail**. Synchronized the Artistic Map with the "perfect" Testing Map look by implementing the Super-HD resolution trick (`tileSize: 128`), doubling the perceived detail density.
 - **Improved**: **Verified Scale Accuracy**. Confirmed and documented that the dual-scale bar remains 100% accurate across all tile sizes due to our scale-invariant 512px resolution model.
@@ -13,7 +21,6 @@
 - **Fix**: **Artistic Map Bounds**. Fixed the "snap-back" issue during debriefing by ignoring camera updates during intermediate easing transitions.
 - **Refinement**: **Replay Map Aesthetics**. Hidden the dashed aircraft heading line during trip replay for a cleaner look.
 - **Improvement**: **Free Flight POI Selection**. Excluded previously visited (historic) POIs from being candidates for artistic map labels, reducing overall map clutter and noise.
-
 
 ## v0.3.173 (2026-02-13)
 - **New Feature**: **Stamped POI Iconography**. Replaced Unicode star markers with a sharp, custom SVG star that features a defined dark outline for better clarity against the map background.

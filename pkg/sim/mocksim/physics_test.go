@@ -115,3 +115,92 @@ func mathAbs(f float64) float64 {
 	}
 	return f
 }
+
+func TestMock_ExecuteCommand(t *testing.T) {
+	m := NewClient(Config{})
+	defer m.Close()
+
+	ctx := context.Background()
+
+	// 1. Unknown command
+	if err := m.ExecuteCommand(ctx, "jump", nil); err == nil {
+		t.Error("Expected error for unknown command")
+	}
+
+	// 2. land on ground (error)
+	if err := m.ExecuteCommand(ctx, "land", nil); err == nil {
+		t.Error("Expected error for landing while on ground")
+	}
+
+	// 3. land while airborne (success)
+	m.mu.Lock()
+	m.state = StageAirborne
+	m.mu.Unlock()
+
+	if err := m.ExecuteCommand(ctx, "land", nil); err != nil {
+		t.Errorf("Unexpected error for landing: %v", err)
+	}
+
+	if !m.isLanding {
+		t.Error("isLanding flag not set")
+	}
+}
+
+func TestMock_AirborneTurningAndLanding(t *testing.T) {
+	m := NewClient(Config{StartAlt: 1000})
+	defer m.Close()
+
+	m.mu.Lock()
+	m.state = StageAirborne
+	m.tel.AltitudeMSL = 2000
+	m.groundAlt = 1000
+	m.tel.Heading = 100
+	m.lastTurnTime = time.Now().Add(-70 * time.Second)
+	m.turnCount = 3 // Next turn is 4th (dramatic)
+	m.mu.Unlock()
+
+	// 1. Test Dramatic Turn (4th turn)
+	m.updateAirborne(0.1, time.Now())
+
+	if m.turnCount != 4 {
+		t.Errorf("Expected turnCount 4, got %d", m.turnCount)
+	}
+	// We can't easily check exact heading due to randomness, but we know it updated.
+
+	// 2. Test Landing Sequence
+	m.mu.Lock()
+	m.isLanding = true
+	m.mu.Unlock()
+
+	m.updateAirborne(2.0, time.Now()) // 2 seconds tick
+
+	if m.tel.GroundSpeed != 70.0 {
+		t.Errorf("Expected ground speed 70.0 during landing, got %.1f", m.tel.GroundSpeed)
+	}
+	if m.tel.VerticalSpeed != -500.0 {
+		t.Errorf("Expected vertical speed -500.0 during landing, got %.1f", m.tel.VerticalSpeed)
+	}
+
+	// Should have descended: -500fpm = -8.33 fps. 2s = -16.66 ft.
+	expectedAlt := 2000.0 - (500.0/60.0)*2.0
+	if mathAbs(m.tel.AltitudeMSL-expectedAlt) > 0.1 {
+		t.Errorf("Expected altitude %.2f, got %.2f", expectedAlt, m.tel.AltitudeMSL)
+	}
+
+	// 3. Test Touchdown
+	m.mu.Lock()
+	m.tel.AltitudeMSL = 1005 // Almost there
+	m.mu.Unlock()
+
+	m.updateAirborne(2.0, time.Now())
+
+	if m.state != StageTaxiing {
+		t.Errorf("Expected state StageTaxiing after touchdown, got %s", m.state)
+	}
+	if !m.tel.IsOnGround {
+		t.Error("Expected IsOnGround to be true after touchdown")
+	}
+	if m.isLanding {
+		t.Error("Expected isLanding to be false after touchdown")
+	}
+}

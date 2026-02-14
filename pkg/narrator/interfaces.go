@@ -40,7 +40,7 @@ type LanguageResolver interface {
 
 // BeaconProvider defines the interface for beacon/marker management.
 type BeaconProvider interface {
-	SetTarget(ctx context.Context, lat, lon float64) error
+	SetTarget(ctx context.Context, lat, lon float64, title, livery string) error
 	Clear()
 }
 

@@ -20,7 +20,7 @@ func TestOrchestrator_QueueManagement(t *testing.T) {
 	mockGen := &MockAIService{}
 	pbQ := playback.NewManager()
 	sess := session.NewManager(nil)
-	o := NewOrchestrator(mockGen, &MockAudio{}, pbQ, sess, nil, nil)
+	o := NewOrchestrator(mockGen, &MockAudio{}, pbQ, sess, nil, nil, nil)
 
 	// 1. Enqueue via EnqueuePlayback
 	// Force active state to prevent auto-pop

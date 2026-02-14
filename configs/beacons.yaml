@@ -1,0 +1,29 @@
+red:
+  title: Asobo PassiveAircraft Hot Air Balloon
+  livery: OFFICIAL_STATIC_01
+  map_color: "#e63946"
+
+green:
+  title: Asobo PassiveAircraft Hot Air Balloon
+  livery: OFFICIAL_STATIC_03
+  map_color: "#2a9d8f"
+
+blue:
+  title: Asobo PassiveAircraft Hot Air Balloon
+  livery: OFFICIAL_STATIC_04
+  map_color: "#457b9d"
+
+yellow:
+  title: Asobo PassiveAircraft Hot Air Balloon
+  livery: OFFICIAL_STATIC_05
+  map_color: "#e9c46a"
+
+cyan:
+  title: Asobo PassiveAircraft Hot Air Balloon
+  livery: OFFICIAL_STATIC_06
+  map_color: "#219ebc"
+
+orange:
+  title: Asobo PassiveAircraft Hot Air Balloon
+  livery: OFFICIAL_STATIC_07
+  map_color: "#f4a261"

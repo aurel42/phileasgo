@@ -50,6 +50,7 @@ function App() {
   const [repeatTTL, setRepeatTTL] = useState('1h');
   const [narrationLengthShort, setNarrationLengthShort] = useState(50);
   const [narrationLengthLong, setNarrationLengthLong] = useState(200);
+  const [beaconMaxTargets, setBeaconMaxTargets] = useState(2);
 
   // Paper Opacity State (init with defaults 0.7 and 0.1)
   const [paperOpacityFog, setPaperOpacityFog] = useState(() => {
@@ -228,6 +229,7 @@ function App() {
           setSettlementLabelLimit(data.settlement_label_limit ?? 5);
           setSettlementTier(data.settlement_tier ?? 3);
           if (data.settlement_categories) setSettlementCategories(data.settlement_categories);
+          if (data.beacon_max_targets !== undefined) setBeaconMaxTargets(data.beacon_max_targets);
         })
         .catch(e => console.error("Failed to fetch config", e));
     };
@@ -383,6 +385,7 @@ function App() {
               paperOpacityClear={paperOpacityClear}
               parchmentSaturation={parchmentSaturation}
               selectedPOI={selectedPOI}
+              beaconMaxTargets={beaconMaxTargets}
               isAutoOpened={autoOpenedRef.current}
               onPOISelect={handlePOISelect}
               onMapClick={handlePanelClose}

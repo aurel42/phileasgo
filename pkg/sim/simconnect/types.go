@@ -130,3 +130,19 @@ type MarkerUpdateData struct {
 	OnGround    int32
 	Airspeed    int32
 }
+
+// RecvEnumerateSimObjectsAndLiveries is received after calling EnumerateSimObjectsAndLiveries.
+type RecvEnumerateSimObjectsAndLiveries struct {
+	Recv
+	RequestID  uint32
+	Count      uint32
+	Index      uint32
+	TotalCount uint32
+	// Data follows immediately
+}
+
+// EnumerateSimObjectLivery describes a single spawnable object.
+type EnumerateSimObjectLivery struct {
+	ContainerTitle [256]byte
+	LiveryName     [256]byte
+}

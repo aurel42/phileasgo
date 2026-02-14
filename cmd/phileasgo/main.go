@@ -35,6 +35,7 @@ import (
 	"phileasgo/pkg/session"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/sim/mocksim"
+	"phileasgo/pkg/sim/simconnect"
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/terrain"
 	"phileasgo/pkg/tracker"
@@ -311,7 +312,9 @@ func initNarrator(ctx context.Context, cfg config.Provider, svcs *CoreServices, 
 				beaconSvc.SetElevationProvider(elProv)
 			}
 			beaconSvc.SetDLLPath("SimConnect.dll")
-			go beaconSvc.StartIndependentLoop(ctx)
+			if simconnect.IsLoaded() {
+				go beaconSvc.StartIndependentLoop(ctx)
+			}
 		}
 	}
 
@@ -320,10 +323,16 @@ func initNarrator(ctx context.Context, cfg config.Provider, svcs *CoreServices, 
 		beaconProvider = beaconSvc
 	}
 
+	beaconReg, err := config.LoadBeacons("configs/beacons.yaml")
+	if err != nil {
+		slog.Warn("Failed to load beacons registry, using empty", "error", err)
+		beaconReg = make(config.BeaconRegistry)
+	}
+
 	pbQ := playback.NewManager()
 	gen := createAIService(cfg, llmProv, ttsProv, promptMgr, svcs.PoiMgr, svcs.WikiSvc, simClient, st, tr, catCfg, sessionMgr, densityMgr)
 
-	orch := narrator.NewOrchestrator(gen, audio.New(&appCfg.Narrator), pbQ, sessionMgr, beaconProvider, simClient)
+	orch := narrator.NewOrchestrator(gen, audio.New(&appCfg.Narrator), pbQ, sessionMgr, beaconProvider, simClient, beaconReg)
 	gen.SetOnPlayback(orch.EnqueuePlayback)
 
 	// Restore Volume
@@ -399,6 +408,7 @@ func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns 
 	geoH := api.NewGeographyHandler(svcs.WikiSvc.GeoService())
 	labelMgr := labels.NewManager(svcs.WikiSvc.GeoService(), svcs.PoiMgr, cfg)
 	labelH := api.NewMapLabelsHandler(labelMgr)
+	simH := api.NewSimCommandHandler(simClient)
 
 	srv := api.NewServer(appCfg.Server.Address,
 		telH,
@@ -413,6 +423,7 @@ func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns 
 		geoH,
 		api.NewTripHandler(sessionMgr, st),
 		labelH,
+		simH,
 		shutdownFunc,
 	)
 

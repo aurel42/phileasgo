@@ -30,6 +30,8 @@ type Client interface {
 	GetStageState() StageState
 	RestoreStageState(s StageState)
 	SetEventRecorder(r EventRecorder)
+	// Commands
+	ExecuteCommand(ctx context.Context, cmd string, args map[string]any) error
 }
 
 // EventRecorder defines an interface for logging system events (like flight stages).
@@ -40,7 +42,7 @@ type EventRecorder interface {
 // ObjectClient defines the interface for creation and manipulating sim objects.
 type ObjectClient interface {
 	// SpawnAirTraffic spawns a non-ATC aircraft (AI object).
-	SpawnAirTraffic(reqID uint32, title, tailNum string, lat, lon, alt, hdg float64) (uint32, error)
+	SpawnAirTraffic(reqID uint32, title, livery, tailNum string, lat, lon, alt, hdg float64) (uint32, error)
 	// RemoveObject removes a sim object by its ID.
 	RemoveObject(objectID, reqID uint32) error
 	// SetObjectPosition updates the position of a sim object.
@@ -69,6 +71,9 @@ type Telemetry struct {
 	// Transponder
 	Squawk int  // TRANSPONDER CODE
 	Ident  bool // TRANSPONDER IDENT
+
+	// Metadata
+	Provider string // "mock", "simconnect", etc.
 }
 
 // DetermineFlightStage calculates a basic flight phase.

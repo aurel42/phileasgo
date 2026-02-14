@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"phileasgo/pkg/announcement"
 	"phileasgo/pkg/audio"
+	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/playback"
@@ -49,6 +51,11 @@ type Orchestrator struct {
 
 	pacingDuration time.Duration
 	skipCooldown   bool
+
+	// Beacon Registry & Rotation
+	beaconRegistry config.BeaconRegistry
+	colorKeys      []string
+	colorIndex     int
 }
 
 // NewOrchestrator creates a new narrator orchestrator.
@@ -59,7 +66,14 @@ func NewOrchestrator(
 	sessionMgr *session.Manager,
 	beaconSvc BeaconProvider,
 	simClient sim.Client,
+	beaconRegistry config.BeaconRegistry,
 ) *Orchestrator {
+	keys := make([]string, 0, len(beaconRegistry))
+	for k := range beaconRegistry {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	return &Orchestrator{
 		gen:            gen,
 		audio:          audioMgr,
@@ -67,6 +81,8 @@ func NewOrchestrator(
 		sessionMgr:     sessionMgr,
 		beaconSvc:      beaconSvc,
 		sim:            simClient,
+		beaconRegistry: beaconRegistry,
+		colorKeys:      keys,
 		pacingDuration: 3 * time.Second,
 	}
 }
@@ -111,7 +127,11 @@ func (o *Orchestrator) PlayPOI(ctx context.Context, poiID string, manual, enqueu
 	if o.beaconSvc != nil {
 		if pm := o.POIManager(); pm != nil {
 			if p, err := pm.GetPOI(ctx, poiID); err == nil && p != nil {
-				_ = o.beaconSvc.SetTarget(ctx, p.Lat, p.Lon)
+				o.assignBeaconColor(p)
+				entry := o.getRegistryEntryByColor(p.BeaconColor)
+				if entry != nil {
+					_ = o.beaconSvc.SetTarget(ctx, p.Lat, p.Lon, entry.Title, entry.Livery)
+				}
 			}
 		}
 	}
@@ -225,6 +245,18 @@ func (o *Orchestrator) PlayNarrative(ctx context.Context, n *model.Narrative) er
 	// Post-play logic (session, state, logging)
 	if n.POI != nil {
 		n.POI.LastPlayed = time.Now()
+		// Spawn colored beacon in MSFS
+		o.assignBeaconColor(n.POI)
+		if o.beaconSvc != nil {
+			entry := o.getRegistryEntryByColor(n.POI.BeaconColor)
+			if entry != nil {
+				go func() {
+					if err := o.beaconSvc.SetTarget(context.Background(), n.Lat, n.Lon, entry.Title, entry.Livery); err != nil {
+						slog.Error("Orchestrator: Failed to spawn beacon", "error", err)
+					}
+				}()
+			}
+		}
 	}
 	// Record the event
 	o.gen.RecordNarration(ctx, n)
@@ -290,12 +322,22 @@ func (o *Orchestrator) finalizePlayback() {
 		// If next in queue is a POI, point the beacon there
 		if next != nil && next.POI != nil {
 			slog.Info("Orchestrator: Switching marker to next queued POI", "qid", next.POI.WikidataID)
-			_ = o.beaconSvc.SetTarget(context.Background(), next.POI.Lat, next.POI.Lon)
-		} else if ai, ok := o.gen.(interface{ GetPreparedPOI() *model.POI }); ok {
+			o.assignBeaconColor(next.POI)
+			entry := o.getRegistryEntryByColor(next.POI.BeaconColor)
+			if entry != nil {
+				_ = o.beaconSvc.SetTarget(context.Background(), next.POI.Lat, next.POI.Lon, entry.Title, entry.Livery)
+			}
+		} else if ai, ok := o.gen.(interface {
+			GetPreparedPOI() *model.POI
+		}); ok {
 			generating := ai.GetPreparedPOI()
 			if generating != nil {
 				slog.Info("Orchestrator: Switching marker to currently generating POI", "qid", generating.WikidataID)
-				_ = o.beaconSvc.SetTarget(context.Background(), generating.Lat, generating.Lon)
+				o.assignBeaconColor(generating)
+				entry := o.getRegistryEntryByColor(generating.BeaconColor)
+				if entry != nil {
+					_ = o.beaconSvc.SetTarget(context.Background(), generating.Lat, generating.Lon, entry.Title, entry.Livery)
+				}
 			}
 		}
 	}
@@ -516,6 +558,34 @@ func (o *Orchestrator) AssemblePOI(ctx context.Context, p *model.POI, t *sim.Tel
 func (o *Orchestrator) AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data {
 	if ai, ok := o.gen.(announcement.DataProvider); ok {
 		return ai.AssembleGeneric(ctx, t)
+	}
+	return nil
+}
+
+func (o *Orchestrator) assignBeaconColor(p *model.POI) {
+	if p.BeaconColor != "" {
+		return // Already assigned
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if len(o.colorKeys) == 0 {
+		return
+	}
+
+	key := o.colorKeys[o.colorIndex%len(o.colorKeys)]
+	o.colorIndex++
+
+	entry := o.beaconRegistry[key]
+	p.BeaconColor = entry.MapColor
+	slog.Info("Orchestrator: Assigned beacon color to POI", "poi", p.WikidataID, "color", key, "hex", p.BeaconColor)
+}
+
+func (o *Orchestrator) getRegistryEntryByColor(hexColor string) *config.BeaconRegistryEntry {
+	for _, entry := range o.beaconRegistry {
+		if entry.MapColor == hexColor {
+			return &entry
+		}
 	}
 	return nil
 }

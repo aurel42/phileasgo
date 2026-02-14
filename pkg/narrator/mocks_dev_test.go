@@ -267,7 +267,7 @@ type MockBeacon struct {
 	LastTgtLon float64
 }
 
-func (m *MockBeacon) SetTarget(ctx context.Context, lat, lon float64) error {
+func (m *MockBeacon) SetTarget(ctx context.Context, lat, lon float64, title, livery string) error {
 	m.TargetSet = true
 	m.LastTgtLat = lat
 	m.LastTgtLon = lon
@@ -309,6 +309,10 @@ func (m *MockSim) RemoveObject(id, reqID uint32) error                   { retur
 func (m *MockSim) SubscribeToData(defineID uint32, structType any) error { return nil }
 func (m *MockSim) RequestData(defineID, reqID uint32) error              { return nil }
 func (m *MockSim) Close() error                                          { return nil }
+
+func (m *MockSim) ExecuteCommand(ctx context.Context, cmd string, args map[string]any) error {
+	return nil
+}
 
 func (m *MockSim) GetStageState() sim.StageState {
 	return sim.StageState{

@@ -49,12 +49,12 @@ type Config struct {
 
 // OverlayConfig holds settings for the overlay UI.
 type OverlayConfig struct {
-	MapBox                bool `yaml:"map_box"`
-	POIInfo               bool `yaml:"poi_info"`
-	InfoBar               bool `yaml:"info_bar"`
-	LogLine               bool `yaml:"log_line"`
-	SettlementLabelLimit  int  `yaml:"settlement_label_limit"`
-	SettlementTier        int  `yaml:"settlement_tier"`
+	MapBox               bool `yaml:"map_box"`
+	POIInfo              bool `yaml:"poi_info"`
+	InfoBar              bool `yaml:"info_bar"`
+	LogLine              bool `yaml:"log_line"`
+	SettlementLabelLimit int  `yaml:"settlement_label_limit"`
+	SettlementTier       int  `yaml:"settlement_tier"`
 }
 
 // RequestConfig holds HTTP request settings.
@@ -90,16 +90,18 @@ type MockSimConfig struct {
 
 // BeaconConfig holds settings for the beacon guidance system.
 type BeaconConfig struct {
-	Enabled                 bool     `yaml:"enabled"`
-	FormationEnabled        bool     `yaml:"formation_enabled"`
-	FormationDistance       Distance `yaml:"formation_distance"`
-	FormationCount          int      `yaml:"formation_count"`
-	MinSpawnAltitude        Distance `yaml:"min_spawn_altitude"`
-	AltitudeFloor           Distance `yaml:"altitude_floor"`
-	TargetSinkDistanceFar   Distance `yaml:"target_sink_distance_far"`
-	TargetSinkDistanceClose Distance `yaml:"target_sink_distance_close"`
-	TargetFloorAGL          Distance `yaml:"target_floor_agl"`
-	MaxTargets              int      `yaml:"max_targets"`
+	Enabled                 bool           `yaml:"enabled"`
+	FormationEnabled        bool           `yaml:"formation_enabled"`
+	FormationDistance       Distance       `yaml:"formation_distance"`
+	FormationCount          int            `yaml:"formation_count"`
+	MinSpawnAltitude        Distance       `yaml:"min_spawn_altitude"`
+	AltitudeFloor           Distance       `yaml:"altitude_floor"`
+	TargetSinkDistanceFar   Distance       `yaml:"target_sink_distance_far"`
+	TargetSinkDistanceClose Distance       `yaml:"target_sink_distance_close"`
+	TargetFloorAGL          Distance       `yaml:"target_floor_agl"`
+	MaxTargets              int            `yaml:"max_targets"`
+	RegistryPath            string         `yaml:"registry_path"`
+	Registry                BeaconRegistry `yaml:"-"` // Loaded on startup
 }
 
 // LLMConfig holds settings for the Large Language Model providers.
@@ -523,18 +525,20 @@ func DefaultConfig() *Config {
 			TargetSinkDistanceFar:   Distance(5000),  // 5km
 			TargetSinkDistanceClose: Distance(2000),  // 2km
 			TargetFloorAGL:          Distance(30.48), // 100ft
-			MaxTargets:              2,
+			MaxTargets:              5,               // Matches design spec for balloons
+			RegistryPath:            "configs/beacons.yaml",
+			Registry:                make(BeaconRegistry),
 		},
 		Transponder: TransponderConfig{
 			Enabled:     true,
 			IdentAction: "skip",
 		},
 		Overlay: OverlayConfig{
-			MapBox:                true,
-			POIInfo:               true,
-			InfoBar:               true,
-			LogLine:               true,
-			SettlementLabelLimit:  5,
+			MapBox:               true,
+			POIInfo:              true,
+			InfoBar:              true,
+			LogLine:              true,
+			SettlementLabelLimit: 5,
 		},
 	}
 }
@@ -596,6 +600,16 @@ func Load(path string) (*Config, error) {
 	// Validate ActiveTargetLanguage format (xx-YY)
 	if !isValidLocale(cfg.Narrator.ActiveTargetLanguage) {
 		return nil, fmt.Errorf("invalid active_target_language format '%s': must be 'xx-YY' (e.g. 'en-US', 'de-DE')", cfg.Narrator.ActiveTargetLanguage)
+	}
+
+	// Load Beacon Registry
+	if cfg.Beacon.RegistryPath != "" {
+		if reg, err := LoadBeacons(cfg.Beacon.RegistryPath); err == nil {
+			cfg.Beacon.Registry = reg
+		} else {
+			// If it fails to load, we just log it or handle it (here we log it implicitly by not setting it)
+			fmt.Fprintf(os.Stderr, "Warning: failed to load beacon registry from %s: %v\n", cfg.Beacon.RegistryPath, err)
+		}
 	}
 
 	return cfg, nil

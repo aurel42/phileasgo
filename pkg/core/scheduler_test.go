@@ -62,6 +62,10 @@ func (m *mockSimClient) GetStageState() sim.StageState        { return sim.Stage
 func (m *mockSimClient) RestoreStageState(s sim.StageState)   {}
 func (m *mockSimClient) SetEventRecorder(r sim.EventRecorder) {}
 
+func (m *mockSimClient) ExecuteCommand(ctx context.Context, cmd string, args map[string]any) error {
+	return nil
+}
+
 func TestScheduler_JobExecution(t *testing.T) {
 	// Setup
 	cfg := config.DefaultConfig()

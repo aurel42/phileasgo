@@ -31,16 +31,6 @@ const (
 	UpdateInterval = 50 * time.Millisecond // ~20Hz
 )
 
-var (
-	// Titles to try for spawning
-	titlesToTry = []string{
-		"Asobo PassiveAircraft Hot Air Balloon",
-		"Generic Hot Air Balloon",
-		"Airbus A320 Neo Asobo",
-		"Cessna Skyhawk Asobo",
-	}
-)
-
 // ObjectClient combines the needed interfaces for this service
 type ObjectClient interface {
 	sim.Client
@@ -113,10 +103,14 @@ func computeFormationOffsets(count int) []float64 {
 
 // SetTarget initializes the guidance system towards a target coordinate.
 // It spawns the target beacon and formation beacons.
-func (s *Service) SetTarget(ctx context.Context, lat, lon float64) error {
+func (s *Service) SetTarget(ctx context.Context, lat, lon float64, title, livery string) error {
 	if s == nil {
 		return fmt.Errorf("beacon service is nil")
 	}
+	if title == "" || livery == "" {
+		return fmt.Errorf("title and livery must not be empty")
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -145,15 +139,14 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64) error {
 	}
 
 	// 3. Setup altitude and spawn
-	title := titlesToTry[0]
 	spawnFormation := s.setupTargetAltitude(ctx, &tel)
 
 	// 4. Spawn Beacons
-	s.spawnTargetBalloon(title, lat, lon)
+	s.spawnTargetBalloon(title, livery, lat, lon)
 	s.enforceTargetQuota(ctx)
 
 	if spawnFormation {
-		s.spawnFormationBalloons(ctx, title, &tel)
+		s.spawnFormationBalloons(ctx, title, livery, &tel)
 	} else {
 		s.formationActive = false
 	}
@@ -194,19 +187,14 @@ func (s *Service) setupTargetAltitude(ctx context.Context, tel *sim.Telemetry) b
 	return spawnFormation
 }
 
-func (s *Service) spawnTargetBalloon(title string, lat, lon float64) {
-	targetID, err := s.client.SpawnAirTraffic(reqIDSpawnTarget, title, "TGT", lat, lon, s.targetAlt, 0)
-	if err == nil {
-		s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{
-			ID:       targetID,
-			IsTarget: true,
-			Lat:      lat,
-			Lon:      lon,
-			BaseAlt:  s.targetAlt,
-		})
-	} else {
-		s.logger.Error("Failed to spawn target beacon", "error", err)
+func (s *Service) spawnTargetBalloon(title, livery string, lat, lon float64) {
+	slog.Info("Spawning target beacon", "title", title, "livery", livery, "lat", lat, "lon", lon)
+	objID, err := s.SpawnAirTraffic(title, livery, "", lat, lon, s.targetAlt, reqIDSpawnTarget)
+	if err != nil {
+		slog.Error("Failed to spawn target beacon", "error", err)
+		return
 	}
+	s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{ID: objID, IsTarget: true, Lat: lat, Lon: lon, BaseAlt: s.targetAlt})
 }
 
 func (s *Service) enforceTargetQuota(ctx context.Context) {
@@ -229,59 +217,40 @@ func (s *Service) enforceTargetQuota(ctx context.Context) {
 	}
 }
 
-func (s *Service) spawnFormationBalloons(ctx context.Context, title string, tel *sim.Telemetry) {
-	formationCount := s.prov.BeaconFormationCount(ctx)
-	if formationCount <= 0 {
-		s.formationActive = false
-		return
-	}
+func (s *Service) spawnFormationBalloons(ctx context.Context, title, livery string, tel *sim.Telemetry) {
+	count := s.prov.BeaconFormationCount(ctx)
+	dist := s.prov.BeaconFormationDistance(ctx)
+	offsets := computeFormationOffsets(count)
 
-	bearingRad, _ := s.calculateBearing(tel.Latitude, tel.Longitude, s.targetLat, s.targetLon)
-	bearingDeg := bearingRad * 180.0 / math.Pi
-	distKm := float64(s.prov.BeaconFormationDistance(ctx)) / 1000.0
-	latRad := tel.Latitude * (math.Pi / 180.0)
-	fLat, fLon := calculateNewPos(tel.Latitude, tel.Longitude, bearingRad, latRad, distKm)
-
-	offsets := computeFormationOffsets(formationCount)
-	baseReqID := uint32(200)
+	slog.Info("Spawning formation beacons", "count", count, "livery", livery)
 	for i, offset := range offsets {
-		absAlt := s.targetAlt + offset
-		reqID := baseReqID + uint32(i)
-		id, err := s.client.SpawnAirTraffic(reqID, title, "FORM", fLat, fLon, absAlt, bearingDeg)
-		if err == nil {
-			s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{
-				ID:        id,
-				IsTarget:  false,
-				AltOffset: offset,
-				Lat:       fLat,
-				Lon:       fLon,
-			})
+		reqID := uint32(200 + i)
+		flat, flon := offsetPos(tel.Latitude, tel.Longitude, float64(dist), tel.Heading+offset)
+
+		objID, err := s.SpawnAirTraffic(title, livery, "", flat, flon, s.targetAlt+100, reqID)
+		if err != nil {
+			slog.Error("Failed to spawn formation beacon", "index", i, "error", err)
+			continue
 		}
+		s.spawnedBeacons = append(s.spawnedBeacons, SpawnedBeacon{ID: objID, IsTarget: false, AltOffset: 100, Lat: flat, Lon: flon, BaseAlt: s.targetAlt})
 	}
 	s.formationActive = true
 }
 
-// Helper: Calculate bearing between two points in radians.
-func (s *Service) calculateBearing(lat1, lon1, lat2, lon2 float64) (bearingRad, distKm float64) {
-	lat1Rad := lat1 * math.Pi / 180.0
-	lon1Rad := lon1 * math.Pi / 180.0
-	lat2Rad := lat2 * math.Pi / 180.0
-	lon2Rad := lon2 * math.Pi / 180.0
+func (s *Service) SpawnAirTraffic(title, livery, tail string, lat, lon, alt float64, reqID uint32) (uint32, error) {
+	// The client implementation (SimConnect or Mock) handles the specific SimConnect calls
+	// (e.g. AICreateNonATCAircraft_EX1 for MSFS 2024 livery support)
+	return s.client.SpawnAirTraffic(reqID, title, livery, tail, lat, lon, alt, 0)
+}
 
-	dLon := lon2Rad - lon1Rad
-
-	y := math.Sin(dLon) * math.Cos(lat2Rad)
-	x := math.Cos(lat1Rad)*math.Sin(lat2Rad) - math.Sin(lat1Rad)*math.Cos(lat2Rad)*math.Cos(dLon)
-	bearingRad = math.Atan2(y, x)
-
-	// distance in km for convenience
-	const R = 6371.0
-	dLat := lat2Rad - lat1Rad
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) + math.Cos(lat1Rad)*math.Cos(lat2Rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
-	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
-	distKm = R * c
-
-	return bearingRad, distKm
+// Simple approximation for lat/lon offset
+func offsetPos(lat, lon, distMeters, angle float64) (offsetLat, offsetLon float64) {
+	const EarthRadius = 6371000.0
+	// Entry Angle is in degrees (tel.Heading + offset)
+	angleRad := angle * math.Pi / 180.0
+	dLat := (distMeters * math.Cos(angleRad)) / EarthRadius
+	dLon := (distMeters * math.Sin(angleRad)) / (EarthRadius * math.Cos(lat*math.Pi/180.0))
+	return lat + dLat*180.0/math.Pi, lon + dLon*180.0/math.Pi
 }
 
 // Clear removes all beacons.
@@ -316,10 +285,13 @@ func (s *Service) SetDLLPath(path string) {
 
 // Connect establishes the independent SimConnect connection for high-frequency updates.
 func (s *Service) Connect() error {
+	if !simconnect.IsLoaded() {
+		return fmt.Errorf("SimConnect DLL not loaded")
+	}
 	if s.dllPath == "" {
 		return fmt.Errorf("DLL path not set")
 	}
-	// Assume DLL is already loaded by the main client (simconnect.LoadDLL is global)
+	// Attempt to open independent connection
 	h, err := simconnect.Open("PhileasBeacons")
 	if err != nil {
 		return err
@@ -367,9 +339,6 @@ func (s *Service) StartIndependentLoop(ctx context.Context) {
 		if s.handle == 0 {
 			if err := s.Connect(); err != nil {
 				// Use DEBUG to avoid console spam at startup
-				// s.logger is set to fmt.Printf in NewService, let's keep it simple for now
-				// or maybe we should use slog here? Service struct doesn't have it yet.
-				// But s.logger is what we have.
 				time.Sleep(100 * time.Millisecond) // brief pause before next loop iteration
 			} else {
 				s.logger.Info("Starting independent frame-driven update loop")
@@ -555,6 +524,28 @@ func (s *Service) updateObjectOnSim(id uint32, lat, lon, alt float64) bool {
 		return false
 	}
 	return true
+}
+
+func (s *Service) calculateBearing(lat1, lon1, lat2, lon2 float64) (bearingRad, distKm float64) {
+	lat1Rad := lat1 * math.Pi / 180.0
+	lon1Rad := lon1 * math.Pi / 180.0
+	lat2Rad := lat2 * math.Pi / 180.0
+	lon2Rad := lon2 * math.Pi / 180.0
+
+	dLon := lon2Rad - lon1Rad
+
+	y := math.Sin(dLon) * math.Cos(lat2Rad)
+	x := math.Cos(lat1Rad)*math.Sin(lat2Rad) - math.Sin(lat1Rad)*math.Cos(lat2Rad)*math.Cos(dLon)
+	bearingRad = math.Atan2(y, x)
+
+	// distance in km for convenience
+	const R = 6371.0
+	dLat := lat2Rad - lat1Rad
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) + math.Cos(lat1Rad)*math.Cos(lat2Rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	distKm = R * c
+
+	return bearingRad, distKm
 }
 
 // Helper: Calculate new coord given origin, heading(rad), and dist(km)

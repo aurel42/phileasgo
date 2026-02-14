@@ -19,12 +19,15 @@ export interface POI {
     is_visible?: boolean;
     is_deferred?: boolean;
     visibility?: number;
+    has_balloon?: boolean;
     last_played: string; // ISO timestamp
     thumbnail_url?: string;
     is_msfs_poi?: boolean;
     narration_strategy?: string;
     los_status?: number; // 0=unknown, 1=visible, 2=blocked
     size?: string; // S, M, L, XL
+    beacon_color?: string;
+    last_time?: string; // User-requested sorting field, maps to last_played or similar
 }
 
 export function useTrackedPOIs() {

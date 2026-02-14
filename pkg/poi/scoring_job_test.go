@@ -120,6 +120,10 @@ func (m *MockSimClient) GetStageState() sim.StageState            { return sim.S
 func (m *MockSimClient) RestoreStageState(s sim.StageState)       {}
 func (m *MockSimClient) SetEventRecorder(r sim.EventRecorder)     {}
 
+func (m *MockSimClient) ExecuteCommand(ctx context.Context, cmd string, args map[string]any) error {
+	return nil
+}
+
 // MockElevation stub
 type MockElevation struct{}
 

@@ -154,6 +154,10 @@ func (m *mockJobSimClient) GetStageState() sim.StageState            { return si
 func (m *mockJobSimClient) RestoreStageState(s sim.StageState)       {}
 func (m *mockJobSimClient) SetEventRecorder(r sim.EventRecorder)     {}
 
+func (m *mockJobSimClient) ExecuteCommand(ctx context.Context, cmd string, args map[string]any) error {
+	return nil
+}
+
 func TestNarrationJob_GroundSuppression(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.AutoNarrate = true

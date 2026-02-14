@@ -55,6 +55,7 @@ type POI struct {
 	IsMSFSPOI bool `json:"is_msfs_poi"`
 	// Narration
 	NarrationStrategy string  `json:"narration_strategy"` // uniform, min_skew, max_skew
+	BeaconColor       string  `json:"beacon_color"`       // Assigned color for the beacon
 	TimeToBehind      float64 `json:"time_to_behind"`     // Seconds until it leaves forward view
 	TimeToCPA         float64 `json:"time_to_cpa"`        // Seconds until closest point of approach
 
