@@ -326,7 +326,14 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             const camera = map.current.cameraForBounds(bbox as [number, number, number, number], { padding: 100 });
             console.log('[Replay] fitBounds:', { bbox, camera: camera ? { center: camera.center, zoom: camera.zoom } : null });
             if (camera && camera.center) {
-                map.current.easeTo({ center: camera.center, zoom: Math.min(camera.zoom || 12, 12), duration: 2000 });
+                // EXPLICITLY RESET OFFSET: active flight mode uses a view offset that MUST be cleared here.
+                map.current.easeTo({
+                    center: camera.center,
+                    zoom: Math.min(camera.zoom || 12, 12),
+                    offset: [0, 0], // <--- The Fix
+                    duration: 2000
+                });
+
                 // ATOMIC UPDATE: Ensure the frame state matches the replay target so zoom-relative scaling (labels/icons) is correct.
                 const centerVal = camera.center as any;
                 const lng = centerVal.lng !== undefined ? centerVal.lng : centerVal[0];
@@ -334,7 +341,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 setFrame(prev => ({
                     ...prev,
                     center: [lng, lat],
-                    zoom: Math.min(camera.zoom || 12, 12)
+                    zoom: Math.min(camera.zoom || 12, 12),
+                    offset: [0, 0] // <--- The Fix: sync frame state to remove offset
                 }));
             }
         }
