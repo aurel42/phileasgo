@@ -21,6 +21,11 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 - **Global Coverage**: Does it work everywhere and anywhere? Well, kinda. The categorization system is based on the Wikidata hierarchy, which can be subject to interpretation. I do most of my flying in "western" countries, so that's what the categories are based on. In China, for example, a town might be (correctly) categorized as such, or it could be an "ethnic township" (which is not a subclass of "town"), a city might be a "county-level city" (which is not a subclass of "city"). The included "whatsaroundme" tool can help to identify missing categories.
 - **CAVEAT**: This is an experimental, educational vibecoding project with a (most likely) limited lifespan. The code quality is probably mediocre at best, but I'm trying to make it as robust as possible without touching code myself (part of the experiment).
 
+## Demo Video
+[![0.3.21](https://img.youtube.com/vi/zZxVJIRI2sg/maxresdefault.jpg)](https://youtu.be/zZxVJIRI2sg)
+[![0.2.129](https://img.youtube.com/vi/7YoYi9SvrKw/maxresdefault.jpg)](https://youtu.be/7YoYi9SvrKw)
+[![0.2.54](https://img.youtube.com/vi/HwzGL2rnlz8/maxresdefault.jpg)](https://youtu.be/HwzGL2rnlz8)
+
 ## Requirements
 
 - Windows 10/11
