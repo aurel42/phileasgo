@@ -18,6 +18,7 @@ bin/
 logs/
 configs/phileas.yaml
 configs/phileas-*.yaml
+configs/gui.yaml
 data/phileas.db*
 data/cities1000.txt
 data/admin1CodesASCII.txt

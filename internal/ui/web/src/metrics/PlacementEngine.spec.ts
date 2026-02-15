@@ -165,7 +165,7 @@ describe('PlacementEngine', () => {
     });
 
     describe('Viewport Clipping', () => {
-        it('should not place labels partially outside the viewport', () => {
+        it('should place labels that are partially inside the viewport', () => {
             const edgeItem: LabelCandidate = {
                 id: 'edge', lat: 5, lon: 5, text: 'EDGE', tier: 'city', type: 'settlement',
                 score: 100, width: 50, height: 20, isHistorical: false
@@ -179,28 +179,28 @@ describe('PlacementEngine', () => {
         });
     });
 
-    describe('Secondary Labels', () => {
-        it('should place a secondary label if space is available', () => {
+    describe('POI Marker Labels', () => {
+        it('should place a marker label if space is available', () => {
             const poi: LabelCandidate = {
                 id: 'poi', lat: 500, lon: 500, tier: 'landmark', type: 'poi',
                 score: 100, width: 20, height: 20, isHistorical: false,
                 text: '', // icon only primary
-                secondaryLabel: { text: 'Label', width: 40, height: 15 }
+                markerLabel: { text: 'Label', width: 40, height: 15 }
             };
 
             engine.register(poi);
             const result = engine.compute(projector, viewport.w, viewport.h, 10);
 
-            expect(result[0].secondaryLabelPos).toBeDefined();
-            expect(result[0].secondaryLabelPos?.anchor).toBe('top-right');
+            expect(result[0].markerLabelPos).toBeDefined();
+            expect(result[0].markerLabelPos?.anchor).toBe('top-right');
         });
 
-        it('should clear the secondary label when the cache is reset', () => {
+        it('should clear the marker label when the cache is reset', () => {
             const poi: LabelCandidate = {
                 id: 'poi', lat: 500, lon: 500, tier: 'landmark', type: 'poi',
                 score: 100, width: 20, height: 20, isHistorical: false,
                 text: '',
-                secondaryLabel: { text: 'Label', width: 40, height: 15 }
+                markerLabel: { text: 'Label', width: 40, height: 15 }
             };
 
             engine.register(poi);
@@ -213,7 +213,7 @@ describe('PlacementEngine', () => {
             const result = engine.compute(projector, viewport.w, viewport.h, 12);
 
             expect(result[0].placedZoom).toBe(12); // Fresh placement at new zoom
-            expect(result[0].secondaryLabelPos).toBeDefined();
+            expect(result[0].markerLabelPos).toBeDefined();
         });
     });
 

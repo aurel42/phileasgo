@@ -430,7 +430,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         const cityFont = adjustFont(getFontFromClass('role-title'), -4);
         const townFont = adjustFont(getFontFromClass('role-header'), -4);
         const villageFont = adjustFont(getFontFromClass('role-text-lg'), -4);
-        const secondaryFont = adjustFont(getFontFromClass('role-label'), 2);
+        const markerLabelFont = adjustFont(getFontFromClass('role-label'), 2);
 
         // 1. Register Settlements
         Array.from(accumulatedSettlements.current.values()).forEach(l => {
@@ -464,19 +464,19 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             const name = e.title || e.metadata.poi_name || 'Point of Interest';
             const score = e.metadata.poi_score ? parseFloat(e.metadata.poi_score) : 30;
 
-            let secondaryLabel = undefined;
+            let markerLabel = undefined;
             if (score >= 10) {
                 let text = name.split('(')[0].split(',')[0].split('/')[0].trim();
-                if (secondaryFont.uppercase) text = text.toUpperCase();
-                const dims = measureText(text, secondaryFont.font, secondaryFont.letterSpacing);
-                secondaryLabel = { text, width: dims.width, height: dims.height };
+                if (markerLabelFont.uppercase) text = text.toUpperCase();
+                const dims = measureText(text, markerLabelFont.font, markerLabelFont.letterSpacing);
+                markerLabel = { text, width: dims.width, height: dims.height };
             }
 
             eng.register({
                 id: eid, lat, lon, text: "", tier: 'village', score,
                 width: 26, height: 26, type: 'poi', isHistorical: false,
                 size: (e.metadata.poi_size || 'M') as any, icon,
-                secondaryLabel
+                markerLabel
             });
         });
 
@@ -661,6 +661,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
     const currentNarratedIdRef = useRef<string | undefined>(currentNarratedId);
     const preparingIdRef = useRef<string | undefined>(preparingId);
+    const currentPoiRef = useRef<POI | undefined>(undefined);
+    const preparingPoiRef = useRef<POI | undefined>(undefined);
     const lastNarratedId = useRef<string | undefined>(undefined);
     const lastPreparingId = useRef<string | undefined>(undefined);
 
@@ -674,6 +676,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     useEffect(() => { totalTripTimeRef.current = totalTripTime; }, [totalTripTime]);
     useEffect(() => { currentNarratedIdRef.current = currentNarratedId; }, [currentNarratedId]);
     useEffect(() => { preparingIdRef.current = preparingId; }, [preparingId]);
+    useEffect(() => { currentPoiRef.current = narratorStatus?.current_poi; }, [narratorStatus?.current_poi]);
+    useEffect(() => { preparingPoiRef.current = narratorStatus?.preparing_poi; }, [narratorStatus?.preparing_poi]);
 
     // --- THE HEARTBEAT (Strict 0.5Hz / 2000ms) ---
     useEffect(() => {
@@ -780,6 +784,12 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     const distAhead = rayToEdge(aircraftOnMap.x, aircraftOnMap.y, adx, ady);
                     const distBehind = rayToEdge(aircraftOnMap.x, aircraftOnMap.y, -adx, -ady);
                     needsRecenter = distBehind > distAhead;
+
+                    // Trigger snap if playing POI is outside viewport
+                    const playingPoi = currentPoiRef.current;
+                    if (playingPoi && !bounds.contains([playingPoi.lon, playingPoi.lat])) {
+                        needsRecenter = true;
+                    }
                 }
 
                 if (needsRecenter) {
@@ -792,11 +802,26 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     lockedCenter = [acState.lon, acState.lat];
                     lockedOffset = [-dx, -dy];
 
-                    // Compute zoom: fit visibility cone if available, otherwise use base
+                    // Compute zoom: fit visibility cone and active POIs if available
                     let newZoom = lockedZoom === -1 ? targetZoomBase : lockedZoom;
+                    const features: any[] = [];
                     if (lastMaskData?.geometry) {
-                        const coneBbox = turf.bbox(lastMaskData.geometry);
-                        const camera = m.cameraForBounds(coneBbox as [number, number, number, number], { padding: 0, maxZoom: 12 });
+                        features.push({ type: 'Feature', geometry: lastMaskData.geometry, properties: {} });
+                    }
+
+                    const playingPoi = currentPoiRef.current;
+                    const preparingPoi = preparingPoiRef.current;
+                    if (playingPoi) {
+                        features.push(turf.point([playingPoi.lon, playingPoi.lat]));
+                    }
+                    if (preparingPoi) {
+                        features.push(turf.point([preparingPoi.lon, preparingPoi.lat]));
+                    }
+
+                    if (features.length > 0) {
+                        const collection = turf.featureCollection(features);
+                        const combinedBbox = turf.bbox(collection);
+                        const camera = m.cameraForBounds(combinedBbox as [number, number, number, number], { padding: 40, maxZoom: 12 });
                         if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
                             newZoom = Math.min(Math.max(camera.zoom, m.getMinZoom()), 12);
                         }
@@ -844,12 +869,20 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 const currentZoomSnap = Math.round(targetZoom * 2) / 2;
                 if (prevZoomInt === -1) prevZoomInt = currentZoomSnap;
 
-                // Pruning Helper
-                const pruneOffscreen = (bounds: maplibregl.LngLatBounds) => {
+                // Pruning Helper — uses a 4x viewport buffer (half-width/height on each side)
+                // so items just outside the visible area survive zoom snaps.
+                const pruneOffscreen = () => {
+                    const w = mapWidth;
+                    const h = mapHeight;
+                    const topLeft = m.unproject([-w / 2, -h / 2]);
+                    const bottomRight = m.unproject([w + w / 2, h + h / 2]);
+                    const expandedBounds = new maplibregl.LngLatBounds(
+                        [topLeft.lng, bottomRight.lat],
+                        [bottomRight.lng, topLeft.lat]
+                    );
                     const checkPrune = (map: Map<string, any>) => {
                         for (const [id, item] of map.entries()) {
-                            // Basic LngLat check: if any of the coordinates is outside bounds
-                            if (!bounds.contains([item.lon, item.lat])) {
+                            if (!expandedBounds.contains([item.lon, item.lat])) {
                                 map.delete(id);
                                 engine.forget(id);
                             }
@@ -864,7 +897,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                 if (currentZoomSnap !== prevZoomInt) {
                     if (!effectiveReplayMode) {
-                        pruneOffscreen(m.getBounds());
+                        pruneOffscreen();
                     }
                     prevZoomInt = currentZoomSnap;
                 }
@@ -931,7 +964,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     const cityFont = adjustFont(getFontFromClass('role-title'), -4);
                     const townFont = adjustFont(getFontFromClass('role-header'), -4);
                     const villageFont = adjustFont(getFontFromClass('role-text-lg'), -4);
-                    const secondaryFont = adjustFont(getFontFromClass('role-label'), 2);
+                    const markerLabelFont = adjustFont(getFontFromClass('role-label'), 2);
 
                     // 1. Process Sync Labels (Settlements from DB)
                     Array.from(accumulatedSettlements.current.values()).forEach(l => {
@@ -1002,7 +1035,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                 if (eventElapsed > simulatedElapsed) return;
                             }
 
-                            // If already registered AND not a candidate for secondary label, skip.
+                            // If already registered AND not a candidate for a marker label, skip.
                             if (registeredIds.current.has(eid)) return;
 
                             const lat = e.metadata.poi_lat ? parseFloat(e.metadata.poi_lat) : e.lat;
@@ -1012,19 +1045,19 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             const name = e.title || e.metadata.poi_name || 'Point of Interest';
                             const score = e.metadata.poi_score ? parseFloat(e.metadata.poi_score) : 30;
 
-                            let secondaryLabel = undefined;
+                            let markerLabel = undefined;
                             if (score >= 10) {
                                 let text = name.split('(')[0].split(',')[0].split('/')[0].trim();
-                                if (secondaryFont.uppercase) text = text.toUpperCase();
-                                const dims = measureText(text, secondaryFont.font, secondaryFont.letterSpacing);
-                                secondaryLabel = { text, width: dims.width, height: dims.height };
+                                if (markerLabelFont.uppercase) text = text.toUpperCase();
+                                const dims = measureText(text, markerLabelFont.font, markerLabelFont.letterSpacing);
+                                markerLabel = { text, width: dims.width, height: dims.height };
                             }
 
                             engine.register({
                                 id: eid, lat, lon, text: "", tier: 'village', score,
                                 width: sizePx, height: sizePx, type: 'poi', isHistorical: false,
                                 size: (e.metadata.poi_size || 'M') as any, icon,
-                                secondaryLabel
+                                markerLabel
                             });
                             registeredIds.current.add(eid);
                             registeredNewPoi = true;
@@ -1041,27 +1074,27 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         Array.from(accumulatedPois.current.values()).forEach(p => {
                             const isChampion = champion && p.wikidata_id === champion.wikidata_id;
                             const isLabeled = labeledPoiIds.current.has(p.wikidata_id);
-                            const needsSecondary = isChampion || isLabeled;
+                            const needsMarkerLabel = isChampion || isLabeled;
 
                             // Skip if already registered AND doesn't need a label update
-                            if (registeredIds.current.has(p.wikidata_id) && !needsSecondary) return;
+                            if (registeredIds.current.has(p.wikidata_id) && !needsMarkerLabel) return;
 
                             const sizePx = 26;
                             const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
 
-                            let secondaryLabel = undefined;
-                            if (needsSecondary) {
+                            let markerLabel = undefined;
+                            if (needsMarkerLabel) {
                                 let text = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
-                                if (secondaryFont.uppercase) text = text.toUpperCase();
-                                const dims = measureText(text, secondaryFont.font, secondaryFont.letterSpacing);
-                                secondaryLabel = { text, width: dims.width, height: dims.height };
+                                if (markerLabelFont.uppercase) text = text.toUpperCase();
+                                const dims = measureText(text, markerLabelFont.font, markerLabelFont.letterSpacing);
+                                markerLabel = { text, width: dims.width, height: dims.height };
                             }
 
                             engine.register({
                                 id: p.wikidata_id, lat: p.lat, lon: p.lon, text: "", tier: 'village', score: p.score || 0,
                                 width: sizePx, height: sizePx, type: 'poi', isHistorical, size: p.size as any, icon: p.icon,
                                 visibility: p.visibility,
-                                secondaryLabel
+                                markerLabel
                             });
                             registeredIds.current.add(p.wikidata_id);
                             registeredNewPoi = true;
@@ -1088,8 +1121,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         // Update fail/success memory for Champion
                         if (champion) {
                             const placedChamp = labels.find(l => l.id === (champion as POI).wikidata_id);
-                            if (placedChamp && placedChamp.secondaryLabel) {
-                                if (placedChamp.secondaryLabelPos) {
+                            if (placedChamp && placedChamp.markerLabel) {
+                                if (placedChamp.markerLabelPos) {
                                     labeledPoiIds.current.add((champion as POI).wikidata_id);
                                 } else {
                                     failedPoiLabelIds.current.add((champion as POI).wikidata_id);
@@ -1479,16 +1512,16 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     </div>
                                 )}
 
-                                {l.secondaryLabel && l.secondaryLabelPos && !isCapped && (
+                                {l.markerLabel && l.markerLabelPos && !isCapped && (
                                     <div
                                         className="role-label"
                                         style={{
                                             position: 'absolute',
-                                            // Project the secondary label anchor displacement relative to the dynamic final coordinate
-                                            left: finalX + ((l.secondaryLabelPos.x - (l.finalX ?? 0)) * zoomScale),
-                                            top: finalY + ((l.secondaryLabelPos.y - (l.finalY ?? 0)) * zoomScale),
+                                            // Project the marker label anchor displacement relative to the dynamic final coordinate
+                                            left: finalX + ((l.markerLabelPos.x - (l.finalX ?? 0)) * zoomScale),
+                                            top: finalY + ((l.markerLabelPos.y - (l.finalY ?? 0)) * zoomScale),
                                             transform: `translate(-50%, -50%) scale(${zoomScale})`,
-                                            fontSize: '17px', // Match secondaryFont adjustment (+2)
+                                            fontSize: '17px', // Match markerLabelFont adjustment (+2)
                                             opacity: fadeOpacity,
                                             pointerEvents: 'none',
                                             zIndex: 25,
@@ -1496,7 +1529,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                             whiteSpace: 'nowrap'
                                         }}
                                     >
-                                        {l.secondaryLabel.text}
+                                        {l.markerLabel.text}
                                     </div>
                                 )}
 

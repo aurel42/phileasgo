@@ -1,4 +1,12 @@
 ﻿# Changelog
+ 
+## v0.3.184 (2026-02-15)
+- **Fix**: **POI Clumping**. Resolved an issue where landmarks would group along the map edges by allowing off-screen placement during dense-area search.
+- **Improvement**: **Enhanced Map Auto-Follow**. The persistent viewfinder now intelligently encompasses both the playing and preparing POIs after a map snap.
+- **Improvement**: **Narrative-Driven Snapping**. The map will now automatically snap if the aircraft or the currently narrated POI moves outside the viewport.
+- **Improvement**: **Smoother Map Transitions**. Expanded the POI retention buffer to 4x the viewport size, preventing icons from disappearing during zoom transitions.
+- **Improvement**: **Refined Edge Clipping**. Updated icon visibility logic to ensure symbols only vanish when entirely off-screen, preventing abrupt popping.
+- **Refactor**: **Unified Map Terminology**. Standardized internal naming by transitioning from "secondary label" to "marker label" for better code clarity.
 
 ## v0.3.183 (2026-02-15)
 - **Fix**: **Map Icon Placement**. Fixed a projection bug where symbols would wander far from their origins with long tethers despite available space. This happened when the map was offset (aircraft not centered), causing a "double subtraction" of the view offset in the placement engine.

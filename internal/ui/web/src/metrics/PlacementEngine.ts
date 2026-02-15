@@ -26,12 +26,12 @@ export interface LabelCandidate {
     trueY?: number;
     rotation?: number; // degrees
     placedZoom?: number; // Zoom level when first placed (for map-relative scaling)
-    secondaryLabel?: {
+    markerLabel?: {
         text: string;
         width: number;
         height: number;
     };
-    secondaryLabelPos?: {
+    markerLabelPos?: {
         x: number;
         y: number;
         anchor: LabelCandidate['anchor'];
@@ -51,7 +51,7 @@ export interface PlacementState {
     radialAngle?: number;
     radialDist?: number;
     placedZoom: number;
-    secondaryAnchor?: LabelCandidate['anchor'];
+    markerLabelAnchor?: LabelCandidate['anchor'];
 }
 
 export class PlacementEngine {
@@ -70,10 +70,10 @@ export class PlacementEngine {
         // Deduplicate by ID
         const existingIdx = this.queue.findIndex(c => c.id === candidate.id);
         if (existingIdx !== -1) {
-            // Update the existing candidate if it gained a secondary label
+            // Update the existing candidate if it gained a marker label
             const existing = this.queue[existingIdx];
-            if (candidate.secondaryLabel && !existing.secondaryLabel) {
-                existing.secondaryLabel = candidate.secondaryLabel;
+            if (candidate.markerLabel && !existing.markerLabel) {
+                existing.markerLabel = candidate.markerLabel;
                 // Force re-compute? No, just wait for next compute() call
             }
             return;
@@ -234,14 +234,14 @@ export class PlacementEngine {
             candidate.placedZoom = state.placedZoom;
             candidate.rotation = 0;
 
-            // RE-REGISTER SECONDARY LABEL collision box (scaled for R-tree)
-            if (candidate.secondaryLabel && state.secondaryAnchor) {
-                const sHalfW = (candidate.secondaryLabel.width * zoomScale) / 2;
-                const sHalfH = (candidate.secondaryLabel.height * zoomScale) / 2;
+            // RE-REGISTER MARKER LABEL collision box (scaled for R-tree)
+            if (candidate.markerLabel && state.markerLabelAnchor) {
+                const sHalfW = (candidate.markerLabel.width * zoomScale) / 2;
+                const sHalfH = (candidate.markerLabel.height * zoomScale) / 2;
                 const pSec = candidate.type === 'poi' ? iconPadding : labelPadding;
                 const sPointRadius = ((candidate.width * zoomScale) / 2) + pSec + 2;
 
-                const sAnchor = anchors.find(a => a.type === state.secondaryAnchor);
+                const sAnchor = anchors.find(a => a.type === state.markerLabelAnchor);
                 if (sAnchor) {
                     // Scaled position for R-tree
                     let scx = cx;
@@ -255,24 +255,24 @@ export class PlacementEngine {
                             maxX: scx + sHalfW, maxY: scy + sHalfH,
                             ownerId: candidate.id + "_sec", type: 'label'
                         };
-                        if (LOG_PLACEMENT) console.log(`[Placement] PHASE1-INSERT: ${sItem.ownerId} (secondary) bounds=[${sItem.minX.toFixed(1)}, ${sItem.minY.toFixed(1)}, ${sItem.maxX.toFixed(1)}, ${sItem.maxY.toFixed(1)}]`);
+                        if (LOG_PLACEMENT) console.log(`[Placement] PHASE1-INSERT: ${sItem.ownerId} (marker-label) bounds=[${sItem.minX.toFixed(1)}, ${sItem.minY.toFixed(1)}, ${sItem.maxX.toFixed(1)}, ${sItem.maxY.toFixed(1)}]`);
                         this.tree.insert(sItem);
                         this.placedIds.add(candidate.id + "_sec");
                     }
 
                     // Unscaled position for rendering
                     const baseSPointRadius = (candidate.width / 2) + pSec + 2;
-                    const baseSHalfW = candidate.secondaryLabel.width / 2;
-                    const baseSHalfH = candidate.secondaryLabel.height / 2;
+                    const baseSHalfW = candidate.markerLabel.width / 2;
+                    const baseSHalfH = candidate.markerLabel.height / 2;
                     let sfx = fx;
                     let sfy = fy;
                     if (sAnchor.dx !== 0) sfx = fx + (sAnchor.dx * (baseSPointRadius + baseSHalfW));
                     if (sAnchor.dy !== 0) sfy = fy + (sAnchor.dy * (baseSPointRadius + baseSHalfH));
 
-                    candidate.secondaryLabelPos = {
+                    candidate.markerLabelPos = {
                         x: Math.round(sfx),
                         y: Math.round(sfy),
-                        anchor: state.secondaryAnchor
+                        anchor: state.markerLabelAnchor
                     };
                 }
             }
@@ -302,11 +302,11 @@ export class PlacementEngine {
                     candidate.anchor = 'center';
                     candidate.placedZoom = zoom;
 
-                    // Cache MUST be set before tryPlaceSecondary (it updates secondaryAnchor on this entry)
+                    // Cache MUST be set before tryPlaceMarkerLabel (it updates markerLabelAnchor on this entry)
                     this.placedCache.set(candidate.id, { anchor: 'center', placedZoom: zoom });
 
-                    if (candidate.secondaryLabel) {
-                        this.tryPlaceSecondary(candidate, pos.x, pos.y, viewportWidth, viewportHeight);
+                    if (candidate.markerLabel) {
+                        this.tryPlaceMarkerLabel(candidate, pos.x, pos.y, viewportWidth, viewportHeight);
                     }
 
                     placed.push(candidate);
@@ -327,11 +327,11 @@ export class PlacementEngine {
                     isPlaced = true;
                     candidate.placedZoom = zoom;
 
-                    // Cache MUST be set before tryPlaceSecondary (it updates secondaryAnchor on this entry)
+                    // Cache MUST be set before tryPlaceMarkerLabel (it updates markerLabelAnchor on this entry)
                     this.placedCache.set(candidate.id, { anchor: textAnchor.type, placedZoom: zoom });
 
-                    if (candidate.secondaryLabel) {
-                        this.tryPlaceSecondary(candidate, candidate.finalX!, candidate.finalY!, viewportWidth, viewportHeight);
+                    if (candidate.markerLabel) {
+                        this.tryPlaceMarkerLabel(candidate, candidate.finalX!, candidate.finalY!, viewportWidth, viewportHeight);
                     }
 
                     placed.push(candidate);
@@ -342,8 +342,15 @@ export class PlacementEngine {
             // STAGE 2: Radial Step-Search (Exhaustive Fallback)
             // Design Spec 3.2: Symbols are permanent "stamps" on the parchment.
             // Unlike labels which can be omitted to avoid clutter, a POI icon (marker)
-            // that has being discovered or narrated MUST be rendered. 
+            // that has been discovered or narrated MUST be rendered.
             // We search in expanding rings until space is found.
+            //
+            // DESIGN: There are intentionally NO viewport guards here. The radial search
+            // must be allowed to place markers outside the viewport. Constraining placement
+            // to inside the viewport causes icons to clump along edges when many POIs
+            // compete for the same border area. Letting markers land off-screen keeps the
+            // on-screen layout clean; they will naturally appear when the map pans.
+            // DO NOT re-add isOutsideViewport checks to this loop.
             if (!isPlaced) {
                 const maxRadius = Math.max(viewportWidth, viewportHeight);
                 const radiusStep = 2;
@@ -360,8 +367,6 @@ export class PlacementEngine {
                         const currentHalfW = (candidate.width / 2) + p;
                         const currentHalfH = (candidate.height / 2) + p;
 
-                        if (this.isOutsideViewport(cx, cy, currentHalfW, currentHalfH, viewportWidth, viewportHeight)) continue;
-
                         if (this.checkCollisionAndInsert(candidate.id, itemType, cx - currentHalfW, cy - currentHalfH, cx + currentHalfW, cy + currentHalfH)) {
                             candidate.anchor = 'radial';
                             candidate.finalX = Math.round(cx);
@@ -375,7 +380,7 @@ export class PlacementEngine {
                                 placedZoom: zoom
                             });
 
-                            // No secondary label for radial placements — marker is too far from true position
+                            // No marker label for radial placements — marker is too far from true position
                             placed.push(candidate);
                             isPlaced = true;
                             break;
@@ -399,8 +404,15 @@ export class PlacementEngine {
         return this.tree.all();
     }
 
+    // DESIGN: Returns true only when the ENTIRE bounding box is outside the viewport
+    // (i.e. zero pixels visible). As long as even 1px of the element is inside the
+    // viewport, this returns false so the element is kept and rendered. This matches
+    // the printed-map aesthetic where labels/icons at edges are naturally clipped by
+    // the paper boundary rather than popping in/out abruptly.
+    // DO NOT change this to reject partially-outside elements — that was tried and
+    // caused labels to vanish near edges.
     private isOutsideViewport(cx: number, cy: number, hw: number, hh: number, vw: number, vh: number): boolean {
-        return (cx - hw < 0 || cx + hw > vw || cy - hh < 0 || cy + hh > vh);
+        return (cx + hw < 0 || cx - hw > vw || cy + hh < 0 || cy - hh > vh);
     }
 
     private getPriority(c: LabelCandidate): number {
@@ -483,14 +495,14 @@ export class PlacementEngine {
         return true;
     }
 
-    private tryPlaceSecondary(
+    private tryPlaceMarkerLabel(
         candidate: LabelCandidate,
         baseX: number,
         baseY: number,
         vw: number,
         vh: number
     ): boolean {
-        if (!candidate.secondaryLabel) return false;
+        if (!candidate.markerLabel) return false;
 
         const anchors: { type: LabelCandidate['anchor'], dx: number, dy: number }[] = [
             { type: 'top-right', dx: 1, dy: -1 },
@@ -503,9 +515,9 @@ export class PlacementEngine {
             { type: 'bottom-left', dx: -1, dy: 1 },
         ];
 
-        const halfW = candidate.secondaryLabel.width / 2;
-        const halfH = candidate.secondaryLabel.height / 2;
-        // Padding removal: POI labels (secondary) now have 0 padding as per user request.
+        const halfW = candidate.markerLabel.width / 2;
+        const halfH = candidate.markerLabel.height / 2;
+        // Padding removal: POI marker labels have 0 padding as per user request.
         // Settlement labels (primary) keep 4px.
         const sPadding = candidate.type === 'poi' ? 0 : 4;
         const pointRadius = (candidate.width / 2) + sPadding + 2;
@@ -527,22 +539,22 @@ export class PlacementEngine {
             };
 
             const collisions = this.tree.search(item);
-            // Secondary labels MUST NOT overlap anything else, INCLUDING their parent icon.
+            // Marker labels MUST NOT overlap anything else, INCLUDING their parent icon.
             // (Wait, actually they MUST NOT overlap anything EXCEPT themselves)
             const isBlocked = collisions.some(other => other.ownerId !== item.ownerId);
 
             if (!isBlocked) {
                 this.tree.insert(item);
-                candidate.secondaryLabelPos = {
+                candidate.markerLabelPos = {
                     x: Math.round(cx),
                     y: Math.round(cy),
                     anchor: anchor.type!
                 };
 
-                // Update the state in the cache to include the secondary anchor
+                // Update the state in the cache to include the marker label anchor
                 const state = this.placedCache.get(candidate.id);
                 if (state) {
-                    state.secondaryAnchor = anchor.type;
+                    state.markerLabelAnchor = anchor.type;
                 }
 
                 return true;
