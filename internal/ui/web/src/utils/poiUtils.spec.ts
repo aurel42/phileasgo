@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { isPOIVisible, getPOIDisplayName } from './poiUtils';
 import type { POI } from '../hooks/usePOIs';
 

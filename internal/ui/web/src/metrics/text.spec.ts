@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { measureText, getFontFromClass, __resetForTests } from './text';
 
 describe('text.ts utility', () => {
