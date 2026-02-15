@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## v0.3.186 (2026-02-15)
+- **Feature**: **Aircraft Customization**. Introduced livery color pickers, icon size scaling, and selectable aircraft types (Jet, Prop, Airliner, etc.) in the settings panel.
+- **Fix**: **Dynamic Beacon Alignment**. Replaced hardcoded balloon offsets with an adaptive calculation that scales with icon size for perfect map alignment.
+- **Cleanup**: **Settings UI Polish**. Excised redundant and hallucinated scoring parameters from the Scorer tab.
+
+
 ## v0.3.185 (2026-02-15)
 - **Fix**: **Replay Synchronization**. Resolved a 15-20 second lag between the aircraft and newly discovered icons by aligning the replay discovery filter with the take-off-to-landing baseline.
 - **Fix**: **Oversized Map Symbols**. Fixed a regression where icons and labels would appear "totally oversized" after state transitions (e.g. Active -> Paused). Resolved by eliminating a transient zoom reset and implementing a surgical placement cache clear between major flight contexts.

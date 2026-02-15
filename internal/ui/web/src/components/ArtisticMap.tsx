@@ -18,67 +18,10 @@ import { WaxSeal } from './WaxSeal';
 import { ScaleBar } from './ScaleBar';
 import { InkTrail } from './InkTrail';
 import { interpolatePositionFromEvents, isTransitionEvent, getSignificantTripEvents } from '../utils/replay';
+import { AircraftIcon, type AircraftType } from './AircraftIcon';
 
 const DEBUG_FLOURISHES = false;
 
-const HotAirBalloon: React.FC<{
-    x: number;
-    y: number;
-    agl: number;
-}> = ({ x, y, agl }) => {
-    // Interpolation (0 -> 10,000 ft)
-    const ratio = Math.min(Math.max(agl / 10000, 0), 1);
-    const shadowOffset = ratio * 20;
-    const shadowScale = 1 - (ratio * 0.5);
-
-    return (
-        <div style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 100 }}>
-            {/* Shadow: Soft grey, offset down and left */}
-            <svg
-                viewBox="0 0 40 50"
-                style={{
-                    position: 'absolute',
-                    left: x - shadowOffset,
-                    top: y + shadowOffset,
-                    width: 32 * shadowScale,
-                    height: 40 * shadowScale,
-                    transform: 'translate(-50%, -50%)',
-                    filter: 'blur(2px)',
-                    opacity: 0.3
-                }}
-            >
-                <path d="M20,5 C12,5 5,12 5,22 C5,28 10,35 20,42 C30,35 35,28 35,22 C35,12 28,5 20,5" fill="black" />
-                <rect x="16" y="42" width="8" height="6" fill="black" />
-            </svg>
-
-            {/* Balloon: Red body, black outline (1.5px), black basket */}
-            <svg
-                viewBox="0 0 40 50"
-                style={{
-                    position: 'absolute',
-                    left: x,
-                    top: y,
-                    width: 32,
-                    height: 40,
-                    transform: 'translate(-50%, -50%)'
-                }}
-            >
-                {/* Envelope */}
-                <path
-                    d="M20,5 C12,5 5,12 5,22 C5,28 10,35 20,42 C30,35 35,28 35,22 C35,12 28,5 20,5"
-                    fill="#e63946"
-                    stroke="black"
-                    strokeWidth="1.5"
-                />
-                {/* Strings */}
-                <line x1="12" y1="36" x2="16" y2="42" stroke="black" strokeWidth="1" />
-                <line x1="28" y1="36" x2="24" y2="42" stroke="black" strokeWidth="1" />
-                {/* Gondola/Basket */}
-                <rect x="16" y="42" width="8" height="6" rx="1" fill="#1a1a1a" stroke="black" strokeWidth="1" />
-            </svg>
-        </div>
-    );
-};
 
 interface POIBeaconProps {
     color: string;
@@ -90,7 +33,18 @@ interface POIBeaconProps {
     y: number;
 }
 
-const POIBeacon: React.FC<POIBeaconProps> = ({ color, size, showHalo = true, zoomScale = 1, x, y }) => {
+interface POIBeaconProps {
+    color: string;
+    size: number;
+    showHalo?: boolean;
+    activeBoost?: number;
+    zoomScale?: number;
+    x: number;
+    y: number;
+    iconSize?: number; // Size of the icon below the beacon
+}
+
+const POIBeacon: React.FC<POIBeaconProps> = ({ color, size, showHalo = true, zoomScale = 1, x, y, iconSize = 32 }) => {
     return (
         <svg
             viewBox="0 0 40 50"
@@ -100,13 +54,10 @@ const POIBeacon: React.FC<POIBeaconProps> = ({ color, size, showHalo = true, zoo
                 top: y,
                 width: size,
                 height: size * 1.25,
-                // Offset upwards by 25.5px (scaled) to clear the 32px icon with a 2px gap.
-                // Displacement consists of: 16px (icon radius) + 2px (gap) + 7.5px (balloon radius) = 25.5px.
+                // Dynamic offset calculation:
+                // Displacement consists of: (iconSize / 2) + 2px (gap) + 7.5px (balloon radius)
                 // Using transform ensures the displacement scales perfectly along with the balloon and icon.
-                // Offset upwards by 25.5px (scaled) to clear the 32px icon with a 2px gap.
-                // Displacement consists of: 16px (icon radius) + 2px (gap) + 7.5px (balloon radius) = 25.5px.
-                // Using transform ensures the displacement scales perfectly along with the balloon and icon.
-                transform: `translate(-50%, -50%) scale(${zoomScale}) translateY(-25.5px)`,
+                transform: `translate(-50%, -50%) scale(${zoomScale}) translateY(-${(iconSize / 2) + 2 + 7.5}px)`,
                 zIndex: 110,
                 filter: showHalo ? 'drop-shadow(0 0 1px white)' : 'none',
                 pointerEvents: 'none'
@@ -145,6 +96,11 @@ interface ArtisticMapProps {
     onMapClick: () => void;
     beaconMaxTargets?: number;
     showDebugBoxes?: boolean;
+    // Aircraft Configuration
+    aircraftIcon?: AircraftType;
+    aircraftSize?: number;
+    aircraftColorMain?: string;
+    aircraftColorAccent?: string;
 }
 
 // Single Atomic Frame state for strict synchronization
@@ -220,7 +176,11 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     onPOISelect,
     onMapClick,
     beaconMaxTargets = 2,
-    showDebugBoxes = false
+    showDebugBoxes = false,
+    aircraftIcon = 'balloon',
+    aircraftSize = 32,
+    aircraftColorMain = '#e63946',
+    aircraftColorAccent = '#ffffff'
 }) => {
     const memoizedCategories = useMemo(() => settlementCategories, [JSON.stringify(settlementCategories)]);
     const queryClient = useQueryClient();
@@ -1631,6 +1591,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                         color={poi.beacon_color}
                                         size={12}
                                         zoomScale={renderScale}
+                                        iconSize={l.height}
                                     />
                                 )}
                             </React.Fragment>
@@ -1660,10 +1621,16 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 })}
 
                 {/* Hot Air Balloon Aircraft Icon (Atomic from Frame) */}
-                <HotAirBalloon
+                {/* Aircraft Icon */}
+                <AircraftIcon
+                    type={aircraftIcon}
                     x={(isReplayMode || effectiveReplayMode) && replayBalloonPos ? replayBalloonPos.x : frame.aircraftX}
                     y={(isReplayMode || effectiveReplayMode) && replayBalloonPos ? replayBalloonPos.y : frame.aircraftY}
                     agl={(isReplayMode || effectiveReplayMode) ? 5000 : frame.agl}
+                    heading={frame.heading}
+                    size={aircraftSize}
+                    colorMain={aircraftColorMain}
+                    colorAccent={aircraftColorAccent}
                 />
             </div>
 

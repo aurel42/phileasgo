@@ -294,6 +294,11 @@ type ScorerConfig struct {
 	VarietyPenaltyNum   int     `yaml:"variety_penalty_num"`
 	NoveltyBoost        float64 `yaml:"novelty_boost"`
 	GroupPenalty        float64 `yaml:"group_penalty"`
+	// Aircraft settings
+	AircraftIcon        string `yaml:"aircraft_icon"`         // balloon, prop, twin_prop, jet, airliner, helicopter
+	AircraftSize        int    `yaml:"aircraft_size"`         // 16-64px
+	AircraftColorMain   string `yaml:"aircraft_color_main"`   // Hex color
+	AircraftColorAccent string `yaml:"aircraft_color_accent"` // Hex color
 	// Deferral settings: wait for optimal viewing moment
 	DeferralEnabled             bool         `yaml:"deferral_enabled"`    // Enable deferral logic
 	DeferralThreshold           float64      `yaml:"deferral_threshold"`  // Defer if max future visibility > threshold * current (default 1.1)
@@ -427,6 +432,10 @@ func DefaultConfig() *Config {
 			VarietyPenaltyNum:           3,
 			NoveltyBoost:                1.3,
 			GroupPenalty:                0.5,
+			AircraftIcon:                "balloon",
+			AircraftSize:                32,
+			AircraftColorMain:           "#e63946",
+			AircraftColorAccent:         "#ffffff",
 			DeferralEnabled:             true,
 			DeferralThreshold:           1.05, // Defer if max future visibility > threshold * current (default 1.05 = 5%)
 			DeferralMultiplier:          0.1,  // 10% score when deferred
@@ -656,6 +665,14 @@ func Save(path string, cfg *Config) error {
 	// IdentAction Options
 	reIdent := regexp.MustCompile(`(?m)^(\s+)ident_action:`)
 	data = reIdent.ReplaceAll(data, []byte("${1}# Options: pause_toggle, stop, skip\n${1}ident_action:"))
+
+	// Aircraft Icon Options
+	reAircraftIcon := regexp.MustCompile(`(?m)^(\s+)aircraft_icon:`)
+	data = reAircraftIcon.ReplaceAll(data, []byte("${1}# Options: balloon, prop, twin_prop, jet, airliner, helicopter\n${1}aircraft_icon:"))
+
+	// Aircraft Size Range
+	reAircraftSize := regexp.MustCompile(`(?m)^(\s+)aircraft_size:`)
+	data = reAircraftSize.ReplaceAll(data, []byte("${1}# Range: 16-64 (px)\n${1}aircraft_size:"))
 
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)

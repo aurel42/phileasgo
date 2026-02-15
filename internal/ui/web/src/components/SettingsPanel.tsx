@@ -3,6 +3,27 @@ import { VictorianToggle } from './VictorianToggle';
 import { DualRangeSlider } from './DualRangeSlider';
 import type { Telemetry } from '../types/telemetry';
 
+import { AircraftIcon, type AircraftType } from './AircraftIcon';
+
+const VICTORIAN_PALETTE = [
+    // Row 1: Reds & Pinks
+    '#590d22', '#800f2f', '#a4133c', '#c9184a', '#ff4d6d', '#ff758f', '#ff8fa3', '#ffb3c1',
+    // Row 2: Oranges & Peaches
+    '#e85d04', '#f48c06', '#faa307', '#ffba08', '#fcbf49', '#eae2b7', '#fcd5ce', '#f8edeb',
+    // Row 3: Yellows & Golds
+    '#ffcdb2', '#ffb4a2', '#e5989b', '#b5838d', '#6d597a', '#ffd60a', '#ffcc00', '#d4d700',
+    // Row 4: Greens
+    '#004b23', '#006400', '#007200', '#008000', '#38b000', '#70e000', '#9ef01a', '#ccff33',
+    // Row 5: Teals & Cyans
+    '#0c4a6e', '#075985', '#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd', '#e0f2fe', '#f0f9ff',
+    // Row 6: Blues
+    '#03045e', '#023e8a', '#0077b6', '#0096c7', '#00b4d8', '#48cae4', '#90e0ef', '#caf0f8',
+    // Row 7: Purples & Violets
+    '#10002b', '#240046', '#3c096c', '#5a189a', '#7b2cbf', '#9d4edd', '#c77dff', '#e0aaff',
+    // Row 8: Monochromes & Browns
+    '#000000', '#1a1a1a', '#333333', '#4d4d4d', '#666666', '#808080', '#999999', '#cccccc',
+];
+
 interface SettingsPanelProps {
     isGui: boolean;
     onBack: () => void;
@@ -153,6 +174,11 @@ interface DraftState {
     parchmentSaturation: number;
     // Debugging tab
     showArtisticDebugBoxes: boolean;
+    // Aircraft (Scorer Tab)
+    aircraftIcon: AircraftType;
+    aircraftSize: number;
+    aircraftColorMain: string;
+    aircraftColorAccent: string;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -268,6 +294,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     paperOpacityClear: paperOpacityClear,
                     parchmentSaturation: parchmentSaturation,
                     showArtisticDebugBoxes: showArtisticDebugBoxes,
+                    // Aircraft
+                    aircraftIcon: (data.aircraft_icon as AircraftType) || 'balloon',
+                    aircraftSize: data.aircraft_size || 32,
+                    aircraftColorMain: data.aircraft_color_main || '#e63946',
+                    aircraftColorAccent: data.aircraft_color_accent || '#ffffff',
                 });
                 setLoading(false);
             })
@@ -326,7 +357,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.paperOpacityFog !== paperOpacityFog ||
             draft.paperOpacityClear !== paperOpacityClear ||
             draft.parchmentSaturation !== parchmentSaturation ||
-            draft.showArtisticDebugBoxes !== showArtisticDebugBoxes
+            draft.showArtisticDebugBoxes !== showArtisticDebugBoxes ||
+            draft.aircraftIcon !== (serverConfig.aircraft_icon || 'balloon') ||
+            draft.aircraftSize !== (serverConfig.aircraft_size || 32) ||
+            draft.aircraftColorMain !== (serverConfig.aircraft_color_main || '#e63946') ||
+            draft.aircraftColorAccent !== (serverConfig.aircraft_color_accent || '#ffffff')
         );
     };
 
@@ -376,6 +411,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         if (draft.beaconSinkDistanceClose !== (serverConfig?.beacon_sink_distance_close ?? 2000)) payload.beacon_sink_distance_close = draft.beaconSinkDistanceClose;
         if (draft.beaconTargetFloorAGL !== (serverConfig?.beacon_target_floor_agl ?? 30.48)) payload.beacon_target_floor_agl = draft.beaconTargetFloorAGL;
         if (draft.beaconMaxTargets !== (serverConfig?.beacon_max_targets ?? 2)) payload.beacon_max_targets = draft.beaconMaxTargets;
+        // Aircraft
+        if (draft.aircraftIcon !== (serverConfig?.aircraft_icon || 'balloon')) payload.aircraft_icon = draft.aircraftIcon;
+        if (draft.aircraftSize !== (serverConfig?.aircraft_size || 32)) payload.aircraft_size = draft.aircraftSize;
+        if (draft.aircraftColorMain !== (serverConfig?.aircraft_color_main || '#e63946')) payload.aircraft_color_main = draft.aircraftColorMain;
+        if (draft.aircraftColorAccent !== (serverConfig?.aircraft_color_accent || '#ffffff')) payload.aircraft_color_accent = draft.aircraftColorAccent;
 
         try {
             // Send server-only changes
@@ -757,6 +797,145 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 <span style={{ fontSize: '10px', opacity: 0.6 }}>{librariesExpanded ? '▼' : '▶'}</span>
                                 Library Management
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'scorer' && (
+                        <div className="settings-group">
+                            <div className="role-header">Aircraft Customization</div>
+
+                            {/* Live Preview Card */}
+                            <div style={{
+                                background: '#f4ecd8',
+                                border: '1px solid #d4c5a3',
+                                borderRadius: '8px',
+                                padding: '16px',
+                                marginBottom: '24px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '8px',
+                                position: 'relative',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{
+                                    position: 'absolute',
+                                    top: 0, left: 0, right: 0, bottom: 0,
+                                    backgroundImage: 'url("https://watercolormaps.collection.cooperhewitt.org/tile/watercolor/12/2154/1363.jpg")', // Sample tile
+                                    backgroundSize: 'cover',
+                                    opacity: 0.5,
+                                    pointerEvents: 'none'
+                                }} />
+                                <div style={{ position: 'relative', width: '128px', height: '128px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <AircraftIcon
+                                        type={draft.aircraftIcon}
+                                        x={64} y={64}
+                                        agl={5000}
+                                        heading={45}
+                                        size={draft.aircraftSize} // Live size update
+                                        colorMain={draft.aircraftColorMain}
+                                        colorAccent={draft.aircraftColorAccent}
+                                    />
+                                </div>
+                                <span className="role-label" style={{ zIndex: 1 }}>Live Preview</span>
+                            </div>
+
+                            {/* Icon Type Selection */}
+                            {renderField('Aircraft Type', (
+                                <div className="settings-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                    {(['balloon', 'prop', 'twin_prop', 'jet', 'airliner', 'helicopter'] as AircraftType[]).map(type => (
+                                        <div
+                                            key={type}
+                                            onClick={() => updateDraft('aircraftIcon', type)}
+                                            style={{
+                                                border: draft.aircraftIcon === type ? '2px solid #5c4033' : '1px solid #d4c5a3',
+                                                borderRadius: '6px',
+                                                padding: '8px',
+                                                cursor: 'pointer',
+                                                background: draft.aircraftIcon === type ? 'rgba(92, 64, 51, 0.1)' : 'transparent',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}
+                                        >
+                                            <div style={{ width: '32px', height: '32px', position: 'relative' }}>
+                                                <AircraftIcon
+                                                    type={type}
+                                                    x={16} y={16} agl={0} heading={0}
+                                                    size={24}
+                                                    colorMain={draft.aircraftIcon === type ? draft.aircraftColorMain : '#666'}
+                                                    colorAccent={draft.aircraftIcon === type ? draft.aircraftColorAccent : '#999'}
+                                                />
+                                            </div>
+                                            <span style={{ fontSize: '10px', textTransform: 'capitalize' }}>{type.replace('_', ' ')}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+
+                            {/* Size Slider */}
+                            {renderField('Icon Size', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{draft.aircraftSize}px</span>
+                                    <input
+                                        type="range"
+                                        min="16" max="64" step="4"
+                                        value={draft.aircraftSize}
+                                        onChange={e => updateDraft('aircraftSize', parseInt(e.target.value))}
+                                    />
+                                </div>
+                            ))}
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Livery Colors</div>
+
+                            {/* Main Color Picker */}
+                            {renderField('Main Color', (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '4px' }}>
+                                    {VICTORIAN_PALETTE.map(c => (
+                                        <div
+                                            key={c}
+                                            onClick={() => updateDraft('aircraftColorMain', c)}
+                                            style={{
+                                                width: '100%',
+                                                paddingBottom: '100%',
+                                                backgroundColor: c,
+                                                cursor: 'pointer',
+                                                border: draft.aircraftColorMain === c ? '2px solid white' : '1px solid rgba(0,0,0,0.1)',
+                                                borderRadius: '2px',
+                                                boxShadow: draft.aircraftColorMain === c ? '0 0 0 2px #333' : 'none'
+                                            }}
+                                            title={c}
+                                        />
+                                    ))}
+                                </div>
+                            ))}
+
+                            {/* Accent Color Picker */}
+                            {renderField('Accent Color', (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '4px' }}>
+                                    {VICTORIAN_PALETTE.map(c => (
+                                        <div
+                                            key={c}
+                                            onClick={() => updateDraft('aircraftColorAccent', c)}
+                                            style={{
+                                                width: '100%',
+                                                paddingBottom: '100%',
+                                                backgroundColor: c,
+                                                cursor: 'pointer',
+                                                border: draft.aircraftColorAccent === c ? '2px solid white' : '1px solid rgba(0,0,0,0.1)',
+                                                borderRadius: '2px',
+                                                boxShadow: draft.aircraftColorAccent === c ? '0 0 0 2px #333' : 'none'
+                                            }}
+                                            title={c}
+                                        />
+                                    ))}
+                                </div>
+                            ))}
+
+                            <div style={{ marginTop: '24px', borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '16px' }}></div>
+
+                            {/* Scoring Parameters moved to Narrator tab - duplicate removed */}
                         </div>
                     )}
 

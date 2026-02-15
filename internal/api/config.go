@@ -85,6 +85,11 @@ type ConfigResponse struct {
 	NarrationLengthShort    int      `json:"narration_length_short_words"`
 	NarrationLengthLong     int      `json:"narration_length_long_words"`
 	SettlementCategories    []string `json:"settlement_categories"`
+	// Aircraft
+	AircraftIcon        string `json:"aircraft_icon"`
+	AircraftSize        int    `json:"aircraft_size"`
+	AircraftColorMain   string `json:"aircraft_color_main"`
+	AircraftColorAccent string `json:"aircraft_color_accent"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -134,6 +139,11 @@ type ConfigRequest struct {
 	RepeatTTL               *string  `json:"repeat_ttl,omitempty"`
 	NarrationLengthShort    *int     `json:"narration_length_short_words,omitempty"`
 	NarrationLengthLong     *int     `json:"narration_length_long_words,omitempty"`
+	// Aircraft
+	AircraftIcon        *string `json:"aircraft_icon,omitempty"`
+	AircraftSize        *int    `json:"aircraft_size,omitempty"`
+	AircraftColorMain   *string `json:"aircraft_color_main,omitempty"`
+	AircraftColorAccent *string `json:"aircraft_color_accent,omitempty"`
 }
 
 // HandleConfig is a unified handler for all config-related methods, facilitating CORS/OPTIONS.
@@ -232,6 +242,11 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		NarrationLengthShort:        h.cfgProv.NarrationLengthShort(ctx),
 		NarrationLengthLong:         h.cfgProv.NarrationLengthLong(ctx),
 		SettlementCategories:        h.settlementCategories(),
+		// Aircraft
+		AircraftIcon:        h.appCfg.Scorer.AircraftIcon,
+		AircraftSize:        h.appCfg.Scorer.AircraftSize,
+		AircraftColorMain:   h.appCfg.Scorer.AircraftColorMain,
+		AircraftColorAccent: h.appCfg.Scorer.AircraftColorAccent,
 	}
 }
 
@@ -265,6 +280,7 @@ func (h *ConfigHandler) HandleSetConfig(w http.ResponseWriter, r *http.Request) 
 	h.applyStyleUpdates(ctx, &req)
 	h.applyLanguageUpdates(ctx, &req)
 	h.applyBeaconUpdates(ctx, &req)
+	h.applyAircraftUpdates(ctx, &req)
 
 	// Return updated config
 	h.HandleGetConfig(w, r)
@@ -355,6 +371,24 @@ func (h *ConfigHandler) applyThresholdUpdates(ctx context.Context, req *ConfigRe
 	}
 	if req.NarrationLengthLong != nil {
 		h.updateIntState(ctx, config.KeyNarrationLengthLong, *req.NarrationLengthLong)
+	}
+}
+
+func (h *ConfigHandler) applyAircraftUpdates(ctx context.Context, req *ConfigRequest) {
+	if req.AircraftIcon != nil {
+		_ = h.store.SetState(ctx, "aircraft_icon", *req.AircraftIcon)
+		slog.Debug("Config updated", "aircraft_icon", *req.AircraftIcon)
+	}
+	if req.AircraftSize != nil {
+		h.updateIntState(ctx, "aircraft_size", *req.AircraftSize)
+	}
+	if req.AircraftColorMain != nil {
+		_ = h.store.SetState(ctx, "aircraft_color_main", *req.AircraftColorMain)
+		slog.Debug("Config updated", "aircraft_color_main", *req.AircraftColorMain)
+	}
+	if req.AircraftColorAccent != nil {
+		_ = h.store.SetState(ctx, "aircraft_color_accent", *req.AircraftColorAccent)
+		slog.Debug("Config updated", "aircraft_color_accent", *req.AircraftColorAccent)
 	}
 }
 
