@@ -13,7 +13,7 @@ green:
 blue:
   title: Asobo PassiveAircraft Hot Air Balloon
   livery: OFFICIAL_STATIC_04
-  map_color: "#457b9d"
+  map_color: "#356285"
 
 yellow:
   title: Asobo PassiveAircraft Hot Air Balloon
@@ -23,7 +23,7 @@ yellow:
 cyan:
   title: Asobo PassiveAircraft Hot Air Balloon
   livery: OFFICIAL_STATIC_06
-  map_color: "#219ebc"
+  map_color: "#2ebfa5"
 
 orange:
   title: Asobo PassiveAircraft Hot Air Balloon

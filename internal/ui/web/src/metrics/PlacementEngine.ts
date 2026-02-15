@@ -339,11 +339,15 @@ export class PlacementEngine {
                 }
             }
 
-            // STAGE 2: Radial Search Fallback
+            // STAGE 2: Radial Step-Search (Exhaustive Fallback)
+            // Design Spec 3.2: Symbols are permanent "stamps" on the parchment.
+            // Unlike labels which can be omitted to avoid clutter, a POI icon (marker)
+            // that has being discovered or narrated MUST be rendered. 
+            // We search in expanding rings until space is found.
             if (!isPlaced) {
-                const maxRadius = 80;
-                const radiusStep = 2; // Tighter search (was 5)
-                const angleStep = 10 * (Math.PI / 180); // Denser rings (was 15)
+                const maxRadius = Math.max(viewportWidth, viewportHeight);
+                const radiusStep = 2;
+                const angleStep = 10 * (Math.PI / 180);
 
                 for (let r = radiusStep; r <= maxRadius; r += radiusStep) {
                     for (let theta = 0; theta < 2 * Math.PI; theta += angleStep) {

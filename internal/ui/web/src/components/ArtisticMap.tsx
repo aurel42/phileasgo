@@ -90,7 +90,7 @@ interface POIBeaconProps {
     y: number;
 }
 
-const POIBeacon: React.FC<POIBeaconProps> = ({ color, size, showHalo = true, activeBoost = 1, zoomScale = 1, x, y }) => {
+const POIBeacon: React.FC<POIBeaconProps> = ({ color, size, showHalo = true, zoomScale = 1, x, y }) => {
     return (
         <svg
             viewBox="0 0 40 50"
@@ -103,7 +103,10 @@ const POIBeacon: React.FC<POIBeaconProps> = ({ color, size, showHalo = true, act
                 // Offset upwards by 25.5px (scaled) to clear the 32px icon with a 2px gap.
                 // Displacement consists of: 16px (icon radius) + 2px (gap) + 7.5px (balloon radius) = 25.5px.
                 // Using transform ensures the displacement scales perfectly along with the balloon and icon.
-                transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost}) translateY(-25.5px)`,
+                // Offset upwards by 25.5px (scaled) to clear the 32px icon with a 2px gap.
+                // Displacement consists of: 16px (icon radius) + 2px (gap) + 7.5px (balloon radius) = 25.5px.
+                // Using transform ensures the displacement scales perfectly along with the balloon and icon.
+                transform: `translate(-50%, -50%) scale(${zoomScale}) translateY(-25.5px)`,
                 zIndex: 110,
                 filter: showHalo ? 'drop-shadow(0 0 1px white)' : 'none',
                 pointerEvents: 'none'
@@ -538,13 +541,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         tiles: ['https://watercolormaps.collection.cooperhewitt.org/tile/watercolor/{z}/{x}/{y}.jpg'],
                         tileSize: 128
                     },
-
-                    'stamen-watercolor-std': {
-                        type: 'raster',
-                        // Standard Source: 128px tiles (displays Z+1 content at Z)
-                        tiles: ['https://watercolormaps.collection.cooperhewitt.org/tile/watercolor/{z}/{x}/{y}.jpg'],
-                        tileSize: 128
-                    },
                     'hillshade-source': {
                         type: 'raster-dem',
                         tiles: ['https://tiles.stadiamaps.com/data/terrarium/{z}/{x}/{y}.png'],
@@ -560,14 +556,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     { id: 'background', type: 'background', paint: { 'background-color': '#f4ecd8' } },
                     // HD Layer: Active for Zoom 0-10 (e.g. at Z9, uses Z10 tiles)
                     {
-                        id: 'watercolor-hd', type: 'raster', source: 'stamen-watercolor-hd',
-                        maxzoom: 10,
-                        paint: { 'raster-saturation': -0.2, 'raster-contrast': 0.1 }
-                    },
-                    // Std Layer: Active for Zoom 10+ (Normal behavior)
-                    {
-                        id: 'watercolor-std', type: 'raster', source: 'stamen-watercolor-std',
-                        minzoom: 10,
+                        id: 'watercolor', type: 'raster', source: 'stamen-watercolor-hd',
                         paint: { 'raster-saturation': -0.2, 'raster-contrast': 0.1 }
                     },
                     {
@@ -620,7 +609,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             },
             center: [center[1], center[0]],
             zoom: zoom,
-            minZoom: 9, // Allowed now that we have higher-res tiles (Z10 tiles at Z9 view)
+            minZoom: 5, // Allowed now that we have higher-res tiles (Z10 tiles at Z9 view)
             maxZoom: 12,
             attributionControl: false,
             interactive: false
@@ -807,7 +796,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         const coneBbox = turf.bbox(lastMaskData.geometry);
                         const camera = m.cameraForBounds(coneBbox as [number, number, number, number], { padding: 0, maxZoom: 12 });
                         if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
-                            newZoom = Math.min(Math.max(camera.zoom, 9), 12);
+                            newZoom = Math.min(Math.max(camera.zoom, m.getMinZoom()), 12);
                         }
                     }
                     // COMPUTE REAL ZOOM (Discrete 0.5 Step Snap)
@@ -1269,12 +1258,19 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     if (l.type === 'poi') {
                         // ... POI Icon Rendering ...
                         const poi = accumulatedPois.current.get(l.id);
+                        // 2. Halo Properties
+                        const isSelected = selectedPOI && l.id === selectedPOI.wikidata_id;
+                        const isActive = l.id === currentNarratedId;
+                        const isPreparing = l.id === preparingId;
+                        const activeBoost = isActive ? 1.5 : (isPreparing ? 1.25 : (isSelected ? 1.4 : 1.0));
+
+                        const isCapped = (zoomScale * activeBoost) > 4.0;
+                        const renderScale = isCapped ? 4.0 : (zoomScale * activeBoost);
                         const iconName = (poi?.icon_artistic || l.icon || 'attraction');
                         const iconUrl = `/icons/${iconName}.svg`;
 
                         // Semantic Logic Simplification: Playing or Preparing items are NEVER treated as historic
-                        const isLive = l.id === currentNarratedId || l.id === preparingId;
-                        const effectiveIsHistorical = l.isHistorical && !isLive;
+                        const effectiveIsHistorical = l.isHistorical && !isActive && !isPreparing;
 
                         // Tether logic: Historic items never get tethers, regardless of distance.
                         const tTx = geoPos.x;
@@ -1303,10 +1299,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             }
                         }
 
-                        // 2. Halo Properties
-                        const isActive = l.id === currentNarratedId;
-                        const isPreparing = l.id === preparingId;
-                        const isSelected = selectedPOI && l.id === selectedPOI.wikidata_id;
+                        // 2. Halo Properties (Continued)
                         const isDeferred = !isReplayItem && (poi?.is_deferred || poi?.badges?.includes('deferred'));
                         const isLOSBlocked = poi?.los_status === 2;
 
@@ -1380,7 +1373,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             // Empty: moved to InlineSVG filter for better halo preservation
                         }
 
-                        const activeBoost = l.id === currentNarratedId ? 1.5 : l.id === preparingId ? 1.25 : 1;
 
                         const swayOut = 36;
                         const swayIn = 24;
@@ -1419,7 +1411,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     <div style={{
                                         position: 'absolute', left: finalX, top: finalY,
                                         // Stable random rotation based on ID bytes
-                                        transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost}) rotate(${(l.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360)}deg)`,
+                                        transform: `translate(-50%, -50%) scale(${renderScale}) rotate(${(l.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360)}deg)`,
                                         opacity: (() => {
                                             if (l.id === currentNarratedId) return 1;
                                             if (!preparingStartRef.current.has(l.id)) {
@@ -1442,7 +1434,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     }}
                                     style={{
                                         position: 'absolute', left: finalX, top: finalY, width: l.width, height: l.height,
-                                        transform: `translate(-50%, -50%) scale(${zoomScale * activeBoost})`,
+                                        transform: `translate(-50%, -50%) scale(${renderScale})`,
                                         opacity: (effectiveIsHistorical ? 0.5 : 1) * fadeOpacity,
                                         color: iconColor, cursor: 'pointer', pointerEvents: 'auto',
                                         // Use drop-shadow filter for true shape contour ("Halo")
@@ -1465,10 +1457,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                         position: 'absolute',
                                         left: finalX,
                                         top: finalY,
-                                        width: 18 * zoomScale * activeBoost,
-                                        height: 18 * zoomScale * activeBoost,
+                                        width: 18 * renderScale,
+                                        height: 18 * renderScale,
                                         // Position star at top-right of the scaled icon
-                                        transform: `translate(${(l.width / 2 - 4) * zoomScale * activeBoost}px, ${(-l.height / 2 + 4) * zoomScale * activeBoost}px) translate(-50%, -50%)`,
+                                        transform: `translate(${(l.width / 2 - 4) * renderScale}px, ${(-l.height / 2 + 4) * renderScale}px) translate(-50%, -50%)`,
                                         color: ARTISTIC_MAP_STYLES.colors.icon.gold,
                                         zIndex: l.id === currentNarratedId ? 101 : (l.id === preparingId ? 91 : 16),
                                         pointerEvents: 'none',
@@ -1486,7 +1478,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                     </div>
                                 )}
 
-                                {l.secondaryLabel && l.secondaryLabelPos && (
+                                {l.secondaryLabel && l.secondaryLabelPos && !isCapped && (
                                     <div
                                         className="role-label"
                                         style={{
@@ -1514,8 +1506,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                         y={finalY}
                                         color={poi.beacon_color}
                                         size={12}
-                                        activeBoost={activeBoost}
-                                        zoomScale={zoomScale}
+                                        zoomScale={renderScale}
                                     />
                                 )}
                             </React.Fragment>

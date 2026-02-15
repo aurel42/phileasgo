@@ -136,6 +136,32 @@ describe('PlacementEngine', () => {
             // Should be pushed away from (500, 500)
             expect(Math.abs(placedPoi!.finalX! - 500)).toBeGreaterThanOrEqual(20);
         });
+
+        it('should never drop a symbol even if it must be displaced far from origin', () => {
+            // Create a giant blocker that covers more than 80px radius
+            const blocker: LabelCandidate = {
+                id: 'blocker', lat: 500, lon: 500, text: 'GIANT BLOCKER', tier: 'landmark', type: 'settlement',
+                score: 1000, width: 200, height: 200, isHistorical: false
+            };
+            const poi: LabelCandidate = {
+                id: 'poi', lat: 500, lon: 500, text: '', tier: 'landmark', type: 'poi',
+                score: 10, width: 26, height: 26, isHistorical: false
+            };
+
+            engine.register(blocker);
+            engine.register(poi);
+
+            const result = engine.compute(projector, viewport.w, viewport.h, 10);
+
+            const placedPoi = result.find(r => r.id === 'poi');
+            expect(placedPoi).toBeDefined();
+            expect(placedPoi?.anchor).toBe('radial');
+            // Displacement should be > 100px (since blocker is 200x200 centered at 500,500)
+            const dx = placedPoi!.finalX! - 500;
+            const dy = placedPoi!.finalY! - 500;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            expect(dist).toBeGreaterThan(100);
+        });
     });
 
     describe('Viewport Clipping', () => {
