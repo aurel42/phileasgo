@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## v0.3.183 (2026-02-15)
+- **Fix**: **Map Icon Placement**. Fixed a projection bug where symbols would wander far from their origins with long tethers despite available space. This happened when the map was offset (aircraft not centered), causing a "double subtraction" of the view offset in the placement engine.
+
 ## v0.3.182 (2026-02-15)
 - **Fix**: **Missing Flight Debriefing**. Fixed a condition where the end-of-flight debriefing would fail to trigger if an LLM provider returned an empty response. Centralized the empty-response detection in the failover orchestrator to ensure a robust fallback to secondary providers.
 

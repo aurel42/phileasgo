@@ -1075,10 +1075,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                                 // This ensures the labels are placed relative to where the map WILL be.
                                 const pos = m.project([lon, lat]);
 
-                                // Adjust for the offset we're about to apply
                                 return {
-                                    x: pos.x - (lockedOffset[0] || 0),
-                                    y: pos.y - (lockedOffset[1] || 0)
+                                    x: pos.x,
+                                    y: pos.y
                                 };
                             },
                             mapWidth,
