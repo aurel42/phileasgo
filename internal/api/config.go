@@ -90,6 +90,12 @@ type ConfigResponse struct {
 	AircraftSize        int    `json:"aircraft_size"`
 	AircraftColorMain   string `json:"aircraft_color_main"`
 	AircraftColorAccent string `json:"aircraft_color_accent"`
+	// UI aesthetics
+	PaperOpacityClear      float64 `json:"paper_opacity_clear"`
+	PaperOpacityFog        float64 `json:"paper_opacity_fog"`
+	ParchmentSaturation    float64 `json:"parchment_saturation"`
+	ShowArtisticDebugBoxes bool    `json:"show_artistic_debug_boxes"`
+	StreamingMode          bool    `json:"streaming_mode"`
 }
 
 // ConfigRequest represents the config API request for updates.
@@ -144,6 +150,13 @@ type ConfigRequest struct {
 	AircraftSize        *int    `json:"aircraft_size,omitempty"`
 	AircraftColorMain   *string `json:"aircraft_color_main,omitempty"`
 	AircraftColorAccent *string `json:"aircraft_color_accent,omitempty"`
+	// UI aesthetics
+	PaperOpacityClear      *float64 `json:"paper_opacity_clear,omitempty"`
+	PaperOpacityFog        *float64 `json:"paper_opacity_fog,omitempty"`
+	ParchmentSaturation    *float64 `json:"parchment_saturation,omitempty"`
+	ShowArtisticDebugBoxes *bool    `json:"show_artistic_debug_boxes,omitempty"`
+	StreamingMode          *bool    `json:"streaming_mode,omitempty"`
+	Volume                 *float64 `json:"volume,omitempty"`
 }
 
 // HandleConfig is a unified handler for all config-related methods, facilitating CORS/OPTIONS.
@@ -179,16 +192,6 @@ func (h *ConfigHandler) HandleGetConfig(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
-	// Volume is not yet migrated to cfgProv, read directly
-	volStr, _ := h.store.GetState(ctx, "volume")
-	volume := 1.0 // Default
-	if volStr != "" {
-		var val float64
-		if _, err := fmt.Sscanf(volStr, "%f", &val); err == nil {
-			volume = val
-		}
-	}
-
 	return ConfigResponse{
 		SimSource:                   h.cfgProv.SimProvider(ctx),
 		Units:                       h.cfgProv.Units(ctx),          // Prompt template units (imperial/hybrid/metric) - backend only
@@ -199,7 +202,7 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		SettlementLabelLimit:        h.cfgProv.SettlementLabelLimit(ctx),
 		SettlementTier:              h.cfgProv.SettlementTier(ctx),
 		MinPOIScore:                 h.cfgProv.MinScoreThreshold(ctx),
-		Volume:                      volume, // Volume is not migrated to cfgProv
+		Volume:                      h.cfgProv.Volume(ctx),
 		FilterMode:                  h.cfgProv.FilterMode(ctx),
 		TargetPOICount:              h.cfgProv.TargetPOICount(ctx),
 		NarrationFrequency:          h.cfgProv.NarrationFrequency(ctx),
@@ -243,10 +246,16 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		NarrationLengthLong:         h.cfgProv.NarrationLengthLong(ctx),
 		SettlementCategories:        h.settlementCategories(),
 		// Aircraft
-		AircraftIcon:        h.appCfg.Scorer.AircraftIcon,
-		AircraftSize:        h.appCfg.Scorer.AircraftSize,
-		AircraftColorMain:   h.appCfg.Scorer.AircraftColorMain,
-		AircraftColorAccent: h.appCfg.Scorer.AircraftColorAccent,
+		AircraftIcon:        h.cfgProv.AircraftIcon(ctx),
+		AircraftSize:        h.cfgProv.AircraftSize(ctx),
+		AircraftColorMain:   h.cfgProv.AircraftColorMain(ctx),
+		AircraftColorAccent: h.cfgProv.AircraftColorAccent(ctx),
+		// UI aesthetics
+		PaperOpacityClear:      h.cfgProv.PaperOpacityClear(ctx),
+		PaperOpacityFog:        h.cfgProv.PaperOpacityFog(ctx),
+		ParchmentSaturation:    h.cfgProv.ParchmentSaturation(ctx),
+		ShowArtisticDebugBoxes: h.cfgProv.ShowArtisticDebugBoxes(ctx),
+		StreamingMode:          h.cfgProv.StreamingMode(ctx),
 	}
 }
 
@@ -327,6 +336,25 @@ func (h *ConfigHandler) applyUIUpdates(ctx context.Context, req *ConfigRequest) 
 		_ = h.store.SetState(ctx, config.KeyRangeRingUnits, req.RangeRingUnits)
 		slog.Debug("Config updated", "range_ring_units", req.RangeRingUnits)
 	}
+
+	if req.PaperOpacityClear != nil {
+		h.updateFloatState(ctx, config.KeyPaperOpacityClear, *req.PaperOpacityClear)
+	}
+	if req.PaperOpacityFog != nil {
+		h.updateFloatState(ctx, config.KeyPaperOpacityFog, *req.PaperOpacityFog)
+	}
+	if req.ParchmentSaturation != nil {
+		h.updateFloatState(ctx, config.KeyParchmentSaturation, *req.ParchmentSaturation)
+	}
+	if req.ShowArtisticDebugBoxes != nil {
+		h.updateBoolState(ctx, config.KeyShowArtisticDebugBoxes, *req.ShowArtisticDebugBoxes)
+	}
+	if req.StreamingMode != nil {
+		h.updateBoolState(ctx, config.KeyStreamingMode, *req.StreamingMode)
+	}
+	if req.Volume != nil {
+		h.updateFloatState(ctx, config.KeyVolume, *req.Volume)
+	}
 }
 
 func (h *ConfigHandler) applyThresholdUpdates(ctx context.Context, req *ConfigRequest) {
@@ -376,19 +404,19 @@ func (h *ConfigHandler) applyThresholdUpdates(ctx context.Context, req *ConfigRe
 
 func (h *ConfigHandler) applyAircraftUpdates(ctx context.Context, req *ConfigRequest) {
 	if req.AircraftIcon != nil {
-		_ = h.store.SetState(ctx, "aircraft_icon", *req.AircraftIcon)
-		slog.Debug("Config updated", "aircraft_icon", *req.AircraftIcon)
+		_ = h.store.SetState(ctx, config.KeyAircraftIcon, *req.AircraftIcon)
+		slog.Debug("Config updated", config.KeyAircraftIcon, *req.AircraftIcon)
 	}
 	if req.AircraftSize != nil {
-		h.updateIntState(ctx, "aircraft_size", *req.AircraftSize)
+		h.updateIntState(ctx, config.KeyAircraftSize, *req.AircraftSize)
 	}
 	if req.AircraftColorMain != nil {
-		_ = h.store.SetState(ctx, "aircraft_color_main", *req.AircraftColorMain)
-		slog.Debug("Config updated", "aircraft_color_main", *req.AircraftColorMain)
+		_ = h.store.SetState(ctx, config.KeyAircraftColorMain, *req.AircraftColorMain)
+		slog.Debug("Config updated", config.KeyAircraftColorMain, *req.AircraftColorMain)
 	}
 	if req.AircraftColorAccent != nil {
-		_ = h.store.SetState(ctx, "aircraft_color_accent", *req.AircraftColorAccent)
-		slog.Debug("Config updated", "aircraft_color_accent", *req.AircraftColorAccent)
+		_ = h.store.SetState(ctx, config.KeyAircraftColorAccent, *req.AircraftColorAccent)
+		slog.Debug("Config updated", config.KeyAircraftColorAccent, *req.AircraftColorAccent)
 	}
 }
 

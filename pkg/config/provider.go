@@ -52,6 +52,11 @@ type Provider interface {
 	LineOfSight(ctx context.Context) bool
 	DeferralProximityBoostPower(ctx context.Context) float64
 	DeferralThreshold(ctx context.Context) float64
+	PaperOpacityClear(ctx context.Context) float64
+	PaperOpacityFog(ctx context.Context) float64
+	ParchmentSaturation(ctx context.Context) float64
+	ShowArtisticDebugBoxes(ctx context.Context) bool
+	StreamingMode(ctx context.Context) bool
 
 	// Essay
 	EssayEnabled(ctx context.Context) bool
@@ -78,6 +83,13 @@ type Provider interface {
 	BeaconSinkDistanceClose(ctx context.Context) Distance
 	BeaconTargetFloorAGL(ctx context.Context) Distance
 	BeaconMaxTargets(ctx context.Context) int
+
+	// Aircraft
+	AircraftIcon(ctx context.Context) string
+	AircraftSize(ctx context.Context) int
+	AircraftColorMain(ctx context.Context) string
+	AircraftColorAccent(ctx context.Context) string
+	Volume(ctx context.Context) float64
 
 	// Raw access (for components that need deep access)
 	AppConfig() *Config
@@ -247,6 +259,26 @@ func (p *UnifiedProvider) DeferralThreshold(ctx context.Context) float64 {
 	return p.getFloat64(ctx, KeyDeferralThreshold, p.base.Scorer.DeferralThreshold)
 }
 
+func (p *UnifiedProvider) PaperOpacityClear(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyPaperOpacityClear, 0.1)
+}
+
+func (p *UnifiedProvider) PaperOpacityFog(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyPaperOpacityFog, 0.7)
+}
+
+func (p *UnifiedProvider) ParchmentSaturation(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyParchmentSaturation, 1.0)
+}
+
+func (p *UnifiedProvider) ShowArtisticDebugBoxes(ctx context.Context) bool {
+	return p.getBool(ctx, KeyShowArtisticDebugBoxes, false)
+}
+
+func (p *UnifiedProvider) StreamingMode(ctx context.Context) bool {
+	return p.getBool(ctx, KeyStreamingMode, false)
+}
+
 func (p *UnifiedProvider) EssayEnabled(ctx context.Context) bool {
 	return p.base.Narrator.Essay.Enabled
 }
@@ -317,6 +349,26 @@ func (p *UnifiedProvider) BeaconTargetFloorAGL(ctx context.Context) Distance {
 
 func (p *UnifiedProvider) BeaconMaxTargets(ctx context.Context) int {
 	return p.getInt(ctx, KeyBeaconMaxTargets, p.base.Beacon.MaxTargets)
+}
+
+func (p *UnifiedProvider) AircraftIcon(ctx context.Context) string {
+	return p.getString(ctx, KeyAircraftIcon, p.base.Scorer.AircraftIcon)
+}
+
+func (p *UnifiedProvider) AircraftSize(ctx context.Context) int {
+	return p.getInt(ctx, KeyAircraftSize, p.base.Scorer.AircraftSize)
+}
+
+func (p *UnifiedProvider) AircraftColorMain(ctx context.Context) string {
+	return p.getString(ctx, KeyAircraftColorMain, p.base.Scorer.AircraftColorMain)
+}
+
+func (p *UnifiedProvider) AircraftColorAccent(ctx context.Context) string {
+	return p.getString(ctx, KeyAircraftColorAccent, p.base.Scorer.AircraftColorAccent)
+}
+
+func (p *UnifiedProvider) Volume(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyVolume, 1.0)
 }
 
 // --- Helpers ---

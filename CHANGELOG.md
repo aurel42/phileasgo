@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## v0.3.188 (2026-02-15)
+- **Feature**: **Master Volume Control**. Added a dedicated volume slider to the Narrator settings tab, fully integrated with the backend configuration.
+- **Fix**: **Static Configuration Safety**. Removed the misleading "Settlement Categories" editor from the UI; these categories are now correctly treated as static server-side configuration.
+
 ## v0.3.187 (2026-02-15)
 - **Refactor**: **Artistic Map Architecture**. Modularized the monolithic map component into a robust system of dedicated hooks and sub-components, improving long-term maintainability.
 - **Improvement**: **Map State Synchronization**. Optimized the interaction between telemetry heartbeats and the map rendering loop, ensuring perfectly stable symbol placement during high-speed transitions.

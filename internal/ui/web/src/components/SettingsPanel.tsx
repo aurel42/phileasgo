@@ -69,6 +69,10 @@ interface SettingsPanelProps {
     onParchmentSaturationChange: (val: number) => void;
     showArtisticDebugBoxes: boolean;
     onShowArtisticDebugBoxesChange: (val: boolean) => void;
+    // Settlement Categories are static (config-only), we might receive them but don't edit them here.
+    // onSettlementCategoriesChange REMOVED (static)
+    volume: number;
+    onVolumeChange: (val: number) => void;
 }
 
 const VictorianListEditor: React.FC<{
@@ -122,6 +126,7 @@ interface DraftState {
     textLength: number;
     autoNarrate: boolean;
     pauseDuration: number;
+    volume: number;
     repeatTTL: string;
     narrationLengthShort: number;
     narrationLengthLong: number;
@@ -174,6 +179,7 @@ interface DraftState {
     parchmentSaturation: number;
     // Debugging tab
     showArtisticDebugBoxes: boolean;
+    // settlementCategories REMOVED from draft (static)
     // Aircraft (Scorer Tab)
     aircraftIcon: AircraftType;
     aircraftSize: number;
@@ -223,7 +229,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     parchmentSaturation,
     onParchmentSaturationChange,
     showArtisticDebugBoxes,
-    onShowArtisticDebugBoxesChange
+    onShowArtisticDebugBoxesChange,
+    // onSettlementCategoriesChange REMOVED
+    volume,
+    onVolumeChange
 }) => {
     const [activeTab, setActiveTab] = useState('narrator');
     const [loading, setLoading] = useState(true);
@@ -273,7 +282,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     showCacheLayer: data.show_cache_layer ?? showCacheLayer,
                     showVisibilityLayer: data.show_visibility_layer ?? showVisibilityLayer,
                     activeMapStyle: data.active_map_style || activeMapStyle,
-                    streamingMode,
+                    streamingMode: data.streaming_mode ?? streamingMode,
                     deferralThreshold: data.deferral_threshold ?? 1.05,
                     deferralProximityBoostPower: data.deferral_proximity_boost_power ?? 1.0,
                     twoPassScriptGeneration: data.two_pass_script_generation ?? false,
@@ -288,14 +297,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     beaconTargetFloorAGL: data.beacon_target_floor_agl ?? 30.48,
 
                     beaconMaxTargets: data.beacon_max_targets ?? 2,
-                    settlementLabelLimit: settlementLabelLimit,
+                    settlementLabelLimit: data.settlement_label_limit ?? settlementLabelLimit,
                     settlementTier: data.settlement_tier ?? 0,
-                    paperOpacityFog: paperOpacityFog,
-                    paperOpacityClear: paperOpacityClear,
-                    parchmentSaturation: parchmentSaturation,
-                    showArtisticDebugBoxes: showArtisticDebugBoxes,
+                    paperOpacityFog: data.paper_opacity_fog ?? paperOpacityFog,
+                    paperOpacityClear: data.paper_opacity_clear ?? paperOpacityClear,
+                    parchmentSaturation: data.parchment_saturation ?? parchmentSaturation,
+                    showArtisticDebugBoxes: data.show_artistic_debug_boxes ?? showArtisticDebugBoxes,
+                    // settlementCategories: data.settlement_categories || settlementCategories, (not in draft)
                     // Aircraft
                     aircraftIcon: (data.aircraft_icon as AircraftType) || 'balloon',
+                    volume: data.volume ?? volume,
                     aircraftSize: data.aircraft_size || 32,
                     aircraftColorMain: data.aircraft_color_main || '#e63946',
                     aircraftColorAccent: data.aircraft_color_accent || '#ffffff',
@@ -313,7 +324,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.narrationFrequency !== narrationFrequency ||
             draft.textLength !== textLength ||
             draft.autoNarrate !== autoNarrate ||
+            draft.textLength !== textLength ||
+            draft.autoNarrate !== autoNarrate ||
             draft.pauseDuration !== pauseDuration ||
+            draft.volume !== volume ||
             draft.repeatTTL !== repeatTTL ||
             draft.narrationLengthShort !== narrationLengthShort ||
             draft.narrationLengthLong !== narrationLengthLong ||
@@ -358,6 +372,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.paperOpacityClear !== paperOpacityClear ||
             draft.parchmentSaturation !== parchmentSaturation ||
             draft.showArtisticDebugBoxes !== showArtisticDebugBoxes ||
+            // JSON.stringify(draft.settlementCategories) !== JSON.stringify(settlementCategories) || (Removed)
             draft.aircraftIcon !== (serverConfig.aircraft_icon || 'balloon') ||
             draft.aircraftSize !== (serverConfig.aircraft_size || 32) ||
             draft.aircraftColorMain !== (serverConfig.aircraft_color_main || '#e63946') ||
@@ -398,6 +413,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         if (draft.twoPassScriptGeneration !== (serverConfig?.two_pass_script_generation ?? false)) payload.two_pass_script_generation = draft.twoPassScriptGeneration;
         if (draft.autoNarrate !== (serverConfig?.auto_narrate ?? true)) payload.auto_narrate = draft.autoNarrate;
         if (draft.pauseDuration !== (serverConfig?.pause_between_narrations ?? 4)) payload.pause_between_narrations = draft.pauseDuration;
+        if (draft.volume !== (serverConfig?.volume ?? 1.0)) payload.volume = draft.volume;
         if (draft.repeatTTL !== (serverConfig?.repeat_ttl || '1h')) payload.repeat_ttl = draft.repeatTTL;
         if (draft.narrationLengthShort !== (serverConfig?.narration_length_short_words ?? 50)) payload.narration_length_short_words = draft.narrationLengthShort;
         if (draft.narrationLengthLong !== (serverConfig?.narration_length_long_words ?? 200)) payload.narration_length_long_words = draft.narrationLengthLong;
@@ -431,6 +447,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             if (draft.units !== units) onUnitsChange(draft.units);
             if (draft.showCacheLayer !== showCacheLayer) onCacheLayerChange(draft.showCacheLayer);
             if (draft.showVisibilityLayer !== showVisibilityLayer) onVisibilityLayerChange(draft.showVisibilityLayer);
+            // if (JSON.stringify(draft.settlementCategories) !== JSON.stringify(settlementCategories)) onSettlementCategoriesChange(draft.settlementCategories); (Removed)
             if (draft.activeMapStyle !== activeMapStyle) onActiveMapStyleChange(draft.activeMapStyle);
             if (draft.streamingMode !== streamingMode) onStreamingModeChange(draft.streamingMode);
 
@@ -439,6 +456,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             if (draft.textLength !== textLength) onTextLengthChange(draft.textLength);
             if (draft.autoNarrate !== autoNarrate) onAutoNarrateChange(draft.autoNarrate);
             if (draft.pauseDuration !== pauseDuration) onPauseDurationChange(draft.pauseDuration);
+            if (draft.volume !== volume) onVolumeChange(draft.volume);
             if (draft.repeatTTL !== repeatTTL) onRepeatTTLChange(draft.repeatTTL);
             if (draft.narrationLengthShort !== narrationLengthShort || draft.narrationLengthLong !== narrationLengthLong) {
                 onNarrationLengthChange(draft.narrationLengthShort, draft.narrationLengthLong);
@@ -652,6 +670,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                     />
                                 </div>
                             ))}
+                            {renderField('Volume', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{Math.round(draft.volume * 100)}%</span>
+                                    <input
+                                        type="range"
+                                        min="0" max="100" step="5"
+                                        value={Math.round(draft.volume * 100)}
+                                        onChange={e => updateDraft('volume', parseInt(e.target.value) / 100)}
+                                    />
+                                </div>
+                            ))}
                             {renderField('Repeat TTL', (
                                 <input
                                     type="text"
@@ -802,6 +831,42 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                     {activeTab === 'scorer' && (
                         <div className="settings-group">
+                            <div className="role-header">Visibility & Deferral</div>
+                            {renderField('Proximity Boost Power', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">x{draft.deferralProximityBoostPower.toFixed(1)}</span>
+                                    <input
+                                        type="range"
+                                        min="1.0" max="4.0" step="0.1"
+                                        value={draft.deferralProximityBoostPower}
+                                        onChange={e => updateDraft('deferralProximityBoostPower', parseFloat(e.target.value))}
+                                    />
+                                </div>
+                            ))}
+                            <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
+                                Higher values prioritize perfect viewing moments over immediate narration by punishing distance more heavily.
+                            </div>
+
+                            <div style={{ marginTop: '24px' }}></div>
+                            {renderField('Wait for better view', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{Math.round((draft.deferralThreshold - 1.0) * 100)}%</span>
+                                    <input
+                                        type="range"
+                                        min="0" max="20" step="1"
+                                        value={Math.round((draft.deferralThreshold - 1.0) * 100)}
+                                        onChange={e => updateDraft('deferralThreshold', 1.0 + (parseInt(e.target.value) / 100.0))}
+                                    />
+                                </div>
+                            ))}
+                            <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
+                                Minimum visual improvement required to defer narration. At 0%, Phileas always waits for the absolute peak view.
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'interface' && (
+                        <div className="settings-group">
                             <div className="role-header">Aircraft Customization</div>
 
                             {/* Live Preview Card */}
@@ -933,14 +998,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 </div>
                             ))}
 
-                            <div style={{ marginTop: '24px', borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '16px' }}></div>
+                            <div style={{ marginTop: '24px', borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '24px' }}></div>
 
-                            {/* Scoring Parameters moved to Narrator tab - duplicate removed */}
-                        </div>
-                    )}
-
-                    {activeTab === 'interface' && (
-                        <div className="settings-group">
                             <div className="role-header">Use Map Style</div>
                             {renderField('Map Style', (
                                 <select className="settings-select" value={draft.activeMapStyle} onChange={e => updateDraft('activeMapStyle', e.target.value)}>
@@ -1053,41 +1112,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             />
                         </div>
                     )}
-                    {activeTab === 'scorer' && (
-                        <div className="settings-group">
-                            <div className="role-header">Visibility & Deferral</div>
-                            {renderField('Proximity Boost Power', (
-                                <div className="settings-slider-container">
-                                    <span className="role-value">x{draft.deferralProximityBoostPower.toFixed(1)}</span>
-                                    <input
-                                        type="range"
-                                        min="1.0" max="4.0" step="0.1"
-                                        value={draft.deferralProximityBoostPower}
-                                        onChange={e => updateDraft('deferralProximityBoostPower', parseFloat(e.target.value))}
-                                    />
-                                </div>
-                            ))}
-                            <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
-                                Higher values prioritize perfect viewing moments over immediate narration by punishing distance more heavily.
-                            </div>
 
-                            <div style={{ marginTop: '24px' }}></div>
-                            {renderField('Wait for better view', (
-                                <div className="settings-slider-container">
-                                    <span className="role-value">{Math.round((draft.deferralThreshold - 1.0) * 100)}%</span>
-                                    <input
-                                        type="range"
-                                        min="0" max="20" step="1"
-                                        value={Math.round((draft.deferralThreshold - 1.0) * 100)}
-                                        onChange={e => updateDraft('deferralThreshold', 1.0 + (parseInt(e.target.value) / 100.0))}
-                                    />
-                                </div>
-                            ))}
-                            <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
-                                Minimum visual improvement required to defer narration. At 0%, Phileas always waits for the absolute peak view.
-                            </div>
-                        </div>
-                    )}
                     {activeTab === 'beacon' && (
                         <div className="settings-group">
                             <div className="role-header">Target Beacons</div>

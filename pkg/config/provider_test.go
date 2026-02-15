@@ -175,6 +175,24 @@ func TestUnifiedProvider(t *testing.T) {
 		if p.DeferralProximityBoostPower(ctx) != 1.0 {
 			t.Errorf("expected 1.0, got %f", p.DeferralProximityBoostPower(ctx))
 		}
+		if p.PaperOpacityClear(ctx) != 0.1 {
+			t.Errorf("expected 0.1, got %f", p.PaperOpacityClear(ctx))
+		}
+		if p.PaperOpacityFog(ctx) != 0.7 {
+			t.Errorf("expected 0.7, got %f", p.PaperOpacityFog(ctx))
+		}
+		if p.ParchmentSaturation(ctx) != 1.0 {
+			t.Errorf("expected 1.0, got %f", p.ParchmentSaturation(ctx))
+		}
+		if p.ShowArtisticDebugBoxes(ctx) != false {
+			t.Error("expected debug boxes false")
+		}
+		if p.StreamingMode(ctx) != false {
+			t.Error("expected streaming mode false")
+		}
+		if p.Volume(ctx) != 1.0 {
+			t.Errorf("expected 1.0, got %f", p.Volume(ctx))
+		}
 		if p.AppConfig() != baseCfg {
 			t.Error("expected baseCfg")
 		}
@@ -206,6 +224,12 @@ func TestUnifiedProvider(t *testing.T) {
 		store.SetState(ctx, KeyNarrationLengthLong, "500")
 		store.SetState(ctx, KeyDeferralThreshold, "1.15")
 		store.SetState(ctx, KeyDeferralProximityBoostPower, "1.5")
+		store.SetState(ctx, KeyPaperOpacityClear, "0.5")
+		store.SetState(ctx, KeyPaperOpacityFog, "0.9")
+		store.SetState(ctx, KeyParchmentSaturation, "0.2")
+		store.SetState(ctx, KeyShowArtisticDebugBoxes, "true")
+		store.SetState(ctx, KeyStreamingMode, "true")
+		store.SetState(ctx, KeyVolume, "0.75")
 
 		styles, _ := json.Marshal([]string{"s1", "s2", "s3"})
 		store.SetState(ctx, KeyStyleLibrary, string(styles))
@@ -292,6 +316,24 @@ func TestUnifiedProvider(t *testing.T) {
 		}
 		if len(p.StyleLibrary(ctx)) != 3 {
 			t.Errorf("expected 3 styles, got %d", len(p.StyleLibrary(ctx)))
+		}
+		if p.PaperOpacityClear(ctx) != 0.5 {
+			t.Errorf("expected 0.5, got %f", p.PaperOpacityClear(ctx))
+		}
+		if p.PaperOpacityFog(ctx) != 0.9 {
+			t.Errorf("expected 0.9, got %f", p.PaperOpacityFog(ctx))
+		}
+		if p.ParchmentSaturation(ctx) != 0.2 {
+			t.Errorf("expected 0.2, got %f", p.ParchmentSaturation(ctx))
+		}
+		if p.ShowArtisticDebugBoxes(ctx) != true {
+			t.Error("expected debug boxes true")
+		}
+		if p.StreamingMode(ctx) != true {
+			t.Error("expected streaming mode true")
+		}
+		if p.Volume(ctx) != 0.75 {
+			t.Errorf("expected 0.75, got %f", p.Volume(ctx))
 		}
 	})
 

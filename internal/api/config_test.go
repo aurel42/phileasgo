@@ -79,6 +79,7 @@ func TestHandleGetConfig(t *testing.T) {
 				"text_length":                           "4",
 				"scorer.deferral_threshold":             "1.1",
 				"scorer.deferral_proximity_boost_power": "1.2",
+				"ui.paper_opacity_clear":                "0.5",
 			},
 			wantTTSEngine:   "azure-speech",
 			wantSimSource:   "mock",
@@ -150,6 +151,14 @@ func TestHandleGetConfig(t *testing.T) {
 			}
 			if tt.name == "Azure Config with Store Overrides" && got.ShowVisibilityLayer != true {
 				t.Errorf("expected ShowVisibilityLayer true from override")
+			}
+			if tt.name == "Azure Config with Store Overrides" {
+				if got.PaperOpacityClear != 0.5 {
+					t.Errorf("PaperOpacityClear = %f, want 0.5", got.PaperOpacityClear)
+				}
+				if got.Volume != 1.0 { // Default if not in store for this test case
+					t.Errorf("Volume = %f, want 1.0", got.Volume)
+				}
 			}
 		})
 	}
@@ -247,6 +256,24 @@ func TestHandleSetConfig(t *testing.T) {
 			name:    "Update Show Visibility Layer",
 			req:     ConfigRequest{ShowVisibilityLayer: ptrBool(true)},
 			wantKey: "show_visibility_layer",
+			wantVal: "true",
+		},
+		{
+			name:    "Update Paper Opacity Clear",
+			req:     ConfigRequest{PaperOpacityClear: ptrFloat(0.45)},
+			wantKey: "ui.paper_opacity_clear",
+			wantVal: "0.45",
+		},
+		{
+			name:    "Update Volume",
+			req:     ConfigRequest{Volume: ptrFloat(0.85)},
+			wantKey: "audio.volume",
+			wantVal: "0.85",
+		},
+		{
+			name:    "Update Streaming Mode",
+			req:     ConfigRequest{StreamingMode: ptrBool(true)},
+			wantKey: "ui.streaming_mode",
 			wantVal: "true",
 		},
 	}
