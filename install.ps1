@@ -13,43 +13,6 @@ foreach ($d in $dirs) {
     }
 }
 
-# Download GeoNames cities1000 (only if not present)
-$geonamesUrl = "https://download.geonames.org/export/dump/cities1000.zip"
-$geonamesZip = "data/cities1000.zip"
-$geonamesTxt = "data/cities1000.txt"
-
-if (-not (Test-Path $geonamesTxt)) {
-    Write-Host "Downloading GeoNames cities1000..." -ForegroundColor Yellow
-    try {
-        Invoke-WebRequest -Uri $geonamesUrl -OutFile $geonamesZip
-        Write-Host "Extracting..." -ForegroundColor Yellow
-        Expand-Archive -Path $geonamesZip -DestinationPath "data" -Force
-        Remove-Item $geonamesZip
-        Write-Host "GeoNames data installed!" -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to download GeoNames: $_" -ForegroundColor Red
-        Write-Host "Please download manually from: $geonamesUrl" -ForegroundColor Yellow
-    }
-} else {
-    Write-Host "GeoNames data already exists - skipping." -ForegroundColor Gray
-}
-
-# Download GeoNames Admin1 Codes (for region names)
-$admin1Url = "https://download.geonames.org/export/dump/admin1CodesASCII.txt"
-$admin1File = "data/admin1CodesASCII.txt"
-
-if (-not (Test-Path $admin1File)) {
-    Write-Host "Downloading GeoNames Admin1 Codes..." -ForegroundColor Yellow
-    try {
-        Invoke-WebRequest -Uri $admin1Url -OutFile $admin1File
-        Write-Host "Admin1 Codes downloaded!" -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to download Admin1 Codes: $_" -ForegroundColor Red
-    }
-} else {
-    Write-Host "Admin1 Codes already exists - skipping." -ForegroundColor Gray
-}
-
 # Download ETOPO1 Elevation Data (for Line-of-Sight)
 $etopoUrl = "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/ice_surface/grid_registered/binary/etopo1_ice_g_i2.zip"
 $etopoZip = "data/etopo1.zip"
@@ -139,7 +102,7 @@ if (-not (Test-Path ".env") -and -not (Test-Path ".env.local")) {
 Write-Host ""
 Write-Host "=== Configuration ===" -ForegroundColor Yellow
 Write-Host "Edit .env.local or configs/phileas.yaml to add your API keys:"
-Write-Host "  - GEMINI_API_KEY (REQUIRED for narration)" -ForegroundColor White
+Write-Host "  - any LLM API key (REQUIRED for narration)" -ForegroundColor White
 Write-Host "  - Azure/Fish Audio keys (optional)" -ForegroundColor Gray
 Write-Host ""
 

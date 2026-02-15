@@ -743,7 +743,59 @@ func expandPaths(cfg *Config) {
 	for i, p := range cfg.Narrator.Screenshot.Paths {
 		cfg.Narrator.Screenshot.Paths[i] = expandEnv(p)
 	}
+	// ... existing code ...
 	if cfg.Terrain.ElevationFile != "" {
 		cfg.Terrain.ElevationFile = expandEnv(cfg.Terrain.ElevationFile)
 	}
+}
+
+// LoadGUIConfig loads the GUI configuration from the given path.
+func LoadGUIConfig(path string) (*GUIConfig, error) {
+	// Default config
+	cfg := &GUIConfig{
+		Window: WindowConfig{
+			Width:     1024,
+			Height:    768,
+			X:         -1,
+			Y:         -1,
+			Maximized: false,
+		},
+	}
+
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Read existing file if it exists
+	if _, err := os.Stat(path); err == nil {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read gui config file: %w", err)
+		}
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse gui config file: %w", err)
+		}
+	} else {
+		// If file doesn't exist, save defaults immediately
+		if err := SaveGUIConfig(path, cfg); err != nil {
+			return nil, fmt.Errorf("failed to save default gui config: %w", err)
+		}
+	}
+
+	return cfg, nil
+}
+
+// SaveGUIConfig saves the GUI configuration to the path.
+func SaveGUIConfig(path string, cfg *GUIConfig) error {
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal gui config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write gui config file: %w", err)
+	}
+	return nil
 }

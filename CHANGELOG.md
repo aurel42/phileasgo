@@ -1,5 +1,10 @@
 ﻿# Changelog
  
+## v0.3.181 (2026-02-15)
+- **Feature**: **Embedded Geo Data**. The application now embeds the global cities dataset (`cities1000.txt`) directly into the binary, removing external file dependencies and significantly accelerating startup.
+- **Fix**: **Configuration Safety**. Separated GUI window settings to `configs/gui.yaml` to prevent the application from overwriting the main `phileas.yaml` config file.
+- **Improvement**: **Binary Data Tooling**. Introduced `cmd/slim_cities` to pre-process and compress geodata into an optimized binary format for embedding.
+
 ## v0.3.180 (2026-02-15)
 - **Fix**: **Crowded Map Settlement Icons**. Fixed settlement icons disappearing in crowded map areas.
 - **Fix**: **POI Icon Over-Scaling**. Fixed POI icons growing to exaggerated sizes at high zoom levels.

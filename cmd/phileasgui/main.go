@@ -89,11 +89,18 @@ func main() {
 		panic(err)
 	}
 
-	// Load Config
-	cfg, err := config.Load("configs/phileas.yaml")
+	// Load Main Config (for Server Address)
+	mainCfg, err := config.Load("configs/phileas.yaml")
 	if err != nil {
 		// Fallback if load fails (though in prod it should exist)
-		cfg = config.DefaultConfig()
+		mainCfg = config.DefaultConfig()
+	}
+
+	// Load GUI Config (for Window State)
+	guiCfg, err := config.LoadGUIConfig("configs/gui.yaml")
+	if err != nil {
+		// Fallback to defaults
+		guiCfg, _ = config.LoadGUIConfig("configs/gui.yaml") // Force default
 	}
 
 	w := webview.New(true)
@@ -108,7 +115,7 @@ func main() {
 
 	w.SetTitle("PhileasGUI")
 	// Set initial size, but we might override it with placement
-	w.SetSize(cfg.GUI.Window.Width, cfg.GUI.Window.Height, webview.HintNone)
+	w.SetSize(guiCfg.Window.Width, guiCfg.Window.Height, webview.HintNone)
 
 	// GUI Maintenance (Icon, Restore, Hook)
 	go func() {
@@ -123,10 +130,10 @@ func main() {
 		}
 
 		// Initial Restore
-		restoreWindowPlacement(hwnd, cfg)
+		restoreWindowPlacement(hwnd, guiCfg)
 
 		// Native Hook for "Save on Close"
-		subclassWindow(hwnd, cfg)
+		subclassWindow(hwnd, guiCfg)
 
 		// Icon Maintenance
 		for {
@@ -162,7 +169,7 @@ func main() {
 		})
 	}
 
-	mgr := NewManager(logProxy, termProxy, appProxy, cfg.Server.Address)
+	mgr := NewManager(logProxy, termProxy, appProxy, mainCfg.Server.Address)
 
 	_ = w.Bind("appReady", func() {
 		// Callback from JS if needed
@@ -193,8 +200,8 @@ func main() {
 	mgr.Stop()
 }
 
-func restoreWindowPlacement(hwnd uintptr, cfg *config.Config) {
-	if cfg.GUI.Window.X == -1 {
+func restoreWindowPlacement(hwnd uintptr, cfg *config.GUIConfig) {
+	if cfg.Window.X == -1 {
 		return // Let OS decide
 	}
 
@@ -206,13 +213,13 @@ func restoreWindowPlacement(hwnd uintptr, cfg *config.Config) {
 
 	// Override with saved values
 	wp.NormalPosition = RECT{
-		Left:   int32(cfg.GUI.Window.X),
-		Top:    int32(cfg.GUI.Window.Y),
-		Right:  int32(cfg.GUI.Window.X + cfg.GUI.Window.Width),
-		Bottom: int32(cfg.GUI.Window.Y + cfg.GUI.Window.Height),
+		Left:   int32(cfg.Window.X),
+		Top:    int32(cfg.Window.Y),
+		Right:  int32(cfg.Window.X + cfg.Window.Width),
+		Bottom: int32(cfg.Window.Y + cfg.Window.Height),
 	}
 
-	if cfg.GUI.Window.Maximized {
+	if cfg.Window.Maximized {
 		wp.ShowCmd = 3 // SW_SHOWMAXIMIZED
 	}
 
@@ -225,7 +232,7 @@ func restoreWindowPlacement(hwnd uintptr, cfg *config.Config) {
 	_, _, _ = procSetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&wp)))
 }
 
-func subclassWindow(hwnd uintptr, cfg *config.Config) {
+func subclassWindow(hwnd uintptr, cfg *config.GUIConfig) {
 	// WM_CLOSE is 0x0010
 	// GWLP_WNDPROC is -4
 	callback := syscall.NewCallback(func(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
@@ -241,7 +248,7 @@ func subclassWindow(hwnd uintptr, cfg *config.Config) {
 	originalWndProc = ptr
 }
 
-func saveWindowPlacement(hwnd uintptr, cfg *config.Config) {
+func saveWindowPlacement(hwnd uintptr, cfg *config.GUIConfig) {
 	if hwnd == 0 {
 		return
 	}
@@ -254,13 +261,13 @@ func saveWindowPlacement(hwnd uintptr, cfg *config.Config) {
 		return
 	}
 
-	cfg.GUI.Window.X = int(wp.NormalPosition.Left)
-	cfg.GUI.Window.Y = int(wp.NormalPosition.Top)
-	cfg.GUI.Window.Width = int(wp.NormalPosition.Right - wp.NormalPosition.Left)
-	cfg.GUI.Window.Height = int(wp.NormalPosition.Bottom - wp.NormalPosition.Top)
-	cfg.GUI.Window.Maximized = (wp.ShowCmd == 3) // SW_SHOWMAXIMIZED
+	cfg.Window.X = int(wp.NormalPosition.Left)
+	cfg.Window.Y = int(wp.NormalPosition.Top)
+	cfg.Window.Width = int(wp.NormalPosition.Right - wp.NormalPosition.Left)
+	cfg.Window.Height = int(wp.NormalPosition.Bottom - wp.NormalPosition.Top)
+	cfg.Window.Maximized = (wp.ShowCmd == 3) // SW_SHOWMAXIMIZED
 
-	_ = config.Save("configs/phileas.yaml", cfg)
+	_ = config.SaveGUIConfig("configs/gui.yaml", cfg)
 }
 
 func escapeJS(s string) string {

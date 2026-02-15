@@ -1,6 +1,8 @@
 package geo
 
 import (
+	"bytes"
+	"encoding/binary"
 	"math"
 	"os"
 	"testing"
@@ -332,4 +334,68 @@ func TestService_ReorderFeatures(t *testing.T) {
 	}
 	s.SetCountryService(cs)
 	s.ReorderFeatures(51, 0) // Should trigger reorder without panic
+}
+
+func TestNewServiceEmbedded(t *testing.T) {
+	// Construct mock binary data
+	buf := new(bytes.Buffer)
+	buf.WriteString("PHGO")
+	binary.Write(buf, binary.LittleEndian, uint16(1)) // Version
+
+	// Admin1
+	binary.Write(buf, binary.LittleEndian, uint32(1)) // Count
+	// Code "US.VA", Name "Virginia"
+	code := "US.VA"
+	name := "Virginia"
+	buf.WriteByte(uint8(len(code)))
+	buf.WriteString(code)
+	buf.WriteByte(uint8(len(name)))
+	buf.WriteString(name)
+
+	// Grid Index
+	binary.Write(buf, binary.LittleEndian, uint32(1)) // Grid Count
+
+	// Grid Entry: Key, Offset, Count
+	// Grid Key for Lat 10, Lon 20
+	// Key = (Lat+90) * 360 + (Lon+180)
+	key := int32((10+90)*360 + (20 + 180))
+	offset := uint32(0) // Relative to cities start
+	count := uint16(1)
+	binary.Write(buf, binary.LittleEndian, key)
+	binary.Write(buf, binary.LittleEndian, offset)
+	binary.Write(buf, binary.LittleEndian, count)
+
+	// City Data
+	lat := float32(10.5)
+	lon := float32(20.5)
+	pop := int32(1000)
+	binary.Write(buf, binary.LittleEndian, lat)
+	binary.Write(buf, binary.LittleEndian, lon)
+	binary.Write(buf, binary.LittleEndian, pop)
+	// CC "US"
+	buf.WriteString("US")
+	// Admin1Code "VA"
+	ac := "VA"
+	buf.WriteByte(uint8(len(ac)))
+	buf.WriteString(ac)
+	// Name "TestCity"
+	n := "TestCity"
+	buf.WriteByte(uint8(len(n)))
+	buf.WriteString(n)
+
+	// Test
+	s, err := NewServiceEmbedded(buf.Bytes())
+	if err != nil {
+		t.Fatalf("NewServiceEmbedded failed: %v", err)
+	}
+
+	// Verify
+	// We query the EXACT location to ensure we hit the right grid cell and city
+	loc := s.GetLocation(10.5, 20.5)
+	if loc.CityName != "TestCity" {
+		t.Errorf("Expected CityName 'TestCity', got '%s'", loc.CityName)
+	}
+	if loc.Admin1Name != "Virginia" {
+		t.Errorf("Expected Admin1Name 'Virginia', got '%s'", loc.Admin1Name)
+	}
 }

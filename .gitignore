@@ -20,11 +20,13 @@ configs/phileas.yaml
 configs/phileas-*.yaml
 data/phileas.db*
 data/cities1000.txt
+data/admin1CodesASCII.txt
 data/Master.csv
 data/etopo1/
 data/rivers/
 vendor/
 pkg/sim/simconnect/lib/
+pkg/geo/data/geodata.bin
 cmd/experiments/
 tmp/
 

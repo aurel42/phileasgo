@@ -21,6 +21,7 @@ import (
 	"phileasgo/pkg/db"
 	"phileasgo/pkg/db/maintenance"
 	"phileasgo/pkg/geo"
+	geodata "phileasgo/pkg/geo/data"
 	"phileasgo/pkg/llm"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/logging"
@@ -222,7 +223,7 @@ func initDB(appCfg *config.Config) (*db.DB, store.Store, error) {
 
 func initCoreServices(st store.Store, cfg config.Provider, tr *tracker.Tracker, simClient sim.Client, catCfg *config.CategoriesConfig) (*CoreServices, *wikidata.DensityManager, error) {
 	appCfg := cfg.AppConfig()
-	geoSvc, err := geo.NewService("data/cities1000.txt", "data/admin1CodesASCII.txt")
+	geoSvc, err := geo.NewServiceEmbedded(geodata.GeoData)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize geo service: %w", err)
 	}

@@ -9,7 +9,7 @@ all: build-web test build build-gui
 
 build: build-web build-app build-gui
 
-build-app: pkg/geo/countries.geojson
+build-app: pkg/geo/countries.geojson pkg/geo/data/geodata.bin
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/copy_simconnect.ps1
 	go build -o $(APP_NAME).exe $(CMD_PATH)
 
@@ -23,6 +23,9 @@ cmd/phileasgui/rsrc_windows_amd64.syso: cmd/phileasgui/winres/winres.json $(wild
 
 pkg/geo/countries.geojson:
 	powershell -NoProfile -ExecutionPolicy Bypass -File cmd/slim_geojson/download.ps1
+
+pkg/geo/data/geodata.bin: data/cities1000.txt data/admin1CodesASCII.txt cmd/slim_cities/main.go
+	go run cmd/slim_cities/main.go
 
 build-web:
 	cd $(WEB_PATH) && npm install && npm run build

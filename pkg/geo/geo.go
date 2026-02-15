@@ -2,11 +2,13 @@ package geo
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"math"
 	"os"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"phileasgo/pkg/model"
 )
@@ -388,4 +390,111 @@ func (s *Service) makeKey(lat, lon int) int {
 	// Offset lon to be positive (Lon -180 to 180 -> 0 to 360)
 	// Key = (Lat+90) * 360 + (Lon+180)
 	return (lat+90)*360 + (lon + 180)
+}
+
+// NewServiceEmbedded loads cities from embedded binary data.
+// The data format must match the output of cmd/slim_cities.
+func NewServiceEmbedded(data []byte) (*Service, error) {
+	if len(data) < 6 || string(data[0:4]) != "PHGO" {
+		return nil, fmt.Errorf("invalid magic header")
+	}
+	version := binary.LittleEndian.Uint16(data[4:6])
+	if version != 1 {
+		return nil, fmt.Errorf("unsupported version: %d", version)
+	}
+
+	offset := 6
+
+	// 1. Load Admin1 Map
+	// Count (u32)
+	adminCount := binary.LittleEndian.Uint32(data[offset : offset+4])
+	offset += 4
+
+	adminMap := make(map[string]string, adminCount)
+	for i := uint32(0); i < adminCount; i++ {
+		codeLen := int(data[offset])
+		offset++
+		code := unsafeString(data[offset : offset+codeLen])
+		offset += codeLen
+
+		nameLen := int(data[offset])
+		offset++
+		name := unsafeString(data[offset : offset+nameLen])
+		offset += nameLen
+
+		adminMap[code] = name
+	}
+
+	// 2. Load Grid Index
+	gridCount := binary.LittleEndian.Uint32(data[offset : offset+4])
+	offset += 4
+
+	// Create Service
+	s := &Service{
+		grid: make(map[int][]City, gridCount),
+	}
+
+	// Grid Index Entries: [GridKey(i32)][Offset(u32)][Count(u16)]
+	// Each entry is 10 bytes.
+	// Cities Start is at offset + gridCount*10
+	citiesStart := offset + int(gridCount)*10
+
+	for i := uint32(0); i < gridCount; i++ {
+		key := int(int32(binary.LittleEndian.Uint32(data[offset : offset+4])))
+		cityOffsetRel := binary.LittleEndian.Uint32(data[offset+4 : offset+8])
+		count := binary.LittleEndian.Uint16(data[offset+8 : offset+10])
+		offset += 10
+
+		// Parse Cities for this grid
+		// Cities are at citiesStart + cityOffsetRel
+		ptr := citiesStart + int(cityOffsetRel)
+
+		cities := make([]City, count)
+		for j := 0; j < int(count); j++ {
+			// Lat(f32) Lon(f32) Pop(i32) CC(2)
+			lat := math.Float32frombits(binary.LittleEndian.Uint32(data[ptr : ptr+4]))
+			ptr += 4
+			lon := math.Float32frombits(binary.LittleEndian.Uint32(data[ptr : ptr+4]))
+			ptr += 4
+			pop := int32(binary.LittleEndian.Uint32(data[ptr : ptr+4]))
+			ptr += 4
+
+			cc := unsafeString(data[ptr : ptr+2])
+			// Trim padding from CC if needed? Writer did "cc + '  '" then "cc[:2]".
+			// If cc was "US", it's "US". If "F", it is "F ".
+			if cc[1] == ' ' {
+				cc = cc[:1]
+			}
+			ptr += 2
+
+			// Admin1 Code
+			acLen := int(data[ptr])
+			ptr++
+			ac := unsafeString(data[ptr : ptr+acLen])
+			ptr += acLen
+
+			// Name
+			nLen := int(data[ptr])
+			ptr++
+			name := unsafeString(data[ptr : ptr+nLen])
+			ptr += nLen
+
+			cities[j] = City{
+				Name:        name,
+				Lat:         float64(lat),
+				Lon:         float64(lon),
+				CountryCode: cc,
+				Admin1Code:  ac,
+				Admin1Name:  adminMap[cc+"."+ac], // fast lookup
+				Population:  int(pop),
+			}
+		}
+		s.grid[key] = cities
+	}
+
+	return s, nil
+}
+
+func unsafeString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
 }
