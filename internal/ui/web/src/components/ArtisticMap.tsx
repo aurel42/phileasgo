@@ -247,6 +247,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
     const effectiveReplayMode = isReplayMode || stickyReplay;
 
+    const engine = useMemo(() => new PlacementEngine(), []);
+
 
     // Track replay mode transitions to force state resets/refetches
     const prevReplayModeRef = useRef(false);
@@ -269,14 +271,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         return new Date(last.timestamp).getTime() - firstEventTime;
     }, [tripEvents, firstEventTime]);
 
-    // When entering replay mode, invalidate trip events to get fresh data and force remount of animations
-    useEffect(() => {
-        if (effectiveReplayMode && !prevReplayModeRef.current) {
-            queryClient.invalidateQueries({ queryKey: ['tripEvents'] });
-        }
-        prevReplayModeRef.current = effectiveReplayMode;
-    }, [effectiveReplayMode, queryClient]);
-
     // -- REPLAY ANIMATION STATE --
     const [progress, setProgress] = useState(0);
     const startTimeRef = useRef<number | null>(null);
@@ -285,6 +279,17 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const animationRef = useRef<number | null>(null);
     const [replayLabels, setReplayLabels] = useState<LabelCandidate[]>([]);
     const registeredIds = useRef<Set<string>>(new Set());
+
+    // When entering replay mode, invalidate trip events to get fresh data and force remount of animations
+    useEffect(() => {
+        if (effectiveReplayMode && !prevReplayModeRef.current) {
+            queryClient.invalidateQueries({ queryKey: ['tripEvents'] });
+            engine.resetCache(); // Clear placement cache on context switch
+        } else if (!effectiveReplayMode && prevReplayModeRef.current) {
+            engine.resetCache(); // Clear when leaving replay too
+        }
+        prevReplayModeRef.current = effectiveReplayMode;
+    }, [effectiveReplayMode, queryClient, engine]);
 
     // Filter and sort events chronologically for stable replay
     const validEvents = useMemo(() => {
@@ -318,11 +323,20 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         return map;
     }, [validEvents]);
 
+    // -- REPLAY BASELINE (Take-off to Landing) --
+    // We use this for BOTH aircraft interpolation AND discovery filtering
+    const { replayFirstTime, replayTotalTime } = useMemo(() => {
+        if (validEvents.length < 2) return { replayFirstTime: firstEventTime, replayTotalTime: totalTripTime };
+        const start = new Date(validEvents[0].timestamp).getTime();
+        const end = new Date(validEvents[validEvents.length - 1].timestamp).getTime();
+        return { replayFirstTime: start, replayTotalTime: end - start };
+    }, [validEvents, firstEventTime, totalTripTime]);
+
     // Fit map to route on replay start
     useEffect(() => {
         if (effectiveReplayMode && pathPoints.length >= 2 && map.current) {
             // Lower minZoom for replay so the full route can fit
-            map.current.setMinZoom(5);
+            map.current.setMinZoom(2);
             const bbox = turf.bbox({
                 type: 'Feature',
                 properties: {},
@@ -395,7 +409,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const [fontsLoaded, setFontsLoaded] = useState(false);
 
     // -- Placement Engine (Persistent across ticks) --
-    const engine = useMemo(() => new PlacementEngine(), []);
 
     const currentNarratedId = (narratorStatus?.playback_status === 'playing' || narratorStatus?.playback_status === 'paused')
         ? narratorStatus?.current_poi?.wikidata_id : undefined;
@@ -415,6 +428,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         aircraftY: 0,
         agl: 0
     });
+
+    const prevSimStateRef = useRef<string | undefined>(undefined);
 
     // Replay: Pre-calculate ALL item placements ONCE at the start
     useEffect(() => {
@@ -567,9 +582,15 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         source: 'hillshade-source',
                         maxzoom: 10,
                         paint: {
-                            'hillshade-exaggeration': 0.5,
-                            'hillshade-shadow-color': 'rgba(0, 0, 0, 0.4)',
-                            'hillshade-accent-color': 'rgba(0, 0, 0, 0.2)'
+                            'hillshade-exaggeration': [
+                                'interpolate',
+                                ['linear'],
+                                ['zoom'],
+                                4, 0.0,
+                                6, 0.45
+                            ],
+                            'hillshade-shadow-color': 'rgba(0, 0, 0, 0.35)',
+                            'hillshade-accent-color': 'rgba(0, 0, 0, 0.15)'
                         }
                     },
                     {
@@ -611,7 +632,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             },
             center: [center[1], center[0]],
             zoom: zoom,
-            minZoom: 5, // Allowed now that we have higher-res tiles (Z10 tiles at Z9 view)
+            minZoom: 0, // Lowered from 5 to allow world map view
             maxZoom: 12,
             attributionControl: false,
             interactive: false
@@ -718,7 +739,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 const t = telemetryRef.current;
                 const currentValidEvents = validEventsRef.current;
 
-                if (!m || !t || (!effectiveReplayMode && t.SimState === 'disconnected')) {
+                if (!m || !t) {
                     isRunning = false;
                     return;
                 }
@@ -739,6 +760,12 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     isRunning = false;
                     return;
                 }
+
+                // SIMSTATE TRANSITION DETECTION
+                const currentSimState = t.SimState;
+                const prevSimState = prevSimStateRef.current;
+                const stateTransition = prevSimState !== currentSimState;
+                prevSimStateRef.current = currentSimState;
 
                 // 2. BACKGROUND FETCH (Visibility Mask)
                 const fetchMask = async () => {
@@ -762,7 +789,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 const mapHeight = m.getCanvas().clientHeight;
 
                 // 3. DEAD-ZONE PANNING — re-center when more map is behind aircraft than ahead
-                let needsRecenter = !lockedCenter; // First tick always centers
+                let needsRecenter = !lockedCenter || stateTransition; // First tick or state change always centers
 
                 if (lockedCenter) {
                     const currentPos: [number, number] = [acState.lon, acState.lat];
@@ -783,7 +810,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                     const distAhead = rayToEdge(aircraftOnMap.x, aircraftOnMap.y, adx, ady);
                     const distBehind = rayToEdge(aircraftOnMap.x, aircraftOnMap.y, -adx, -ady);
-                    needsRecenter = distBehind > distAhead;
+                    needsRecenter = needsRecenter || distBehind > distAhead;
 
                     // Trigger snap if playing POI is outside viewport
                     const playingPoi = currentPoiRef.current;
@@ -793,37 +820,96 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 }
 
                 if (needsRecenter) {
+                    const isIdle = t.SimState === 'disconnected' && !effectiveReplayMode;
+
                     // Re-center: place aircraft with heading offset (35% pushes it well behind center)
-                    const offsetPx = Math.min(mapWidth, mapHeight) * 0.35;
+                    // If idle, we center exactly on [0, 0]
+                    const offsetPx = isIdle ? 0 : Math.min(mapWidth, mapHeight) * 0.35;
                     const hdgRad = acState.heading * (Math.PI / 180);
                     const dx = offsetPx * Math.sin(hdgRad);
                     const dy = -offsetPx * Math.cos(hdgRad);
 
-                    lockedCenter = [acState.lon, acState.lat];
-                    lockedOffset = [-dx, -dy];
+                    if (isIdle) console.log("[ArtisticMap] Idle Mode: Centering on World Map");
+                    lockedCenter = isIdle ? [0, 0] : [acState.lon, acState.lat];
+                    lockedOffset = isIdle ? [0, 0] : [-dx, -dy];
 
-                    // Compute zoom: fit visibility cone and active POIs if available
-                    let newZoom = lockedZoom === -1 ? targetZoomBase : lockedZoom;
-                    const features: any[] = [];
-                    if (lastMaskData?.geometry) {
-                        features.push({ type: 'Feature', geometry: lastMaskData.geometry, properties: {} });
-                    }
+                    // Compute zoom: specialized based on state transition
+                    // We only reset to targetZoomBase (the prop) on first-load. On state 
+                    // transitions, we maintain the current lockedZoom to avoid "zoom baseline 
+                    // leakage" that can cause oversized symbols.
+                    let newZoom = (lockedZoom === -1) ? targetZoomBase : lockedZoom;
 
-                    const playingPoi = currentPoiRef.current;
-                    const preparingPoi = preparingPoiRef.current;
-                    if (playingPoi) {
-                        features.push(turf.point([playingPoi.lon, playingPoi.lat]));
-                    }
-                    if (preparingPoi) {
-                        features.push(turf.point([preparingPoi.lon, preparingPoi.lat]));
-                    }
+                    if (isIdle || (stateTransition && prevSimState === 'disconnected' && currentSimState === 'inactive')) {
+                        // idle or disconnected -> paused: zoom to world map
+                        // Calculate zoom that fits [-180, 180] into the LONGER viewport dimension
+                        const longerDim = Math.max(mapWidth, mapHeight);
+                        // zoom = log2(screen_px / (256 * repetition_factor))
+                        // We want 360 degrees to fit in longerDim. 
+                        // MapLibre uses 256px tiles. repetition_factor = 360/360 = 1 for world scale.
+                        // However, we must ensure we don't repeat parts of the world.
+                        // MapLibre zoom formula: pixels = 256 * 2^zoom
+                        // So: longerDim = 256 * 2^zoom -> zoom = log2(longerDim / 256)
+                        newZoom = Math.log2(longerDim / 256);
 
-                    if (features.length > 0) {
-                        const collection = turf.featureCollection(features);
-                        const combinedBbox = turf.bbox(collection);
-                        const camera = m.cameraForBounds(combinedBbox as [number, number, number, number], { padding: 40, maxZoom: 12 });
-                        if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
-                            newZoom = Math.min(Math.max(camera.zoom, m.getMinZoom()), 12);
+                        // Enforce minZoom to ensure world fits correctly
+                        newZoom = Math.max(newZoom, m.getMinZoom());
+                    } else if (stateTransition && currentSimState === 'inactive' && prevSimState === 'active') {
+                        // active -> paused: zoom out one level (double bounding box size)
+                        const features: any[] = [];
+                        if (lastMaskData?.geometry) features.push({ type: 'Feature', geometry: lastMaskData.geometry, properties: {} });
+                        const playingPoi = currentPoiRef.current;
+                        const preparingPoi = preparingPoiRef.current;
+                        if (playingPoi) features.push(turf.point([playingPoi.lon, playingPoi.lat]));
+                        if (preparingPoi) features.push(turf.point([preparingPoi.lon, preparingPoi.lat]));
+
+                        if (features.length > 0) {
+                            const collection = turf.featureCollection(features);
+                            const baseBbox = turf.bbox(collection); // [minX, minY, maxX, maxY]
+
+                            // Double the size of the bounding box
+                            const centerLng = (baseBbox[0] + baseBbox[2]) / 2;
+                            const centerLat = (baseBbox[1] + baseBbox[3]) / 2;
+                            const halfWidth = (baseBbox[2] - baseBbox[0]); // Doubling: (maxX - minX) / 2 * 2
+                            const halfHeight = (baseBbox[3] - baseBbox[1]); // Doubling: (maxY - minY) / 2 * 2
+
+                            const doubledBbox = [
+                                centerLng - halfWidth,
+                                centerLat - halfHeight,
+                                centerLng + halfWidth,
+                                centerLat + halfHeight
+                            ];
+
+                            const camera = m.cameraForBounds(doubledBbox as [number, number, number, number], { padding: 40, maxZoom: 12 });
+                            if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
+                                newZoom = Math.min(Math.max(camera.zoom, m.getMinZoom()), 12);
+                            }
+                        } else {
+                            // Fallback: simple zoom out
+                            newZoom = Math.max(newZoom - 1, m.getMinZoom());
+                        }
+                    } else {
+                        // Normal snap (paused -> active or regular recenter)
+                        const features: any[] = [];
+                        if (lastMaskData?.geometry) {
+                            features.push({ type: 'Feature', geometry: lastMaskData.geometry, properties: {} });
+                        }
+
+                        const playingPoi = currentPoiRef.current;
+                        const preparingPoi = preparingPoiRef.current;
+                        if (playingPoi) {
+                            features.push(turf.point([playingPoi.lon, playingPoi.lat]));
+                        }
+                        if (preparingPoi) {
+                            features.push(turf.point([preparingPoi.lon, preparingPoi.lat]));
+                        }
+
+                        if (features.length > 0) {
+                            const collection = turf.featureCollection(features);
+                            const combinedBbox = turf.bbox(collection);
+                            const camera = m.cameraForBounds(combinedBbox as [number, number, number, number], { padding: 40, maxZoom: 12 });
+                            if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
+                                newZoom = Math.min(Math.max(camera.zoom, m.getMinZoom()), 12);
+                            }
                         }
                     }
                     // COMPUTE REAL ZOOM (Discrete 0.5 Step Snap)
@@ -950,13 +1036,17 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                 // the placement engine's R-tree entries remain valid without re-insertion.
                 const isSnap = needsRecenter || viewChanged || firstTick || statusChanged;
                 if (isSnap) {
+                    // On major simulator state transition (e.g. Disconnected -> Inactive),
+                    // clear the cache to avoid "zoom leakage" from the world map.
+                    if (stateTransition) {
+                        engine.resetCache();
+                        console.log("[ArtisticMap] Sim State Transition: Resetting Placement Cache");
+                    }
+
                     engine.clear();
                     registeredIds.current.clear();
-                    // NOTE: placedCache is intentionally NOT cleared on snap. Items scale
-                    // uniformly with the map (their collision boxes and displacements are
-                    // multiplied by zoomScale), so items that don't overlap at one zoom
-                    // level cannot overlap at another. Preserving cached anchors provides
-                    // label stability across snaps.
+                    // NOTE: between snaps, projected screen coordinates never change.
+                    // Preserving cached anchors provides label stability during flight.
                 }
 
                 if (isSnap || dataChanged) {
@@ -1257,8 +1347,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     if (effectiveReplayMode && l.type === 'poi') {
                         const discoveryTime = poiDiscoveryTimes.get(l.id);
                         if (discoveryTime != null) {
-                            const eventElapsed = discoveryTime - firstEventTime;
-                            const simulatedElapsed = progress * totalTripTime;
+                            const eventElapsed = discoveryTime - replayFirstTime;
+                            const simulatedElapsed = progress * replayTotalTime;
                             // Only apply filter if we've discovered it and we're currently animating (progress < 1)
                             if (progress < 0.999 && eventElapsed > simulatedElapsed) return null;
                         }
@@ -1599,8 +1689,19 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             <svg style={{ position: 'absolute', width: 0, height: 0 }}>
                 <defs>
                     <mask id="paper-mask" maskContentUnits="userSpaceOnUse">
-                        <rect x="0" y="0" width="10000" height="10000" fill={getMaskColor(isReplayMode ? paperOpacityClear : paperOpacityFog)} />
-                        {!isReplayMode && <path d={frame.maskPath} fill={getMaskColor(paperOpacityClear)} />}
+                        {/* We use lower opacity for the whole map in overview states (Idle, Replay, or Inactive) */}
+                        {(() => {
+                            const isIdleLocal = telemetry?.SimState === 'disconnected' && !effectiveReplayMode;
+                            const useClearOpacity = effectiveReplayMode || isIdleLocal || telemetry?.SimState === 'inactive';
+                            const baseOpacity = useClearOpacity ? paperOpacityClear : paperOpacityFog;
+
+                            return (
+                                <>
+                                    <rect x="0" y="0" width="10000" height="10000" fill={getMaskColor(baseOpacity)} />
+                                    {!useClearOpacity && <path d={frame.maskPath} fill={getMaskColor(paperOpacityClear)} />}
+                                </>
+                            );
+                        })()}
                     </mask>
                 </defs>
             </svg>
