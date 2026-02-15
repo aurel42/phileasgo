@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## v0.3.189 (2026-02-15)
+- placeholder graphics for different aircraft types
+
 ## v0.3.188 (2026-02-15)
 - **Feature**: **Master Volume Control**. Added a dedicated volume slider to the Narrator settings tab, fully integrated with the backend configuration.
 - **Fix**: **Static Configuration Safety**. Removed the misleading "Settlement Categories" editor from the UI; these categories are now correctly treated as static server-side configuration.
@@ -9,12 +12,10 @@
 - **Improvement**: **Map State Synchronization**. Optimized the interaction between telemetry heartbeats and the map rendering loop, ensuring perfectly stable symbol placement during high-speed transitions.
 - **Fix**: **Replay Discovery Logic**. Resolved an issue where initial POI discovery events would occasionally desync from the flight timeline during debriefing replays.
 
-
 ## v0.3.186 (2026-02-15)
 - **Feature**: **Aircraft Customization**. Introduced livery color pickers, icon size scaling, and selectable aircraft types (Jet, Prop, Airliner, etc.) in the settings panel.
 - **Fix**: **Dynamic Beacon Alignment**. Replaced hardcoded balloon offsets with an adaptive calculation that scales with icon size for perfect map alignment.
 - **Cleanup**: **Settings UI Polish**. Excised redundant and hallucinated scoring parameters from the Scorer tab.
-
 
 ## v0.3.185 (2026-02-15)
 - **Fix**: **Replay Synchronization**. Resolved a 15-20 second lag between the aircraft and newly discovered icons by aligning the replay discovery filter with the take-off-to-landing baseline.

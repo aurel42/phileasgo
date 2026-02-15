@@ -38,97 +38,172 @@ export const AircraftIcon: React.FC<AircraftIconProps> = ({
     // 3. SVG Paths for different types
     // ViewBox is 0 0 100 100 for all icons to standardize
     const renderIcon = () => {
+        // Common styles
+        const strokeW = 1.5;
+        const strokeColor = "black";
+
         switch (type) {
             case 'balloon':
                 return (
                     <g>
-                        {/* Balloon Envelope - Main Body */}
+                        {/* Balloon Envelope */}
                         <path
                             d="M50,10 C30,10 15,25 15,45 C15,60 30,75 50,85 C70,75 85,60 85,45 C85,25 70,10 50,10 Z"
                             fill={colorMain}
-                            stroke="black"
-                            strokeWidth="3"
+                            stroke={strokeColor}
+                            strokeWidth={strokeW}
                         />
-                        {/* Chevron Patterns - Accent */}
+                        {/* Decorative Bands (Accent) */}
                         <path
                             d="M20,40 L50,55 L80,40 M20,55 L50,70 L80,55"
                             fill="none"
                             stroke={colorAccent}
-                            strokeWidth="3"
+                            strokeWidth={strokeW}
                         />
                         {/* Basket chords */}
-                        <path d="M42,85 L42,92 M58,85 L58,92" stroke="black" strokeWidth="2" />
+                        <path d="M42,85 L42,92 M58,85 L58,92" stroke={strokeColor} strokeWidth={strokeW} />
                         {/* Basket */}
-                        <rect x="40" y="92" width="20" height="8" rx="2" fill={colorAccent} stroke="black" strokeWidth="2" />
+                        <rect x="40" y="92" width="20" height="8" rx="2" fill={colorAccent} stroke={strokeColor} strokeWidth={strokeW} />
                     </g>
                 );
             case 'prop':
+                // Single Engine - High Wing, Fixed Gear (Cessna-ish)
+                // Focusing on bulkier fuselage and shorter, wider wings.
                 return (
                     <g>
-                        {/* Wings */}
-                        <path d="M10,40 L90,40 L90,55 L10,55 Z" fill={colorMain} stroke="black" strokeWidth="3" />
-                        {/* Fuselage */}
-                        <path d="M45,15 L55,15 L55,85 L45,85 Z" fill={colorMain} stroke="black" strokeWidth="3" />
-                        {/* Tail */}
-                        <path d="M35,85 L65,85 L65,95 L35,95 Z" fill={colorAccent} stroke="black" strokeWidth="3" />
-                        {/* Propeller/Nose */}
-                        <path d="M40,15 L60,15 L50,5 Z" fill={colorAccent} stroke="black" strokeWidth="2" />
+                        {/* Fuselage - Stout cigar shape */}
+                        <path d="M42,15 C42,10 58,10 58,15 L56,80 L50,95 L44,80 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Wings - Short span, wide chord, rectangular extended */}
+                        <path d="M10,38 L90,38 L90,52 L10,52 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Wing Details - Accent Stripes (Filled) */}
+                        <rect x="15" y="38" width="8" height="14" fill={colorAccent} stroke="none" />
+                        <rect x="77" y="38" width="8" height="14" fill={colorAccent} stroke="none" />
+
+                        {/* Horizontal Stabilizer */}
+                        <path d="M30,82 L70,82 L70,90 L30,90 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Cockpit Window - Filled */}
+                        <path d="M43,28 L57,28 L57,35 L43,35 Z" fill={colorAccent} stroke="none" />
+                        <path d="M43,28 L57,28 L57,35 L43,35 Z" fill="none" stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Propeller Hub */}
+                        <circle cx="50" cy="12" r="3" fill={colorAccent} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Prop Arc (Subtle) */}
+                        <path d="M30,12 Q50,5 70,12" fill="none" stroke={strokeColor} strokeWidth="0.5" opacity="0.5" />
                     </g>
                 );
             case 'twin_prop':
+                // Twin Engine - Low Wing (Baron/Seneca)
+                // Bulkier fuselage, proper wing shapes
                 return (
                     <g>
-                        {/* Wings */}
-                        <path d="M5,45 L95,45 L90,60 L10,60 Z" fill={colorMain} stroke="black" strokeWidth="3" />
-                        {/* Fuselage */}
-                        <path d="M46,10 L54,10 L54,90 L46,90 Z" fill={colorMain} stroke="black" strokeWidth="3" />
-                        {/* Engines */}
-                        <path d="M25,40 L35,40 L35,65 L25,65 Z" fill={colorAccent} stroke="black" strokeWidth="3" />
-                        <path d="M65,40 L75,40 L75,65 L65,65 Z" fill={colorAccent} stroke="black" strokeWidth="3" />
-                        {/* Tail */}
-                        <path d="M30,85 L70,85 L60,95 L40,95 Z" fill={colorAccent} stroke="black" strokeWidth="3" />
+                        {/* Fuselage - Tapered nose, wider body */}
+                        <path d="M44,10 C44,5 56,5 56,10 L55,80 L50,95 L45,80 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Wings - Tapered, mid-span */}
+                        <path d="M5,45 L95,45 L90,58 L10,58 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Engines - Nacelles on wings */}
+                        <path d="M25,35 L35,35 L35,60 L25,60 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+                        <path d="M65,35 L75,35 L75,60 L65,60 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Engine Details - Accent fronts */}
+                        <rect x="25" y="35" width="10" height="5" fill={colorAccent} stroke="none" />
+                        <rect x="65" y="35" width="10" height="5" fill={colorAccent} stroke="none" />
+
+                        {/* Horizontal Stabilizer */}
+                        <path d="M32,85 L68,85 L66,92 L34,92 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Cockpit Window */}
+                        <path d="M45,20 L55,20 L54,26 L46,26 Z" fill={colorAccent} stroke={strokeColor} strokeWidth={strokeW} />
                     </g>
                 );
             case 'jet':
+                // Private Jet - T-Tail, Rear Engines
+                // Wider fuselage, swept wings
                 return (
                     <g>
-                        {/* Swept Wings */}
-                        <path d="M50,45 L90,65 L90,75 L50,55 L10,75 L10,65 Z" fill={colorMain} stroke="black" strokeWidth="3" />
-                        {/* Fuselage */}
-                        <path d="M48,5 L52,5 L52,95 L48,95 Z" fill={colorMain} stroke="black" strokeWidth="3" />
-                        {/* Engines (Rear mounted) */}
-                        <path d="M40,70 L45,70 L45,85 L40,85 Z" fill={colorAccent} stroke="black" strokeWidth="2" />
-                        <path d="M55,70 L60,70 L60,85 L55,85 Z" fill={colorAccent} stroke="black" strokeWidth="2" />
+                        {/* Wings - Swept back */}
+                        <path d="M45,45 L5,65 L5,75 L45,60 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+                        <path d="M55,45 L95,65 L95,75 L55,60 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Fuselage - Bullet shape, wide */}
+                        <path d="M43,10 C43,5 57,5 57,10 L56,80 L50,95 L44,80 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Rear Engines - Nacelles */}
+                        <path d="M36,70 L42,70 L42,85 L36,85 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+                        <path d="M58,70 L64,70 L64,85 L58,85 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Engine Intakes - Accent */}
+                        <rect x="36" y="70" width="6" height="3" fill={colorAccent} stroke="none" />
+                        <rect x="58" y="70" width="6" height="3" fill={colorAccent} stroke="none" />
+
                         {/* T-Tail */}
-                        <path d="M35,90 L65,90 L65,95 L35,95 Z" fill={colorAccent} stroke="black" strokeWidth="3" />
+                        <path d="M35,88 L65,88 L65,95 L35,95 Z" fill={colorAccent} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Cockpit Window */}
+                        <path d="M44,25 L56,25 L55,32 L45,32 Z" fill={colorAccent} stroke={strokeColor} strokeWidth={strokeW} />
                     </g>
                 );
             case 'airliner':
+                // 4-Engine Heavy - Wide body
                 return (
                     <g>
-                        {/* Wings */}
-                        <path d="M50,35 L95,65 L85,75 L50,50 L15,75 L5,65 Z" fill={colorMain} stroke="black" strokeWidth="3" />
-                        {/* Fuselage */}
-                        <path d="M45,5 L55,5 L55,95 L45,95 Z" fill={colorMain} stroke="black" strokeWidth="3" />
-                        {/* Engines (Wing mounted) */}
-                        <circle cx="30" cy="65" r="5" fill={colorAccent} stroke="black" strokeWidth="2" />
-                        <circle cx="70" cy="65" r="5" fill={colorAccent} stroke="black" strokeWidth="2" />
+                        {/* Wings - Swept, large span */}
+                        <path d="M45,40 L2,70 L8,80 L45,60 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+                        <path d="M55,40 L98,70 L92,80 L55,60 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Fuselage - Tube */}
+                        <path d="M40,15 C40,8 60,8 60,15 L60,85 L50,98 L40,85 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Engines - 4 Pods under wings (Circles/Ovals) */}
+                        <ellipse cx="25" cy="65" rx="3.5" ry="5" fill={colorAccent} stroke={strokeColor} strokeWidth={strokeW} />
+                        <ellipse cx="75" cy="65" rx="3.5" ry="5" fill={colorAccent} stroke={strokeColor} strokeWidth={strokeW} />
+                        <ellipse cx="15" cy="72" rx="3.5" ry="5" fill={colorAccent} stroke={strokeColor} strokeWidth={strokeW} />
+                        <ellipse cx="85" cy="72" rx="3.5" ry="5" fill={colorAccent} stroke={strokeColor} strokeWidth={strokeW} />
+
                         {/* Tail */}
-                        <path d="M40,85 L60,85 L65,95 L35,95 Z" fill={colorAccent} stroke="black" strokeWidth="3" />
+                        <path d="M35,85 L65,85 L70,95 L30,95 Z" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Cockpit Window Band */}
+                        <path d="M42,20 L58,20 L58,25 L42,25 Z" fill={colorAccent} stroke="none" />
                     </g>
                 );
             case 'helicopter':
+                // Rotorcraft
+                // Diagonal blades, robust body
                 return (
                     <g>
-                        {/* Main Rotor Blades (Cross) */}
-                        <rect x="48" y="5" width="4" height="90" fill={colorAccent} stroke="black" strokeWidth="2" />
-                        <rect x="5" y="48" width="90" height="4" fill={colorAccent} stroke="black" strokeWidth="2" />
-                        {/* Body */}
-                        <ellipse cx="50" cy="50" rx="15" ry="25" fill={colorMain} stroke="black" strokeWidth="3" />
+                        {/* Skids - Parallel bars */}
+                        <path d="M35,35 L35,65" stroke={strokeColor} strokeWidth="2" />
+                        <path d="M65,35 L65,65" stroke={strokeColor} strokeWidth="2" />
+                        <path d="M30,40 L70,40" stroke={strokeColor} strokeWidth="2" /> {/* Cross bar front */}
+                        <path d="M30,60 L70,60" stroke={strokeColor} strokeWidth="2" /> {/* Cross bar rear */}
+
                         {/* Tail Boom */}
-                        <rect x="48" y="70" width="4" height="25" fill={colorMain} stroke="black" strokeWidth="2" />
+                        <path d="M47,65 L47,90" stroke={colorMain} strokeWidth="6" strokeLinecap="round" />
+                        <path d="M47,65 L47,90" stroke={strokeColor} strokeWidth="6" strokeLinecap="round" opacity="0.2" /> {/* Outline/Shade */}
+
+                        {/* Body - Egg shape */}
+                        <ellipse cx="50" cy="50" rx="14" ry="18" fill={colorMain} stroke={strokeColor} strokeWidth={strokeW} />
+
+                        {/* Cockpit Bubble - Accent */}
+                        <path d="M40,38 Q50,32 60,38 L60,50 Q50,55 40,50 Z" fill={colorAccent} stroke="none" />
+
                         {/* Tail Rotor */}
-                        <rect x="42" y="90" width="16" height="4" fill={colorAccent} stroke="black" strokeWidth="2" />
+                        <rect x="42" y="88" width="16" height="3" fill={colorAccent} stroke={strokeColor} strokeWidth="1" />
+
+                        {/* Main Rotor - Diagonal X */}
+                        <path d="M20,20 L80,80" stroke={strokeColor} strokeWidth="3" />
+                        <path d="M80,20 L20,80" stroke={strokeColor} strokeWidth="3" />
+                        <path d="M20,20 L80,80" stroke={colorAccent} strokeWidth="1.5" />
+                        <path d="M80,20 L20,80" stroke={colorAccent} strokeWidth="1.5" />
+
+                        {/* Rotor Hub */}
+                        <circle cx="50" cy="50" r="4" fill={strokeColor} />
                     </g>
                 );
             default:
