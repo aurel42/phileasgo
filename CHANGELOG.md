@@ -1,5 +1,8 @@
 ﻿# Changelog
- 
+
+## v0.3.182 (2026-02-15)
+- **Fix**: **Missing Flight Debriefing**. Fixed a condition where the end-of-flight debriefing would fail to trigger if an LLM provider returned an empty response. Centralized the empty-response detection in the failover orchestrator to ensure a robust fallback to secondary providers.
+
 ## v0.3.181 (2026-02-15)
 - **Feature**: **Embedded Geo Data**. The application now embeds the global cities dataset (`cities1000.txt`) directly into the binary, removing external file dependencies and significantly accelerating startup.
 - **Fix**: **Configuration Safety**. Separated GUI window settings to `configs/gui.yaml` to prevent the application from overwriting the main `phileas.yaml` config file.

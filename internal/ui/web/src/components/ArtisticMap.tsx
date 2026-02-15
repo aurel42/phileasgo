@@ -144,6 +144,7 @@ interface ArtisticMapProps {
     onPOISelect: (poi: POI) => void;
     onMapClick: () => void;
     beaconMaxTargets?: number;
+    showDebugBoxes?: boolean;
 }
 
 // Single Atomic Frame state for strict synchronization
@@ -218,7 +219,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     isAutoOpened = false,
     onPOISelect,
     onMapClick,
-    beaconMaxTargets = 2
+    beaconMaxTargets = 2,
+    showDebugBoxes = false
 }) => {
     const memoizedCategories = useMemo(() => settlementCategories, [JSON.stringify(settlementCategories)]);
     const queryClient = useQueryClient();
@@ -1542,6 +1544,24 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     agl={(isReplayMode || effectiveReplayMode) ? 5000 : frame.agl}
                 />
             </div>
+
+            {/* Debug: Placement Engine Bounding Boxes */}
+            {showDebugBoxes && (
+                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 25 }}>
+                    {engine.getDebugBoxes().map((box, i) => (
+                        <rect
+                            key={`dbg-${box.ownerId}-${i}`}
+                            x={box.minX}
+                            y={box.minY}
+                            width={box.maxX - box.minX}
+                            height={box.maxY - box.minY}
+                            fill="none"
+                            stroke={box.type === 'marker' ? 'rgba(255,60,60,0.7)' : 'rgba(60,120,255,0.7)'}
+                            strokeWidth={1}
+                        />
+                    ))}
+                </svg>
+            )}
 
             {/* SVG Filter Definitions */}
             <svg style={{ position: 'absolute', width: 0, height: 0 }}>

@@ -46,6 +46,8 @@ interface SettingsPanelProps {
     onPaperOpacityClearChange: (val: number) => void;
     parchmentSaturation: number;
     onParchmentSaturationChange: (val: number) => void;
+    showArtisticDebugBoxes: boolean;
+    onShowArtisticDebugBoxesChange: (val: boolean) => void;
 }
 
 const VictorianListEditor: React.FC<{
@@ -149,6 +151,8 @@ interface DraftState {
     paperOpacityFog: number;
     paperOpacityClear: number;
     parchmentSaturation: number;
+    // Debugging tab
+    showArtisticDebugBoxes: boolean;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -191,7 +195,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     paperOpacityClear,
     onPaperOpacityClearChange,
     parchmentSaturation,
-    onParchmentSaturationChange
+    onParchmentSaturationChange,
+    showArtisticDebugBoxes,
+    onShowArtisticDebugBoxesChange
 }) => {
     const [activeTab, setActiveTab] = useState('narrator');
     const [loading, setLoading] = useState(true);
@@ -261,6 +267,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     paperOpacityFog: paperOpacityFog,
                     paperOpacityClear: paperOpacityClear,
                     parchmentSaturation: parchmentSaturation,
+                    showArtisticDebugBoxes: showArtisticDebugBoxes,
                 });
                 setLoading(false);
             })
@@ -318,7 +325,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.settlementTier !== _settlementTier ||
             draft.paperOpacityFog !== paperOpacityFog ||
             draft.paperOpacityClear !== paperOpacityClear ||
-            draft.parchmentSaturation !== parchmentSaturation
+            draft.parchmentSaturation !== parchmentSaturation ||
+            draft.showArtisticDebugBoxes !== showArtisticDebugBoxes
         );
     };
 
@@ -403,7 +411,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             if (draft.paperOpacityFog !== paperOpacityFog) onPaperOpacityFogChange(draft.paperOpacityFog);
             if (draft.paperOpacityClear !== paperOpacityClear) onPaperOpacityClearChange(draft.paperOpacityClear);
             if (draft.parchmentSaturation !== parchmentSaturation) onParchmentSaturationChange(draft.parchmentSaturation);
-
+            if (draft.showArtisticDebugBoxes !== showArtisticDebugBoxes) onShowArtisticDebugBoxesChange(draft.showArtisticDebugBoxes);
 
             // Update server config to match saved values
             setServerConfig((prev: any) => ({
@@ -439,7 +447,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         { id: 'sim', label: 'Simulator' },
         { id: 'beacon', label: 'Beacons' },
         { id: 'scorer', label: 'Scorer' },
-        { id: 'interface', label: 'Interface' }
+        { id: 'interface', label: 'Interface' },
+        { id: 'debug', label: 'Debugging' }
     ];
 
     if (loading || !draft) {
@@ -991,6 +1000,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                     />
                                 </div>
                             ))}
+                        </div>
+                    )}
+                    {activeTab === 'debug' && (
+                        <div className="settings-group">
+                            <div className="role-header">Artistic Map</div>
+                            <VictorianToggle
+                                label="Show Bounding Boxes"
+                                checked={draft.showArtisticDebugBoxes}
+                                onChange={val => updateDraft('showArtisticDebugBoxes', val)}
+                            />
+                            <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
+                                Renders R-tree collision bounding boxes for the placement engine. Red = marker, blue = label.
+                            </div>
                         </div>
                     )}
                 </div>

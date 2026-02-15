@@ -68,6 +68,11 @@ function App() {
     return saved ? parseFloat(saved) : 1.0;
   });
 
+  // Debug: Artistic Map bounding boxes (localStorage-only)
+  const [showArtisticDebugBoxes, setShowArtisticDebugBoxes] = useState(() => {
+    return localStorage.getItem('showArtisticDebugBoxes') === 'true';
+  });
+
   const pois = useTrackedPOIs();
   const { status: narratorStatus } = useNarrator();
 
@@ -364,6 +369,11 @@ function App() {
             setParchmentSaturation(val);
             localStorage.setItem('parchmentSaturation', String(val));
           }}
+          showArtisticDebugBoxes={showArtisticDebugBoxes}
+          onShowArtisticDebugBoxesChange={(val) => {
+            setShowArtisticDebugBoxes(val);
+            localStorage.setItem('showArtisticDebugBoxes', String(val));
+          }}
         />
       </Suspense>
     );
@@ -389,6 +399,7 @@ function App() {
               isAutoOpened={autoOpenedRef.current}
               onPOISelect={handlePOISelect}
               onMapClick={handlePanelClose}
+              showDebugBoxes={showArtisticDebugBoxes}
             />
           ) : (
             <Map

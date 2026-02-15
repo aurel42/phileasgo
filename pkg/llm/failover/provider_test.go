@@ -88,6 +88,26 @@ func TestFailover_FailoverOnRetryable(t *testing.T) {
 		t.Errorf("p2 should have been called once")
 	}
 }
+func TestFailover_FailoverOnEmptyResponse(t *testing.T) {
+	p1 := &mockProvider{responses: []string{""}, errors: []error{nil}}
+	p2 := &mockProvider{responses: []string{"resp2"}, errors: []error{nil}}
+
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, "", true, nil)
+	res, err := f.GenerateText(context.Background(), "test", "prompt")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res != "resp2" {
+		t.Errorf("expected resp2, got %s", res)
+	}
+	if p1.callCount != 1 {
+		t.Errorf("p1 should have been called once")
+	}
+	if p2.callCount != 1 {
+		t.Errorf("p2 should have been called once after p1 returned empty")
+	}
+}
 
 func TestFailover_CircuitBreakerOnFatal(t *testing.T) {
 	p1 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("401 unauthorized")}}

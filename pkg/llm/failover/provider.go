@@ -63,7 +63,14 @@ func New(providers []llm.Provider, names []string, timeouts []time.Duration, log
 // GenerateText implements llm.Provider.
 func (f *Provider) GenerateText(ctx context.Context, name, prompt string) (string, error) {
 	res, err := f.execute(ctx, name, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
-		return p.GenerateText(pCtx, name, prompt)
+		text, err := p.GenerateText(pCtx, name, prompt)
+		if err != nil {
+			return nil, err
+		}
+		if text == "" {
+			return nil, fmt.Errorf("provider returned successful but empty response")
+		}
+		return text, nil
 	})
 	if err != nil {
 		return "", err
@@ -86,7 +93,14 @@ func (f *Provider) GenerateJSON(ctx context.Context, name, prompt string, target
 // GenerateImageText implements llm.Provider.
 func (f *Provider) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
 	res, err := f.execute(ctx, name, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
-		return p.GenerateImageText(pCtx, name, prompt, imagePath)
+		text, err := p.GenerateImageText(pCtx, name, prompt, imagePath)
+		if err != nil {
+			return nil, err
+		}
+		if text == "" {
+			return nil, fmt.Errorf("provider returned successful but empty response")
+		}
+		return text, nil
 	})
 	if err != nil {
 		return "", err
