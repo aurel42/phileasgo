@@ -1,11 +1,11 @@
 ﻿# Changelog
  
 ## v0.3.180 (2026-02-15)
-- **Fix**: **Crowded Map Settlement Icons**. Fixed settlement icons and labels disappearing in crowded map areas.
+- **Fix**: **Crowded Map Settlement Icons**. Fixed settlement icons disappearing in crowded map areas.
 - **Fix**: **POI Icon Over-Scaling**. Fixed POI icons growing to exaggerated sizes at high zoom levels.
-- **Fix**: **Beacon Alignment**. Fixed formation balloons drifting out of alignment with scaled icons.
+- **Fix**: **Beacon Alignment**. Fixed balloon effect drifting out of alignment with scaled icons.
 - **Improvement**: **Expanded Map Zoom Out**. Improved Artistic Map zoom flexibility allowing further zoom out.
-- **Refinement**: **Beacon Visibility**. Adjusted blue and cyan beacon colors for better visibility.
+- **Refinement**: **Beacon Visibility**. Adjusted blue and cyan beacon colors to make them more distinct.
 
 ## v0.3.179 (2026-02-14)
 - **Fix**: **Debriefing Map Alignment**. Resolved a regression where the map was offset during debriefing replays on the Artistic Map. The map now correctly centers on the flight path.

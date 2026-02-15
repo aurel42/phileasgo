@@ -13,20 +13,6 @@ foreach ($d in $dirs) {
     }
 }
 
-# Download & Slim Country GeoJSON (if missing)
-$slimFile = "pkg/geo/countries.geojson"
-if (-not (Test-Path $slimFile)) {
-    Write-Host "Country borders missing. Downloading and slimming Natural Earth 50m data..." -ForegroundColor Yellow
-    try {
-        & powershell ./cmd/slim_geojson/download.ps1
-        Write-Host "Country borders installed!" -ForegroundColor Green
-    } catch {
-        Write-Host "Failed to install country borders: $_" -ForegroundColor Red
-    }
-} else {
-    Write-Host "Country borders already exist - skipping." -ForegroundColor Gray
-}
-
 # Download GeoNames cities1000 (only if not present)
 $geonamesUrl = "https://download.geonames.org/export/dump/cities1000.zip"
 $geonamesZip = "data/cities1000.zip"

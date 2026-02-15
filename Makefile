@@ -67,5 +67,5 @@ PLATFORM=windows-x64
 release-binary: clean build
 	powershell -NoProfile -Command "if (Test-Path release) { Remove-Item -Recurse -Force release }"
 	powershell -NoProfile -Command "New-Item -ItemType Directory -Path release | Out-Null"
-	powershell -NoProfile -Command "Compress-Archive -Path $(APP_NAME).exe, $(GUI_NAME).exe, README.md, HISTORY.md, .env.template, install.ps1, configs -DestinationPath release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip -Force"
+	powershell -NoProfile -Command "Compress-Archive -Path $(APP_NAME).exe, $(GUI_NAME).exe, README.md, CHANGELOG.md, .env.template, install.ps1, configs -DestinationPath release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip -Force"
 	@echo Release created: release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip

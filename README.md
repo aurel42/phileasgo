@@ -195,17 +195,6 @@ make build-web   # Build web UI
 make build-app   # Build Go binary
 ```
 
-## Data Sources
-
-PhileasGo uses data from:
-- [Wikidata](https://www.wikidata.org/) - Point of interest metadata
-- [Wikipedia](https://www.wikipedia.org/) - Article content for narration
-- [GeoNames](https://www.geonames.org/) - City and geographic data
-- [LittleNavMap MSFS POIs](https://flightsim.to/file/81114/littlenavmap-msfs-poi-s) - MSFS-specific landmarks
-- [Natural Earth](https://www.naturalearthdata.com/) - Country boundaries and physical geography
-- [OpenStreetMap](https://www.openstreetmap.org/) - Map data and cartography
-- [CARTO](https://carto.com/) - Map tile hosting
-
 ## Project History
 
 I started this project to see how far I could get purely by vibecoding. I always wanted something like a tour guide for MSFS, I went so far as to talk Brian of SayIntentions into adding a "tour guide" feature to his product, but I wasn't happy with the result. 
@@ -216,9 +205,11 @@ It turned out so well that I'm releasing it as a public project (let's call it a
 
 I expect to be the only user for the foreseeable future, so I'll only put together a binary release when I'm happy with the current state. If you want, if you really, really want, you can always build it yourself.
 
-## Credits
+## Data Sources & Credits
 
 This project is made possible by the incredible volume of open data provided by the **[Wikimedia Foundation](https://wikimediafoundation.org/)**. PhileasGo relies heavily on **[Wikidata](https://www.wikidata.org/)** for metadata and **[Wikipedia](https://www.wikipedia.org/)** for descriptive content; without their contributors' tireless work, our tour guide would literally have nothing to say.
+
+We also use **[GeoNames](https://www.geonames.org/)** for city data and **[LittleNavMap MSFS POIs](https://flightsim.to/file/81114/littlenavmap-msfs-poi-s)** for MSFS-specific landmarks.
 
 This project uses the **[Uber H3](https://github.com/uber/h3)** geospatial indexing system.
 H3 is licensed under the [Apache License 2.0](https://github.com/uber/h3/blob/master/LICENSE).
@@ -230,6 +221,15 @@ Category icons provided by **[Mapbox Maki](https://github.com/mapbox/maki)** (CC
 
 Made with **[Natural Earth](https://www.naturalearthdata.com/)**. Free vector and raster map data @ naturalearthdata.com.
 Map tiles and data &copy; **[OpenStreetMap](https://www.openstreetmap.org/copyright)** contributors, &copy; **[CARTO](https://carto.com/attributions)**.
+
+Map tiles by **[Stamen Design](http://stamen.com)**, under **[CC BY 3.0](http://creativecommons.org/licenses/by/3.0)**. 
+We are grateful to the **[Cooper-Hewitt, National Design Museum](http://www.cooperhewitt.org/)** for hosting the Stamen Watercolor tiles.
+
+Hillshading provided by **[Stadia Maps](https://stadiamaps.com/)** and **[Stamen Design](https://stamen.com/)** (Terrarium).
+
+Vector data provided by **[OpenFreeMap](https://openfreemap.org/)**, based on data by **[OpenStreetMap](https://www.openstreetmap.org/copyright)**.
+Data by **[OpenStreetMap](http://openstreetmap.org)**, under **[ODbL](http://www.openstreetmap.org/copyright)**.
+
 
 ## License
 MIT License - see [LICENSE](LICENSE) file for details.

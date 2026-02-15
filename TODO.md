@@ -70,5 +70,5 @@ X new Victorian marker style
 - fix beacon balloons hidden by terrain when flying parallel to high terrain
 - improve handling of "area" POIs (like lakes, cities); also "length" POIs like roads; major rivers are already improved done
 - new IDENT/Playback control function: "expand on this"
-- more balloon colors
+X more balloon colors
 X maps with overlays

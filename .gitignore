@@ -31,6 +31,7 @@ tmp/
 # Frontend
 internal/ui/dist/
 internal/ui/web/node_modules/
+internal/ui/web/coverage/
 node_modules/
 .env.local
 .env
