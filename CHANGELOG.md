@@ -1,6 +1,12 @@
 ﻿# Changelog
 
-## v0.3.191 (2026-02-16)
+## v0.3.192 (2026-02-16)
+
+*   Refined map scale bar typography with period-appropriate fonts and digit styling.
+*   Added thin-space spacing for large distances on the map scale bar to improve readability in an antique style.
+*   Stabilized the automated map test suite and resolved shared state regressions.
+
+# v0.3.191 (2026-02-16)
 
 *   Fixed missing settlement labels on the world map.
 *   Fixed scale bar displaying unreadable numbers and being too narrow.

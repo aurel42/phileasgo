@@ -84,8 +84,10 @@ export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
 
     // Format number: drop decimals for >= 1, keep one decimal for < 1. Use 'k' for >= 1000.
     const fmt = (v: number) => {
-        if (v >= 1000) return (v / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 }) + 'k';
-        return v >= 1 ? String(v) : v.toFixed(1);
+        // Use toString() to avoid standard separators, then replace 0 with o.
+        // Insert a thin space (\u2009) ONLY for five-digit clusters ending in oooo (e.g., 1oooo -> 1o ooo)
+        let s = v.toString().replace(/0/g, 'o');
+        return s.replace(/oooo$/, 'o\u2009ooo');
     };
 
     const renderAxis = (
@@ -144,7 +146,8 @@ export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
                         y={ly}
                         textAnchor="middle"
                         style={{
-                            fontFamily: 'var(--font-mono)',
+                            fontFamily: 'var(--font-main)',
+                            fontStyle: 'italic',
                             fontSize: '13px',
                             fill: BLUE_INK,
                             letterSpacing: '-0.5px'
@@ -165,13 +168,14 @@ export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
                 y={zeroY}
                 textAnchor="middle"
                 style={{
-                    fontFamily: 'var(--font-mono)',
+                    fontFamily: 'var(--font-main)',
+                    fontStyle: 'italic',
                     fontSize: '13px',
                     fill: BLUE_INK,
                     letterSpacing: '-0.5px'
                 }}
             >
-                0
+                o
             </text>
         );
 

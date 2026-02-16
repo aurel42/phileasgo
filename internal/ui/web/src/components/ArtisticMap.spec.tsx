@@ -58,6 +58,10 @@ vi.mock('../services/labelService', () => ({
 import { labelService } from '../services/labelService';
 
 describe('ArtisticMap', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
     const defaultProps = {
         center: [0, 0] as [number, number],
         zoom: 10,
