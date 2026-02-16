@@ -79,6 +79,20 @@ type Provider interface {
 	BeaconTargetFloorAGL(ctx context.Context) Distance
 	BeaconMaxTargets(ctx context.Context) int
 
+	// Aircraft
+	AircraftIcon(ctx context.Context) string
+	AircraftSize(ctx context.Context) int
+	AircraftColorMain(ctx context.Context) string
+	AircraftColorAccent(ctx context.Context) string
+
+	// Aesthetics
+	PaperOpacityClear(ctx context.Context) float64
+	PaperOpacityFog(ctx context.Context) float64
+	ParchmentSaturation(ctx context.Context) float64
+
+	// Audio
+	Volume(ctx context.Context) float64
+
 	// Raw access (for components that need deep access)
 	AppConfig() *Config
 }
@@ -317,6 +331,38 @@ func (p *UnifiedProvider) BeaconTargetFloorAGL(ctx context.Context) Distance {
 
 func (p *UnifiedProvider) BeaconMaxTargets(ctx context.Context) int {
 	return p.getInt(ctx, KeyBeaconMaxTargets, p.base.Beacon.MaxTargets)
+}
+
+func (p *UnifiedProvider) AircraftIcon(ctx context.Context) string {
+	return p.getString(ctx, KeyAircraftIcon, p.base.Scorer.AircraftIcon)
+}
+
+func (p *UnifiedProvider) AircraftSize(ctx context.Context) int {
+	return p.getInt(ctx, KeyAircraftSize, p.base.Scorer.AircraftSize)
+}
+
+func (p *UnifiedProvider) AircraftColorMain(ctx context.Context) string {
+	return p.getString(ctx, KeyAircraftColorMain, p.base.Scorer.AircraftColorMain)
+}
+
+func (p *UnifiedProvider) AircraftColorAccent(ctx context.Context) string {
+	return p.getString(ctx, KeyAircraftColorAccent, p.base.Scorer.AircraftColorAccent)
+}
+
+func (p *UnifiedProvider) PaperOpacityClear(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyPaperOpacityClear, 0.1)
+}
+
+func (p *UnifiedProvider) PaperOpacityFog(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyPaperOpacityFog, 0.7)
+}
+
+func (p *UnifiedProvider) ParchmentSaturation(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyParchmentSaturation, 1.0)
+}
+
+func (p *UnifiedProvider) Volume(ctx context.Context) float64 {
+	return p.getFloat64(ctx, KeyVolume, 1.0)
 }
 
 // --- Helpers ---

@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 
 	"phileasgo/pkg/model"
@@ -497,4 +499,27 @@ func NewServiceEmbedded(data []byte) (*Service, error) {
 
 func unsafeString(b []byte) string {
 	return unsafe.String(unsafe.SliceData(b), len(b))
+}
+
+// GetRandomPosition returns the coordinates of a random city with population > 1,000,000.
+func (s *Service) GetRandomPosition() (lat, lon float64, err error) {
+	var candidates []City
+	const minPop = 1_000_000
+
+	for _, cities := range s.grid {
+		for _, c := range cities {
+			if c.Population > minPop {
+				candidates = append(candidates, c)
+			}
+		}
+	}
+
+	if len(candidates) == 0 {
+		return 0, 0, fmt.Errorf("no major cities found")
+	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	choice := candidates[rng.Intn(len(candidates))]
+
+	return choice.Lat, choice.Lon, nil
 }

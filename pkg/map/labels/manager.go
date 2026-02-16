@@ -2,7 +2,6 @@ package labels
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"math"
 	"phileasgo/pkg/geo"
@@ -237,7 +236,7 @@ func (m *Manager) SelectLabels(
 		}
 	}
 
-	stats := m.greedySelect(scored, vp, existingLabels, limit, msrDegSq)
+	_ = m.greedySelect(scored, vp, existingLabels, limit, msrDegSq)
 
 	// 5. Mark fading: settlements leaving the viewport move to Margin and free up slots.
 	// To prevent newly entering labels from being dropped, we only toggle Fading if the label
@@ -263,24 +262,6 @@ func (m *Manager) SelectLabels(
 	}
 
 	visible := m.visibleSettlements()
-
-	slog.Debug("[labels] result",
-		"skippedExisting", stats.existing,
-		"skippedMSR", stats.msr,
-		"skippedLimit", stats.limit,
-		"addedVisible", stats.visible,
-		"addedShadow", stats.shadow,
-		"fading", fadingCount,
-		"returned", len(visible),
-	)
-	for _, v := range visible {
-		slog.Debug("[labels]  →",
-			"name", v.City.Name,
-			"cat", v.Category,
-			"pop", v.City.Population,
-			"score", fmt.Sprintf("%.1f", v.FinalScore),
-		)
-	}
 
 	return visible
 }
@@ -414,12 +395,6 @@ func (m *Manager) greedySelect(scored []LabelCandidate, vp bbox, existingLabels 
 		}
 		if !m.isValid(cand, activeSlice, existingLabels, msrDegSq) {
 			s.msr++
-			slog.Debug("[labels] MSR reject",
-				"name", cand.City.Name,
-				"cat", cand.Category,
-				"score", fmt.Sprintf("%.1f", cand.FinalScore),
-				"blocker", m.findBlocker(cand, activeSlice, msrDegSq),
-			)
 			continue
 		}
 
@@ -427,11 +402,6 @@ func (m *Manager) greedySelect(scored []LabelCandidate, vp bbox, existingLabels 
 			nc := m.normalCount()
 			if limit >= 0 && nc >= limit {
 				s.limit++
-				slog.Debug("[labels] limit reject",
-					"name", cand.City.Name,
-					"normalCount", nc,
-					"limit", limit,
-				)
 				continue
 			}
 			cand.IsShadow = false
@@ -446,26 +416,6 @@ func (m *Manager) greedySelect(scored []LabelCandidate, vp bbox, existingLabels 
 		activeSlice = append(activeSlice, &stored)
 	}
 	return s
-}
-
-// findBlocker returns the name of the active settlement that blocks a candidate via MSR.
-func (m *Manager) findBlocker(cand *LabelCandidate, selected []*LabelCandidate, msrDegSq float64) string {
-	msrY := math.Sqrt(msrDegSq)
-	horizCand := m.calculateMsrX(cand.City.Name, msrY)
-
-	for _, s := range selected {
-		horizS := m.calculateMsrX(s.City.Name, msrY)
-		avgMsrX := (horizCand + horizS) / 2.0
-
-		dx := cand.City.Lon - s.City.Lon
-		dy := cand.City.Lat - s.City.Lat
-
-		score := math.Pow(dx/avgMsrX, 2) + math.Pow(dy/msrY, 2)
-		if score < 1.0 {
-			return fmt.Sprintf("%s(elliptical-score:%.2f)", s.City.Name, score)
-		}
-	}
-	return "existingLabel"
 }
 
 func (m *Manager) getCitiesInBbox(minLat, minLon, maxLat, maxLon float64) []geo.City {

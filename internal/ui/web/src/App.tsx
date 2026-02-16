@@ -7,6 +7,7 @@ import { useTrackedPOIs } from './hooks/usePOIs';
 import type { POI } from './hooks/usePOIs';
 import { useNarrator } from './hooks/useNarrator';
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { type AircraftType } from './components/AircraftIcon';
 
 // Lazy load heavy map components
 const Map = lazy(() => import('./components/Map').then(m => ({ default: m.Map })));
@@ -52,26 +53,24 @@ function App() {
   const [narrationLengthLong, setNarrationLengthLong] = useState(200);
   const [beaconMaxTargets, setBeaconMaxTargets] = useState(2);
 
-  // Paper Opacity State (init with defaults 0.7 and 0.1)
-  const [paperOpacityFog, setPaperOpacityFog] = useState(() => {
-    const saved = localStorage.getItem('paperOpacityFog');
-    return saved ? parseFloat(saved) : 0.7;
-  });
-  const [paperOpacityClear, setPaperOpacityClear] = useState(() => {
-    const saved = localStorage.getItem('paperOpacityClear');
-    return saved ? parseFloat(saved) : 0.1;
-  });
-
-  // Parchment Saturation State (init with default 1.0)
-  const [parchmentSaturation, setParchmentSaturation] = useState(() => {
-    const saved = localStorage.getItem('parchmentSaturation');
-    return saved ? parseFloat(saved) : 1.0;
-  });
+  // Paper Opacity & Saturation (now persisted to backend)
+  const [paperOpacityFog, setPaperOpacityFog] = useState(0.7);
+  const [paperOpacityClear, setPaperOpacityClear] = useState(0.1);
+  const [parchmentSaturation, setParchmentSaturation] = useState(1.0);
 
   // Debug: Artistic Map bounding boxes (localStorage-only)
   const [showArtisticDebugBoxes, setShowArtisticDebugBoxes] = useState(() => {
     return localStorage.getItem('showArtisticDebugBoxes') === 'true';
   });
+
+  // Aircraft Customization (now persisted to backend)
+  const [aircraftIcon, setAircraftIcon] = useState<AircraftType>('balloon');
+  const [aircraftSize, setAircraftSize] = useState(32);
+  const [aircraftColorMain, setAircraftColorMain] = useState('#fff');
+  const [aircraftColorAccent, setAircraftColorAccent] = useState('#fff');
+
+  // Volume
+  const [volume, setVolume] = useState(1.0);
 
   const pois = useTrackedPOIs();
   const { status: narratorStatus } = useNarrator();
@@ -198,6 +197,14 @@ function App() {
     if (key === 'narration_length_long_words') setNarrationLengthLong(value as number);
     if (key === 'settlement_label_limit') setSettlementLabelLimit(value as number);
     if (key === 'settlement_tier') setSettlementTier(value as number);
+    if (key === 'paper_opacity_clear') setPaperOpacityClear(value as number);
+    if (key === 'paper_opacity_fog') setPaperOpacityFog(value as number);
+    if (key === 'parchment_saturation') setParchmentSaturation(value as number);
+    if (key === 'aircraft_icon') setAircraftIcon(value as AircraftType);
+    if (key === 'aircraft_size') setAircraftSize(value as number);
+    if (key === 'aircraft_color_main') setAircraftColorMain(value as string);
+    if (key === 'aircraft_color_accent') setAircraftColorAccent(value as string);
+    if (key === 'volume') setVolume(value as number);
 
     fetch('/api/config', {
       method: 'PUT',
@@ -235,6 +242,14 @@ function App() {
           setSettlementTier(data.settlement_tier ?? 3);
           if (data.settlement_categories) setSettlementCategories(data.settlement_categories);
           if (data.beacon_max_targets !== undefined) setBeaconMaxTargets(data.beacon_max_targets);
+          if (data.paper_opacity_clear !== undefined) setPaperOpacityClear(data.paper_opacity_clear);
+          if (data.paper_opacity_fog !== undefined) setPaperOpacityFog(data.paper_opacity_fog);
+          if (data.parchment_saturation !== undefined) setParchmentSaturation(data.parchment_saturation);
+          if (data.aircraft_icon) setAircraftIcon(data.aircraft_icon);
+          if (data.aircraft_size) setAircraftSize(data.aircraft_size);
+          if (data.aircraft_color_main) setAircraftColorMain(data.aircraft_color_main);
+          if (data.aircraft_color_accent) setAircraftColorAccent(data.aircraft_color_accent);
+          if (data.volume !== undefined) setVolume(data.volume);
         })
         .catch(e => console.error("Failed to fetch config", e));
     };
@@ -355,25 +370,26 @@ function App() {
           settlementTier={settlementTier}
           onSettlementTierChange={(val) => updateConfig('settlement_tier', val)}
           paperOpacityFog={paperOpacityFog}
-          onPaperOpacityFogChange={(val) => {
-            setPaperOpacityFog(val);
-            localStorage.setItem('paperOpacityFog', String(val));
-          }}
+          onPaperOpacityFogChange={(val) => updateConfig('paper_opacity_fog', val)}
           paperOpacityClear={paperOpacityClear}
-          onPaperOpacityClearChange={(val) => {
-            setPaperOpacityClear(val);
-            localStorage.setItem('paperOpacityClear', String(val));
-          }}
+          onPaperOpacityClearChange={(val) => updateConfig('paper_opacity_clear', val)}
           parchmentSaturation={parchmentSaturation}
-          onParchmentSaturationChange={(val) => {
-            setParchmentSaturation(val);
-            localStorage.setItem('parchmentSaturation', String(val));
-          }}
+          onParchmentSaturationChange={(val) => updateConfig('parchment_saturation', val)}
           showArtisticDebugBoxes={showArtisticDebugBoxes}
           onShowArtisticDebugBoxesChange={(val) => {
             setShowArtisticDebugBoxes(val);
             localStorage.setItem('showArtisticDebugBoxes', String(val));
           }}
+          volume={volume}
+          onVolumeChange={(val) => updateConfig('volume', val)}
+          aircraftIcon={aircraftIcon}
+          onAircraftIconChange={(val) => updateConfig('aircraft_icon', val)}
+          aircraftSize={aircraftSize}
+          onAircraftSizeChange={(val) => updateConfig('aircraft_size', val)}
+          aircraftColorMain={aircraftColorMain}
+          onAircraftColorMainChange={(val) => updateConfig('aircraft_color_main', val)}
+          aircraftColorAccent={aircraftColorAccent}
+          onAircraftColorAccentChange={(val) => updateConfig('aircraft_color_accent', val)}
         />
       </Suspense>
     );
@@ -400,6 +416,10 @@ function App() {
               onPOISelect={handlePOISelect}
               onMapClick={handlePanelClose}
               showDebugBoxes={showArtisticDebugBoxes}
+              aircraftIcon={aircraftIcon}
+              aircraftSize={aircraftSize}
+              aircraftColorMain={aircraftColorMain}
+              aircraftColorAccent={aircraftColorAccent}
             />
           ) : (
             <Map

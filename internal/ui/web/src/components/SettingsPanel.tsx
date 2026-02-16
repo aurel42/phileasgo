@@ -69,6 +69,18 @@ interface SettingsPanelProps {
     onParchmentSaturationChange: (val: number) => void;
     showArtisticDebugBoxes: boolean;
     onShowArtisticDebugBoxesChange: (val: boolean) => void;
+    // Audio
+    volume: number;
+    onVolumeChange: (val: number) => void;
+    // Aircraft
+    aircraftIcon: string;
+    onAircraftIconChange: (val: string) => void;
+    aircraftSize: number;
+    onAircraftSizeChange: (val: number) => void;
+    aircraftColorMain: string;
+    onAircraftColorMainChange: (val: string) => void;
+    aircraftColorAccent: string;
+    onAircraftColorAccentChange: (val: string) => void;
 }
 
 const VictorianListEditor: React.FC<{
@@ -179,6 +191,8 @@ interface DraftState {
     aircraftSize: number;
     aircraftColorMain: string;
     aircraftColorAccent: string;
+    // Audio
+    volume: number;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -223,7 +237,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     parchmentSaturation,
     onParchmentSaturationChange,
     showArtisticDebugBoxes,
-    onShowArtisticDebugBoxesChange
+    onShowArtisticDebugBoxesChange,
+    volume,
+    onVolumeChange,
+    aircraftIcon,
+    onAircraftIconChange,
+    aircraftSize,
+    onAircraftSizeChange,
+    aircraftColorMain,
+    onAircraftColorMainChange,
+    aircraftColorAccent,
+    onAircraftColorAccentChange,
 }) => {
     const [activeTab, setActiveTab] = useState('narrator');
     const [loading, setLoading] = useState(true);
@@ -295,10 +319,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     parchmentSaturation: parchmentSaturation,
                     showArtisticDebugBoxes: showArtisticDebugBoxes,
                     // Aircraft
-                    aircraftIcon: (data.aircraft_icon as AircraftType) || 'balloon',
-                    aircraftSize: data.aircraft_size || 32,
-                    aircraftColorMain: data.aircraft_color_main || '#e63946',
-                    aircraftColorAccent: data.aircraft_color_accent || '#ffffff',
+                    aircraftIcon: (data.aircraft_icon as AircraftType) || (aircraftIcon as AircraftType) || 'balloon',
+                    aircraftSize: data.aircraft_size || aircraftSize || 32,
+                    aircraftColorMain: data.aircraft_color_main || aircraftColorMain || '#e63946',
+                    aircraftColorAccent: data.aircraft_color_accent || aircraftColorAccent || '#ffffff',
+                    // Audio
+                    volume: data.volume ?? volume ?? 1.0,
                 });
                 setLoading(false);
             })
@@ -358,10 +384,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.paperOpacityClear !== paperOpacityClear ||
             draft.parchmentSaturation !== parchmentSaturation ||
             draft.showArtisticDebugBoxes !== showArtisticDebugBoxes ||
-            draft.aircraftIcon !== (serverConfig.aircraft_icon || 'balloon') ||
-            draft.aircraftSize !== (serverConfig.aircraft_size || 32) ||
-            draft.aircraftColorMain !== (serverConfig.aircraft_color_main || '#e63946') ||
-            draft.aircraftColorAccent !== (serverConfig.aircraft_color_accent || '#ffffff')
+            draft.aircraftColorMain !== (serverConfig.aircraft_color_main || aircraftColorMain || '#e63946') ||
+            draft.aircraftColorAccent !== (serverConfig.aircraft_color_accent || aircraftColorAccent || '#ffffff') ||
+            draft.volume !== (serverConfig.volume ?? volume ?? 1.0)
         );
     };
 
@@ -414,8 +439,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         // Aircraft
         if (draft.aircraftIcon !== (serverConfig?.aircraft_icon || 'balloon')) payload.aircraft_icon = draft.aircraftIcon;
         if (draft.aircraftSize !== (serverConfig?.aircraft_size || 32)) payload.aircraft_size = draft.aircraftSize;
-        if (draft.aircraftColorMain !== (serverConfig?.aircraft_color_main || '#e63946')) payload.aircraft_color_main = draft.aircraftColorMain;
-        if (draft.aircraftColorAccent !== (serverConfig?.aircraft_color_accent || '#ffffff')) payload.aircraft_color_accent = draft.aircraftColorAccent;
+        if (draft.aircraftColorMain !== (serverConfig?.aircraft_color_main || aircraftColorMain || '#e63946')) payload.aircraft_color_main = draft.aircraftColorMain;
+        if (draft.aircraftColorAccent !== (serverConfig?.aircraft_color_accent || aircraftColorAccent || '#ffffff')) payload.aircraft_color_accent = draft.aircraftColorAccent;
+        if (draft.volume !== (serverConfig?.volume ?? volume ?? 1.0)) payload.volume = draft.volume;
 
         try {
             // Send server-only changes
@@ -452,6 +478,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             if (draft.paperOpacityClear !== paperOpacityClear) onPaperOpacityClearChange(draft.paperOpacityClear);
             if (draft.parchmentSaturation !== parchmentSaturation) onParchmentSaturationChange(draft.parchmentSaturation);
             if (draft.showArtisticDebugBoxes !== showArtisticDebugBoxes) onShowArtisticDebugBoxesChange(draft.showArtisticDebugBoxes);
+            if (draft.volume !== volume) onVolumeChange(draft.volume);
+            if (draft.aircraftIcon !== aircraftIcon) onAircraftIconChange(draft.aircraftIcon);
+            if (draft.aircraftSize !== aircraftSize) onAircraftSizeChange(draft.aircraftSize);
+            if (draft.aircraftColorMain !== aircraftColorMain) onAircraftColorMainChange(draft.aircraftColorMain);
+            if (draft.aircraftColorAccent !== aircraftColorAccent) onAircraftColorAccentChange(draft.aircraftColorAccent);
 
             // Update server config to match saved values
             setServerConfig((prev: any) => ({
@@ -641,6 +672,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                 checked={draft.twoPassScriptGeneration}
                                 onChange={val => updateDraft('twoPassScriptGeneration', val)}
                             />
+                            {renderField('Master Volume', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{Math.round(draft.volume * 100)}%</span>
+                                    <input
+                                        type="range"
+                                        min="0" max="1" step="0.01"
+                                        value={draft.volume}
+                                        onChange={e => updateDraft('volume', parseFloat(e.target.value))}
+                                    />
+                                </div>
+                            ))}
                             {renderField('Pause Between Narrations', (
                                 <div className="settings-slider-container">
                                     <span className="role-value">{draft.pauseDuration}s</span>
@@ -729,6 +771,38 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                     </div>
                                 ))
                             }
+
+                            <div className="role-header" style={{ marginTop: '24px' }}>Visibility & Deferral</div>
+                            {renderField('Proximity Boost Power', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">x{draft.deferralProximityBoostPower.toFixed(1)}</span>
+                                    <input
+                                        type="range"
+                                        min="1.0" max="4.0" step="0.1"
+                                        value={draft.deferralProximityBoostPower}
+                                        onChange={e => updateDraft('deferralProximityBoostPower', parseFloat(e.target.value))}
+                                    />
+                                </div>
+                            ))}
+                            <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
+                                Higher values prioritize perfect viewing moments over immediate narration by punishing distance more heavily.
+                            </div>
+
+                            <div style={{ marginTop: '24px' }}></div>
+                            {renderField('Wait for better view', (
+                                <div className="settings-slider-container">
+                                    <span className="role-value">{Math.round((draft.deferralThreshold - 1.0) * 100)}%</span>
+                                    <input
+                                        type="range"
+                                        min="0" max="20" step="1"
+                                        value={Math.round((draft.deferralThreshold - 1.0) * 100)}
+                                        onChange={e => updateDraft('deferralThreshold', 1.0 + (parseInt(e.target.value) / 100.0))}
+                                    />
+                                </div>
+                            ))}
+                            <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
+                                Minimum visual improvement required to defer narration. At 0%, Phileas always waits for the absolute peak view.
+                            </div>
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Style Library</div>
                             {renderField('Active Style Influence', (
@@ -1053,41 +1127,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             />
                         </div>
                     )}
-                    {activeTab === 'scorer' && (
-                        <div className="settings-group">
-                            <div className="role-header">Visibility & Deferral</div>
-                            {renderField('Proximity Boost Power', (
-                                <div className="settings-slider-container">
-                                    <span className="role-value">x{draft.deferralProximityBoostPower.toFixed(1)}</span>
-                                    <input
-                                        type="range"
-                                        min="1.0" max="4.0" step="0.1"
-                                        value={draft.deferralProximityBoostPower}
-                                        onChange={e => updateDraft('deferralProximityBoostPower', parseFloat(e.target.value))}
-                                    />
-                                </div>
-                            ))}
-                            <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
-                                Higher values prioritize perfect viewing moments over immediate narration by punishing distance more heavily.
-                            </div>
-
-                            <div style={{ marginTop: '24px' }}></div>
-                            {renderField('Wait for better view', (
-                                <div className="settings-slider-container">
-                                    <span className="role-value">{Math.round((draft.deferralThreshold - 1.0) * 100)}%</span>
-                                    <input
-                                        type="range"
-                                        min="0" max="20" step="1"
-                                        value={Math.round((draft.deferralThreshold - 1.0) * 100)}
-                                        onChange={e => updateDraft('deferralThreshold', 1.0 + (parseInt(e.target.value) / 100.0))}
-                                    />
-                                </div>
-                            ))}
-                            <div className="settings-footer" style={{ marginTop: '12px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'normal' }}>
-                                Minimum visual improvement required to defer narration. At 0%, Phileas always waits for the absolute peak view.
-                            </div>
-                        </div>
-                    )}
+                    {/* Visibility & Deferral moved to Narrator tab */}
                     {activeTab === 'beacon' && (
                         <div className="settings-group">
                             <div className="role-header">Target Beacons</div>

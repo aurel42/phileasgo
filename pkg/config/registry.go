@@ -49,4 +49,18 @@ const (
 	KeyBeaconMaxTargets        = "beacon.max_targets"
 	KeySettlementLabelLimit    = "settlement_label_limit"
 	KeySettlementTier          = "settlement_tier"
+
+	// Aircraft settings
+	KeyAircraftIcon        = "aircraft_icon"
+	KeyAircraftSize        = "aircraft_size"
+	KeyAircraftColorMain   = "aircraft_color_main"
+	KeyAircraftColorAccent = "aircraft_color_accent"
+
+	// UI aesthetics
+	KeyPaperOpacityClear   = "ui.paper_opacity_clear"
+	KeyPaperOpacityFog     = "ui.paper_opacity_fog"
+	KeyParchmentSaturation = "ui.parchment_saturation"
+
+	// Audio
+	KeyVolume = "audio.volume"
 )
