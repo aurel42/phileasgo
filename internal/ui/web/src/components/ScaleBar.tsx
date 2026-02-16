@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 
 // "Clean" distance steps for rounding (in the unit's base: km or NM)
-const CLEAN_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000];
+const CLEAN_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
 
 // Faded blue ink palette (antique cartographic blue)
 const BLUE_INK = 'rgba(45, 65, 105, 0.85)';
@@ -52,7 +52,7 @@ function computeAxis(metersPerPixel: number, targetPx: number, unitMeters: numbe
  * No collision detection — purely decorative.
  */
 export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
-    const scaleData = useMemo(() => {
+    const scaleData = (() => {
         // MapLibre GL JS operates on a 512px base for its coordinate system (1 tile = 512px at its native zoom).
         // The standard resolution constant for a 512px world is EquatorCircumference / 512 = 78271.516.
         //
@@ -68,21 +68,25 @@ export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
         //    confirm that this native resolution math is remarkably accurate (~48km measured vs 47.85km real).
         const metersPerPixel = (78271.516 * Math.cos((latitude * Math.PI) / 180)) / Math.pow(2, zoom);
 
-        // Target bar width: ~300px
-        const targetPx = 300;
+        // Target bar width: ~25% of viewport, clamped between 250px and 600px
+        const width = typeof window !== 'undefined' ? window.innerWidth : 1000;
+        const targetPx = Math.max(250, Math.min(width * 0.25, 600));
 
         const km = computeAxis(metersPerPixel, targetPx, 1000);
         const nm = computeAxis(metersPerPixel, targetPx, 1852);
 
         return { km, nm };
-    }, [zoom, latitude]);
+    })();
 
     const barHeight = 7;
     const gap = 9; // vertical gap between the two bars
     const tickHeight = 5;
 
-    // Format number: drop decimals for >= 1, keep one decimal for < 1
-    const fmt = (v: number) => (v >= 1 ? String(v) : v.toFixed(1));
+    // Format number: drop decimals for >= 1, keep one decimal for < 1. Use 'k' for >= 1000.
+    const fmt = (v: number) => {
+        if (v >= 1000) return (v / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 }) + 'k';
+        return v >= 1 ? String(v) : v.toFixed(1);
+    };
 
     const renderAxis = (
         axis: { cleanValue: number; barWidthPx: number; segmentWidthPx: number; segmentCount: number },

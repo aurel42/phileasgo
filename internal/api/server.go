@@ -50,6 +50,7 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 
 	// 2h. Geography Endpoint
 	mux.HandleFunc("GET /api/geography", geo.Handle)
+	mux.HandleFunc("GET /api/geography/random-start", geo.HandleRandomStart)
 
 	// 2i. Audio Endpoints
 	if audioH != nil {

@@ -1,6 +1,13 @@
 ﻿# Changelog
 
-## v0.3.190 (2026-02-16)
+## v0.3.191 (2026-02-16)
+
+*   Fixed missing settlement labels on the world map.
+*   Fixed scale bar displaying unreadable numbers and being too narrow.
+*   Fixed the camera not centering on the target city when using "Random Start".
+*   Fixed map defaulting to minimum zoom level instead of framing the world.
+
+# v0.3.190 (2026-02-16)
 - **Feature**: **Propeller Icon Refinement**. Introduced a high-detail Cessna-style icon for single-engine propeller aircraft, featuring distinct colors for the airframe and windows.
 - **Fix**: **Log Noise Reduction**. Resolved excessive debug log spam from the map label selection engine to improve server performance and log readability.
 

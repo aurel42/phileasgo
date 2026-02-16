@@ -98,3 +98,24 @@ func isNumeric(s string) bool {
 	}
 	return true
 }
+
+func (h *GeographyHandler) HandleRandomStart(w http.ResponseWriter, r *http.Request) {
+	lat, lon, err := h.geoSvc.GetRandomMajorCity()
+	if err != nil {
+		http.Error(w, "Failed to find random city", http.StatusInternalServerError)
+		return
+	}
+
+	resp := struct {
+		Lat float64 `json:"lat"`
+		Lon float64 `json:"lon"`
+	}{
+		Lat: lat,
+		Lon: lon,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("Failed to encode random start response", "error", err)
+	}
+}

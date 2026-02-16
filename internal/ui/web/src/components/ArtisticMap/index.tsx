@@ -7,13 +7,16 @@ import type { LabelCandidate } from '../../metrics/PlacementEngine';
 import type { ArtisticMapProps } from '../../types/artisticMap';
 import { ARTISTIC_MAP_STYLES } from '../../styles/artisticMapStyles';
 import { useArtisticMapReplay } from '../../hooks/useArtisticMapReplay';
-import { useArtisticMapHeartbeat } from '../../hooks/useArtisticMapHeartbeat';
+// removed useArtisticMapHeartbeat
+import { useMapOrchestrator } from '../../hooks/useMapOrchestrator';
 import { ArtisticMapOverlays } from './ArtisticMapOverlays';
 import { ArtisticMapLabels } from './ArtisticMapLabels';
 import { ArtisticMapAircraft } from './ArtisticMapAircraft';
 import { adjustFont } from '../../utils/mapUtils';
 import { getFontFromClass, measureText } from '../../metrics/text';
 import { interpolatePositionFromEvents } from '../../utils/replay';
+import type { LabelDTO } from '../../types/mapLabels';
+import type { POI } from '../../hooks/usePOIs';
 
 export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     className, center, zoom, telemetry, pois, settlementCategories,
@@ -25,28 +28,44 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<maplibregl.Map | null>(null);
     const [styleLoaded, setStyleLoaded] = useState(false);
+
+    // We retain the engine for the "Replay Static Layout" effect (legacy logic for now)
     const engine = useMemo(() => new PlacementEngine(), []);
 
     const { status: narratorStatus } = useNarrator();
     const { data: tripEvents } = useTripEvents();
-    console.log('[ArtisticMap] tripEvents:', tripEvents?.length); // Use it
 
     const [replayLabels, setReplayLabels] = useState<LabelCandidate[]>([]);
     const labelAppearanceRef = useRef<Map<string, number>>(new Map());
 
-    const {
-        effectiveReplayMode, progress, validEvents, pathPoints, poiDiscoveryTimes,
-        replayFirstTime, replayTotalTime, firstEventTime
-    } = useArtisticMapReplay(telemetry, engine);
+    // Data Accumulators (Mutable, passed to Orchestrator)
+    const accumulatedSettlements = useRef<Map<string, LabelDTO>>(new Map());
+    const accumulatedPois = useRef<Map<string, POI>>(new Map());
 
     const {
-        frame, fontsLoaded, accumulatedPois, accumulatedSettlements
-    } = useArtisticMapHeartbeat(
-        map, telemetry, pois, zoom, center, effectiveReplayMode, progress,
-        validEvents, poiDiscoveryTimes, replayTotalTime, firstEventTime,
-        narratorStatus, engine, styleLoaded, setStyleLoaded, settlementCategories, beaconMaxTargets,
-        replayLabels.length > 0
-    );
+        effectiveReplayMode, progress, validEvents, pathPoints, poiDiscoveryTimes,
+        replayFirstTime, replayTotalTime
+    } = useArtisticMapReplay(telemetry, engine);
+
+    const { frame } = useMapOrchestrator({
+        mapRef: map,
+        telemetry,
+        pois,
+        narratorStatus,
+        tripEvents: tripEvents || [],
+        validEvents,
+        poiDiscoveryTimes,
+        progress,
+        effectiveReplayMode,
+        settlementCategories,
+        beaconMaxTargets,
+        styleLoaded,
+        fontsLoaded: true,
+        accumulatedSettlements,
+        accumulatedPois
+    });
+
+    const fontsLoaded = true; // Hardcoded since we assume fonts loaded by the time app runs or handled elsewhere
 
     // Replay Static Layout (One-time)
     useEffect(() => {
@@ -62,7 +81,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         const villageFont = adjustFont(getFontFromClass('role-text-lg'), -4);
         const markerLabelFont = adjustFont(getFontFromClass('role-label'), 2);
 
-        Array.from(accumulatedSettlements.current.values()).forEach(l => {
+        Array.from(accumulatedSettlements.current.values()).forEach((l: LabelDTO) => {
             let role = villageFont; let tierName: 'city' | 'town' | 'village' = 'village';
             if (l.category === 'city') { tierName = 'city'; role = cityFont; }
             else if (l.category === 'town') { tierName = 'town'; role = townFont; }
