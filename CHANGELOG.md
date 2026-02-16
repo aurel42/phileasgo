@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## v0.3.190 (2026-02-16)
+- **Feature**: **Propeller Icon Refinement**. Introduced a high-detail Cessna-style icon for single-engine propeller aircraft, featuring distinct colors for the airframe and windows.
+- **Fix**: **Log Noise Reduction**. Resolved excessive debug log spam from the map label selection engine to improve server performance and log readability.
+
 ## v0.3.189 (2026-02-15)
 - placeholder graphics for different aircraft types
 

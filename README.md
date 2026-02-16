@@ -230,6 +230,9 @@ Hillshading provided by **[Stadia Maps](https://stadiamaps.com/)** and **[Stamen
 Vector data provided by **[OpenFreeMap](https://openfreemap.org/)**, based on data by **[OpenStreetMap](https://www.openstreetmap.org/copyright)**.
 Data by **[OpenStreetMap](http://openstreetmap.org)**, under **[ODbL](http://www.openstreetmap.org/copyright)**.
 
+Icons by:
+- cessna by Tinashe Mugayi from <a href="https://thenounproject.com/browse/icons/term/cessna/" target="_blank" title="cessna Icons">Noun Project</a> (CC BY 3.0)
+- Plane by ArashDesign from <a href="https://thenounproject.com/browse/icons/term/plane/" target="_blank" title="Plane Icons">Noun Project</a> (CC BY 3.0)
 
 ## License
 MIT License - see [LICENSE](LICENSE) file for details.
