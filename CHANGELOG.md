@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## v0.3.193 (2026-02-16)
+- **Improvement**: **Dynamic Map Framing**. The map auto-zoom now intelligently frames both the aircraft's visibility cone and active POIs to ensure landmarks are never missed.
+- **Improvement**: **Antique Scale Bar Aesthetics**. Updated the dual-scale bar with period-appropriate units ("kilom.", "m.") and refined antique digit styling.
+- **Fix**: **Map Startup Persistence**. Resolved a regression where the map would occasionally fail to initialize at the correct zoom level or center position.
+
 ## v0.3.192 (2026-02-16)
 
 *   Refined map scale bar typography with period-appropriate fonts and digit styling.

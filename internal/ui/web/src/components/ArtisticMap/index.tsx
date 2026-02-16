@@ -62,7 +62,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         styleLoaded,
         fontsLoaded: true,
         accumulatedSettlements,
-        accumulatedPois
+        accumulatedPois,
+        initialZoom: zoom,
+        initialCenter: center
     });
 
     const fontsLoaded = true; // Hardcoded since we assume fonts loaded by the time app runs or handled elsewhere

@@ -206,7 +206,7 @@ export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
     const maxBarWidth = Math.max(scaleData.km.barWidthPx, scaleData.nm.barWidthPx);
     const topBarY = 16; // space for km numbers above
     const bottomBarY = topBarY + barHeight + gap;
-    const svgWidth = maxBarWidth + 30; // room for unit label
+    const svgWidth = maxBarWidth + 60; // room for unit label (e.g., "kilom.")
     const svgHeight = bottomBarY + barHeight + tickHeight + 16;
 
     return (
@@ -238,8 +238,8 @@ export const ScaleBar: React.FC<ScaleBarProps> = ({ zoom, latitude }) => {
                     </pattern>
                 </defs>
 
-                {renderAxis(scaleData.km, 'km', topBarY, true)}
-                {renderAxis(scaleData.nm, 'NM', bottomBarY, false)}
+                {renderAxis(scaleData.km, 'kilom.', topBarY, true)}
+                {renderAxis(scaleData.nm, 'm.', bottomBarY, false)}
             </svg>
         </div>
     );

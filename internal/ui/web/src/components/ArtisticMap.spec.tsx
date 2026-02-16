@@ -74,6 +74,8 @@ describe('ArtisticMap', () => {
         paperOpacityFog: 0.7,
         paperOpacityClear: 0.1,
         parchmentSaturation: 1.0,
+        fontsLoaded: true,
+        styleLoaded: true,
         mapFactory: vi.fn(() => ({
             on: vi.fn((event, cb) => {
                 if (event === 'load' && typeof cb === 'function') {
@@ -103,6 +105,19 @@ describe('ArtisticMap', () => {
         })),
     };
 
+    beforeEach(() => {
+        vi.stubGlobal('fetch', vi.fn(() =>
+            Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({})
+            })
+        ));
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it('renders without crashing', () => {
         const { container } = render(<ArtisticMap {...defaultProps} />);
         expect(container).toBeDefined();
@@ -124,9 +139,9 @@ describe('ArtisticMap', () => {
         vi.useFakeTimers();
         render(<ArtisticMap {...defaultProps} />);
 
-        // Fast-forward time to trigger interval (2000ms fetch throttler + 16ms tick)
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(3000);
+        // Advance timers to trigger the throttled fetch in MapLabelSystem
+        act(() => {
+            vi.advanceTimersByTime(3000);
         });
 
         expect(labelService.fetchLabels).toHaveBeenCalled();

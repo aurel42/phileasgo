@@ -24,13 +24,15 @@ interface UseMapOrchestratorProps {
     fontsLoaded: boolean;
     accumulatedSettlements: React.MutableRefObject<Map<string, LabelDTO>>;
     accumulatedPois: React.MutableRefObject<Map<string, POI>>;
+    initialZoom?: number;
+    initialCenter?: [number, number];
 }
 
 export const useMapOrchestrator = (props: UseMapOrchestratorProps) => {
     // 1. Initial State
     const [frame, setFrame] = useState<MapFrame>({
-        center: [0, 0],
-        zoom: 2,
+        center: props.initialCenter || [0, 0],
+        zoom: props.initialZoom || 2,
         offset: [0, 0],
         maskPath: "",
         aircraftX: 0,

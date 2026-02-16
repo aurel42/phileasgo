@@ -1,6 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import type { Feature } from 'geojson';
 import type { IMapSystem, MapContext, SystemState } from './types';
+import * as turf from '@turf/turf';
 import { interpolatePositionFromEvents } from '../utils/replay';
 import { rayToEdge, maskToPath } from '../utils/mapGeometry';
 
@@ -10,6 +11,7 @@ export class MapCameraSystem implements IMapSystem {
     private lockedOffset: [number, number] = [0, 0];
     private prevSimState: string | undefined = undefined;
     private lastMaskData: any = null;
+    private lastMaskFetchTime: number = 0;
     private mapRef: React.MutableRefObject<maplibregl.Map | null>;
 
     constructor(mapRef: React.MutableRefObject<maplibregl.Map | null>) {
@@ -22,6 +24,7 @@ export class MapCameraSystem implements IMapSystem {
         this.lockedOffset = [0, 0];
         this.prevSimState = undefined;
         this.lastMaskData = null;
+        this.lastMaskFetchTime = 0;
     }
 
     update(_dt: number, ctx: MapContext, state: SystemState) {
@@ -42,14 +45,18 @@ export class MapCameraSystem implements IMapSystem {
         const stateTransition = this.prevSimState !== currentSimState;
         this.prevSimState = currentSimState;
 
-        // Background Mask Fetching (Async, fire-and-forget style for now)
-        if (currentSimState === 'active' && !this.lastMaskData) {
-            const bounds = m.getBounds();
-            if (bounds) {
-                fetch(`/api/map/visibility-mask?bounds=${bounds.getNorth()},${bounds.getEast()},${bounds.getSouth()},${bounds.getWest()}&resolution=20`)
-                    .then(r => r.ok ? r.json() : null)
-                    .then(data => { if (data) this.lastMaskData = data; })
-                    .catch(e => console.error("Mask fetch failed", e));
+        // Background Mask Fetching (Throttled, passive background fetch)
+        if (currentSimState === 'active') {
+            const now = performance.now();
+            if (!this.lastMaskData || (now - this.lastMaskFetchTime > 5000)) {
+                const bounds = m.getBounds();
+                if (bounds) {
+                    this.lastMaskFetchTime = now;
+                    fetch(`/api/map/visibility-mask?bounds=${bounds.getNorth()},${bounds.getEast()},${bounds.getSouth()},${bounds.getWest()}&resolution=20`)
+                        .then(r => r.ok ? r.json() : null)
+                        .then(data => { if (data) this.lastMaskData = data; })
+                        .catch(e => console.error("Mask fetch failed", e));
+                }
             }
         }
         if (this.lastMaskData) {
@@ -190,11 +197,54 @@ export class MapCameraSystem implements IMapSystem {
         this.lockedZoom = Math.round(newZoom * 2) / 2;
     }
 
-    private calculateAutoZoom(m: maplibregl.Map, ctx: MapContext, _paddingMode: number): number {
-        // Re-implement logic from original heartbeat if needed, 
-        // for now we can default to holding current zoom or target base zoom
-        // unless specific framing is requested.
-        // Simplified for robust refactor start:
+    private calculateAutoZoom(m: maplibregl.Map, ctx: MapContext, paddingMode: number): number {
+        const features: any[] = [];
+
+        // 1. Add visibility mask to bounds calculation if available
+        if (this.lastMaskData?.geometry) {
+            features.push({
+                type: 'Feature',
+                geometry: this.lastMaskData.geometry,
+                properties: {}
+            });
+        }
+
+        // 2. Add active POIs (playing or preparing) to bounds calculation
+        const playingPoi = ctx.narratorStatus?.current_poi;
+        const preparingPoi = ctx.narratorStatus?.preparing_poi;
+
+        if (playingPoi && playingPoi.lat != null && playingPoi.lon != null) {
+            features.push(turf.point([playingPoi.lon, playingPoi.lat]));
+        }
+        if (preparingPoi && preparingPoi.lat != null && preparingPoi.lon != null) {
+            features.push(turf.point([preparingPoi.lon, preparingPoi.lat]));
+        }
+
+        // 3. Compute optimal zoom to fit these features
+        if (features.length > 0) {
+            const collection = turf.featureCollection(features);
+            const baseBbox = turf.bbox(collection);
+
+            // If only one point (e.g. just a POI, no mask), expand a bit
+            let bbox = baseBbox;
+            if (features.length === 1 && features[0].geometry.type === 'Point') {
+                const centerLng = baseBbox[0];
+                const centerLat = baseBbox[1];
+                bbox = [centerLng - 0.05, centerLat - 0.05, centerLng + 0.05, centerLat + 0.05];
+            }
+
+            // cameraForBounds gives us the zoom level to fit the bbox
+            const camera = m.cameraForBounds(bbox as [number, number, number, number], {
+                padding: paddingMode === 1 ? 80 : 40,
+                maxZoom: 12
+            });
+
+            if (camera?.zoom !== undefined && !isNaN(camera.zoom)) {
+                return Math.min(Math.max(camera.zoom, m.getMinZoom()), 12);
+            }
+        }
+
+        // Fallback: stay at current zoom or default
         return Math.max(ctx.zoom, m.getMinZoom());
     }
 
