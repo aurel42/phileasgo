@@ -72,3 +72,10 @@ X new Victorian marker style
 - new IDENT/Playback control function: "expand on this"
 X more balloon colors
 X maps with overlays
+
+regressions:
+- starting app with sim state disconnected and no trip replay available: no world map, just water
+- Narrator sometimes picks POIs with unexpired LastPlayed
+- on collision, POI markers are placed far from their origin, in spite of the small steps in the radial search
+- zoom out on "pause" happens, but zooms in again immediately
+- Debriefing not reliable

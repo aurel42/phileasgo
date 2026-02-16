@@ -6,137 +6,23 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTripEvents } from '../hooks/useTripEvents';
 import { useNarrator } from '../hooks/useNarrator';
 import type { POI } from '../hooks/usePOIs';
-import type { Telemetry } from '../types/telemetry';
 import { PlacementEngine, type LabelCandidate } from '../metrics/PlacementEngine';
 import { measureText, getFontFromClass } from '../metrics/text';
 import { ARTISTIC_MAP_STYLES } from '../styles/artisticMapStyles';
-import { InlineSVG } from './InlineSVG';
 import { labelService } from '../services/labelService';
 import type { LabelDTO } from '../types/mapLabels';
+import type { ArtisticMapProps, MapFrame } from '../types/artisticMap';
+import { adjustFont } from '../utils/artisticMapUtils';
+import { getMapStyle } from '../styles/artisticMapConfig';
 import { CompassRose } from './CompassRose';
-import { WaxSeal } from './WaxSeal';
 import { ScaleBar } from './ScaleBar';
 import { InkTrail } from './InkTrail';
 import { interpolatePositionFromEvents, isTransitionEvent, getSignificantTripEvents } from '../utils/replay';
-import { AircraftIcon, type AircraftType } from './AircraftIcon';
-
-const DEBUG_FLOURISHES = false;
-
-
-interface POIBeaconProps {
-    color: string;
-    size: number;
-    showHalo?: boolean;
-    activeBoost?: number;
-    zoomScale?: number;
-    x: number;
-    y: number;
-}
-
-interface POIBeaconProps {
-    color: string;
-    size: number;
-    showHalo?: boolean;
-    activeBoost?: number;
-    zoomScale?: number;
-    x: number;
-    y: number;
-    iconSize?: number; // Size of the icon below the beacon
-}
-
-const POIBeacon: React.FC<POIBeaconProps> = ({ color, size, showHalo = true, zoomScale = 1, x, y, iconSize = 32 }) => {
-    return (
-        <svg
-            viewBox="0 0 40 50"
-            style={{
-                position: 'absolute',
-                left: x,
-                top: y,
-                width: size,
-                height: size * 1.25,
-                // Dynamic offset calculation:
-                // Displacement consists of: (iconSize / 2) + 2px (gap) + 7.5px (balloon radius)
-                // Using transform ensures the displacement scales perfectly along with the balloon and icon.
-                transform: `translate(-50%, -50%) scale(${zoomScale}) translateY(-${(iconSize / 2) + 2 + 7.5}px)`,
-                zIndex: 110,
-                filter: showHalo ? 'drop-shadow(0 0 1px white)' : 'none',
-                pointerEvents: 'none'
-            }}
-        >
-            {/* Envelope */}
-            <path
-                d="M20,5 C12,5 5,12 5,22 C5,28 10,35 20,42 C30,35 35,28 35,22 C35,12 28,5 20,5"
-                fill={color}
-                stroke="black"
-                strokeWidth="1.5"
-            />
-            {/* Strings */}
-            <line x1="12" y1="36" x2="16" y2="42" stroke="black" strokeWidth="1" />
-            <line x1="28" y1="36" x2="24" y2="42" stroke="black" strokeWidth="1" />
-            {/* Gondola/Basket */}
-            <rect x="16" y="42" width="8" height="6" rx="1" fill="#1a1a1a" stroke="black" strokeWidth="1" />
-        </svg>
-    );
-};
-
-interface ArtisticMapProps {
-    className?: string;
-    center: [number, number];
-    zoom: number;
-    telemetry: Telemetry | null;
-    pois: POI[];
-    settlementTier: number;
-    settlementCategories: string[];
-    paperOpacityFog: number;
-    paperOpacityClear: number;
-    parchmentSaturation: number;
-    selectedPOI?: POI | null;
-    isAutoOpened?: boolean;
-    onPOISelect: (poi: POI) => void;
-    onMapClick: () => void;
-    beaconMaxTargets?: number;
-    showDebugBoxes?: boolean;
-    // Aircraft Configuration
-    aircraftIcon?: AircraftType;
-    aircraftSize?: number;
-    aircraftColorMain?: string;
-    aircraftColorAccent?: string;
-}
-
-// Single Atomic Frame state for strict synchronization
-interface MapFrame {
-    labels: LabelCandidate[];
-    maskPath: string;
-    center: [number, number];
-    zoom: number;
-    offset: [number, number];
-    heading: number;
-    bearingLine: Feature<any> | null;
-    aircraftX: number;
-    aircraftY: number;
-    agl: number;
-}
-
-// Helper for color interpolation (Hex -> Hex/RGB)
-const lerpColor = (c1: string, c2: string, t: number): string => {
-    const hex = (c: string) => parseInt(c.slice(1), 16);
-    const r1 = (hex(c1) >> 16) & 255;
-    const g1 = (hex(c1) >> 8) & 255;
-    const b1 = (hex(c1)) & 255;
-    const r2 = (hex(c2) >> 16) & 255;
-    const g2 = (hex(c2) >> 8) & 255;
-    const b2 = (hex(c2)) & 255;
-    const r = Math.round(r1 + (r2 - r1) * t);
-    const g = Math.round(g1 + (g2 - g1) * t);
-    const b = Math.round(b1 + (b2 - b1) * t);
-    return `rgb(${r}, ${g}, ${b})`;
-};
-
-// Helper to apply design-spec font adjustments for Artistic Map only
-const adjustFont = (f: { font: string, uppercase: boolean, letterSpacing: number }, offset: number) => ({
-    ...f,
-    font: f.font.replace(/(\d+)px/, (_, s) => `${Math.max(1, parseInt(s) + offset)}px`)
-});
+import { AircraftIcon } from './AircraftIcon';
+import { ArtisticMapSettlement } from './ArtisticMapSettlement';
+import { ArtisticMapPOIMarker } from './ArtisticMapPOIMarker';
+import { ArtisticMapPaperOverlay } from './ArtisticMapPaperOverlay';
+import { ArtisticMapDebugBoxes } from './ArtisticMapDebugBoxes';
 
 /**
  * ArtisticMap Component
@@ -498,10 +384,6 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         const pt = map.current.project([position[1], position[0]]);
         return { x: pt.x, y: pt.y };
     }, [effectiveReplayMode, pathPoints, progress, styleLoaded, frame.zoom, frame.center, frame.offset, validEvents]);
-    const getMaskColor = (opacity: number) => {
-        const val = Math.floor(opacity * 255);
-        return `rgb(${val}, ${val}, ${val})`;
-    };
 
     // Initialize Map (Static Viewport Only)
     useEffect(() => {
@@ -509,87 +391,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
         map.current = new maplibregl.Map({
             container: mapContainer.current,
-            style: {
-                version: 8,
-                sources: {
-                    'stamen-watercolor-hd': {
-                        type: 'raster',
-                        // HD Source: 128px tiles (displays Z+1 content at Z)
-                        tiles: ['https://watercolormaps.collection.cooperhewitt.org/tile/watercolor/{z}/{x}/{y}.jpg'],
-                        tileSize: 128
-                    },
-                    'hillshade-source': {
-                        type: 'raster-dem',
-                        tiles: ['https://tiles.stadiamaps.com/data/terrarium/{z}/{x}/{y}.png'],
-                        tileSize: 256,
-                        encoding: 'terrarium'
-                    },
-                    'openfreemap': {
-                        type: 'vector',
-                        url: 'https://tiles.openfreemap.org/planet'
-                    }
-                },
-                layers: [
-                    { id: 'background', type: 'background', paint: { 'background-color': '#f4ecd8' } },
-                    // HD Layer: Active for Zoom 0-10 (e.g. at Z9, uses Z10 tiles)
-                    {
-                        id: 'watercolor', type: 'raster', source: 'stamen-watercolor-hd',
-                        paint: { 'raster-saturation': -0.2, 'raster-contrast': 0.1 }
-                    },
-                    {
-                        id: 'hillshading',
-                        type: 'hillshade',
-                        source: 'hillshade-source',
-                        maxzoom: 10,
-                        paint: {
-                            'hillshade-exaggeration': [
-                                'interpolate',
-                                ['linear'],
-                                ['zoom'],
-                                4, 0.0,
-                                6, 0.45
-                            ],
-                            'hillshade-shadow-color': 'rgba(0, 0, 0, 0.35)',
-                            'hillshade-accent-color': 'rgba(0, 0, 0, 0.15)'
-                        }
-                    },
-                    {
-                        id: 'runways-fill',
-                        type: 'fill',
-                        source: 'openfreemap',
-                        'source-layer': 'aeroway',
-                        minzoom: 8,
-                        filter: ['all', ["match", ["geometry-type"], ["MultiPolygon", "Polygon"], true, false], ["==", ["get", "class"], "runway"]],
-                        paint: {
-                            'fill-color': [
-                                'case',
-                                ['match', ['get', 'surface'], ['grass', 'dirt', 'earth', 'ground', 'unpaved'], true, false],
-                                '#769b58', // Green for unpaved/grass
-                                '#707070'  // Grey for paved
-                            ],
-                            'fill-opacity': 0.8
-                        }
-                    },
-                    {
-                        id: 'runways-line',
-                        type: 'line',
-                        source: 'openfreemap',
-                        'source-layer': 'aeroway',
-                        minzoom: 8,
-                        filter: ['all', ["match", ["geometry-type"], ["LineString", "MultiLineString"], true, false], ["==", ["get", "class"], "runway"]],
-                        paint: {
-                            'line-color': [
-                                'case',
-                                ['match', ['get', 'surface'], ['grass', 'dirt', 'earth', 'ground', 'unpaved'], true, false],
-                                '#769b58', // Green for unpaved/grass
-                                '#707070'  // Grey for paved
-                            ],
-                            'line-width': 6,
-                            'line-opacity': 1.0
-                        }
-                    }
-                ]
-            },
+            style: getMapStyle(),
             center: [center[1], center[0]],
             zoom: zoom,
             minZoom: 0, // Lowered from 5 to allow world map view
@@ -1340,283 +1142,52 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     const fadeOpacity = Math.min(1, (now - start) / 2000);
 
                     if (l.type === 'poi') {
-                        // ... POI Icon Rendering ...
                         const poi = accumulatedPois.current.get(l.id);
-                        // 2. Halo Properties
-                        const isSelected = selectedPOI && l.id === selectedPOI.wikidata_id;
-                        const isActive = l.id === currentNarratedId;
-                        const isPreparing = l.id === preparingId;
-                        const activeBoost = isActive ? 1.5 : (isPreparing ? 1.25 : (isSelected ? 1.4 : 1.0));
-
-                        const isCapped = (zoomScale * activeBoost) > 4.0;
-                        const renderScale = isCapped ? 4.0 : (zoomScale * activeBoost);
-                        const iconName = (poi?.icon_artistic || l.icon || 'attraction');
-                        const iconUrl = `/icons/${iconName}.svg`;
-
-                        // Semantic Logic Simplification: Playing or Preparing items are NEVER treated as historic
-                        const effectiveIsHistorical = l.isHistorical && !isActive && !isPreparing;
-
-                        // Tether logic: Historic items never get tethers, regardless of distance.
-                        const tTx = geoPos.x;
-                        const tTy = geoPos.y;
-                        const tDx = finalX - tTx;
-                        const tDy = finalY - tTy;
-                        const tDist = Math.ceil(Math.sqrt(tDx * tDx + tDy * tDy));
-                        const isDisplaced = !effectiveIsHistorical && tDist > 68;
-
-                        const score = l.score || 0;
-                        const isHero = score >= 20 && !effectiveIsHistorical;
                         const isReplayItem = isReplayMode && isReplayModeRef.current;
 
-                        // 1. Icon Fill Color: Strictly Score-based (Silver -> Gold) unless Historical
-                        let iconColor = ARTISTIC_MAP_STYLES.colors.icon.copper;
-                        if (effectiveIsHistorical) {
-                            iconColor = ARTISTIC_MAP_STYLES.colors.icon.historical;
-                        } else {
-                            if (score <= 0) {
-                                iconColor = ARTISTIC_MAP_STYLES.colors.icon.silver;
-                            } else if (score >= 20) {
-                                iconColor = ARTISTIC_MAP_STYLES.colors.icon.gold;
-                            } else {
-                                const t = score / 20.0;
-                                iconColor = lerpColor(ARTISTIC_MAP_STYLES.colors.icon.silver, ARTISTIC_MAP_STYLES.colors.icon.gold, t);
+                        // Pre-compute preparing opacity (reads preparingStartRef in parent)
+                        let preparingOpacity = 0;
+                        if (l.id === currentNarratedId) {
+                            preparingOpacity = 1;
+                        } else if (l.id === preparingId) {
+                            if (!preparingStartRef.current.has(l.id)) {
+                                preparingStartRef.current.set(l.id, now);
                             }
+                            const pStart = preparingStartRef.current.get(l.id)!;
+                            preparingOpacity = Math.min(0.8, (now - pStart) / 30000);
                         }
-
-                        // 2. Halo Properties (Continued)
-                        const isDeferred = !isReplayItem && (poi?.is_deferred || poi?.badges?.includes('deferred'));
-                        const isLOSBlocked = poi?.los_status === 2;
-
-                        let hColor = ARTISTIC_MAP_STYLES.colors.icon.normalHalo; // Paper White
-                        let hSize = 2;
-                        let hLayers = isActive ? 3 : (isPreparing ? 2 : 1);
-
-                        if (isHero) {
-                            hColor = ARTISTIC_MAP_STYLES.colors.icon.gold;
-                        }
-
-                        if (isSelected && !isAutoOpened) {
-                            hColor = ARTISTIC_MAP_STYLES.colors.icon.neonCyan;
-                            hLayers = 3;
-                        }
-
-                        if (score > 30 && !effectiveIsHistorical) {
-                            // Non-linear scaling: 2px at 30, ~5px at 150 (X=3.5)
-                            hSize = 2 + (Math.sqrt(score / 10 - 2) - 1) * 3.5;
-                        }
-
-                        let silhouette = false;
-                        if (isDeferred || isLOSBlocked) {
-                            silhouette = true;
-                        }
-
-                        let outlineWeight = 1.2; // Optimized from 0.8 (+50%) for better ink clarity
-
-                        const isDeepDive = poi?.badges?.includes('deep_dive');
-                        if (isDeepDive) {
-                            outlineWeight = 1.45; // "Heavy Ink" style for deep dive content (-20% from 1.8)
-                        }
-
-                        let outlineColor = effectiveIsHistorical ? iconColor : ARTISTIC_MAP_STYLES.colors.icon.stroke;
-
-                        if (l.custom) {
-                            if (l.custom.silhouette) silhouette = true;
-                            if (l.custom.weight) outlineWeight = l.custom.weight;
-                            if (l.custom.color) outlineColor = l.custom.color;
-                        }
-
-                        if (silhouette) {
-                            iconColor = '#000000';
-                            outlineColor = '#ffffff';
-                            hColor = '#ffffff';
-                            hSize = 3;
-                            hLayers = 1;
-                        }
-
-                        // Filter mapping for Halos (applying dynamic size and layers)
-                        let dropShadowFilter = '';
-                        if (effectiveIsHistorical || (l.custom?.halo === 'none')) {
-                            dropShadowFilter = 'none';
-                        } else if (l.custom?.halo === 'organic' || (l.id.startsWith('dbg-2') && DEBUG_FLOURISHES)) {
-                            dropShadowFilter = `drop-shadow(1px 1px 2px ${ARTISTIC_MAP_STYLES.colors.icon.organicSmudge}) drop-shadow(-1px -1px 2px ${ARTISTIC_MAP_STYLES.colors.icon.organicSmudge})`;
-                        } else {
-                            // Standard or Special (Neon, Gold, Selected)
-                            if (hLayers === 3) {
-                                dropShadowFilter = `drop-shadow(0 0 ${hSize / 2}px ${hColor}) drop-shadow(0 0 ${hSize}px ${hColor}) drop-shadow(0 0 ${hSize * 2}px ${hColor})`;
-                            } else if (hLayers === 2) {
-                                dropShadowFilter = `drop-shadow(0 0 ${hSize / 2}px ${hColor}) drop-shadow(0 0 ${hSize}px ${hColor})`;
-                            } else {
-                                dropShadowFilter = `drop-shadow(0 0 ${hSize}px ${hColor})`;
-                            }
-                        }
-
-                        // Silhouette Logic
-                        if (l.custom?.silhouette) silhouette = true;
-
-                        if (silhouette) {
-                            // Empty: moved to InlineSVG filter for better halo preservation
-                        }
-
-
-                        const swayOut = 36;
-                        const swayIn = 24;
-                        // Deterministic sway direction based on ID to keep it stable but organic
-                        const swayDir = (l.id.charCodeAt(0) % 2 === 0 ? 1 : -1);
-                        const startX = geoPos.x;
-                        const startY = geoPos.y;
-                        const endX = finalX;
-                        const endY = finalY;
-                        const dy = endY - startY;
-
-                        // Calligraphic stroke: Two Bezier curves (Outer/Inner) forming a filled shape that's bulky in the center
-                        const cp1OutX = startX + (swayOut * swayDir);
-                        const cp1OutY = startY + (dy * 0.1);
-                        const cp2OutX = endX - (swayOut * swayDir);
-                        const cp2OutY = startY + (dy * 0.9);
-
-                        const cp1InX = startX + (swayIn * swayDir);
-                        const cp1InY = startY + (dy * 0.1);
-                        const cp2InX = endX - (swayIn * swayDir);
-                        const cp2InY = startY + (dy * 0.9);
 
                         return (
-                            <React.Fragment key={l.id}>
-                                {isDisplaced && (
-                                    <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 15, opacity: fadeOpacity * ARTISTIC_MAP_STYLES.tethers.opacity }}>
-                                        <path d={`M ${startX},${startY} C ${cp1OutX},${cp1OutY} ${cp2OutX},${cp2OutY} ${endX},${endY} C ${cp2InX},${cp2InY} ${cp1InX},${cp1InY} ${startX},${startY} Z`}
-                                            fill={ARTISTIC_MAP_STYLES.tethers.stroke}
-                                            stroke={ARTISTIC_MAP_STYLES.tethers.stroke}
-                                            strokeWidth={ARTISTIC_MAP_STYLES.tethers.width}
-                                            strokeLinejoin="round" />
-                                        <circle cx={startX} cy={startY} r={ARTISTIC_MAP_STYLES.tethers.dotRadius} fill={ARTISTIC_MAP_STYLES.tethers.stroke} opacity={ARTISTIC_MAP_STYLES.tethers.dotOpacity} />
-                                    </svg>
-                                )}
-                                {(l.id === currentNarratedId || l.id === preparingId) && (
-                                    <div style={{
-                                        position: 'absolute', left: finalX, top: finalY,
-                                        // Stable random rotation based on ID bytes
-                                        transform: `translate(-50%, -50%) scale(${renderScale}) rotate(${(l.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360)}deg)`,
-                                        opacity: (() => {
-                                            if (l.id === currentNarratedId) return 1;
-                                            if (!preparingStartRef.current.has(l.id)) {
-                                                preparingStartRef.current.set(l.id, now);
-                                            }
-                                            const start = preparingStartRef.current.get(l.id)!;
-                                            return Math.min(0.8, (now - start) / 30000);
-                                        })(),
-                                        pointerEvents: 'none',
-                                        zIndex: l.id === currentNarratedId ? 99 : 89
-                                    }}>
-                                        <WaxSeal size={l.width} />
-                                    </div>
-                                )}
-                                <div
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        const poi = accumulatedPois.current.get(l.id);
-                                        if (poi && onPOISelect) onPOISelect(poi);
-                                    }}
-                                    style={{
-                                        position: 'absolute', left: finalX, top: finalY, width: l.width, height: l.height,
-                                        transform: `translate(-50%, -50%) scale(${renderScale})`,
-                                        opacity: (effectiveIsHistorical ? 0.5 : 1) * fadeOpacity,
-                                        color: iconColor, cursor: 'pointer', pointerEvents: 'auto',
-                                        // Use drop-shadow filter for true shape contour ("Halo")
-                                        filter: dropShadowFilter,
-                                        zIndex: l.id === currentNarratedId ? 100 : (l.id === preparingId ? 90 : 15)
-                                    }}
-                                >
-                                    <InlineSVG
-                                        src={iconUrl}
-                                        style={{
-                                            // @ts-ignore - custom CSS variables for the stamped-icon class
-                                            '--stamped-stroke': outlineColor,
-                                            '--stamped-width': `${outlineWeight}px`
-                                        }}
-                                        className="stamped-icon"
-                                    />
-                                </div>
-                                {poi?.is_msfs_poi && !isReplayItem && (
-                                    <div style={{
-                                        position: 'absolute',
-                                        left: finalX,
-                                        top: finalY,
-                                        width: 18 * renderScale,
-                                        height: 18 * renderScale,
-                                        // Position star at top-right of the scaled icon
-                                        transform: `translate(${(l.width / 2 - 4) * renderScale}px, ${(-l.height / 2 + 4) * renderScale}px) translate(-50%, -50%)`,
-                                        color: ARTISTIC_MAP_STYLES.colors.icon.gold,
-                                        zIndex: l.id === currentNarratedId ? 101 : (l.id === preparingId ? 91 : 16),
-                                        pointerEvents: 'none',
-                                        opacity: fadeOpacity
-                                    }}>
-                                        <InlineSVG
-                                            src="/icons/star.svg"
-                                            style={{
-                                                // @ts-ignore
-                                                '--stamped-stroke': ARTISTIC_MAP_STYLES.colors.icon.stroke,
-                                                '--stamped-width': '1.2px'
-                                            }}
-                                            className="stamped-icon"
-                                        />
-                                    </div>
-                                )}
-
-                                {l.markerLabel && l.markerLabelPos && !isCapped && (
-                                    <div
-                                        className="role-label"
-                                        style={{
-                                            position: 'absolute',
-                                            // Project the marker label anchor displacement relative to the dynamic final coordinate
-                                            left: finalX + ((l.markerLabelPos.x - (l.finalX ?? 0)) * zoomScale),
-                                            top: finalY + ((l.markerLabelPos.y - (l.finalY ?? 0)) * zoomScale),
-                                            transform: `translate(-50%, -50%) scale(${zoomScale})`,
-                                            fontSize: '17px', // Match markerLabelFont adjustment (+2)
-                                            opacity: fadeOpacity,
-                                            pointerEvents: 'none',
-                                            zIndex: 25,
-                                            textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere,
-                                            whiteSpace: 'nowrap'
-                                        }}
-                                    >
-                                        {l.markerLabel.text}
-                                    </div>
-                                )}
-
-                                {/* POI Balloon Badge: render for playing/preparing (render-scoped) OR all other POIs via has_balloon flag */}
-                                {(isActive || isPreparing || poi?.has_balloon) && poi?.beacon_color && !isReplayItem && (
-                                    <POIBeacon
-                                        x={finalX}
-                                        y={finalY}
-                                        color={poi.beacon_color}
-                                        size={12}
-                                        zoomScale={renderScale}
-                                        iconSize={l.height}
-                                    />
-                                )}
-                            </React.Fragment>
+                            <ArtisticMapPOIMarker
+                                key={l.id}
+                                label={l}
+                                poi={poi}
+                                geoPos={geoPos}
+                                finalX={finalX}
+                                finalY={finalY}
+                                zoomScale={zoomScale}
+                                fadeOpacity={fadeOpacity}
+                                selectedPOI={selectedPOI}
+                                currentNarratedId={currentNarratedId}
+                                preparingId={preparingId}
+                                isAutoOpened={isAutoOpened}
+                                isReplayItem={isReplayItem}
+                                preparingOpacity={preparingOpacity}
+                                onPOISelect={onPOISelect}
+                            />
                         );
                     }
 
                     // Settlement Rendering
                     return (
-                        <React.Fragment key={l.id}>
-                            <div
-                                className={l.tier === 'city' ? 'role-title' : (l.tier === 'town' ? 'role-header' : 'role-text-lg')}
-                                style={{
-                                    position: 'absolute', left: finalX, top: finalY, transform: `translate(-50%, -50%) scale(${zoomScale})`,
-                                    fontSize: l.tier === 'city' ? '24px' : (l.tier === 'town' ? '16px' : '14px'), // Match role font adjustments (-4)
-                                    color: l.isHistorical ? ARTISTIC_MAP_STYLES.colors.text.historical : ARTISTIC_MAP_STYLES.colors.text.active,
-                                    textShadow: ARTISTIC_MAP_STYLES.colors.shadows.atmosphere,
-                                    whiteSpace: 'nowrap',
-                                    pointerEvents: 'none',
-                                    zIndex: 5,
-                                    opacity: fadeOpacity
-                                }}
-                            >
-                                {l.text}
-                            </div>
-                        </React.Fragment>
+                        <ArtisticMapSettlement
+                            key={l.id}
+                            label={l}
+                            finalX={finalX}
+                            finalY={finalY}
+                            zoomScale={zoomScale}
+                            fadeOpacity={fadeOpacity}
+                        />
                     );
                 })}
 
@@ -1636,61 +1207,17 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
             {/* Debug: Placement Engine Bounding Boxes */}
             {showDebugBoxes && (
-                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 25 }}>
-                    {engine.getDebugBoxes().map((box, i) => (
-                        <rect
-                            key={`dbg-${box.ownerId}-${i}`}
-                            x={box.minX}
-                            y={box.minY}
-                            width={box.maxX - box.minX}
-                            height={box.maxY - box.minY}
-                            fill="none"
-                            stroke={box.type === 'marker' ? 'rgba(255,60,60,0.7)' : 'rgba(60,120,255,0.7)'}
-                            strokeWidth={1}
-                        />
-                    ))}
-                </svg>
+                <ArtisticMapDebugBoxes boxes={engine.getDebugBoxes()} />
             )}
 
-            {/* SVG Filter Definitions */}
-            <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-                <defs>
-                    <mask id="paper-mask" maskContentUnits="userSpaceOnUse">
-                        {/* We use lower opacity for the whole map in overview states (Idle, Replay, or Inactive) */}
-                        {(() => {
-                            const isIdleLocal = telemetry?.SimState === 'disconnected' && !effectiveReplayMode;
-                            const useClearOpacity = effectiveReplayMode || isIdleLocal || telemetry?.SimState === 'inactive';
-                            const baseOpacity = useClearOpacity ? paperOpacityClear : paperOpacityFog;
-
-                            return (
-                                <>
-                                    <rect x="0" y="0" width="10000" height="10000" fill={getMaskColor(baseOpacity)} />
-                                    {!useClearOpacity && <path d={frame.maskPath} fill={getMaskColor(paperOpacityClear)} />}
-                                </>
-                            );
-                        })()}
-                    </mask>
-                </defs>
-            </svg>
-
-            {/* Paper Overlay (Atomic from Frame) */}
-            <div style={{
-                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none',
-                backgroundColor: '#f4ecd8', backgroundImage: 'url(/assets/textures/paper.jpg), radial-gradient(#d4af37 1px, transparent 1px)',
-                backgroundSize: 'cover, 20px 20px', zIndex: 10, mask: 'url(#paper-mask)', WebkitMask: 'url(#paper-mask)',
-                filter: `saturate(${parchmentSaturation})`
-            }} />
-            <style>{`
-    .stamped-icon { display: flex; justify-content: center; align-items: center; }
-                .stamped-icon svg { width: 100%; height: 100%; overflow: visible; }
-                .stamped-icon path, .stamped-icon circle, .stamped-icon rect, .stamped-icon polygon, .stamped-icon ellipse, .stamped-icon line {
-    fill: currentColor!important;
-    stroke: var(--stamped-stroke, ${ARTISTIC_MAP_STYLES.colors.icon.stroke}) !important;
-    stroke-width: var(--stamped-width, 0.8px) !important;
-    stroke-linejoin: round!important;
-    vector-effect: non-scaling-stroke;
-}
-`}</style>
+            <ArtisticMapPaperOverlay
+                maskPath={frame.maskPath}
+                simState={telemetry?.SimState}
+                effectiveReplayMode={effectiveReplayMode}
+                paperOpacityFog={paperOpacityFog}
+                paperOpacityClear={paperOpacityClear}
+                parchmentSaturation={parchmentSaturation}
+            />
         </div>
     );
 };

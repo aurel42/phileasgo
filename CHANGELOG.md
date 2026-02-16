@@ -1,10 +1,51 @@
 ﻿# Changelog
 
+## v0.3.195 (2026-02-16)
+- **Fix**: **Scale Bar Label Cutoff**. Resolved an issue where the "kilom." and "m. (naut)" labels were being cut off by increasing the SVG container width.
+
+## v0.3.194 (2026-02-16)
+- **Improvement**: **Responsive Scale Bar**. The map scale now adapts its width to the viewport for better readability on large displays.
+- **Improvement**: **Refined Map Aesthetics**. Updated the scale bar with period-appropriate unit labeling and stylized vintage typography.
+- **Feature**: **Random Flight Starter**. Added backend support for repositioning the aircraft to random major global cities.
+- **Improvement**: **Hand-Crafted Prop Icon**. Introduced a detailed, high-fidelity SVG for propeller aircraft.
+- **Cleanup**: **Silent Label Processing**. Excised verbose debug spam from the map label engine to improve terminal clarity.
+
+## v0.3.193 (2026-02-16) - DEAD END
+- **Improvement**: **Dynamic Map Framing**. The map auto-zoom now intelligently frames both the aircraft's visibility cone and active POIs to ensure landmarks are never missed.
+- **Improvement**: **Antique Scale Bar Aesthetics**. Updated the dual-scale bar with period-appropriate units ("kilom.", "m.") and refined antique digit styling.
+- **Fix**: **Map Startup Persistence**. Resolved a regression where the map would occasionally fail to initialize at the correct zoom level or center position.
+
+## v0.3.192 (2026-02-16) - DEAD END
+*   Refined map scale bar typography with period-appropriate fonts and digit styling.
+*   Added thin-space spacing for large distances on the map scale bar to improve readability in an antique style.
+*   Stabilized the automated map test suite and resolved shared state regressions.
+
+# v0.3.191 (2026-02-16) - DEAD END
+*   Fixed missing settlement labels on the world map.
+*   Fixed scale bar displaying unreadable numbers and being too narrow.
+*   Fixed the camera not centering on the target city when using "Random Start".
+*   Fixed map defaulting to minimum zoom level instead of framing the world.
+
+# v0.3.190 (2026-02-16) - DEAD END
+- **Feature**: **Propeller Icon Refinement**. Introduced a high-detail Cessna-style icon for single-engine propeller aircraft, featuring distinct colors for the airframe and windows.
+- **Fix**: **Log Noise Reduction**. Resolved excessive debug log spam from the map label selection engine to improve server performance and log readability.
+
+## v0.3.189 (2026-02-15) - DEAD END
+- placeholder graphics for different aircraft types
+
+## v0.3.188 (2026-02-15) - DEAD END
+- **Feature**: **Master Volume Control**. Added a dedicated volume slider to the Narrator settings tab, fully integrated with the backend configuration.
+- **Fix**: **Static Configuration Safety**. Removed the misleading "Settlement Categories" editor from the UI; these categories are now correctly treated as static server-side configuration.
+
+## v0.3.187 (2026-02-15) - DEAD END
+- **Refactor**: **Artistic Map Architecture**. Modularized the monolithic map component into a robust system of dedicated hooks and sub-components, improving long-term maintainability.
+- **Improvement**: **Map State Synchronization**. Optimized the interaction between telemetry heartbeats and the map rendering loop, ensuring perfectly stable symbol placement during high-speed transitions.
+- **Fix**: **Replay Discovery Logic**. Resolved an issue where initial POI discovery events would occasionally desync from the flight timeline during debriefing replays.
+
 ## v0.3.186 (2026-02-15)
 - **Feature**: **Aircraft Customization**. Introduced livery color pickers, icon size scaling, and selectable aircraft types (Jet, Prop, Airliner, etc.) in the settings panel.
 - **Fix**: **Dynamic Beacon Alignment**. Replaced hardcoded balloon offsets with an adaptive calculation that scales with icon size for perfect map alignment.
 - **Cleanup**: **Settings UI Polish**. Excised redundant and hallucinated scoring parameters from the Scorer tab.
-
 
 ## v0.3.185 (2026-02-15)
 - **Fix**: **Replay Synchronization**. Resolved a 15-20 second lag between the aircraft and newly discovered icons by aligning the replay discovery filter with the take-off-to-landing baseline.
