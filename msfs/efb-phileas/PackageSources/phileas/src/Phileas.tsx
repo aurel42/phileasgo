@@ -115,7 +115,8 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
       // Minimal error logging to prevent spam
       console.error("Phileas: Loop error");
     }
-    this.updateTimer = setTimeout(() => this.loop(), 10000);
+    // BY DESIGN: Main data loop frequency (1s) - maintained for responsive telemetry/data tracking
+    this.updateTimer = setTimeout(() => this.loop(), 1000);
   }
 
   public render(): VNode {

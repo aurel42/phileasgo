@@ -41,8 +41,12 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
     private readonly isMapVisible = Subject.create<boolean>(true);
 
-    private lastUpdate = 0;
-    private readonly updateInterval = 10000; // Match looping interval
+    // BY DESIGN: UI Component Update Frequencies - maintained for readability/performance balance
+    private readonly DASHBOARD_INTERVAL = 2000; // Dashboard: 2s
+    private readonly LIST_INTERVAL = 5000;      // POIs/Cities/Map Overlay: 5s
+
+    private lastDashboardUpdate = 0;
+    private lastListUpdate = 0;
     private subscriptions: any[] = [];
 
     // Refs for visibility control
@@ -85,56 +89,61 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
     private updateUiData(force: boolean) {
         const now = Date.now();
-        if (!force && (now - this.lastUpdate < this.updateInterval)) {
-            return;
-        }
-
-        this.lastUpdate = now;
+        const shouldUpdateDashboard = force || (now - this.lastDashboardUpdate >= this.DASHBOARD_INTERVAL);
+        const shouldUpdateLists = force || (now - this.lastListUpdate >= this.LIST_INTERVAL);
 
         const t = this.props.telemetry.get();
-        const geo = this.props.geography.get();
 
-        // 1. Update Geography Display
-        if (geo) {
-            if (geo.city) {
-                this.geoDisplay.main.set(geo.city === 'Unknown' ? "Far from civilization" : `near ${geo.city}`);
-                this.geoDisplay.sub.set(`${geo.city_region ? `${geo.city_region}, ` : ''}${geo.city_country}`);
-            } else if (geo.country) {
-                this.geoDisplay.main.set(geo.country);
-                this.geoDisplay.sub.set(geo.region || "");
+        // 1. Update Geography Display & Dashboard (2s)
+        if (shouldUpdateDashboard) {
+            this.lastDashboardUpdate = now;
+            const geo = this.props.geography.get();
+            if (geo) {
+                if (geo.city) {
+                    this.geoDisplay.main.set(geo.city === 'Unknown' ? "Far from civilization" : `near ${geo.city}`);
+                    this.geoDisplay.sub.set(`${geo.city_region ? `${geo.city_region}, ` : ''}${geo.city_country}`);
+                } else if (geo.country) {
+                    this.geoDisplay.main.set(geo.country);
+                    this.geoDisplay.sub.set(geo.region || "");
+                }
             }
         }
 
-        // 2. Update POIs (Calculate distance on frontend)
-        const rawPois = this.props.pois.get() || [];
-        const sortedPois = [...rawPois].map((p: any) => {
-            let dist = 0;
-            if (t && p.lat !== undefined && p.lon !== undefined) {
-                dist = this.calculateDistance(t.Latitude, t.Longitude, p.lat, p.lon);
-            }
-            return {
-                name: p.name_en || p.name_user || p.wikidata_id,
-                score: p.score || 0,
-                distance: dist
-            };
-        }).sort((a, b) => a.distance - b.distance).slice(0, 50);
-        this.uiPois.set(sortedPois);
+        // 2. Update POIs & Cities (5s)
+        if (shouldUpdateLists) {
+            this.lastListUpdate = now;
 
-        // 3. Update Settlements (Calculate distance & Sort)
-        const rawSettlements = this.props.settlements.get() || {};
-        const settleList = (rawSettlements as any).labels || [];
-        const mappedSettlements = settleList.map((s: any) => {
-            let dist = 0;
-            if (t && s.lat !== undefined && s.lon !== undefined) {
-                dist = this.calculateDistance(t.Latitude, t.Longitude, s.lat, s.lon);
-            }
-            return {
-                name: s.name,
-                pop: s.pop || 0,
-                distance: dist
-            };
-        }).sort((a: any, b: any) => a.distance - b.distance).slice(0, 50);
-        this.uiSettlements.set(mappedSettlements);
+            // Update POIs (Calculate distance on frontend)
+            const rawPois = this.props.pois.get() || [];
+            const sortedPois = [...rawPois].map((p: any) => {
+                let dist = 0;
+                if (t && p.lat !== undefined && p.lon !== undefined) {
+                    dist = this.calculateDistance(t.Latitude, t.Longitude, p.lat, p.lon);
+                }
+                return {
+                    name: p.name_user || p.name_en || p.name_local || p.wikidata_id || "Unknown POI",
+                    score: p.score ?? p.Score ?? 0,
+                    distance: dist
+                };
+            }).sort((a, b) => a.distance - b.distance).slice(0, 50);
+            this.uiPois.set(sortedPois);
+
+            // Update Settlements (Calculate distance & Sort)
+            const rawSettlements = this.props.settlements.get() || {};
+            const settleList = (rawSettlements as any).labels || [];
+            const mappedSettlements = settleList.map((s: any) => {
+                let dist = 0;
+                if (t && s.lat !== undefined && s.lon !== undefined) {
+                    dist = this.calculateDistance(t.Latitude, t.Longitude, s.lat, s.lon);
+                }
+                return {
+                    name: s.name || s.city_name || "Unknown City",
+                    pop: s.pop ?? s.population ?? 0,
+                    distance: dist
+                };
+            }).sort((a: any, b: any) => a.distance - b.distance).slice(0, 50);
+            this.uiSettlements.set(mappedSettlements);
+        }
     }
 
     private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {

@@ -1,8 +1,7 @@
 import {
     ComponentProps, DisplayComponent, FSComponent, VNode, Subject,
-    MapSystemBuilder, EventBus, MapSystemKeys, Vec2Math, MapLayer,
-    MapProjection, MapLayerProps, MapSystemComponent, Subscribable,
-    UnitType, NumberUnitInterface, UnitFamily, GeoPoint
+    MapSystemBuilder, EventBus, Vec2Math, MapLayer,
+    MapLayerProps, UnitType, GeoPoint
 } from "@microsoft/msfs-sdk";
 
 import "./MapComponent.scss";
@@ -22,21 +21,30 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
     private readonly containerRef = FSComponent.createRef<HTMLDivElement>();
     private pois: any[] = [];
     private subscriptions: any[] = [];
+    private lastMarkerUpdate = 0;
+    // BY DESIGN: Map overlay marker update frequency (5s) - maintained for performance/clutter control
+    private readonly MARKER_UPDATE_INTERVAL = 5000;
 
     public onAttached(): void {
         const poisSub = (this.props.model as any).getModule("PhileasData").pois.sub((p: any[]) => {
             this.pois = p;
-            this.updateMarkers();
+            this.updateMarkers(false);
         });
         this.subscriptions.push(poisSub);
     }
 
     public onMapProjectionChanged(): void {
-        this.updateMarkers();
+        this.updateMarkers(true);
     }
 
-    private updateMarkers(): void {
+    private updateMarkers(force: boolean): void {
         if (!this.containerRef.instance) return;
+
+        const now = Date.now();
+        if (!force && (now - this.lastMarkerUpdate < this.MARKER_UPDATE_INTERVAL)) {
+            return;
+        }
+        this.lastMarkerUpdate = now;
 
         // Simple manual DOM management for performance (common in MSFS gauges)
         this.containerRef.instance.innerHTML = "";
@@ -73,9 +81,7 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
 }
 
 export class MapComponent extends DisplayComponent<MapComponentProps> {
-    private readonly mapRef = FSComponent.createRef<MapSystemComponent>();
-    private readonly size = Subject.create(Vec2Math.create(100, 100));
-    private readonly range = Subject.create<NumberUnitInterface<UnitFamily.Distance>>(UnitType.NMILE.createNumber(5));
+    private readonly size = Subject.create(Vec2Math.create(800, 800));
     private mapSystem?: any;
 
     constructor(props: MapComponentProps) {
@@ -83,11 +89,13 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
 
         const builder = MapSystemBuilder.create(this.props.bus)
             .withProjectedSize(this.size)
-            .withClockUpdate(10)
-            .withBing("phileas-efb-map")
+            // BY DESIGN: Map system clock frequency (1Hz) - maintained for smooth transition/performance balance
+            .withClockUpdate(1)
+            .withBing("ebf-map")
             .withFollowAirplane()
             .withRotation()
-            .withRange(this.range.get())
+            // BY DESIGN: Default range 5nm
+            .withRange(UnitType.NMILE.createNumber(5))
             .withOwnAirplaneIcon(32, "http://127.0.0.1:1920/icons/airfield.svg", Vec2Math.create(0.5, 0.5))
             .withModule("PhileasData", () => ({
                 pois: this.props.pois,
@@ -97,19 +105,14 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
 
         this.mapSystem = builder.build("phileas-map-system");
 
-        if (this.mapSystem.map) {
-            (this.mapSystem.map as any).ref = this.mapRef;
-        }
-
         // Force centering when telemetry becomes available
         this.props.telemetry.sub((t) => {
-            if (t && t.Valid) {
+            if (t && t.Valid && this.mapSystem) {
                 const pos = new GeoPoint(t.Latitude, t.Longitude);
-                if (this.mapRef.instance) {
-                    const projection = (this.mapRef.instance as any).getProjection();
-                    if (projection && projection.getTarget().distance(pos) > 0.01) {
-                        projection.setTarget(pos);
-                    }
+                // Use the type-safe way to get the projection and cast if necessary
+                const projection = this.mapSystem.projection as any;
+                if (projection.setTarget) {
+                    projection.setTarget(pos);
                 }
             }
         }, true);
@@ -118,12 +121,14 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
     public onAfterRender(): void {
         this.updateSize();
         window.addEventListener('resize', () => this.updateSize());
-        setInterval(() => this.updateSize(), 5000); // Less frequent update
+        // BY DESIGN: Map resize check frequency (1s) - ensures map fills container correctly
+        setInterval(() => this.updateSize(), 1000);
     }
 
     private updateSize(): void {
         try {
-            const instance = this.mapRef.instance as any;
+            // Using mapSystem.ref (properly attached map VNode) for size measurements
+            const instance = this.mapSystem?.ref.instance as any;
             const container = instance?.parentElement;
             if (container) {
                 const w = container.clientWidth;

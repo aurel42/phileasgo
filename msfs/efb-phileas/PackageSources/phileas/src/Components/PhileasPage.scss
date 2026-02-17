@@ -199,6 +199,29 @@
         border-bottom: 2px solid #333;
     }
 
+    .col-name {
+        flex: 1;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .col-dist {
+        width: 80px;
+        text-align: right;
+        color: #3498db;
+        font-family: monospace;
+    }
+
+    .col-score,
+    .col-pop {
+        width: 80px;
+        text-align: right;
+        color: #f1c40f;
+        font-family: monospace;
+    }
+
     .list-row {
         display: flex;
         padding: 12px 15px;
@@ -214,29 +237,6 @@
 
         &:nth-child(even) {
             background: #1e1e1e;
-        }
-
-        .col-name {
-            flex: 1;
-            font-weight: 600;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .col-dist {
-            width: 80px;
-            text-align: right;
-            color: #3498db;
-            font-family: monospace;
-        }
-
-        .col-score,
-        .col-pop {
-            width: 80px;
-            text-align: right;
-            color: #f1c40f;
-            font-family: monospace;
         }
     }
 
