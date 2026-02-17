@@ -1,0 +1,10 @@
+{
+  "id": "phileas",
+  "name": "Phileas",
+  "description": "Phileas EFB Integration",
+  "icon": "assets/app-icon.svg",
+  "entryPoint": "index.html",
+  "isCoreApp": false,
+  "isSearchable": true,
+  "isFavoritable": true
+}

@@ -1,0 +1,35 @@
+.ui-view.popup {
+  position: absolute;
+  top: 0px;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  background-color: rgba(127, 127, 127, 0.8);
+
+  .sample-popup {
+    position: relative;
+    top: 100px;
+
+    width: 50vw;
+    height: 20vh;
+
+    color: black;
+    background: lightgray;
+
+    > button.abstract-button {
+      width: 100%;
+    }
+
+    > .content {
+      width: 100%;
+
+      display: flex;
+      align-items: center;
+
+      padding: 1vh;
+      box-sizing: border-box;
+    }
+  }
+}

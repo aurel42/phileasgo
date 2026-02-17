@@ -4,10 +4,17 @@ APP_NAME=phileasgo
 GUI_NAME=phileasgui
 CMD_PATH=./cmd/phileasgo
 WEB_PATH=./internal/ui/web
+EFB_SRC_PATH=msfs/efb-phileas/PackageSources/phileas
+EFB_PROJECT_XML=msfs/efb-phileas/efb-phileas.xml
+EFB_PACKAGE_NAME=charliebravo-efb-phileas
+
+MSFS_SDK=C:/MSFS 2024 SDK
+PACKAGE_TOOL=$(MSFS_SDK)/Tools/bin/fspackagetool.exe
+COMMUNITY_DIR=C:/Users/aurel/AppData/Roaming/Microsoft Flight Simulator 2024/Packages/Community
 
 all: build-web test build build-gui
 
-build: build-web build-app build-gui
+build: build-web build-app build-gui build-efb
 
 build-app: pkg/geo/countries.geojson pkg/geo/data/geodata.bin
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/copy_simconnect.ps1
@@ -30,6 +37,17 @@ pkg/geo/data/geodata.bin: data/cities1000.txt data/admin1CodesASCII.txt cmd/slim
 build-web:
 	cd $(WEB_PATH) && npm install && npm run build
 	powershell -NoProfile -Command "Copy-Item -Path data\\icons -Destination internal\\ui\\dist\\icons -Recurse -Force"
+
+build-efb:
+	cd $(EFB_SRC_PATH) && npm install && npm run build
+	powershell -NoProfile -Command "if (Test-Path 'msfs\\efb-phileas\\_PackageInt') { Remove-Item -Recurse -Force 'msfs\\efb-phileas\\_PackageInt' }"
+	powershell -NoProfile -Command "if (Test-Path 'msfs\\efb-phileas\\Packages') { Remove-Item -Recurse -Force 'msfs\\efb-phileas\\Packages' }"
+	# "$(PACKAGE_TOOL)" "$(CURDIR)/$(EFB_PROJECT_XML)" -nopause
+
+install-efb:
+	powershell -NoProfile -Command "if (Test-Path '$(COMMUNITY_DIR)\\$(EFB_PACKAGE_NAME)') { Remove-Item -Recurse -Force '$(COMMUNITY_DIR)\\$(EFB_PACKAGE_NAME)' }"
+	powershell -NoProfile -Command "Copy-Item -Path msfs\\efb-phileas\\Packages\\$(EFB_PACKAGE_NAME) -Destination '$(COMMUNITY_DIR)\\$(EFB_PACKAGE_NAME)' -Recurse -Force"
+	@echo EFB Package installed to Community folder: $(COMMUNITY_DIR)\\$(EFB_PACKAGE_NAME)
 
 run: build
 	./$(APP_NAME).exe

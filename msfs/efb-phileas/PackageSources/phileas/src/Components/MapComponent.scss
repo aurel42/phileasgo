@@ -1,0 +1,45 @@
+.map-component {
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    overflow: hidden;
+    position: relative;
+}
+
+.map-system-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.phileas-poi-layer {
+    z-index: 100;
+}
+
+.poi-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+
+    .poi-dot {
+        width: 8px;
+        height: 8px;
+        background-color: #ffcc00;
+        border: 1px solid #000;
+        border-radius: 50%;
+        box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .poi-label {
+        margin-top: 4px;
+        padding: 2px 4px;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        font-family: sans-serif;
+        font-size: 10px;
+        white-space: nowrap;
+        border-radius: 2px;
+        pointer-events: none;
+    }
+}

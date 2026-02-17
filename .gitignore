@@ -50,3 +50,12 @@ tmp/
 .gitleaksignore
 release/
 *.syso
+
+# MSFS EFB
+msfs/efb-phileas/Packages/
+msfs/efb-phileas/_PackageInt/
+msfs/efb-phileas/PackagesMetadata/
+msfs/efb-phileas/PackageSources/*/dist/
+msfs/efb-phileas/PackageSources/*/node_modules/
+msfs/efb-phileas/PackageSources/*/build_error.log
+msfs/efb-phileas/*.xml.user
