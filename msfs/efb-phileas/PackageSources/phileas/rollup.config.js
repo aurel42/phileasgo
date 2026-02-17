@@ -3,14 +3,18 @@ import resolve from '@rollup/plugin-node-resolve';
 import postcss from 'rollup-plugin-postcss';
 import copy from 'rollup-plugin-copy';
 import replace from '@rollup/plugin-replace';
+import prefixer from 'postcss-prefix-selector';
 
 export default {
     input: 'src/Phileas.tsx',
     output: {
-        dir: 'dist',
-        format: 'es',
+        file: 'dist/phileas.js',
+        format: 'iife',
         sourcemap: true,
-        entryFileNames: 'phileas.js',
+        name: 'PhileasEFB',
+        globals: {
+            '@microsoft/msfs-sdk': 'msfssdk',
+        },
     },
     external: ['@microsoft/msfs-sdk'],
     plugins: [
@@ -18,6 +22,18 @@ export default {
             extract: 'phileas.css',
             minimize: true,
             use: ['sass'],
+            plugins: [
+                prefixer({
+                    prefix: '.efb-view.phileas',
+                    exclude: [],
+                    transform(prefix, selector, prefixedSelector) {
+                        if (selector.startsWith('body') || selector.startsWith('html')) {
+                            return selector; // Don't prefix body/html if any
+                        }
+                        return prefixedSelector;
+                    }
+                })
+            ]
         }),
         resolve(),
         typescript({
@@ -25,7 +41,6 @@ export default {
         }),
         copy({
             targets: [
-                { src: 'src/index.html', dest: 'dist' },
                 { src: 'src/manifest.json', dest: 'dist' },
                 { src: 'src/Assets/*', dest: 'dist/assets' }
             ]

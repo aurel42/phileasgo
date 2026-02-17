@@ -132,11 +132,11 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
         // 3. Update Settlements
         const rawSettlements = this.props.settlements.get() || {};
-        const settleList = rawSettlements.labels || [];
+        const settleList = (rawSettlements as any).labels || [];
         console.log(`PhileasPage: Raw Settlements count: ${settleList.length}`);
         this.uiSettlements.set(settleList.slice(0, 50).map((s: any) => ({
             name: s.name,
-            pop: s.pop,
+            pop: s.pop || 0,
             distance: 0 // populate if available
         })));
     }
@@ -172,7 +172,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
     public render(): TVNode<HTMLDivElement> {
         return (
-            <div class="phileas-page">
+            <div ref={this.gamepadUiViewRef} class="phileas-page">
                 {/* Top Padding */}
                 <div class="status-bar-spacer"></div>
 

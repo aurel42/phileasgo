@@ -76,49 +76,66 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
 export class MapComponent extends DisplayComponent<MapComponentProps> {
     private readonly mapRef = FSComponent.createRef<MapSystemComponent>();
     private readonly size = Subject.create(Vec2Math.create(100, 100));
+    private mapSystem?: any;
 
-    public onAfterRender(): void {
-        this.updateSize();
-        window.addEventListener('resize', () => this.updateSize());
+    constructor(props: MapComponentProps) {
+        super(props);
+        console.log("MapComponent: Initializing stable map system");
 
-        // Poll for size changes as well (common in EFB environments)
-        setInterval(() => this.updateSize(), 1000);
-    }
-
-    private updateSize(): void {
-        const container = (this.mapRef.instance as any)?.parentElement;
-        if (container) {
-            const w = container.clientWidth;
-            const h = container.clientHeight;
-            if (w > 0 && h > 0) {
-                const current = this.size.get();
-                if (current[0] !== w || current[1] !== h) {
-                    this.size.set(Vec2Math.create(w, h));
-                }
-            }
-        }
-    }
-
-    public render(): VNode {
-        // Initialize the MapSystem
         const builder = MapSystemBuilder.create(this.props.bus)
             .withProjectedSize(this.size)
-            .withClockUpdate(10) // 10Hz for smoothness
+            .withClockUpdate(10)
             .withBing("phileas-efb-map")
             .withFollowAirplane()
             .withRotation()
-            .withOwnAirplaneIcon(32, "coui://html_ui/Pages/VCockpit/Instruments/NavSystems/Shared/Images/Icons/Aircraft/airplane_icon.svg", Vec2Math.create(0.5, 0.5))
+            .withOwnAirplaneIcon(32, "http://127.0.0.1:1920/icons/airfield.svg", Vec2Math.create(0.5, 0.5))
             .withModule("PhileasData", () => ({
                 pois: this.props.pois,
                 settlements: this.props.settlements
             }))
             .withLayer("PhileasPois", (context) => <PhileasPoiLayer model={context.model} mapProjection={context.projection} />, 100);
 
-        const compiled = builder.build("phileas-map-system");
+        this.mapSystem = builder.build("phileas-map-system");
+
+        if (this.mapSystem.map) {
+            (this.mapSystem.map as any).ref = this.mapRef;
+            console.log("MapComponent: Ref attached to map VNode");
+        }
+    }
+
+    public onAfterRender(): void {
+        console.log("MapComponent: onAfterRender");
+        this.updateSize();
+        window.addEventListener('resize', () => this.updateSize());
+        setInterval(() => this.updateSize(), 1000);
+    }
+
+    private updateSize(): void {
+        try {
+            const instance = this.mapRef.instance as any;
+            const container = instance?.parentElement;
+            if (container) {
+                const w = container.clientWidth;
+                const h = container.clientHeight;
+                if (w > 0 && h > 0) {
+                    const current = this.size.get();
+                    if (current[0] !== w || current[1] !== h) {
+                        this.size.set(Vec2Math.create(w, h));
+                    }
+                }
+            }
+        } catch (e) {
+            // SDK throws 'Instance was null' if ref is accessed before mount
+            // console.warn("MapComponent: updateSize deferred (instance not ready)");
+        }
+    }
+
+    public render(): VNode {
+        if (!this.mapSystem) return <div class="map-system-error">Map initialisation failed</div>;
 
         return (
             <div class="map-system-container" style="width: 100%; height: 100%; position: relative;">
-                {compiled.map}
+                {this.mapSystem.map}
             </div>
         );
     }

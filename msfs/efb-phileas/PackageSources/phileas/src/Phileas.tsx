@@ -70,27 +70,25 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
 
   private async loop(): Promise<void> {
     try {
+      console.log("Phileas: Polling backend...");
       const telResponse = await fetch("http://127.0.0.1:1920/api/telemetry");
       if (telResponse.ok) {
         const telData = await telResponse.json();
+        console.log("Phileas: Telemetry received", telData.Valid);
         if (telData.Valid) {
-          // Backend returns flat JSON (embedded struct), so we reconstruct the object
-          // to match what the frontend expects (or just pass the whole thing if compatible).
-          // We'll treat 'telData' itself as the telemetry object source.
           const telemetry = telData;
-
           this.telemetry.set(telemetry);
 
-          // Fetch POIs
           const poisResponse = await fetch("http://127.0.0.1:1920/api/pois/tracked");
           if (poisResponse.ok) {
-            this.pois.set(await poisResponse.json());
+            const poisData = await poisResponse.json();
+            console.log(`Phileas: POIs received: ${poisData.length}`);
+            this.pois.set(poisData);
           }
 
-          // Fetch Settlements
           const lat = telemetry.Latitude;
           const lon = telemetry.Longitude;
-          const range = 0.5; // ~30nm
+          const range = 0.5;
           const body = {
             BBox: [lat - range, lon - range, lat + range, lon + range],
             ACLat: lat,
@@ -104,14 +102,16 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
             body: JSON.stringify(body)
           });
           if (setResponse.ok) {
-            this.settlements.set(await setResponse.json());
+            const setData = await setResponse.json();
+            console.log(`Phileas: Settlements received: ${(setData.labels || []).length}`);
+            this.settlements.set(setData);
           }
         }
       } else {
-        Logger.warn(`Telemetry fetch failed: ${telResponse.status}`);
+        console.warn(`Phileas: Telemetry fetch failed: ${telResponse.status}`);
       }
     } catch (err) {
-      Logger.error("Phileas fetch error:", err);
+      console.error("Phileas: Fetch error:", err);
     }
     this.updateTimer = setTimeout(() => this.loop(), 5000);
   }

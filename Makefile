@@ -42,7 +42,10 @@ build-efb:
 	cd $(EFB_SRC_PATH) && npm install && npm run build
 	powershell -NoProfile -Command "if (Test-Path 'msfs\\efb-phileas\\_PackageInt') { Remove-Item -Recurse -Force 'msfs\\efb-phileas\\_PackageInt' }"
 	powershell -NoProfile -Command "if (Test-Path 'msfs\\efb-phileas\\Packages') { Remove-Item -Recurse -Force 'msfs\\efb-phileas\\Packages' }"
-	# "$(PACKAGE_TOOL)" "$(CURDIR)/$(EFB_PROJECT_XML)" -nopause
+
+
+build-efb-full: build-efb
+	"$(PACKAGE_TOOL)" "$(CURDIR)/$(EFB_PROJECT_XML)" -nopause
 
 install-efb:
 	powershell -NoProfile -Command "if (Test-Path '$(COMMUNITY_DIR)\\$(EFB_PACKAGE_NAME)') { Remove-Item -Recurse -Force '$(COMMUNITY_DIR)\\$(EFB_PACKAGE_NAME)' }"

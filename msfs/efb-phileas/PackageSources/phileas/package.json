@@ -23,6 +23,7 @@
     "cross-env": "^7.0.3",
     "dotenv": "^16.0.3",
     "postcss": "^8.5.6",
+    "postcss-prefix-selector": "^2.1.1",
     "prettier": "^2.7.1",
     "rollup": "^3.29.2",
     "rollup-plugin-copy": "^3.5.0",
