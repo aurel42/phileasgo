@@ -2,180 +2,281 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 20px;
-    background: #1a1a1a;
+    background: #111;
     color: #eee;
-    overflow-y: auto;
+    overflow: hidden;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 
-    .hidden {
-        display: none !important;
+    .status-bar-spacer {
+        height: 35px;
+        background: #000;
     }
 
-    .header {
-        margin-bottom: 20px;
-        border-bottom: 1px solid #444;
-        padding-bottom: 10px;
+    .phileas-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 15px;
+        background: #1a1a1a;
+        border-bottom: 2px solid #333;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        z-index: 100;
 
-        h2 {
-            margin: 0;
+        .brand {
+            font-size: 20px;
+            font-weight: bold;
             color: #f39c12;
-            font-size: 24px;
-        }
-    }
+            margin-right: 15px;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
 
-    .status-box {
-        padding: 10px;
-        border: 1px solid;
-        margin-bottom: 10px;
-        font-family: monospace;
-        font-size: 14px;
-
-        &.render-check {
-            color: #e74c3c;
-            border-color: #e74c3c;
+            .version {
+                font-size: 12px;
+                opacity: 0.6;
+                font-weight: normal;
+                color: #eee;
+            }
         }
 
-        &.http-check {
-            &.pending {
-                color: #f1c40f;
-                border-color: #f1c40f;
+        .tt-button {
+            background: #222;
+            border: 1px solid #444;
+            color: #eee;
+            padding: 5px 15px;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+
+            &:hover {
+                background: #333;
+                border-color: #f39c12;
             }
 
-            &.success {
-                color: #2ecc71;
-                border-color: #2ecc71;
-            }
-
-            &.error {
-                color: #e74c3c;
-                border-color: #e74c3c;
+            &.active {
+                background: #f39c12;
+                color: #000;
+                border-color: #f39c12;
             }
         }
     }
 
     .phileas-content {
-        display: flex;
-        flex-direction: column;
         flex: 1;
+        position: relative;
         overflow: hidden;
-        gap: 20px;
 
         .view-container {
-            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
+            height: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+
+            &.scrollable {
+                overflow-y: auto;
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+
+                &::-webkit-scrollbar {
+                    display: none;
+                }
+            }
         }
     }
 
-    h3 {
-        margin: 0 0 10px 0;
-        font-size: 18px;
-        color: #bdc3c7;
-    }
-
-    .telemetry-grid {
-        background: #2c3e50;
-        padding: 15px;
-        border-radius: 4px;
-
-        .telemetry-data {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            font-family: monospace;
-            font-size: 16px;
-        }
-    }
-
-    .efb-table {
-        width: 100%;
-        border-collapse: collapse;
-        background: #222;
-
-        th,
-        td {
-            text-align: left;
-            padding: 8px 12px;
-            border-bottom: 1px solid #333;
-        }
-
-        th {
-            background: #333;
-            color: #f39c12;
-            font-weight: bold;
-        }
-
-        tr:nth-child(even) {
-            background: #2a2a2a;
-        }
-    }
-
-    .debug-console {
-        background: #000;
-        border: 1px solid #444;
-        border-radius: 4px;
-        padding: 10px;
+    // Dashboard Cards
+    .info-card {
+        background: linear-gradient(145deg, #1e1e1e, #141414);
+        border-radius: 12px;
+        padding: 20px;
         margin-bottom: 20px;
-        max-height: 200px;
+        border: 1px solid #333;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+
+        h3 {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #f39c12;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+
+        &.location-card {
+            text-align: center;
+
+            .geo-main {
+                font-size: 28px;
+                font-weight: bold;
+                color: #fff;
+                margin-bottom: 5px;
+            }
+
+            .geo-sub {
+                font-size: 16px;
+                color: #999;
+            }
+        }
+
+        &.stats-card-grid {
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                gap: 15px;
+            }
+
+            .stat-entry {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+
+                .stat-label {
+                    font-size: 12px;
+                    color: #888;
+                }
+
+                .stat-value {
+                    font-size: 18px;
+                    font-family: monospace;
+
+                    .success {
+                        color: #2ecc71;
+                    }
+
+                    .error {
+                        color: #e74c3c;
+                    }
+                }
+            }
+        }
+
+        &.system-card {
+            .diagnostics-table {
+                width: 100%;
+                font-size: 13px;
+                border-collapse: collapse;
+
+                th {
+                    text-align: left;
+                    color: #888;
+                    padding-bottom: 8px;
+                }
+
+                td {
+                    padding: 4px 0;
+                    border-bottom: 1px solid #222;
+                }
+
+                tr:last-child td {
+                    border: none;
+                }
+            }
+        }
+    }
+
+    // List Styles
+    .efb-list {
         display: flex;
         flex-direction: column;
+        gap: 5px;
+    }
 
-        .debug-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 5px;
+    .list-header {
+        display: flex;
+        padding: 10px 15px;
+        background: #222;
+        border-radius: 8px 8px 0 0;
+        font-weight: bold;
+        color: #f39c12;
+        font-size: 14px;
+        border-bottom: 2px solid #333;
+    }
 
-            h3 {
-                margin: 0;
-                font-size: 14px;
-                color: #aaa;
-            }
+    .list-row {
+        display: flex;
+        padding: 12px 15px;
+        background: #1a1a1a;
+        border-bottom: 1px solid #222;
+        font-size: 14px;
+        align-items: center;
 
-            button {
-                background: #444;
-                color: white;
-                border: none;
-                padding: 2px 8px;
-                cursor: pointer;
-
-                &:hover {
-                    background: #666;
-                }
-            }
+        &:last-child {
+            border-radius: 0 0 8px 8px;
+            border-bottom: none;
         }
 
-        .debug-logs {
+        &:nth-child(even) {
+            background: #1e1e1e;
+        }
+
+        .col-name {
             flex: 1;
-            overflow-y: auto;
-            font-family: 'Consolas', monospace;
-            font-size: 12px;
-
-            .log-entry {
-                margin-bottom: 2px;
-                border-bottom: 1px solid #222;
-                padding: 2px 0;
-
-                .timestamp {
-                    color: #666;
-                    margin-right: 8px;
-                }
-
-                .message {
-                    word-break: break-all;
-                }
-
-                &.info {
-                    color: #cfc;
-                }
-
-                &.warn {
-                    color: #fc0;
-                }
-
-                &.error {
-                    color: #f55;
-                }
-            }
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
+
+        .col-dist {
+            width: 80px;
+            text-align: right;
+            color: #3498db;
+            font-family: monospace;
+        }
+
+        .col-score,
+        .col-pop {
+            width: 80px;
+            text-align: right;
+            color: #f1c40f;
+            font-family: monospace;
+        }
+    }
+
+    h2 {
+        margin: 0 0 15px 0;
+        color: #fff;
+        font-size: 22px;
+    }
+}
+
+// Special handling for Map View
+.map-system-container {
+    background: #1a1a1a;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #333;
+}
+
+.poi-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    .poi-dot {
+        width: 12px;
+        height: 12px;
+        background: #f39c12;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    }
+
+    .poi-label {
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        margin-top: 4px;
+        white-space: nowrap;
+        pointer-events: none;
     }
 }

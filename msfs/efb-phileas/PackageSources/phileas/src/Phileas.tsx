@@ -11,7 +11,6 @@ import {
 } from "@efb/efb-api";
 import { FSComponent, VNode, Subject } from "@microsoft/msfs-sdk";
 import { PhileasPage } from "./Components/PhileasPage";
-import { Logger } from "./Utils/Logger";
 
 import "./Phileas.scss";
 
@@ -25,6 +24,10 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
   private telemetry = Subject.create<any>(null);
   private pois = Subject.create<any[]>([]);
   private settlements = Subject.create<any[]>([]);
+  private apiVersion = Subject.create<string>("v0.0.0");
+  private apiStats = Subject.create<any>(null);
+  private geography = Subject.create<any>(null);
+
   private updateTimer: any = null;
 
   protected registerViews(): void {
@@ -35,6 +38,9 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
         telemetry={this.telemetry}
         pois={this.pois}
         settlements={this.settlements}
+        apiVersion={this.apiVersion}
+        apiStats={this.apiStats}
+        geography={this.geography}
       />
     ));
   }
@@ -70,50 +76,46 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
 
   private async loop(): Promise<void> {
     try {
-      console.log("Phileas: Polling backend...");
       const telResponse = await fetch("http://127.0.0.1:1920/api/telemetry");
       if (telResponse.ok) {
         const telData = await telResponse.json();
-        console.log("Phileas: Telemetry received", telData.Valid);
         if (telData.Valid) {
           const telemetry = telData;
           this.telemetry.set(telemetry);
 
-          const poisResponse = await fetch("http://127.0.0.1:1920/api/pois/tracked");
-          if (poisResponse.ok) {
-            const poisData = await poisResponse.json();
-            console.log(`Phileas: POIs received: ${poisData.length}`);
-            this.pois.set(poisData);
-          }
+          // Parallel fetches for efficiency
+          const [poisRes, setRes, statsRes, verRes, geoRes] = await Promise.all([
+            fetch("http://127.0.0.1:1920/api/pois/tracked"),
+            fetch("http://127.0.0.1:1920/api/map/labels/sync", {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                BBox: [telemetry.Latitude - 0.5, telemetry.Longitude - 0.5, telemetry.Latitude + 0.5, telemetry.Longitude + 0.5],
+                ACLat: telemetry.Latitude,
+                ACLon: telemetry.Longitude,
+                Zoom: 10
+              })
+            }),
+            fetch("http://127.0.0.1:1920/api/stats"),
+            fetch("http://127.0.0.1:1920/api/version"),
+            fetch(`http://127.0.0.1:1920/api/geography?lat=${telemetry.Latitude}&lon=${telemetry.Longitude}`)
+          ]);
 
-          const lat = telemetry.Latitude;
-          const lon = telemetry.Longitude;
-          const range = 0.5;
-          const body = {
-            BBox: [lat - range, lon - range, lat + range, lon + range],
-            ACLat: lat,
-            ACLon: lon,
-            Zoom: 10
-          };
-
-          const setResponse = await fetch("http://127.0.0.1:1920/api/map/labels/sync", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-          });
-          if (setResponse.ok) {
-            const setData = await setResponse.json();
-            console.log(`Phileas: Settlements received: ${(setData.labels || []).length}`);
-            this.settlements.set(setData);
+          if (poisRes.ok) this.pois.set(await poisRes.json());
+          if (setRes.ok) this.settlements.set(await setRes.json());
+          if (statsRes.ok) this.apiStats.set(await statsRes.json());
+          if (verRes.ok) {
+            const v = await verRes.json();
+            this.apiVersion.set(v.version);
           }
+          if (geoRes.ok) this.geography.set(await geoRes.json());
         }
-      } else {
-        console.warn(`Phileas: Telemetry fetch failed: ${telResponse.status}`);
       }
     } catch (err) {
-      console.error("Phileas: Fetch error:", err);
+      // Minimal error logging to prevent spam
+      console.error("Phileas: Loop error");
     }
-    this.updateTimer = setTimeout(() => this.loop(), 5000);
+    this.updateTimer = setTimeout(() => this.loop(), 10000);
   }
 
   public render(): VNode {

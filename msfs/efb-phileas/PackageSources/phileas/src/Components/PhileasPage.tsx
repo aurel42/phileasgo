@@ -1,6 +1,5 @@
 import { TTButton, GamepadUiView, RequiredProps, TVNode, UiViewProps, List } from "@efb/efb-api";
 import { FSComponent, Subject, VNode, ArraySubject, EventBus } from "@microsoft/msfs-sdk";
-import { Logger } from "../Utils/Logger";
 import { MapComponent } from "./MapComponent";
 
 import "./PhileasPage.scss";
@@ -13,16 +12,13 @@ interface PhileasPageProps extends RequiredProps<UiViewProps, "appViewService"> 
     telemetry: Subject<any>;
     pois: Subject<any[]>;
     settlements: Subject<any>;
-}
-
-interface TelemetryItem {
-    label: string;
-    value: string;
+    apiVersion: Subject<string>;
+    apiStats: Subject<any>;
+    geography: Subject<any>;
 }
 
 interface PoiItem {
     name: string;
-    city: string;
     score: number;
     distance: number;
 }
@@ -39,15 +35,14 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
     private readonly activeTab = Subject.create<string>("map");
 
-    // Throttled Subjects for UI Binding using ArraySubject for List compatibility
-    private readonly uiTelemetry = ArraySubject.create<TelemetryItem>([]);
+    // Throttled Subjects for UI Binding
     private readonly uiPois = ArraySubject.create<PoiItem>([]);
     private readonly uiSettlements = ArraySubject.create<SettlementItem>([]);
 
     private readonly isMapVisible = Subject.create<boolean>(true);
 
     private lastUpdate = 0;
-    private readonly updateInterval = 5000;
+    private readonly updateInterval = 10000; // Match looping interval
     private subscriptions: any[] = [];
 
     // Refs for visibility control
@@ -56,12 +51,10 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     private readonly poisContainerRef = FSComponent.createRef<HTMLDivElement>();
     private readonly settlementsContainerRef = FSComponent.createRef<HTMLDivElement>();
 
-    // Helper for formatted telemetry display
-    private readonly telemDisplay = {
-        lat: Subject.create<string>("-"),
-        lon: Subject.create<string>("-"),
-        alt: Subject.create<string>("-"),
-        hdg: Subject.create<string>("-")
+    // Geographic Display
+    private readonly geoDisplay = {
+        main: Subject.create<string>("Locating..."),
+        sub: Subject.create<string>("")
     };
 
     public onAfterRender(): void {
@@ -72,7 +65,6 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                 this.isMapVisible.set(isMap);
             }
 
-            // Manual style updates because FSComponent doesn't reactive-bind inline style objects
             if (this.mapContainerRef.instance) this.mapContainerRef.instance.style.display = tab === 'map' ? 'block' : 'none';
             if (this.dashboardContainerRef.instance) this.dashboardContainerRef.instance.style.display = tab === 'dashboard' ? 'block' : 'none';
             if (this.poisContainerRef.instance) this.poisContainerRef.instance.style.display = tab === 'pois' ? 'block' : 'none';
@@ -82,11 +74,10 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         });
 
         // Subscribe to raw data props
-        const telemSub = this.props.telemetry.sub(() => this.updateUiData(false));
-        const poisSub = this.props.pois.sub(() => this.updateUiData(false));
-        const settleSub = this.props.settlements.sub(() => this.updateUiData(false));
-
-        this.subscriptions.push(telemSub, poisSub, settleSub);
+        this.subscriptions.push(this.props.telemetry.sub(() => this.updateUiData(false)));
+        this.subscriptions.push(this.props.pois.sub(() => this.updateUiData(false)));
+        this.subscriptions.push(this.props.settlements.sub(() => this.updateUiData(false)));
+        this.subscriptions.push(this.props.geography.sub(() => this.updateUiData(false)));
 
         // Initial update
         this.updateUiData(true);
@@ -99,51 +90,64 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         }
 
         this.lastUpdate = now;
-        console.log("PhileasPage: updateUiData triggered");
 
-        // 1. Update Telemetry Display (for Dashboard) & List
         const t = this.props.telemetry.get();
-        if (t) {
-            this.telemDisplay.lat.set(t.Latitude?.toFixed(4) ?? "-");
-            this.telemDisplay.lon.set(t.Longitude?.toFixed(4) ?? "-");
-            this.telemDisplay.alt.set(t.Altitude?.toFixed(0) ?? "-");
-            this.telemDisplay.hdg.set(t.Heading?.toFixed(0) ?? "-");
+        const geo = this.props.geography.get();
 
-            this.uiTelemetry.set([
-                { label: "Speed", value: `${(t.Speed || 0).toFixed(0)} kts` },
-                { label: "Altitude", value: `${(t.Altitude || 0).toFixed(0)} ft` },
-                { label: "Heading", value: `${(t.Heading || 0).toFixed(0)}°` },
-                { label: "Lat/Lon", value: `${t.Latitude?.toFixed(4)} / ${t.Longitude?.toFixed(4)}` }
-            ]);
-        } else {
-            console.log("PhileasPage: Telemetry is null/undefined");
+        // 1. Update Geography Display
+        if (geo) {
+            if (geo.city) {
+                this.geoDisplay.main.set(geo.city === 'Unknown' ? "Far from civilization" : `near ${geo.city}`);
+                this.geoDisplay.sub.set(`${geo.city_region ? `${geo.city_region}, ` : ''}${geo.city_country}`);
+            } else if (geo.country) {
+                this.geoDisplay.main.set(geo.country);
+                this.geoDisplay.sub.set(geo.region || "");
+            }
         }
 
-        // 2. Update POIs
+        // 2. Update POIs (Calculate distance on frontend)
         const rawPois = this.props.pois.get() || [];
-        console.log(`PhileasPage: Raw POIs count: ${rawPois.length}`);
-        const sortedPois = [...rawPois].sort((a: any, b: any) => (b.score || 0) - (a.score || 0)).slice(0, 50);
-        this.uiPois.set(sortedPois.map((p: any) => ({
-            name: p.name,
-            city: p.city || "",
-            score: p.score || 0,
-            distance: (p.distance || 0) / 1852 // Convert m to nm
-        })));
+        const sortedPois = [...rawPois].map((p: any) => {
+            let dist = 0;
+            if (t && p.lat !== undefined && p.lon !== undefined) {
+                dist = this.calculateDistance(t.Latitude, t.Longitude, p.lat, p.lon);
+            }
+            return {
+                name: p.name_en || p.name_user || p.wikidata_id,
+                score: p.score || 0,
+                distance: dist
+            };
+        }).sort((a, b) => a.distance - b.distance).slice(0, 50);
+        this.uiPois.set(sortedPois);
 
-        // 3. Update Settlements
+        // 3. Update Settlements (Calculate distance & Sort)
         const rawSettlements = this.props.settlements.get() || {};
         const settleList = (rawSettlements as any).labels || [];
-        console.log(`PhileasPage: Raw Settlements count: ${settleList.length}`);
-        this.uiSettlements.set(settleList.slice(0, 50).map((s: any) => ({
-            name: s.name,
-            pop: s.pop || 0,
-            distance: 0 // populate if available
-        })));
+        const mappedSettlements = settleList.map((s: any) => {
+            let dist = 0;
+            if (t && s.lat !== undefined && s.lon !== undefined) {
+                dist = this.calculateDistance(t.Latitude, t.Longitude, s.lat, s.lon);
+            }
+            return {
+                name: s.name,
+                pop: s.pop || 0,
+                distance: dist
+            };
+        }).sort((a: any, b: any) => a.distance - b.distance).slice(0, 50);
+        this.uiSettlements.set(mappedSettlements);
+    }
+
+    private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+        const p = 0.017453292519943295; // Math.PI / 180
+        const c = Math.cos;
+        const a = 0.5 - c((lat2 - lat1) * p) / 2 +
+            c(lat1 * p) * c(lat2 * p) *
+            (1 - c((lon2 - lon1) * p)) / 2;
+        return 12742 * Math.asin(Math.sqrt(a)) / 1.852; // NM
     }
 
     public onDestroy(): void {
         this.subscriptions.forEach(s => s.destroy && s.destroy());
-        this.uiTelemetry.length; // Access property to silence unused warning if any
     }
 
     private setTab(tab: string) {
@@ -154,7 +158,6 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         return (
             <div class="list-row poi-row">
                 <div class="col-name">{item.name}</div>
-                <div class="col-city">{item.city}</div>
                 <div class="col-dist">{item.distance.toFixed(1)}nm</div>
                 <div class="col-score">{item.score.toFixed(1)}</div>
             </div>
@@ -165,7 +168,62 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         return (
             <div class="list-row settlement-row">
                 <div class="col-name">{item.name}</div>
+                <div class="col-dist">{item.distance.toFixed(1)}nm</div>
                 <div class="col-pop">{item.pop.toLocaleString()}</div>
+            </div>
+        );
+    }
+
+    private renderStats = (): VNode | null => {
+        const stats = this.props.apiStats.get();
+        if (!stats || !stats.providers) return null;
+
+        return (
+            <div class="info-card stats-card-grid">
+                <h3>API Statistics</h3>
+                <div class="stats-grid">
+                    {Object.entries(stats.providers).map(([key, data]: [string, any]) => {
+                        const hasActivity = (data.api_success || 0) + (data.api_errors || 0) > 0;
+                        if (!hasActivity) return null;
+                        return (
+                            <div class="stat-entry">
+                                <span class="stat-label">{key.toUpperCase()}</span>
+                                <span class="stat-value">
+                                    <span class="success">{data.api_success}</span> / <span class="error">{data.api_errors}</span>
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
+
+    private renderDiagnostics = (): VNode | null => {
+        const stats = this.props.apiStats.get();
+        if (!stats || !stats.diagnostics) return null;
+
+        return (
+            <div class="info-card system-card">
+                <h3>System Diagnostics</h3>
+                <table class="diagnostics-table">
+                    <thead>
+                        <tr>
+                            <th>Process</th>
+                            <th>Mem</th>
+                            <th>CPU</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {stats.diagnostics.map((d: any) => (
+                            <tr key={d.name}>
+                                <td>{d.name}</td>
+                                <td>{d.memory_mb}MB</td>
+                                <td>{d.cpu_sec.toFixed(2)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         );
     }
@@ -173,21 +231,17 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     public render(): TVNode<HTMLDivElement> {
         return (
             <div ref={this.gamepadUiViewRef} class="phileas-page">
-                {/* Top Padding */}
                 <div class="status-bar-spacer"></div>
 
-                {/* Toolbar */}
                 <div class="phileas-toolbar">
-                    <div class="brand">Phileas <span class="version">v{VERSION}</span></div>
+                    <div class="brand">Phileas <span class="version">{this.props.apiVersion}</span></div>
                     <TTButton key="Map" callback={() => this.setTab('map')} />
                     <TTButton key="Dashboard" callback={() => this.setTab('dashboard')} />
                     <TTButton key="POIs" callback={() => this.setTab('pois')} />
                     <TTButton key="Cities" callback={() => this.setTab('settlements')} />
                 </div>
 
-                {/* Content */}
                 <div class="phileas-content">
-
                     {/* Map View */}
                     <div ref={this.mapContainerRef} class="view-container" style="display: block;">
                         <MapComponent
@@ -200,28 +254,28 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                     </div>
 
                     {/* Dashboard */}
-                    <div ref={this.dashboardContainerRef} class="view-container scrollable" style="display: none;">
-                        <div class="info-card">
-                            <h3>Aircraft Position</h3>
-                            <div class="telemetry-grid">
-                                <div><strong>Lat:</strong> {this.telemDisplay.lat}</div>
-                                <div><strong>Lon:</strong> {this.telemDisplay.lon}</div>
-                                <div><strong>Alt:</strong> {this.telemDisplay.alt} ft</div>
-                                <div><strong>Hdg:</strong> {this.telemDisplay.hdg}°</div>
-                            </div>
+                    <div ref={this.dashboardContainerRef} class="view-container scrollable no-telemetry" style="display: none;">
+                        <div class="info-card location-card">
+                            <h3>Current Location</h3>
+                            <div class="geo-main">{this.geoDisplay.main}</div>
+                            <div class="geo-sub">{this.geoDisplay.sub}</div>
                         </div>
-                        <div class="info-card">
-                            <h3>System</h3>
-                            <div>Built: {BUILD_TIMESTAMP.replace('T', ' ').substring(0, 16)}</div>
+
+                        {this.renderStats()}
+                        {this.renderDiagnostics()}
+
+                        <div class="info-card built-card">
+                            <h3>Build Information</h3>
+                            <div>Version: {this.props.apiVersion}</div>
+                            <div>Build: {BUILD_TIMESTAMP.replace('T', ' ').substring(0, 16)}</div>
                         </div>
                     </div>
 
                     {/* POIs List */}
                     <div ref={this.poisContainerRef} class="view-container scrollable" style="display: none;">
                         <h2>Tracked POIs</h2>
-                        <div class="list-header">
+                        <div class="list-header po-header">
                             <div class="col-name">Name</div>
-                            <div class="col-city">City</div>
                             <div class="col-dist">Dist</div>
                             <div class="col-score">Score</div>
                         </div>
@@ -231,9 +285,10 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                     {/* Settlements List */}
                     <div ref={this.settlementsContainerRef} class="view-container scrollable" style="display: none;">
                         <h2>Settlements</h2>
-                        <div class="list-header">
+                        <div class="list-header settle-header">
                             <div class="col-name">Name</div>
-                            <div class="col-pop">Population</div>
+                            <div class="col-dist">Dist</div>
+                            <div class="col-pop">Pop</div>
                         </div>
                         <List data={this.uiSettlements} renderItem={this.renderSettlementItem} class="efb-list" refreshOnUpdate={true} />
                     </div>

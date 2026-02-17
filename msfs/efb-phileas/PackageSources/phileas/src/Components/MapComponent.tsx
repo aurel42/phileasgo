@@ -24,7 +24,6 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
     private subscriptions: any[] = [];
 
     public onAttached(): void {
-        console.log("PhileasPoiLayer: Attached");
         const poisSub = (this.props.model as any).getModule("PhileasData").pois.sub((p: any[]) => {
             this.pois = p;
             this.updateMarkers();
@@ -76,11 +75,11 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
 export class MapComponent extends DisplayComponent<MapComponentProps> {
     private readonly mapRef = FSComponent.createRef<MapSystemComponent>();
     private readonly size = Subject.create(Vec2Math.create(100, 100));
+    private readonly range = Subject.create<NumberUnitInterface<UnitFamily.Distance>>(UnitType.NMILE.createNumber(5));
     private mapSystem?: any;
 
     constructor(props: MapComponentProps) {
         super(props);
-        console.log("MapComponent: Initializing stable map system");
 
         const builder = MapSystemBuilder.create(this.props.bus)
             .withProjectedSize(this.size)
@@ -88,26 +87,38 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             .withBing("phileas-efb-map")
             .withFollowAirplane()
             .withRotation()
+            .withRange(this.range.get())
             .withOwnAirplaneIcon(32, "http://127.0.0.1:1920/icons/airfield.svg", Vec2Math.create(0.5, 0.5))
             .withModule("PhileasData", () => ({
                 pois: this.props.pois,
                 settlements: this.props.settlements
             }))
-            .withLayer("PhileasPois", (context) => <PhileasPoiLayer model={context.model} mapProjection={context.projection} />, 100);
+            .withLayer("PhileasPois", (context: any) => <PhileasPoiLayer model={context.model} mapProjection={context.projection} />, 100);
 
         this.mapSystem = builder.build("phileas-map-system");
 
         if (this.mapSystem.map) {
             (this.mapSystem.map as any).ref = this.mapRef;
-            console.log("MapComponent: Ref attached to map VNode");
         }
+
+        // Force centering when telemetry becomes available
+        this.props.telemetry.sub((t) => {
+            if (t && t.Valid) {
+                const pos = new GeoPoint(t.Latitude, t.Longitude);
+                if (this.mapRef.instance) {
+                    const projection = (this.mapRef.instance as any).getProjection();
+                    if (projection && projection.getTarget().distance(pos) > 0.01) {
+                        projection.setTarget(pos);
+                    }
+                }
+            }
+        }, true);
     }
 
     public onAfterRender(): void {
-        console.log("MapComponent: onAfterRender");
         this.updateSize();
         window.addEventListener('resize', () => this.updateSize());
-        setInterval(() => this.updateSize(), 1000);
+        setInterval(() => this.updateSize(), 5000); // Less frequent update
     }
 
     private updateSize(): void {
@@ -125,8 +136,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
                 }
             }
         } catch (e) {
-            // SDK throws 'Instance was null' if ref is accessed before mount
-            // console.warn("MapComponent: updateSize deferred (instance not ready)");
+            // Silently fail to prevent console spam
         }
     }
 
