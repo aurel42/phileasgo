@@ -27,6 +27,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
   private apiVersion = Subject.create<string>("v0.0.0");
   private apiStats = Subject.create<any>(null);
   private geography = Subject.create<any>(null);
+  private narratorStatus = Subject.create<any>(null);
 
   private updateTimer: any = null;
 
@@ -41,6 +42,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
         apiVersion={this.apiVersion}
         apiStats={this.apiStats}
         geography={this.geography}
+        narratorStatus={this.narratorStatus}
       />
     ));
   }
@@ -84,7 +86,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
           this.telemetry.set(telemetry);
 
           // Parallel fetches for efficiency
-          const [poisRes, setRes, statsRes, verRes, geoRes] = await Promise.all([
+          const [poisRes, setRes, statsRes, verRes, geoRes, narRes] = await Promise.all([
             fetch("http://127.0.0.1:1920/api/pois/tracked"),
             fetch("http://127.0.0.1:1920/api/map/labels/sync", {
               method: 'POST',
@@ -98,7 +100,8 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
             }),
             fetch("http://127.0.0.1:1920/api/stats"),
             fetch("http://127.0.0.1:1920/api/version"),
-            fetch(`http://127.0.0.1:1920/api/geography?lat=${telemetry.Latitude}&lon=${telemetry.Longitude}`)
+            fetch(`http://127.0.0.1:1920/api/geography?lat=${telemetry.Latitude}&lon=${telemetry.Longitude}`),
+            fetch("http://127.0.0.1:1920/api/narrator/status")
           ]);
 
           if (poisRes.ok) this.pois.set(await poisRes.json());
@@ -109,6 +112,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
             this.apiVersion.set(v.version);
           }
           if (geoRes.ok) this.geography.set(await geoRes.json());
+          if (narRes.ok) this.narratorStatus.set(await narRes.json());
         }
       }
     } catch (err) {
