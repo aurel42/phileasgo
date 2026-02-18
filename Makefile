@@ -47,7 +47,7 @@ build-efb:
 build-efb-full: build-efb
 	"$(PACKAGE_TOOL)" "$(CURDIR)/$(EFB_PROJECT_XML)" -nopause
 
-install-efb:
+install-efb: build-efb-full
 	powershell -NoProfile -Command "if (Test-Path '$(COMMUNITY_DIR)\\$(EFB_PACKAGE_NAME)') { Remove-Item -Recurse -Force '$(COMMUNITY_DIR)\\$(EFB_PACKAGE_NAME)' }"
 	powershell -NoProfile -Command "Copy-Item -Path msfs\\efb-phileas\\Packages\\$(EFB_PACKAGE_NAME) -Destination '$(COMMUNITY_DIR)\\$(EFB_PACKAGE_NAME)' -Recurse -Force"
 	@echo EFB Package installed to Community folder: $(COMMUNITY_DIR)\\$(EFB_PACKAGE_NAME)

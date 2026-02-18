@@ -299,7 +299,8 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
 }
 
 export class MapComponent extends DisplayComponent<MapComponentProps> {
-    private readonly size = Subject.create(Vec2Math.create(800, 800));
+    private readonly size = Subject.create(Vec2Math.create(400, 400));
+    private readonly containerRef = FSComponent.createRef<HTMLDivElement>();
     private mapSystem?: any;
 
     // Plane state driven from HTTP telemetry, shared with layers via PhileasData module
@@ -411,29 +412,23 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
     }
 
     private updateSize(): void {
-        try {
-            const instance = this.mapSystem?.ref.instance as any;
-            const container = instance?.parentElement;
-            if (container) {
-                const w = container.clientWidth;
-                const h = container.clientHeight;
-                if (w > 0 && h > 0) {
-                    const current = this.size.get();
-                    if (current[0] !== w || current[1] !== h) {
-                        this.size.set(Vec2Math.create(w, h));
-                    }
-                    this.updateFraming(true);
-                }
+        const container = this.containerRef.instance;
+        if (!container) return;
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        if (w > 0 && h > 0) {
+            const current = this.size.get();
+            if (current[0] !== w || current[1] !== h) {
+                this.size.set(Vec2Math.create(w, h));
             }
-        } catch (e) {
-            // Silently fail to prevent console spam
+            this.updateFraming(true);
         }
     }
 
     public render(): VNode {
         if (!this.mapSystem) return <div class="map-system-error">Map initialisation failed</div>;
         return (
-            <div class="map-system-container" style="width:100%;height:100%;position:relative;">
+            <div ref={this.containerRef} class="map-system-container" style="width:100%;height:100%;position:relative;">
                 {this.mapSystem.map}
             </div>
         );

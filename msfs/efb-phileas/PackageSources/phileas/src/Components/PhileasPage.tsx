@@ -268,7 +268,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
                 <div class="phileas-content">
                     {/* Map View */}
-                    <div ref={this.mapContainerRef} class="view-container" style="display: block;">
+                    <div ref={this.mapContainerRef} class="view-container" style="display: block; padding: 0;">
                         <MapComponent
                             bus={this.props.bus}
                             telemetry={this.props.telemetry}
