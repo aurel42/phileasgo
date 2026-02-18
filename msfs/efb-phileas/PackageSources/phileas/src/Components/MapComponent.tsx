@@ -2,7 +2,7 @@ import {
     ComponentProps, DisplayComponent, FSComponent, VNode, Subject,
     MapSystemBuilder, EventBus, Vec2Math, MapLayer,
     MapLayerProps, GeoPoint, GNSSEvents,
-    MapSystemKeys, MapOwnAirplanePropsKey, EBingReference
+    MapSystemKeys, MapOwnAirplanePropsKey
 } from "@microsoft/msfs-sdk";
 
 import "./MapComponent.scss";
@@ -187,7 +187,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             .withClockUpdate(1)
             .withBing("bing")
             // FIXED: 'position' binding required for the own-airplane icon to track aircraft location
-            .withOwnAirplanePropBindings([MapOwnAirplanePropsKey.Position], 1)
+            .withOwnAirplanePropBindings(['position' as MapOwnAirplanePropsKey], 1)
             .withRotation()
             .withOwnAirplaneIcon(32, `${BASE_URL}/assets/icons/airfield.svg`, Vec2Math.create(0.5, 0.5))
             .withModule("PhileasData", () => ({
@@ -204,7 +204,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         const terrainModule = this.mapSystem.context.model.getModule(MapSystemKeys.TerrainColors);
         if (terrainModule) {
             terrainModule.colors.set(buildEarthColors());
-            terrainModule.reference.set(EBingReference.SEA);
+            terrainModule.reference.set(0); // 0 = EBingReference.SEA (sea-level elevation reference)
         }
 
         const gnss = this.props.bus.getSubscriber<GNSSEvents>();
