@@ -4,6 +4,12 @@ import { MapComponent } from "./MapComponent";
 
 import "./PhileasPage.scss";
 
+const COOLDOWN_MS = 8 * 60 * 60 * 1000; // 8h, matches repeat_ttl in phileas.yaml
+function isPoiOnCooldown(poi: any): boolean {
+    if (!poi.last_played || poi.last_played === '0001-01-01T00:00:00Z') return false;
+    return Date.now() - new Date(poi.last_played).getTime() < COOLDOWN_MS;
+}
+
 declare const VERSION: string;
 declare const BUILD_TIMESTAMP: string;
 
@@ -22,6 +28,7 @@ interface PoiItem {
     name: string;
     score: number;
     distance: number;
+    cooldown: boolean;
 }
 
 interface SettlementItem {
@@ -59,7 +66,9 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     // Geographic Display
     private readonly geoDisplay = {
         main: Subject.create<string>("Locating..."),
-        sub: Subject.create<string>("")
+        sub: Subject.create<string>(""),
+        accent: Subject.create<string>(""),     // "in [country]" when city is cross-border
+        telemetry: Subject.create<string>(""),  // HDG / GS / AGL / MSL readout
     };
 
     public onAfterRender(): void {
@@ -102,11 +111,26 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             if (geo) {
                 if (geo.city) {
                     this.geoDisplay.main.set(geo.city === 'Unknown' ? "Far from civilization" : `near ${geo.city}`);
-                    this.geoDisplay.sub.set(`${geo.city_region ? `${geo.city_region}, ` : ''}${geo.city_country}`);
+                    // Cross-border: city is in a different country than the airspace we're flying over
+                    if (geo.city_country_code && geo.country_code && geo.city_country_code !== geo.country_code) {
+                        this.geoDisplay.sub.set(`${geo.city_region ? geo.city_region + ', ' : ''}${geo.city_country}`);
+                        this.geoDisplay.accent.set(`in ${geo.country}`);
+                    } else {
+                        this.geoDisplay.sub.set(`${geo.region ? geo.region + ', ' : ''}${geo.country}`);
+                        this.geoDisplay.accent.set('');
+                    }
                 } else if (geo.country) {
                     this.geoDisplay.main.set(geo.country);
                     this.geoDisplay.sub.set(geo.region || "");
+                    this.geoDisplay.accent.set('');
                 }
+            }
+            // Telemetry readout
+            if (t && t.Valid) {
+                this.geoDisplay.telemetry.set(
+                    `HDG ${Math.round(t.Heading)}°  ·  GS ${Math.round(t.GroundSpeed)}kt` +
+                    `  ·  AGL ${Math.round(t.AltitudeAGL)}ft  ·  MSL ${Math.round(t.AltitudeMSL)}ft`
+                );
             }
         }
 
@@ -124,7 +148,8 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                 return {
                     name: p.name_user || p.name_en || p.name_local || p.wikidata_id || "Unknown POI",
                     score: p.score ?? p.Score ?? 0,
-                    distance: dist
+                    distance: dist,
+                    cooldown: isPoiOnCooldown(p),
                 };
             }).sort((a, b) => a.distance - b.distance).slice(0, 50);
             this.uiPois.set(sortedPois);
@@ -167,7 +192,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     private renderPoiItem = (item: PoiItem): VNode => {
         return (
             <div class="list-row poi-row">
-                <div class="col-name">{item.name}</div>
+                <div class={`col-name ${item.cooldown ? 'poi-cooldown' : 'poi-active'}`}>{item.name}</div>
                 <div class="col-dist">{item.distance.toFixed(1)}nm</div>
                 <div class="col-score">{item.score.toFixed(1)}</div>
             </div>
@@ -270,6 +295,8 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                             <h3>Current Location</h3>
                             <div class="geo-main">{this.geoDisplay.main}</div>
                             <div class="geo-sub">{this.geoDisplay.sub}</div>
+                            <div class="geo-sub geo-accent">{this.geoDisplay.accent}</div>
+                            <div class="geo-telemetry">{this.geoDisplay.telemetry}</div>
                         </div>
 
                         {this.renderStats()}

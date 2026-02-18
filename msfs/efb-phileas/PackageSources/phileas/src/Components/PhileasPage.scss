@@ -123,6 +123,20 @@
                 font-size: 16px;
                 color: #999;
             }
+
+            .geo-accent {
+                font-size: 14px;
+                color: #f39c12;
+                margin-top: 2px;
+            }
+
+            .geo-telemetry {
+                margin-top: 14px;
+                font-size: 12px;
+                font-family: monospace;
+                color: #aaa;
+                letter-spacing: 0.3px;
+            }
         }
 
         &.stats-card-grid {
@@ -205,6 +219,9 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+
+        &.poi-active   { color: #f1c40f; }
+        &.poi-cooldown { color: #356285; }
     }
 
     .col-dist {

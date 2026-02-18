@@ -1,7 +1,7 @@
 import {
     ComponentProps, DisplayComponent, FSComponent, VNode, Subject,
     MapSystemBuilder, EventBus, Vec2Math, MapLayer,
-    MapLayerProps, GeoPoint,
+    MapLayerProps, GeoPoint, UnitType,
     MapSystemKeys
 } from "@microsoft/msfs-sdk";
 
@@ -229,6 +229,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             // Keep the aircraft icon in sync with the live position
             if (ownAirplaneModule) {
                 ownAirplaneModule.position.set(t.Latitude, t.Longitude);
+                ownAirplaneModule.trackTrue.set(t.Heading, UnitType.DEGREE);
             }
             this.updateFraming(false);
         });
