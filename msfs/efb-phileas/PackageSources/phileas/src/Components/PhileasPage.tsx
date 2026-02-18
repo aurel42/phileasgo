@@ -68,7 +68,6 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         main: Subject.create<string>("Locating..."),
         sub: Subject.create<string>(""),
         accent: Subject.create<string>(""),     // "in [country]" when city is cross-border
-        telemetry: Subject.create<string>(""),  // HDG / GS / AGL / MSL readout
     };
 
     public onAfterRender(): void {
@@ -124,13 +123,6 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                     this.geoDisplay.sub.set(geo.region || "");
                     this.geoDisplay.accent.set('');
                 }
-            }
-            // Telemetry readout
-            if (t && t.Valid) {
-                this.geoDisplay.telemetry.set(
-                    `HDG ${Math.round(t.Heading)}°  ·  GS ${Math.round(t.GroundSpeed)}kt` +
-                    `  ·  AGL ${Math.round(t.AltitudeAGL)}ft  ·  MSL ${Math.round(t.AltitudeMSL)}ft`
-                );
             }
         }
 
@@ -296,7 +288,6 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                             <div class="geo-main">{this.geoDisplay.main}</div>
                             <div class="geo-sub">{this.geoDisplay.sub}</div>
                             <div class="geo-sub geo-accent">{this.geoDisplay.accent}</div>
-                            <div class="geo-telemetry">{this.geoDisplay.telemetry}</div>
                         </div>
 
                         {this.renderStats()}
