@@ -1,7 +1,7 @@
 import {
     ComponentProps, DisplayComponent, FSComponent, VNode, Subject,
     MapSystemBuilder, EventBus, Vec2Math, MapLayer,
-    MapLayerProps, GeoPoint, UnitType,
+    MapLayerProps, GeoPoint,
     MapSystemKeys
 } from "@microsoft/msfs-sdk";
 
@@ -182,6 +182,60 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
     }
 }
 
+/**
+ * Custom airplane icon layer with the same coordinate normalization as
+ * PhileasPoiLayer.  Replaces the SDK's built-in MapOwnAirplaneLayer whose
+ * raw project() usage places the icon at target-relative (0,0).
+ */
+class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
+    private readonly iconRef = FSComponent.createRef<HTMLDivElement>();
+
+    public onMapProjectionChanged(): void {
+        this.updateIcon();
+    }
+
+    public onUpdated(): void {
+        this.updateIcon();
+    }
+
+    private updateIcon(): void {
+        const el = this.iconRef.instance;
+        if (!el) return;
+
+        const mod = (this.props.model as any).getModule(MapSystemKeys.OwnAirplaneProps);
+        if (!mod) return;
+
+        const pos = mod.position.get();
+        const heading = mod.trackTrue.get();
+
+        const size = this.props.mapProjection.getProjectedSize();
+        const cx = size[0] / 2;
+        const cy = size[1] / 2;
+        const targetProj = this.props.mapProjection.project(
+            this.props.mapProjection.getTarget(), Vec2Math.create());
+        const projected = this.props.mapProjection.project(pos, Vec2Math.create());
+        const x = cx + (projected[0] - targetProj[0]);
+        const y = cy + (projected[1] - targetProj[1]);
+
+        el.style.display = '';
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.transform = `translate(-50%,-50%) rotate(${heading}deg)`;
+    }
+
+    public render(): VNode {
+        return (
+            <div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+                <div ref={this.iconRef}
+                    style="position:absolute;width:32px;height:32px;pointer-events:none;">
+                    <img src={`${BASE_URL}/assets/icons/airfield.svg`}
+                        style="width:100%;height:100%;" />
+                </div>
+            </div>
+        );
+    }
+}
+
 export class MapComponent extends DisplayComponent<MapComponentProps> {
     private readonly size = Subject.create(Vec2Math.create(800, 800));
     private mapSystem?: any;
@@ -199,17 +253,18 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             // BY DESIGN: Map system clock frequency (1Hz)
             .withClockUpdate(1)
             .withBing("bing")
-            // Empty bindings: module is required by withOwnAirplaneIcon but we update position
-            // manually from HTTP telemetry (the EFB bus has no SimVar publisher).
+            // Empty bindings: module stores position/heading driven manually from
+            // HTTP telemetry (the EFB bus has no SimVar publisher).
             .withOwnAirplanePropBindings([], 1)
-            .withOwnAirplaneIcon(32, `${BASE_URL}/assets/icons/airfield.svg`, Vec2Math.create(0.5, 0.5))
             .withModule("PhileasData", () => ({
                 pois: this.props.pois,
                 settlements: this.props.settlements,
                 narratorStatus: this.props.narratorStatus,
             }))
             .withLayer("PhileasPois", (context: any) =>
-                <PhileasPoiLayer model={context.model} mapProjection={context.projection} />, 100);
+                <PhileasPoiLayer model={context.model} mapProjection={context.projection} />, 100)
+            .withLayer("PhileasAirplane", (context: any) =>
+                <PhileasAirplaneLayer model={context.model} mapProjection={context.projection} />, 200);
 
         this.mapSystem = builder.build("phileas-map-system");
 
@@ -219,30 +274,39 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             terrainModule.colors.set(buildEarthColors());
             terrainModule.reference.set(0); // 0 = EBingReference.SEA
         }
+    }
 
-        // The EFB bus has no GNSSPublisher, so gps-position never fires.
-        // Drive position updates from the HTTP telemetry Subject instead (1s cadence).
-        const ownAirplaneModule = this.mapSystem.context.model.getModule(MapSystemKeys.OwnAirplaneProps);
+    public onAfterRender(): void {
+        // Subscribe AFTER render — FSComponent does not deliver Subject
+        // notifications to subscriptions created during the constructor.
+        const ownAirplaneModule = this.mapSystem?.context.model.getModule(MapSystemKeys.OwnAirplaneProps);
         this.props.telemetry.sub((t) => {
             if (!t || !t.Valid) return;
             this.planePos.set(t.Latitude, t.Longitude);
-            // Keep the aircraft icon in sync with the live position
             if (ownAirplaneModule) {
                 ownAirplaneModule.position.set(t.Latitude, t.Longitude);
-                ownAirplaneModule.trackTrue.set(t.Heading, UnitType.DEGREE);
+                ownAirplaneModule.trackTrue.set(t.Heading);
             }
             this.updateFraming(false);
         });
 
-        // Reframe when POIs change (e.g. plane stationary but new POIs load)
         this.props.pois.sub(() => this.updateFraming(false));
-    }
 
-    public onAfterRender(): void {
         this.updateSize();
         window.addEventListener('resize', () => this.updateSize());
         // BY DESIGN: Map resize check frequency (1s) - ensures map fills container correctly
         setInterval(() => this.updateSize(), 1000);
+
+        // The EFB EventBus has no ClockPublisher, so `realTime` events never
+        // fire and withClockUpdate(1) never triggers the MapSystem update cycle.
+        // Drive it manually at 1 Hz so applyQueued() runs and layers update.
+        setInterval(() => {
+            try {
+                this.mapSystem?.ref.instance?.update(Date.now());
+            } catch {
+                // map not yet ready or destroyed
+            }
+        }, 1000);
     }
 
     private updateFraming(force: boolean): void {
@@ -277,8 +341,9 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         const rangeRad = new GeoPoint(centerLat, centerLon)
             .distance(new GeoPoint(maxLat + latPad, maxLon + lonPad));
 
-        projection.set({
+        projection.setQueued({
             target: new GeoPoint(centerLat, centerLon),
+            scaleFactor: null,
             range: Math.min(50 / 3440.065, Math.max(1 / 3440.065, rangeRad)),
         });
     }
