@@ -380,9 +380,9 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
     const replayBalloonPos = useMemo(() => {
         if (!effectiveReplayMode || pathPoints.length < 2 || !map.current) return null;
-        const { position } = interpolatePositionFromEvents(validEvents, progress);
+        const { position, heading } = interpolatePositionFromEvents(validEvents, progress);
         const pt = map.current.project([position[1], position[0]]);
-        return { x: pt.x, y: pt.y };
+        return { x: pt.x, y: pt.y, heading };
     }, [effectiveReplayMode, pathPoints, progress, styleLoaded, frame.zoom, frame.center, frame.offset, validEvents]);
 
     // Initialize Map (Static Viewport Only)
@@ -1198,7 +1198,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     x={(isReplayMode || effectiveReplayMode) && replayBalloonPos ? replayBalloonPos.x : frame.aircraftX}
                     y={(isReplayMode || effectiveReplayMode) && replayBalloonPos ? replayBalloonPos.y : frame.aircraftY}
                     agl={(isReplayMode || effectiveReplayMode) ? 5000 : frame.agl}
-                    heading={frame.heading}
+                    heading={(isReplayMode || effectiveReplayMode) && replayBalloonPos ? replayBalloonPos.heading : frame.heading}
                     size={aircraftSize}
                     colorMain={aircraftColorMain}
                     colorAccent={aircraftColorAccent}

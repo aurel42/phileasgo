@@ -13,6 +13,7 @@
 
 # Project specific
 CLAUDE.md
+task.md
 .claude/
 bin/
 logs/
