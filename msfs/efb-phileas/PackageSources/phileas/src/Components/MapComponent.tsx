@@ -128,13 +128,26 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
 
         const narratorStatus = (this.props.model as any).getModule("PhileasData").narratorStatus.get();
 
+        // Compute the screen position of the map's target (center) point.
+        // project() may use the target as its origin, so we normalize all
+        // coordinates as pixel offsets from the target, then place them
+        // relative to the canvas center. This is robust regardless of
+        // whether project() returns canvas-space or target-relative coords.
+        const size = this.props.mapProjection.getProjectedSize();
+        const cx = size[0] / 2;
+        const cy = size[1] / 2;
+        const targetProj = this.props.mapProjection.project(
+            this.props.mapProjection.getTarget(), Vec2Math.create());
+
         for (const poi of this.pois) {
             const projected = this.props.mapProjection.project(new GeoPoint(poi.lat, poi.lon), Vec2Math.create());
-            const size = this.props.mapProjection.getProjectedSize();
-            if (projected[0] < 0 || projected[0] > size[0] || projected[1] < 0 || projected[1] > size[1]) continue;
+            // dx/dy = pixel offset of this POI from the map's center point
+            const x = cx + (projected[0] - targetProj[0]);
+            const y = cy + (projected[1] - targetProj[1]);
+            if (x < 0 || x > size[0] || y < 0 || y > size[1]) continue;
 
             const wrapper = document.createElement("div");
-            wrapper.style.cssText = `position:absolute;left:${projected[0]}px;top:${projected[1]}px;` +
+            wrapper.style.cssText = `position:absolute;left:${x}px;top:${y}px;` +
                 `transform:translate(-50%,-50%);width:${DISC_SIZE}px;height:${DISC_SIZE}px;` +
                 `border-radius:50%;pointer-events:none;` +
                 `background:${poiDiscColor(poi, narratorStatus)};` +
