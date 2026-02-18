@@ -6,8 +6,12 @@ import "./PhileasPage.scss";
 
 const COOLDOWN_MS = 8 * 60 * 60 * 1000; // 8h, matches repeat_ttl in phileas.yaml
 function isPoiOnCooldown(poi: any): boolean {
-    if (!poi.last_played || poi.last_played === '0001-01-01T00:00:00Z') return false;
-    return Date.now() - new Date(poi.last_played).getTime() < COOLDOWN_MS;
+    const lp = poi.last_played;
+    if (!lp) return false;
+    const ts = new Date(lp).getTime();
+    // NaN (unparseable), negative (year 0001 = Go zero time), or missing → not on cooldown
+    if (isNaN(ts) || ts < 0) return false;
+    return Date.now() - ts < COOLDOWN_MS;
 }
 
 declare const VERSION: string;

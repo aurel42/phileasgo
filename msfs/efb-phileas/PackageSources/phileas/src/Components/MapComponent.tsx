@@ -54,8 +54,12 @@ function lerpInt(a: number, b: number, t: number): number {
 
 /** Returns true if POI was played recently and is still within the 8h cooldown. */
 function isOnCooldown(poi: any): boolean {
-    if (!poi.last_played || poi.last_played === '0001-01-01T00:00:00Z') return false;
-    return Date.now() - new Date(poi.last_played).getTime() < COOLDOWN_MS;
+    const lp = poi.last_played;
+    if (!lp) return false;
+    const ts = new Date(lp).getTime();
+    // NaN (unparseable), negative (year 0001 = Go zero time), or missing → not on cooldown
+    if (isNaN(ts) || ts < 0) return false;
+    return Date.now() - ts < COOLDOWN_MS;
 }
 
 /**
@@ -67,15 +71,15 @@ function isOnCooldown(poi: any): boolean {
  */
 function poiDiscColor(poi: any, narratorStatus: any): string {
     if (narratorStatus) {
-        if (poi.wikidata_id === narratorStatus.current_poi?.wikidata_id)   return '#2ecc71';
+        if (poi.wikidata_id === narratorStatus.current_poi?.wikidata_id) return '#2ecc71';
         if (poi.wikidata_id === narratorStatus.preparing_poi?.wikidata_id) return '#2a9d8f';
     }
     if (isOnCooldown(poi)) return '#356285';
 
     const t = Math.min(20, Math.max(0, poi.score ?? 0)) / 20;
     return `#${lerpInt(0xe9, 0xe6, t).toString(16).padStart(2, '0')}` +
-           `${lerpInt(0xc4, 0x39, t).toString(16).padStart(2, '0')}` +
-           `${lerpInt(0x6a, 0x46, t).toString(16).padStart(2, '0')}`;
+        `${lerpInt(0xc4, 0x39, t).toString(16).padStart(2, '0')}` +
+        `${lerpInt(0x6a, 0x46, t).toString(16).padStart(2, '0')}`;
 }
 
 interface MapComponentProps extends ComponentProps {
@@ -87,85 +91,143 @@ interface MapComponentProps extends ComponentProps {
     narratorStatus: Subject<any>;
 }
 
+/** Cached DOM marker for a single POI. */
+interface PoiMarker {
+    id: string;
+    wrapper: HTMLDivElement;
+    img: HTMLImageElement;
+    lat: number;
+    lon: number;
+}
+
 /**
  * Custom layer rendering Phileas POIs as colored disc + white SVG icon markers.
+ * DOM elements are created/removed only when the POI list changes; projection
+ * changes only update positions — eliminating per-second flicker.
  */
 class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
     private readonly containerRef = FSComponent.createRef<HTMLDivElement>();
+    private markers = new Map<string, PoiMarker>();
     private pois: any[] = [];
     private subscriptions: any[] = [];
-    private lastMarkerUpdate = 0;
-    // BY DESIGN: POI marker update frequency (5s) - maintained for performance/clutter control
-    private readonly MARKER_UPDATE_INTERVAL = 5000;
 
     public onAttached(): void {
         const data = (this.props.model as any).getModule("PhileasData");
 
         this.subscriptions.push(data.pois.sub((p: any[]) => {
             this.pois = p;
-            this.updateMarkers(false);
+            this.rebuildMarkers();
         }));
 
         // Recolor markers when narrator state changes (playing/preparing)
         this.subscriptions.push(data.narratorStatus.sub(() => {
-            this.updateMarkers(true);
+            this.recolorMarkers();
         }));
     }
 
     public onMapProjectionChanged(): void {
-        this.updateMarkers(true);
+        this.repositionMarkers();
     }
 
-    private updateMarkers(force: boolean): void {
+    /** Full rebuild: remove stale markers, create new ones, reposition all. */
+    private rebuildMarkers(): void {
         if (!this.containerRef.instance) return;
-
-        const now = Date.now();
-        if (!force && (now - this.lastMarkerUpdate < this.MARKER_UPDATE_INTERVAL)) return;
-        this.lastMarkerUpdate = now;
-
         const container = this.containerRef.instance;
-        container.innerHTML = "";
-
         const narratorStatus = (this.props.model as any).getModule("PhileasData").narratorStatus.get();
 
-        // Compute the screen position of the map's target (center) point.
-        // project() may use the target as its origin, so we normalize all
-        // coordinates as pixel offsets from the target, then place them
-        // relative to the canvas center. This is robust regardless of
-        // whether project() returns canvas-space or target-relative coords.
+        // Determine which POI IDs are still present
+        const currentIds = new Set<string>();
+        for (const poi of this.pois) {
+            if (poi.wikidata_id) currentIds.add(poi.wikidata_id);
+        }
+
+        // Remove markers for POIs no longer in the list
+        for (const [id, marker] of this.markers) {
+            if (!currentIds.has(id)) {
+                marker.wrapper.remove();
+                this.markers.delete(id);
+            }
+        }
+
+        // Add or update markers
+        for (const poi of this.pois) {
+            const id = poi.wikidata_id;
+            if (!id) continue;
+
+            let marker = this.markers.get(id);
+            if (!marker) {
+                // Create new marker DOM
+                const wrapper = document.createElement("div");
+                const cooldown = isOnCooldown(poi);
+                wrapper.style.cssText =
+                    `position:absolute;width:${DISC_SIZE}px;height:${DISC_SIZE}px;` +
+                    `transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;` +
+                    `background:${poiDiscColor(poi, narratorStatus)};` +
+                    `border:1.5px solid rgba(0,0,0,0.45);` +
+                    `box-shadow:0 2px 6px rgba(0,0,0,0.55);` +
+                    `display:flex;align-items:center;justify-content:center;` +
+                    `z-index:${cooldown ? 1 : 2};` +
+                    `opacity:${cooldown ? '0.7' : '1'};`;
+
+                const img = document.createElement("img");
+                img.src = poiIconUrl(poi.icon);
+                img.style.cssText = `width:${ICON_SIZE}px;height:${ICON_SIZE}px;` +
+                    `filter:brightness(0) invert(1) ` +
+                    `drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) ` +
+                    `drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) ` +
+                    `drop-shadow(0 0 4px rgba(255,255,255,0.75));`;
+
+                wrapper.appendChild(img);
+                container.appendChild(wrapper);
+                marker = { id, wrapper, img, lat: poi.lat, lon: poi.lon };
+                this.markers.set(id, marker);
+            } else {
+                // Update existing marker color and coords
+                const cooldown = isOnCooldown(poi);
+                marker.wrapper.style.background = poiDiscColor(poi, narratorStatus);
+                marker.wrapper.style.zIndex = cooldown ? '1' : '2';
+                marker.wrapper.style.opacity = cooldown ? '0.7' : '1';
+                marker.lat = poi.lat;
+                marker.lon = poi.lon;
+            }
+        }
+
+        this.repositionMarkers();
+    }
+
+    /** Update only colors (narrator status changed). */
+    private recolorMarkers(): void {
+        const narratorStatus = (this.props.model as any).getModule("PhileasData").narratorStatus.get();
+        for (const poi of this.pois) {
+            const marker = this.markers.get(poi.wikidata_id);
+            if (marker) {
+                marker.wrapper.style.background = poiDiscColor(poi, narratorStatus);
+            }
+        }
+    }
+
+    /** Update only screen positions (projection changed). */
+    private repositionMarkers(): void {
         const size = this.props.mapProjection.getProjectedSize();
         const cx = size[0] / 2;
         const cy = size[1] / 2;
         const targetProj = this.props.mapProjection.project(
             this.props.mapProjection.getTarget(), Vec2Math.create());
 
-        for (const poi of this.pois) {
-            const projected = this.props.mapProjection.project(new GeoPoint(poi.lat, poi.lon), Vec2Math.create());
-            // dx/dy = pixel offset of this POI from the map's center point
+        for (const [, marker] of this.markers) {
+            const projected = this.props.mapProjection.project(
+                new GeoPoint(marker.lat, marker.lon), Vec2Math.create());
             const x = cx + (projected[0] - targetProj[0]);
             const y = cy + (projected[1] - targetProj[1]);
-            if (x < 0 || x > size[0] || y < 0 || y > size[1]) continue;
 
-            const wrapper = document.createElement("div");
-            wrapper.style.cssText = `position:absolute;left:${x}px;top:${y}px;` +
-                `transform:translate(-50%,-50%);width:${DISC_SIZE}px;height:${DISC_SIZE}px;` +
-                `border-radius:50%;pointer-events:none;` +
-                `background:${poiDiscColor(poi, narratorStatus)};` +
-                `border:1.5px solid rgba(0,0,0,0.45);` +
-                `box-shadow:0 2px 6px rgba(0,0,0,0.55);` +
-                `display:flex;align-items:center;justify-content:center;`;
-
-            const img = document.createElement("img");
-            img.src = poiIconUrl(poi.icon);
-            img.style.cssText = `width:${ICON_SIZE}px;height:${ICON_SIZE}px;` +
-                // Make icon white, add 1px black outline (4 directions) + white halo
-                `filter:brightness(0) invert(1) ` +
-                `drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) ` +
-                `drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) ` +
-                `drop-shadow(0 0 4px rgba(255,255,255,0.75));`;
-
-            wrapper.appendChild(img);
-            container.appendChild(wrapper);
+            if (x < -DISC_SIZE || x > size[0] + DISC_SIZE ||
+                y < -DISC_SIZE || y > size[1] + DISC_SIZE) {
+                marker.wrapper.style.display = 'none';
+            } else {
+                marker.wrapper.style.display = 'flex';
+                marker.wrapper.style.left = `${x}px`;
+                marker.wrapper.style.top = `${y}px`;
+            }
         }
     }
 
@@ -183,9 +245,9 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
 }
 
 /**
- * Custom airplane icon layer with the same coordinate normalization as
- * PhileasPoiLayer.  Replaces the SDK's built-in MapOwnAirplaneLayer whose
- * raw project() usage places the icon at target-relative (0,0).
+ * Custom airplane icon layer. Reads position/heading from the PhileasData
+ * module (driven by HTTP telemetry) instead of the OwnAirplaneProps module
+ * (which depends on SimVar bindings that don't exist in the EFB).
  */
 class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
     private readonly iconRef = FSComponent.createRef<HTMLDivElement>();
@@ -202,18 +264,25 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
         const el = this.iconRef.instance;
         if (!el) return;
 
-        const mod = (this.props.model as any).getModule(MapSystemKeys.OwnAirplaneProps);
-        if (!mod) return;
+        const data = (this.props.model as any).getModule("PhileasData");
+        if (!data) return;
 
-        const pos = mod.position.get();
-        const heading = mod.trackTrue.get();
+        const pos = data.planePosition.get();
+        const heading = data.planeHeading.get();
+
+        // Don't render until we have real telemetry
+        if (!pos) {
+            el.style.display = 'none';
+            return;
+        }
 
         const size = this.props.mapProjection.getProjectedSize();
         const cx = size[0] / 2;
         const cy = size[1] / 2;
         const targetProj = this.props.mapProjection.project(
             this.props.mapProjection.getTarget(), Vec2Math.create());
-        const projected = this.props.mapProjection.project(pos, Vec2Math.create());
+        const projected = this.props.mapProjection.project(
+            new GeoPoint(pos.lat, pos.lon), Vec2Math.create());
         const x = cx + (projected[0] - targetProj[0]);
         const y = cy + (projected[1] - targetProj[1]);
 
@@ -227,7 +296,7 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
         return (
             <div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
                 <div ref={this.iconRef}
-                    style="position:absolute;width:32px;height:32px;pointer-events:none;">
+                    style="position:absolute;width:32px;height:32px;pointer-events:none;display:none;">
                     <img src={`${BASE_URL}/assets/icons/airfield.svg`}
                         style="width:100%;height:100%;" />
                 </div>
@@ -239,6 +308,10 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
 export class MapComponent extends DisplayComponent<MapComponentProps> {
     private readonly size = Subject.create(Vec2Math.create(800, 800));
     private mapSystem?: any;
+
+    // Plane state driven from HTTP telemetry, shared with layers via PhileasData module
+    private readonly planePosition = Subject.create<{ lat: number, lon: number } | null>(null);
+    private readonly planeHeading = Subject.create<number>(0);
 
     private planePos = new GeoPoint(0, 0);
     private lastFramingUpdate = 0;
@@ -253,13 +326,12 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             // BY DESIGN: Map system clock frequency (1Hz)
             .withClockUpdate(1)
             .withBing("bing")
-            // Empty bindings: module stores position/heading driven manually from
-            // HTTP telemetry (the EFB bus has no SimVar publisher).
-            .withOwnAirplanePropBindings([], 1)
             .withModule("PhileasData", () => ({
                 pois: this.props.pois,
                 settlements: this.props.settlements,
                 narratorStatus: this.props.narratorStatus,
+                planePosition: this.planePosition,
+                planeHeading: this.planeHeading,
             }))
             .withLayer("PhileasPois", (context: any) =>
                 <PhileasPoiLayer model={context.model} mapProjection={context.projection} />, 100)
@@ -279,14 +351,11 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
     public onAfterRender(): void {
         // Subscribe AFTER render — FSComponent does not deliver Subject
         // notifications to subscriptions created during the constructor.
-        const ownAirplaneModule = this.mapSystem?.context.model.getModule(MapSystemKeys.OwnAirplaneProps);
         this.props.telemetry.sub((t) => {
             if (!t || !t.Valid) return;
             this.planePos.set(t.Latitude, t.Longitude);
-            if (ownAirplaneModule) {
-                ownAirplaneModule.position.set(t.Latitude, t.Longitude);
-                ownAirplaneModule.trackTrue.set(t.Heading);
-            }
+            this.planePosition.set({ lat: t.Latitude, lon: t.Longitude });
+            this.planeHeading.set(t.Heading);
             this.updateFraming(false);
         });
 
@@ -323,7 +392,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         let minLon = this.planePos.lon, maxLon = this.planePos.lon;
 
         for (const p of pois) {
-            // Issue 4: cooldown POIs (blue) are excluded from the framing bbox
+            // Cooldown POIs (blue) are excluded from the framing bbox
             if (p.lat === undefined || p.lon === undefined || isOnCooldown(p)) continue;
             if (p.lat < minLat) minLat = p.lat;
             if (p.lat > maxLat) maxLat = p.lat;
