@@ -1,7 +1,7 @@
 import {
     ComponentProps, DisplayComponent, FSComponent, VNode, Subject,
     MapSystemBuilder, EventBus, Vec2Math, MapLayer,
-    MapLayerProps, UnitType, GeoPoint
+    MapLayerProps, UnitType, GeoPoint, GNSSEvents
 } from "@microsoft/msfs-sdk";
 
 import "./MapComponent.scss";
@@ -84,6 +84,11 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
     private readonly size = Subject.create(Vec2Math.create(800, 800));
     private mapSystem?: any;
 
+    private planePos = new GeoPoint(0, 0);
+    private lastFramingUpdate = 0;
+    // BY DESIGN: Adaptive framing frequency matches main loop/map clock (1s)
+    private readonly FRAMING_INTERVAL = 1000;
+
     constructor(props: MapComponentProps) {
         super(props);
 
@@ -91,11 +96,9 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             .withProjectedSize(this.size)
             // BY DESIGN: Map system clock frequency (1Hz) - maintained for smooth transition/performance balance
             .withClockUpdate(1)
-            .withBing("ebf-map")
-            .withFollowAirplane()
+            .withBing("efb-map")
+            .withOwnAirplanePropBindings([], 1)
             .withRotation()
-            // BY DESIGN: Default range 5nm
-            .withRange(UnitType.NMILE.createNumber(5))
             .withOwnAirplaneIcon(32, "http://127.0.0.1:1920/icons/airfield.svg", Vec2Math.create(0.5, 0.5))
             .withModule("PhileasData", () => ({
                 pois: this.props.pois,
@@ -105,17 +108,12 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
 
         this.mapSystem = builder.build("phileas-map-system");
 
-        // Force centering when telemetry becomes available
-        this.props.telemetry.sub((t) => {
-            if (t && t.Valid && this.mapSystem) {
-                const pos = new GeoPoint(t.Latitude, t.Longitude);
-                // Use the type-safe way to get the projection and cast if necessary
-                const projection = this.mapSystem.projection as any;
-                if (projection.setTarget) {
-                    projection.setTarget(pos);
-                }
-            }
-        }, true);
+        // Use live GNSS position from the sim bus for framing
+        const gnss = this.props.bus.getSubscriber<GNSSEvents>();
+        gnss.on('gps-position').handle((pos) => {
+            this.planePos.set(pos.lat, pos.long);
+            this.updateFraming(false);
+        });
     }
 
     public onAfterRender(): void {
@@ -123,6 +121,64 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         window.addEventListener('resize', () => this.updateSize());
         // BY DESIGN: Map resize check frequency (1s) - ensures map fills container correctly
         setInterval(() => this.updateSize(), 1000);
+    }
+
+    private updateFraming(force: boolean): void {
+        const now = Date.now();
+        if (!force && (now - this.lastFramingUpdate < this.FRAMING_INTERVAL)) {
+            return;
+        }
+        this.lastFramingUpdate = now;
+
+        if (!this.mapSystem) return;
+
+        const projection = this.mapSystem.context.projection;
+        const pois = this.props.pois.get() || [];
+
+        // Compute bounding box around aircraft + POIs
+        let minLat = this.planePos.lat;
+        let maxLat = this.planePos.lat;
+        let minLon = this.planePos.lon;
+        let maxLon = this.planePos.lon;
+
+        for (const p of pois) {
+            if (p.lat !== undefined && p.lon !== undefined) {
+                if (p.lat < minLat) minLat = p.lat;
+                if (p.lat > maxLat) maxLat = p.lat;
+                if (p.lon < minLon) minLon = p.lon;
+                if (p.lon > maxLon) maxLon = p.lon;
+            }
+        }
+
+        // 20% padding, minimum ~0.5nm worth of degrees
+        const latSpan = maxLat - minLat;
+        const lonSpan = maxLon - minLon;
+        const latPad = Math.max(0.008, latSpan * 0.2);
+        const lonPad = Math.max(0.008, lonSpan * 0.2);
+
+        minLat -= latPad;
+        maxLat += latPad;
+        minLon -= lonPad;
+        maxLon += lonPad;
+
+        // Center the map on the bounding box midpoint
+        const centerLat = (minLat + maxLat) / 2;
+        const centerLon = (minLon + maxLon) / 2;
+        const center = new GeoPoint(centerLat, centerLon);
+
+        // Calculate range as the great-circle distance from center to a corner (in great-arc radians)
+        const corner = new GeoPoint(maxLat, maxLon);
+        const rangeRad = center.distance(corner);
+
+        // Minimum range ~1 NM (in radians: 1nm / 3440.065nm per radian)
+        const minRange = 1 / 3440.065;
+        // Maximum range ~50 NM
+        const maxRange = 50 / 3440.065;
+
+        projection.set({
+            target: center,
+            range: Math.min(maxRange, Math.max(minRange, rangeRad)),
+        });
     }
 
     private updateSize(): void {
@@ -138,6 +194,8 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
                     if (current[0] !== w || current[1] !== h) {
                         this.size.set(Vec2Math.create(w, h));
                     }
+                    // Force framing update when size changes
+                    this.updateFraming(true);
                 }
             }
         } catch (e) {
