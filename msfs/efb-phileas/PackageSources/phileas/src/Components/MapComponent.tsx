@@ -6,6 +6,16 @@ import {
 
 import "./MapComponent.scss";
 
+declare const BASE_URL: string;
+
+/** Resolve a POI icon name to its bundled asset URL, with fallback */
+function poiIconUrl(icon?: string): string {
+    if (icon) {
+        return `${BASE_URL}/assets/icons/${icon}.svg`;
+    }
+    return `${BASE_URL}/assets/icons/attraction.svg`;
+}
+
 interface MapComponentProps extends ComponentProps {
     bus: EventBus;
     telemetry: Subject<any>;
@@ -61,7 +71,9 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 el.style.left = `${projected[0]}px`;
                 el.style.top = `${projected[1]}px`;
                 el.style.transform = "translate(-50%, -50%)";
-                el.innerHTML = `<div class="poi-dot"></div><div class="poi-label">${poi.name}</div>`;
+                const iconSrc = poiIconUrl(poi.icon);
+                const name = poi.name_en || poi.name_user || poi.wikidata_id || "";
+                el.innerHTML = `<img class="poi-icon" src="${iconSrc}" /><div class="poi-label">${name}</div>`;
                 this.containerRef.instance?.appendChild(el);
             }
         });
@@ -96,10 +108,10 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             .withProjectedSize(this.size)
             // BY DESIGN: Map system clock frequency (1Hz) - maintained for smooth transition/performance balance
             .withClockUpdate(1)
-            .withBing("efb-map")
+            .withBing("bing") // FIXED: Changed from "efb-map" to "bing" to fix black/blue theme
             .withOwnAirplanePropBindings([], 1)
             .withRotation()
-            .withOwnAirplaneIcon(32, "http://127.0.0.1:1920/icons/airfield.svg", Vec2Math.create(0.5, 0.5))
+            .withOwnAirplaneIcon(32, `${BASE_URL}/assets/icons/airfield.svg`, Vec2Math.create(0.5, 0.5))
             .withModule("PhileasData", () => ({
                 pois: this.props.pois,
                 settlements: this.props.settlements
@@ -112,6 +124,12 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         const gnss = this.props.bus.getSubscriber<GNSSEvents>();
         gnss.on('gps-position').handle((pos) => {
             this.planePos.set(pos.lat, pos.long);
+            this.updateFraming(false);
+        });
+
+        // FIXED: Subscribe to POIs to trigger framing updates when data changes
+        // This failsafe ensures the zoom adapts even if the plane is stationary but new POIs are loaded
+        this.props.pois.sub(() => {
             this.updateFraming(false);
         });
     }

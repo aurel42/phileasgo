@@ -34,9 +34,9 @@ pkg/geo/countries.geojson:
 pkg/geo/data/geodata.bin: data/cities1000.txt data/admin1CodesASCII.txt cmd/slim_cities/main.go
 	go run cmd/slim_cities/main.go
 
+
 build-web:
 	cd $(WEB_PATH) && npm install && npm run build
-	powershell -NoProfile -Command "Copy-Item -Path data\\icons -Destination internal\\ui\\dist\\icons -Recurse -Force"
 
 build-efb:
 	cd $(EFB_SRC_PATH) && npm install && npm run build

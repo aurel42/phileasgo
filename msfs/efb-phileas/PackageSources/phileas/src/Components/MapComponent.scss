@@ -22,17 +22,14 @@
     align-items: center;
     pointer-events: none;
 
-    .poi-dot {
-        width: 8px;
-        height: 8px;
-        background-color: #ffcc00;
-        border: 1px solid #000;
-        border-radius: 50%;
-        box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    .poi-icon {
+        width: 20px;
+        height: 20px;
+        filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
     }
 
     .poi-label {
-        margin-top: 4px;
+        margin-top: 2px;
         padding: 2px 4px;
         background-color: rgba(0, 0, 0, 0.7);
         color: #fff;

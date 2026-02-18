@@ -255,28 +255,4 @@
     border: 1px solid #333;
 }
 
-.poi-marker {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-
-    .poi-dot {
-        width: 12px;
-        height: 12px;
-        background: #f39c12;
-        border: 2px solid #fff;
-        border-radius: 50%;
-        box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-    }
-
-    .poi-label {
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 10px;
-        margin-top: 4px;
-        white-space: nowrap;
-        pointer-events: none;
-    }
-}
+// POI marker styles are in MapComponent.scss
