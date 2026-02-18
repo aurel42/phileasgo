@@ -11,8 +11,6 @@ declare const BASE_URL: string;
 
 const DISC_SIZE = 30;   // colored circle diameter (px)
 const ICON_SIZE = 24;   // icon inside disc, 20% larger than original 20px
-const COOLDOWN_MS = 8 * 60 * 60 * 1000; // matches repeat_ttl: 8h in phileas.yaml
-
 // RGB packed as R | G<<8 | B<<16, required by MapTerrainColorsModule
 function packColor(r: number, g: number, b: number): number {
     return r | (g << 8) | (b << 16);
@@ -52,14 +50,9 @@ function lerpInt(a: number, b: number, t: number): number {
     return Math.round(a + (b - a) * Math.min(1, Math.max(0, t)));
 }
 
-/** Returns true if POI was played recently and is still within the 8h cooldown. */
+/** Returns true if POI was played recently and is still within the cooldown. */
 function isOnCooldown(poi: any): boolean {
-    const lp = poi.last_played;
-    if (!lp) return false;
-    const ts = new Date(lp).getTime();
-    // NaN (unparseable), negative (year 0001 = Go zero time), or missing → not on cooldown
-    if (isNaN(ts) || ts < 0) return false;
-    return Date.now() - ts < COOLDOWN_MS;
+    return !!poi.is_on_cooldown;
 }
 
 /**

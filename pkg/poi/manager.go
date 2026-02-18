@@ -413,6 +413,8 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 		} else {
 			p.Size = "M"
 		}
+		// Populate cooldown status for UI
+		p.InCooldown = !m.isPlayable(p)
 		result = append(result, p)
 	}
 

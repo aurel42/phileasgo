@@ -58,6 +58,7 @@ type POI struct {
 	BeaconColor       string  `json:"beacon_color"`       // Assigned color for the beacon
 	TimeToBehind      float64 `json:"time_to_behind"`     // Seconds until it leaves forward view
 	TimeToCPA         float64 `json:"time_to_cpa"`        // Seconds until closest point of approach
+	InCooldown        bool    `json:"is_on_cooldown"`     // Calculated on-the-fly for UI
 
 	// Session persistence (in-memory only)
 	Script string `json:"-"`

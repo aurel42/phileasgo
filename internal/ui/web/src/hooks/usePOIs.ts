@@ -21,6 +21,7 @@ export interface POI {
     visibility?: number;
     has_balloon?: boolean;
     last_played: string; // ISO timestamp
+    is_on_cooldown?: boolean;
     thumbnail_url?: string;
     is_msfs_poi?: boolean;
     narration_strategy?: string;

@@ -856,7 +856,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         const normalizedName = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
                         if (normalizedName.length > 24) return;
 
-                        const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
+                        const isHistorical = !!p.is_on_cooldown;
                         if (isHistorical) return;
 
                         if (p.score >= 10 && !failedPoiLabelIds.current.has(p.wikidata_id) && !labeledPoiIds.current.has(p.wikidata_id)) {
@@ -932,7 +932,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                             if (registeredIds.current.has(p.wikidata_id) && !needsMarkerLabel) return;
 
                             const sizePx = 26;
-                            const isHistorical = !!(p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
+                            const isHistorical = !!p.is_on_cooldown;
 
                             let markerLabel = undefined;
                             if (needsMarkerLabel) {

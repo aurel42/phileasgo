@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## v0.3.196 (2026-02-18)
+- **Feature**: **EFB App**. Phileas now runs natively inside the MSFS 2024 EFB (Electronic Flight Bag).
+- **Improvement**: **Backend-Calculated POI Cooldown**. The cooldown status of POIs is now calculated on the server, ensuring perfect consistency between the EFB, Web UI, and the automated narrator.
+
 ## v0.3.195 (2026-02-16)
 - **Fix**: **Scale Bar Label Cutoff**. Resolved an issue where the "kilom." and "m. (naut)" labels were being cut off by increasing the SVG container width.
 

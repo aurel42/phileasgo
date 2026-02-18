@@ -1,12 +1,12 @@
 import type { POI } from '../hooks/usePOIs';
 
 export const isPOIVisible = (poi: POI, minScore: number): boolean => {
-    // 1. Score Check
-    if (poi.score > minScore) {
+    // 1. Score Check (visible if above threshold and NOT on cooldown)
+    if (poi.score > minScore && !poi.is_on_cooldown) {
         return true;
     }
 
-    // 2. Played Check (Always visible if played)
+    // 2. Played Check (Always visible if played, regardless of score/cooldown)
     if (poi.last_played && poi.last_played !== "0001-01-01T00:00:00Z") {
         return true;
     }

@@ -387,6 +387,16 @@ func TestManager_GetPOIsForUI(t *testing.T) {
 			foundIDs := make(map[string]bool)
 			for _, p := range got {
 				foundIDs[p.WikidataID] = true
+				// Verify InCooldown flag
+				if p.WikidataID == "P_Played" || p.WikidataID == "P_Played_High" {
+					if !p.InCooldown {
+						t.Errorf("expected POI %s to be in cooldown", p.WikidataID)
+					}
+				} else {
+					if p.InCooldown {
+						t.Errorf("expected POI %s NOT to be in cooldown", p.WikidataID)
+					}
+				}
 			}
 
 			for _, wantID := range tt.wantIDs {
