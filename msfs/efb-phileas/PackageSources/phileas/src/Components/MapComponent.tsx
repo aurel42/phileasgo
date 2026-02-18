@@ -1,8 +1,8 @@
 import {
     ComponentProps, DisplayComponent, FSComponent, VNode, Subject,
     MapSystemBuilder, EventBus, Vec2Math, MapLayer,
-    MapLayerProps, GeoPoint, GNSSEvents,
-    MapSystemKeys, MapOwnAirplanePropsKey
+    MapLayerProps, GeoPoint,
+    MapSystemKeys
 } from "@microsoft/msfs-sdk";
 
 import "./MapComponent.scss";
@@ -196,12 +196,12 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
 
         const builder = MapSystemBuilder.create(this.props.bus)
             .withProjectedSize(this.size)
-            // BY DESIGN: Map system clock frequency (1Hz) - maintained for smooth transition/performance balance
+            // BY DESIGN: Map system clock frequency (1Hz)
             .withClockUpdate(1)
             .withBing("bing")
-            // FIXED: 'position' binding required for the own-airplane icon to track aircraft location
-            .withOwnAirplanePropBindings(['position' as MapOwnAirplanePropsKey], 1)
-            .withRotation()
+            // Empty bindings: module is required by withOwnAirplaneIcon but we update position
+            // manually from HTTP telemetry (the EFB bus has no SimVar publisher).
+            .withOwnAirplanePropBindings([], 1)
             .withOwnAirplaneIcon(32, `${BASE_URL}/assets/icons/airfield.svg`, Vec2Math.create(0.5, 0.5))
             .withModule("PhileasData", () => ({
                 pois: this.props.pois,
@@ -217,12 +217,19 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         const terrainModule = this.mapSystem.context.model.getModule(MapSystemKeys.TerrainColors);
         if (terrainModule) {
             terrainModule.colors.set(buildEarthColors());
-            terrainModule.reference.set(0); // 0 = EBingReference.SEA (sea-level elevation reference)
+            terrainModule.reference.set(0); // 0 = EBingReference.SEA
         }
 
-        const gnss = this.props.bus.getSubscriber<GNSSEvents>();
-        gnss.on('gps-position').handle((pos) => {
-            this.planePos.set(pos.lat, pos.long);
+        // The EFB bus has no GNSSPublisher, so gps-position never fires.
+        // Drive position updates from the HTTP telemetry Subject instead (1s cadence).
+        const ownAirplaneModule = this.mapSystem.context.model.getModule(MapSystemKeys.OwnAirplaneProps);
+        this.props.telemetry.sub((t) => {
+            if (!t || !t.Valid) return;
+            this.planePos.set(t.Latitude, t.Longitude);
+            // Keep the aircraft icon in sync with the live position
+            if (ownAirplaneModule) {
+                ownAirplaneModule.position.set(t.Latitude, t.Longitude);
+            }
             this.updateFraming(false);
         });
 
