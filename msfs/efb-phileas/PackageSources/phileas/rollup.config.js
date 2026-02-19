@@ -42,7 +42,8 @@ export default {
         copy({
             targets: [
                 { src: 'src/Assets/app-icon.svg', dest: 'dist/assets' },
-                { src: 'src/Assets/icons/*', dest: 'dist/assets/icons' }
+                { src: 'src/Assets/icons/*', dest: 'dist/assets/icons' },
+                { src: 'src/Assets/Fonts/*', dest: 'dist/assets/fonts' }
             ]
         }),
         replace({

@@ -61,6 +61,12 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     private readonly poisContainerRef = FSComponent.createRef<HTMLDivElement>();
     private readonly settlementsContainerRef = FSComponent.createRef<HTMLDivElement>();
 
+    // Dashboard card refs + cached mutable elements
+    private readonly statsCardRef = FSComponent.createRef<HTMLDivElement>();
+    private readonly diagnosticsCardRef = FSComponent.createRef<HTMLDivElement>();
+    private statsCells = new Map<string, { success: HTMLSpanElement; errors: HTMLSpanElement }>();
+    private diagCells = new Map<string, { mem: HTMLTableCellElement; cpu: HTMLTableCellElement }>();
+
     // Geographic Display
     private readonly geoDisplay = {
         main: Subject.create<string>("Locating..."),
@@ -81,6 +87,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             if (this.poisContainerRef.instance) this.poisContainerRef.instance.style.display = tab === 'pois' ? 'block' : 'none';
             if (this.settlementsContainerRef.instance) this.settlementsContainerRef.instance.style.display = tab === 'settlements' ? 'block' : 'none';
 
+            if (tab === 'dashboard') this.updateDashboardCards();
             this.updateUiData(true);
         });
 
@@ -89,6 +96,9 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         this.subscriptions.push(this.props.pois.sub(() => this.updateUiData(false)));
         this.subscriptions.push(this.props.settlements.sub(() => this.updateUiData(false)));
         this.subscriptions.push(this.props.geography.sub(() => this.updateUiData(false)));
+        this.subscriptions.push(this.props.apiStats.sub(() => {
+            if (this.activeTab.get() === 'dashboard') this.updateDashboardCards();
+        }));
 
         // Initial update
         this.updateUiData(true);
@@ -199,58 +209,96 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         );
     }
 
-    private renderStats = (): VNode | null => {
+    private updateDashboardCards(): void {
         const stats = this.props.apiStats.get();
-        if (!stats || !stats.providers) return null;
-
-        return (
-            <div class="info-card stats-card-grid">
-                <h3>API Statistics</h3>
-                <div class="stats-grid">
-                    {Object.entries(stats.providers).map(([key, data]: [string, any]) => {
-                        const hasActivity = (data.api_success || 0) + (data.api_errors || 0) > 0;
-                        if (!hasActivity) return null;
-                        return (
-                            <div class="stat-entry">
-                                <span class="stat-label">{key.toUpperCase()}</span>
-                                <span class="stat-value">
-                                    <span class="success">{data.api_success}</span> / <span class="error">{data.api_errors}</span>
-                                </span>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        );
+        this.updateStatsCard(stats);
+        this.updateDiagnosticsCard(stats);
     }
 
-    private renderDiagnostics = (): VNode | null => {
-        const stats = this.props.apiStats.get();
-        if (!stats || !stats.diagnostics) return null;
+    private updateStatsCard(stats: any): void {
+        const el = this.statsCardRef.instance;
+        if (!el) return;
 
-        return (
-            <div class="info-card system-card">
-                <h3>System Diagnostics</h3>
-                <table class="diagnostics-table">
-                    <thead>
-                        <tr>
-                            <th>Process</th>
-                            <th>Mem</th>
-                            <th>CPU</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {stats.diagnostics.map((d: any) => (
-                            <tr key={d.name}>
-                                <td>{d.name}</td>
-                                <td>{d.memory_mb}MB</td>
-                                <td>{d.cpu_sec.toFixed(2)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        );
+        if (!stats?.providers) { el.style.display = 'none'; return; }
+
+        const active = Object.entries(stats.providers)
+            .filter(([, d]: [string, any]) => (d.api_success || 0) + (d.api_errors || 0) > 0);
+        if (active.length === 0) { el.style.display = 'none'; return; }
+
+        // Check if provider set changed (rebuild needed)
+        const keys = active.map(([k]) => k).sort().join(',');
+        const cachedKeys = [...this.statsCells.keys()].sort().join(',');
+
+        if (keys !== cachedKeys) {
+            el.innerHTML = '';
+            this.statsCells.clear();
+            const h3 = document.createElement('h3'); h3.textContent = 'API Statistics';
+            const grid = document.createElement('div'); grid.className = 'stats-grid';
+            for (const [key, data] of active as [string, any][]) {
+                const entry = document.createElement('div'); entry.className = 'stat-entry';
+                const label = document.createElement('span'); label.className = 'stat-label';
+                label.textContent = key.toUpperCase();
+                const value = document.createElement('span'); value.className = 'stat-value';
+                const suc = document.createElement('span'); suc.className = 'success';
+                const err = document.createElement('span'); err.className = 'error';
+                suc.textContent = String(data.api_success ?? 0);
+                err.textContent = String(data.api_errors ?? 0);
+                value.append(suc, ' / ', err);
+                entry.append(label, value);
+                grid.appendChild(entry);
+                this.statsCells.set(key, { success: suc, errors: err });
+            }
+            el.append(h3, grid);
+        } else {
+            for (const [key, data] of active as [string, any][]) {
+                const cached = this.statsCells.get(key);
+                if (cached) {
+                    cached.success.textContent = String(data.api_success ?? 0);
+                    cached.errors.textContent = String(data.api_errors ?? 0);
+                }
+            }
+        }
+        el.style.display = '';
+    }
+
+    private updateDiagnosticsCard(stats: any): void {
+        const el = this.diagnosticsCardRef.instance;
+        if (!el) return;
+
+        if (!stats?.diagnostics?.length) { el.style.display = 'none'; return; }
+
+        const names = stats.diagnostics.map((d: any) => d.name).sort().join(',');
+        const cachedNames = [...this.diagCells.keys()].sort().join(',');
+
+        if (names !== cachedNames) {
+            el.innerHTML = '';
+            this.diagCells.clear();
+            const h3 = document.createElement('h3'); h3.textContent = 'System Diagnostics';
+            const table = document.createElement('table'); table.className = 'diagnostics-table';
+            const thead = document.createElement('thead');
+            thead.innerHTML = '<tr><th>Process</th><th>Mem</th><th>CPU</th></tr>';
+            const tbody = document.createElement('tbody');
+            for (const d of stats.diagnostics) {
+                const tr = document.createElement('tr');
+                const tdName = document.createElement('td'); tdName.textContent = d.name;
+                const tdMem = document.createElement('td'); tdMem.textContent = `${d.memory_mb}MB`;
+                const tdCpu = document.createElement('td'); tdCpu.textContent = d.cpu_sec.toFixed(2);
+                tr.append(tdName, tdMem, tdCpu);
+                tbody.appendChild(tr);
+                this.diagCells.set(d.name, { mem: tdMem, cpu: tdCpu });
+            }
+            table.append(thead, tbody);
+            el.append(h3, table);
+        } else {
+            for (const d of stats.diagnostics) {
+                const cached = this.diagCells.get(d.name);
+                if (cached) {
+                    cached.mem.textContent = `${d.memory_mb}MB`;
+                    cached.cpu.textContent = d.cpu_sec.toFixed(2);
+                }
+            }
+        }
+        el.style.display = '';
     }
 
     public render(): TVNode<HTMLDivElement> {
@@ -259,7 +307,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                 <div class="status-bar-spacer"></div>
 
                 <div class="phileas-toolbar">
-                    <div class="brand">Phileas <span class="version">{this.props.apiVersion}</span></div>
+                    <div class="brand">Phileas&nbsp;<span class="version">{this.props.apiVersion}</span></div>
                     <TTButton key="Map" callback={() => this.setTab('map')} />
                     <TTButton key="Dashboard" callback={() => this.setTab('dashboard')} />
                     <TTButton key="POIs" callback={() => this.setTab('pois')} />
@@ -288,8 +336,8 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                             <div class="geo-sub geo-accent">{this.geoDisplay.accent}</div>
                         </div>
 
-                        {this.renderStats()}
-                        {this.renderDiagnostics()}
+                        <div ref={this.statsCardRef} class="info-card stats-card-grid" style="display: none;" />
+                        <div ref={this.diagnosticsCardRef} class="info-card system-card" style="display: none;" />
 
                         <div class="info-card built-card">
                             <h3>Build Information</h3>

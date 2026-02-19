@@ -5,7 +5,7 @@
     background: #111;
     color: #eee;
     overflow: hidden;
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Noto Sans', sans-serif;
 
     .status-bar-spacer {
         height: 35px;
@@ -212,8 +212,13 @@
         text-overflow: ellipsis;
         white-space: nowrap;
 
-        &.poi-active   { color: #f1c40f; }
-        &.poi-cooldown { color: #356285; }
+        &.poi-active {
+            color: #f1c40f;
+        }
+
+        &.poi-cooldown {
+            color: #356285;
+        }
     }
 
     .col-dist {
@@ -262,6 +267,114 @@
     border-radius: 8px;
     overflow: hidden;
     border: 1px solid #333;
+}
+
+// Status Overlay Card
+.phileas-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(10, 10, 10, 0.7);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px 15px 15px;
+    z-index: 500;
+    pointer-events: none; // Allow clicks to pass through to the map if needed
+
+    .overlay-left {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+
+        .status-item {
+            font-size: 13px;
+            color: #eee;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+
+            .label {
+                color: #f39c12;
+                font-weight: bold;
+                margin-right: 5px;
+            }
+        }
+    }
+
+    .overlay-center {
+        flex: 2;
+        text-align: center;
+        padding: 0 20px;
+
+        .geo-main {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 2px;
+        }
+
+        .geo-sub-row {
+            display: flex;
+            justify-content: center;
+            align-items: baseline;
+            gap: 10px;
+            font-size: 12px;
+
+            .geo-sub {
+                color: #999;
+            }
+
+            .geo-accent {
+                color: #f39c12;
+            }
+        }
+    }
+
+    .overlay-right {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 5px;
+
+        .status-pill {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+
+            &.state-sim-running {
+                background: rgba(46, 204, 113, 0.2);
+                color: #2ecc71;
+                border-color: #2ecc71;
+            }
+
+            &.state-disconnected {
+                background: rgba(231, 76, 60, 0.2);
+                color: #e74c3c;
+                border-color: #e74c3c;
+            }
+
+            &.state-connected {
+                background: rgba(52, 152, 219, 0.2);
+                color: #3498db;
+                border-color: #3498db;
+            }
+
+            &.config-pill {
+                background: rgba(255, 255, 255, 0.1);
+                color: #aaa;
+                font-family: monospace;
+            }
+        }
+    }
 }
 
 // POI marker styles are in MapComponent.scss

@@ -1,3 +1,17 @@
+@font-face {
+  font-family: 'Noto Sans';
+  src: url('./assets/fonts/NotoSans-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Noto Sans';
+  src: url('./assets/fonts/NotoSans-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
 .phileas-app {
   width: 100%;
   height: 100%;
@@ -6,5 +20,5 @@
   overflow: hidden;
   background-color: #1a1a1a;
   color: #eee;
-  font-family: Roboto, sans-serif;
+  font-family: 'Noto Sans', sans-serif;
 }
