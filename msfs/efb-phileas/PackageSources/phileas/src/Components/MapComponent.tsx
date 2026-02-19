@@ -214,7 +214,7 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 marker = { id, wrapper, img, beacon: undefined, beaconColor: undefined, lat: poi.lat, lon: poi.lon };
 
                 if (poi.beacon_color) {
-                    marker.beacon = createBeaconElement(poi.beacon_color, 12);
+                    marker.beacon = createBeaconElement(poi.beacon_color, DISC_SIZE * 0.5);
                     marker.beacon.style.zIndex = '3';
                     marker.beaconColor = poi.beacon_color;
                     container.appendChild(marker.beacon);
@@ -234,7 +234,7 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 if (poi.beacon_color) {
                     if (!marker.beacon || marker.beaconColor !== poi.beacon_color) {
                         if (marker.beacon) marker.beacon.remove();
-                        marker.beacon = createBeaconElement(poi.beacon_color, 12);
+                        marker.beacon = createBeaconElement(poi.beacon_color, DISC_SIZE * 0.5);
                         marker.beacon.style.zIndex = '3';
                         marker.beaconColor = poi.beacon_color;
                         container.appendChild(marker.beacon);
@@ -549,15 +549,29 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
 
         if (!this.mapSystem) return;
 
-        const projection = this.mapSystem.context.projection;
+        const tel = this.props.telemetry.get();
+        if (!tel || !tel.Valid) return;
+
         const pois = this.props.pois.get() || [];
+        const narrator = this.props.narratorStatus.get();
+        const playingId = narrator?.current_poi?.id || narrator?.current_poi?.wikidata_id;
+        const preparingId = narrator?.preparing_poi?.id || narrator?.preparing_poi?.wikidata_id;
 
-        let minLat = this.planePos.lat, maxLat = this.planePos.lat;
-        let minLon = this.planePos.lon, maxLon = this.planePos.lon;
+        // Selection A: Non-cooldown POIs + playing/preparing
+        let selection = pois.filter(p => !isOnCooldown(p) ||
+            (playingId && (p.id === playingId || p.wikidata_id === playingId)) ||
+            (preparingId && (p.id === preparingId || p.wikidata_id === preparingId)));
 
-        for (const p of pois) {
-            // Cooldown POIs (blue) are excluded from the framing bbox
-            if (p.lat === undefined || p.lon === undefined || isOnCooldown(p)) continue;
+        // Selection B Fallback: if A resulted in only the plane, take ALL POIs
+        if (selection.length === 0) {
+            selection = pois;
+        }
+
+        let minLat = tel.Latitude, maxLat = tel.Latitude;
+        let minLon = tel.Longitude, maxLon = tel.Longitude;
+
+        for (const p of selection) {
+            if (p.lat === undefined || p.lon === undefined) continue;
             if (p.lat < minLat) minLat = p.lat;
             if (p.lat > maxLat) maxLat = p.lat;
             if (p.lon < minLon) minLon = p.lon;
@@ -566,19 +580,33 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
 
         const latSpan = maxLat - minLat;
         const lonSpan = maxLon - minLon;
-        const latPad = Math.max(0.008, latSpan * 0.2);
-        const lonPad = Math.max(0.008, lonSpan * 0.2);
 
-        const centerLat = (minLat + maxLat) / 2;
-        const centerLon = (minLon + maxLon) / 2;
-        this.framingScratchA.set(centerLat, centerLon);
-        this.framingScratchB.set(maxLat + latPad, maxLon + lonPad);
-        const rangeRad = this.framingScratchA.distance(this.framingScratchB);
+        let targetLat = (minLat + maxLat) / 2;
+        let targetLon = (minLon + maxLon) / 2;
+        let range: number;
 
-        projection.setQueued({
-            target: this.framingScratchA,
+        if (latSpan === 0 && lonSpan === 0) {
+            // Selection C Emergency: Aircraft only
+            const isOnGround = !!(tel.OnGround);
+            // 4km on ground (~2.16nm), 50km in air (~27nm)
+            range = (isOnGround ? 2.16 : 27) / 3440.065;
+        } else {
+            // Padding: add ~0.5nm buffer for POI disc clearance
+            const latPad = Math.max(0.005, latSpan * 0.15);
+            const lonPad = Math.max(0.005, lonSpan * 0.15);
+
+            this.framingScratchA.set(targetLat, targetLon);
+            this.framingScratchB.set(maxLat + latPad, maxLon + lonPad);
+            range = this.framingScratchA.distance(this.framingScratchB);
+
+            // Clamp max range to 60nm
+            range = Math.min(60 / 3440.065, range);
+        }
+
+        this.mapSystem.context.projection.setQueued({
+            target: this.framingScratchA.set(targetLat, targetLon),
             scaleFactor: null,
-            range: Math.min(50 / 3440.065, Math.max(1 / 3440.065, rangeRad)),
+            range: Math.max(1.5 / 3440.065, range) // min 1.5nm for visibility
         });
     }
 

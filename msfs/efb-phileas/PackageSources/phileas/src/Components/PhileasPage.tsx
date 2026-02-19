@@ -75,6 +75,13 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         accent: Subject.create<string>(""),     // "in [country]" when city is cross-border
     };
 
+    // Overlay Refs
+    private readonly statusOverlayRef = FSComponent.createRef<HTMLDivElement>();
+    private readonly overlayPlayingRef = FSComponent.createRef<HTMLDivElement>();
+    private readonly overlayPreparingRef = FSComponent.createRef<HTMLDivElement>();
+    private readonly overlayLocationRef = FSComponent.createRef<HTMLDivElement>();
+    private readonly overlayStatusRef = FSComponent.createRef<HTMLDivElement>();
+
     public onAfterRender(): void {
         // Tab switching logic
         this.activeTab.sub(tab => {
@@ -133,6 +140,11 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                     this.geoDisplay.accent.set('');
                 }
             }
+        }
+
+        // Update Overlay if on Map tab
+        if (this.activeTab.get() === 'map') {
+            this.updateStatusOverlay();
         }
 
         // 2. Update POIs & Cities (5s)
@@ -212,8 +224,80 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
     private updateDashboardCards(): void {
         const stats = this.props.apiStats.get();
-        this.updateStatsCard(stats);
-        this.updateDiagnosticsCard(stats);
+        if (this.activeTab.get() === 'dashboard') {
+            this.updateStatsCard(stats);
+            this.updateDiagnosticsCard(stats);
+        }
+    }
+
+    private updateStatusOverlay(): void {
+        const overlay = this.statusOverlayRef.instance;
+        if (!overlay) return;
+
+        const narrator = this.props.narratorStatus.get();
+        const playing = narrator?.current_poi;
+        const preparing = narrator?.preparing_poi;
+        const stats = this.props.apiStats.get();
+
+        // Line 1: Playing
+        const playingEl = this.overlayPlayingRef.instance;
+        if (playingEl) {
+            if (playing) {
+                playingEl.innerHTML = `<span class="label">Playing:</span> ${playing.name_user || playing.name_en || playing.name_local || playing.wikidata_id}`;
+                playingEl.style.display = 'block';
+            } else {
+                playingEl.style.display = 'none';
+            }
+        }
+
+        // Line 2: Preparing
+        const preparingEl = this.overlayPreparingRef.instance;
+        if (preparingEl) {
+            if (preparing) {
+                preparingEl.innerHTML = `<span class="label">Preparing:</span> ${preparing.name_user || preparing.name_en || preparing.name_local || preparing.wikidata_id}`;
+                preparingEl.style.display = 'block';
+            } else {
+                preparingEl.style.display = 'none';
+            }
+        }
+
+        // Line 3: Location (EXACT Dashboard logic)
+        const locationEl = this.overlayLocationRef.instance;
+        if (locationEl) {
+            locationEl.innerHTML = `
+                <div class="geo-main">${this.geoDisplay.main.get()}</div>
+                <div class="geo-sub-row">
+                    <span class="geo-sub">${this.geoDisplay.sub.get()}</span>
+                    ${this.geoDisplay.accent.get() ? `<span class="geo-accent">${this.geoDisplay.accent.get()}</span>` : ''}
+                </div>
+            `;
+        }
+
+        // Line 4: Status Pill
+        const statusEl = this.overlayStatusRef.instance;
+        if (statusEl) {
+            const isSimRunning = !!(stats?.sim?.state === 'running');
+            const isConnected = !!(stats?.providers?.simconnect?.api_success > 0);
+
+            let statusClass = 'state-disconnected';
+            let statusText = 'Disconnected';
+
+            if (isSimRunning) {
+                statusClass = 'state-sim-running';
+                statusText = 'Sim Running';
+            } else if (isConnected) {
+                statusClass = 'state-connected';
+                statusText = 'Connected';
+            }
+
+            const config = this.props.aircraftConfig.get();
+            const configText = config ? `${config.aircraft_icon?.toUpperCase()} (${config.aircraft_size}px)` : '...';
+
+            statusEl.innerHTML = `
+                <div class="status-pill ${statusClass}">${statusText}</div>
+                <div class="status-pill config-pill">${configText}</div>
+            `;
+        }
     }
 
     private updateStatsCard(stats: any): void {
@@ -310,9 +394,9 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                 <div class="phileas-toolbar">
                     <div class="brand">Phileas&nbsp;<span class="version">{this.props.apiVersion}</span></div>
                     <TTButton key="Map" callback={() => this.setTab('map')} />
-                    <TTButton key="Dashboard" callback={() => this.setTab('dashboard')} />
                     <TTButton key="POIs" callback={() => this.setTab('pois')} />
                     <TTButton key="Cities" callback={() => this.setTab('settlements')} />
+                    <TTButton key="System" callback={() => this.setTab('dashboard')} />
                 </div>
 
                 <div class="phileas-content">
@@ -327,17 +411,18 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                             narratorStatus={this.props.narratorStatus}
                             aircraftConfig={this.props.aircraftConfig}
                         />
+
+                        {/* Status Overlay */}
+                        <div ref={this.statusOverlayRef} class="phileas-overlay">
+                            <div ref={this.overlayPlayingRef} class="status-line playing-line" style="display: none;" />
+                            <div ref={this.overlayPreparingRef} class="status-line preparing-line" style="display: none;" />
+                            <div ref={this.overlayLocationRef} class="status-line location-line" />
+                            <div ref={this.overlayStatusRef} class="status-line status-pill-row" />
+                        </div>
                     </div>
 
-                    {/* Dashboard */}
+                    {/* System (formerly Dashboard) */}
                     <div ref={this.dashboardContainerRef} class="view-container scrollable no-telemetry" style="display: none;">
-                        <div class="info-card location-card">
-                            <h3>Current Location</h3>
-                            <div class="geo-main">{this.geoDisplay.main}</div>
-                            <div class="geo-sub">{this.geoDisplay.sub}</div>
-                            <div class="geo-sub geo-accent">{this.geoDisplay.accent}</div>
-                        </div>
-
                         <div ref={this.statsCardRef} class="info-card stats-card-grid" style="display: none;" />
                         <div ref={this.diagnosticsCardRef} class="info-card system-card" style="display: none;" />
 

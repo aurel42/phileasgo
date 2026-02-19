@@ -272,47 +272,46 @@
 // Status Overlay Card
 .phileas-overlay {
     position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(10, 10, 10, 0.7);
+    bottom: 25px;
+    left: 25px;
+    right: 25px;
+    background: rgba(10, 10, 10, 0.85);
     backdrop-filter: blur(10px);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
-    padding: 10px 15px 15px 15px;
+    padding: 15px;
     z-index: 500;
-    pointer-events: none; // Allow clicks to pass through to the map if needed
+    pointer-events: none;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 
-    .overlay-left {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
+    .status-line {
+        width: 100%;
+        text-align: center;
+        margin-bottom: 8px;
 
-        .status-item {
-            font-size: 13px;
-            color: #eee;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-
-            .label {
-                color: #f39c12;
-                font-weight: bold;
-                margin-right: 5px;
-            }
+        &:last-child {
+            margin-bottom: 0;
         }
     }
 
-    .overlay-center {
-        flex: 2;
-        text-align: center;
-        padding: 0 20px;
+    .playing-line,
+    .preparing-line {
+        font-size: 14px;
+        color: #eee;
 
+        .label {
+            color: #f39c12;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+    }
+
+    .location-line {
         .geo-main {
-            font-size: 18px;
+            font-size: 22px;
             font-weight: bold;
             color: #fff;
             margin-bottom: 2px;
@@ -323,7 +322,7 @@
             justify-content: center;
             align-items: baseline;
             gap: 10px;
-            font-size: 12px;
+            font-size: 13px;
 
             .geo-sub {
                 color: #999;
@@ -335,44 +334,43 @@
         }
     }
 
-    .overlay-right {
-        flex: 1;
+    .status-pill-row {
         display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 5px;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 5px;
+    }
 
-        .status-pill {
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: bold;
-            text-transform: uppercase;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+    .status-pill {
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
+        border: 1px solid rgba(255, 255, 255, 0.15);
 
-            &.state-sim-running {
-                background: rgba(46, 204, 113, 0.2);
-                color: #2ecc71;
-                border-color: #2ecc71;
-            }
+        &.state-sim-running {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+            border-color: #2ecc71;
+        }
 
-            &.state-disconnected {
-                background: rgba(231, 76, 60, 0.2);
-                color: #e74c3c;
-                border-color: #e74c3c;
-            }
+        &.state-disconnected {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            border-color: #e74c3c;
+        }
 
-            &.state-connected {
-                background: rgba(52, 152, 219, 0.2);
-                color: #3498db;
-                border-color: #3498db;
-            }
+        &.state-connected {
+            background: rgba(52, 152, 219, 0.2);
+            color: #3498db;
+            border-color: #3498db;
+        }
 
-            &.config-pill {
-                background: rgba(255, 255, 255, 0.1);
-                color: #aaa;
-                font-family: monospace;
-            }
+        &.config-pill {
+            background: rgba(255, 255, 255, 0.1);
+            color: #aaa;
+            font-family: monospace;
         }
     }
 }

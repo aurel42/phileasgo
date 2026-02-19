@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## v0.3.200 (2026-02-19)
+- **Feature**: **Map Status Overlay**. Added a dynamic 2-4 line vertical status overlay on the map showing narrator playback (Playing/Preparing), detailed geography, and sim connection status.
+- **Improvement**: **Staggered Map Framing**. Implemented a multi-stage framing logic that prioritizes active POIs, falls back to all POIs, and finally uses fixed radii (4km on ground, 50km in air).
+- **Improvement**: **Navigation Polish**. Reordered EFB tabs to [Map, POIs, Cities, System] and consolidated system information.
+- **Fix**: **Balloon Sizing**. Reduced POI balloon size to be proportional to the map icons.
+
 ## v0.3.199 (2026-02-19)
 - **Improvement**: **Optimized EFB Map Engine**. Rewrote aircraft and POI rendering logic to significantly reduce CPU overhead and improve frame stability in the MSFS EFB.
 - **Fix**: **Memory Management**. Implemented proper resource cleanup for EFB map subscriptions and background intervals.
