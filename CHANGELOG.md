@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## v0.3.206 (2026-02-19)
+- **Fix**: **POI Cooldown Amnesia**. Fixed an issue where POI narrations would repeat too soon after a memory eviction or teleport by persisting "Last Played" timestamps to the database.
+
 ## v0.3.205 (2026-02-19)
 - **Feature**: **EFB Settings Tab**. Added a comprehensive settings panel to the EFB application, allowing pilots to configure narration and POI filtering directly from the cockpit.
 - **Improvement**: **Dynamic Map Scaling**. The EFB map now automatically scales the active POI marker being narrated by 1.5x for better visual focus.

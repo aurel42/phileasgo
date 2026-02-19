@@ -559,6 +559,14 @@ func (m *Manager) GetBoostFactor(ctx context.Context) float64 {
 	return 1.0
 }
 
+// SaveLastPlayed persists a POI's LastPlayed timestamp to the database.
+// This ensures cooldown survives eviction, teleport, and app restart.
+func (m *Manager) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) {
+	if err := m.store.SaveLastPlayed(ctx, poiID, t); err != nil {
+		m.logger.Warn("Failed to persist LastPlayed", "qid", poiID, "error", err)
+	}
+}
+
 // ResetLastPlayed resets the last_played timestamp for POIs within the given radius (meters).
 func (m *Manager) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error {
 	// 1. Reset in-memory state for immediate feedback.

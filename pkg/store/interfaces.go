@@ -13,6 +13,7 @@ type POIStore interface {
 	GetPOIsBatch(ctx context.Context, wikidataIDs []string) (map[string]*model.POI, error)
 	SavePOI(ctx context.Context, poi *model.POI) error
 	GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error)
+	SaveLastPlayed(ctx context.Context, poiID string, t time.Time) error
 	ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error
 }
 

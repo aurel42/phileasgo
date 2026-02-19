@@ -234,6 +234,11 @@ func (s *SQLiteStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time
 	return results, nil
 }
 
+func (s *SQLiteStore) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE poi SET last_played = ? WHERE wikidata_id = ?`, t, poiID)
+	return err
+}
+
 func (s *SQLiteStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error {
 	// Crude approx: 1 deg lat ~= 111km.
 	// radius is in meters.

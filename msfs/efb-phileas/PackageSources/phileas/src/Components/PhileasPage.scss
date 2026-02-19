@@ -303,10 +303,11 @@
                 display: flex;
                 align-items: center;
                 gap: 15px;
+                width: 280px;
+                justify-content: flex-end;
 
                 &.mode-toggle {
-                    width: 180px;
-                    justify-content: flex-end;
+                    width: 220px;
                 }
 
                 .slider-value-box {
@@ -318,6 +319,35 @@
                     border-radius: 4px;
                     min-width: 30px;
                     text-align: center;
+                }
+
+                // Native EFB Component overrides
+                msfs-incremental {
+                    width: 100%;
+                    max-width: 250px;
+
+                    .incremental-button {
+                        width: 45px;
+                        height: 45px;
+                        min-width: 45px;
+                    }
+                }
+
+                msfs-slider {
+                    flex: 1;
+                    min-width: 180px;
+
+                    .slider-track {
+                        height: 4px;
+                        background: #333;
+                    }
+
+                    .slider-thumb {
+                        width: 24px;
+                        height: 24px;
+                        background: #f39c12;
+                        border: 2px solid #000;
+                    }
                 }
             }
         }

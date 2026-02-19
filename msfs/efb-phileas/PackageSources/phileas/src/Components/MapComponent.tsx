@@ -655,8 +655,8 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             const current = this.size.get();
             if (current[0] !== w || current[1] !== h) {
                 this.size.set(Vec2Math.create(w, h));
+                this.updateFraming(true);
             }
-            this.updateFraming(true);
         }
     }
 

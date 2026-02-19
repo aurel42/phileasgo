@@ -18,6 +18,7 @@ type POIProvider interface {
 	CountScoredAbove(threshold float64, limit int) int
 	GetPOIsNear(lat, lon, radiusMeters float64) []*model.POI
 	ClearBeaconColor(color string)
+	SaveLastPlayed(ctx context.Context, poiID string, t time.Time)
 
 	LastScoredPosition() (lat, lon float64)
 }

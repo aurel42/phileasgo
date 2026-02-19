@@ -148,6 +148,7 @@ func (m *MockStore) GetGeodataCache(ctx context.Context, key string) ([]byte, in
 func (m *MockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int, lat, lon float64) error {
 	return nil
 }
+func (m *MockStore) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) error { return nil }
 func (m *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
 func (m *MockStore) GetArticle(ctx context.Context, uuid string) (*model.Article, error) {
 	return nil, nil

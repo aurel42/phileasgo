@@ -239,6 +239,10 @@ func (o *Orchestrator) PlayNarrative(ctx context.Context, n *model.Narrative) er
 	// Post-play logic (session, state, logging)
 	if n.POI != nil {
 		n.POI.LastPlayed = time.Now()
+		// Persist to DB so cooldown survives eviction/teleport/restart
+		if pm := o.POIManager(); pm != nil {
+			go pm.SaveLastPlayed(context.Background(), n.POI.WikidataID, n.POI.LastPlayed)
+		}
 		// Spawn colored beacon in MSFS
 		o.assignBeaconColor(n.POI)
 		if o.beaconSvc != nil {

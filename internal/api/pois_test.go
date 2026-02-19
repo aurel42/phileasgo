@@ -21,6 +21,9 @@ type apiMockStore struct {
 	ResetRadius float64
 }
 
+func (m *apiMockStore) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) error {
+	return nil
+}
 func (m *apiMockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error {
 	m.ResetCalled = true
 	m.ResetRadius = radius

@@ -41,6 +41,7 @@ func (m *mockStore) SavePOI(ctx context.Context, p *model.POI) error { return ni
 func (m *mockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error) {
 	return nil, nil
 }
+func (m *mockStore) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) error { return nil }
 func (m *mockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
 func (m *mockStore) GetCache(ctx context.Context, key string) ([]byte, bool)             { return nil, false }
 func (m *mockStore) HasCache(ctx context.Context, key string) (bool, error)              { return false, nil }

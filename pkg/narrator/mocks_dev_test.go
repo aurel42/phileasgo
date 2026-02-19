@@ -224,6 +224,7 @@ func (m *MockPOIProvider) GetPOIsNear(lat, lon, radiusMeters float64) []*model.P
 }
 
 func (m *MockPOIProvider) ClearBeaconColor(color string) {}
+func (m *MockPOIProvider) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) {}
 
 func (m *MockPOIProvider) GetFilteredCandidates(filterMode string, targetCount int, minScore float64, isOnGround bool) ([]*model.POI, float64) {
 	return []*model.POI{}, 0.0
@@ -358,6 +359,7 @@ func (m *MockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) 
 	defer m.mu.RUnlock()
 	return m.RecentPOIs, nil
 }
+func (m *MockStore) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) error { return nil }
 func (m *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
 func (m *MockStore) SaveArticle(ctx context.Context, a *model.Article) error {
 	m.mu.Lock()

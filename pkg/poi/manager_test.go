@@ -28,6 +28,7 @@ func (s *MockStore) SavePOI(ctx context.Context, p *model.POI) error {
 func (s *MockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error) {
 	return nil, nil
 }
+func (s *MockStore) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) error { return nil }
 func (s *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
 
 // Stubs for other interface methods...

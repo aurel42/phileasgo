@@ -131,7 +131,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         this.subscriptions.push(this.props.aircraftConfig.sub(cfg => {
             if (!cfg) return;
             this.settingsSyncing = true;
-            this.settingFreq.set(cfg.narration_frequency ?? 3);
+            this.settingFreq.set(cfg.narration_frequency ?? 2);
             this.settingLength.set(cfg.text_length ?? 3);
             this.settingFilterMode.set(cfg.filter_mode || 'fixed');
             this.settingMinScore.set(cfg.min_poi_score ?? 0.5);
