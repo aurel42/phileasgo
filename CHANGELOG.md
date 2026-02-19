@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## v0.3.202 (2026-02-19)
+- **Fix**: **Oversized EFB Map Markers**. Resolved an issue where POI beacons appeared map-filling by enforcing explicit CSS dimensions on SVG elements.
+- **Improvement**: **Polished EFB Status Overlay**. Refined the map status card with left-aligned labels and a single-line location display for better readability.
+- **Feature**: **EFB Narrator Status**. Added visual indicators to the EFB status card for active narration frequency and length settings.
+- **Improvement**: **Unified Connection Aesthetics**. Updated the EFB connection status pill to match the web application's design, including dynamic status dots.
+- **Fix**: **EFB Map Resource Management**. Fixed a memory leak by properly cleaning up window resize listeners when the map view is destroyed.
+
 ## v0.3.201 (2026-02-19)
 - **Fix**: **hotfixes for premature release by a braindead agent**.
 - **Performance**: Improved Status Overlay update efficiency by caching text nodes and using `textContent` instead of `innerHTML`.

@@ -1,7 +1,7 @@
 {
   "name": "phileas-web",
   "private": true,
-  "version": "0.3.201",
+  "version": "0.3.202",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -34,13 +34,13 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "@vitest/coverage-v8": "^4.0.18",
-    "eslint": "^9.39.1",
+    "eslint": "^9.0.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "happy-dom": "^20.6.1",
-    "typescript": "~5.9.3",
-    "typescript-eslint": "^8.46.4",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.20.0",
     "vite": "^7.2.4",
     "vitest": "^4.0.18"
   }

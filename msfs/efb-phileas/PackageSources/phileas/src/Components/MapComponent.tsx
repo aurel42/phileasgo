@@ -107,14 +107,15 @@ function createBeaconElement(color: string, size: number): HTMLDivElement {
     const halo = document.createElement('div');
     halo.style.cssText = `position:absolute;left:50%;top:50%;width:${haloSize}px;height:${haloSize}px;` +
         `background:radial-gradient(circle,${color}66 0%,transparent 70%);` +
-        `transform:translate(-50%,-50%);border-radius:50%;`;
+        `transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;`;
     wrapper.appendChild(halo);
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', String(size));
     svg.setAttribute('height', String(size * 1.5));
     svg.setAttribute('viewBox', '0 0 100 150');
-    svg.style.cssText = 'position:relative;display:block;';
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.style.cssText = `position:relative;display:block;width:${size}px;height:${size * 1.5}px;pointer-events:none;`;
     svg.innerHTML =
         `<path d="M50,140 C50,140 10,90 10,50 A40,40 0 1,1 90,50 C90,90 50,140 50,140 Z" ` +
         `fill="${color}" stroke="white" stroke-width="5"/>` +
@@ -478,6 +479,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
 
     private subscriptions: any[] = [];
     private intervalHandles: number[] = [];
+    private readonly resizeHandler = () => this.updateSize();
 
     constructor(props: MapComponentProps) {
         super(props);
@@ -511,7 +513,8 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         }
     }
 
-    public onAfterRender(): void {
+    public onAfterRender(node: VNode): void {
+        super.onAfterRender(node);
         // Subscribe AFTER render — FSComponent does not deliver Subject
         // notifications to subscriptions created during the constructor.
         this.subscriptions.push(this.props.telemetry.sub((t) => {
@@ -524,7 +527,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         this.subscriptions.push(this.props.pois.sub(() => this.updateFraming(false)));
 
         this.updateSize();
-        window.addEventListener('resize', () => this.updateSize());
+        window.addEventListener('resize', this.resizeHandler);
         // BY DESIGN: Map resize check frequency (1s) - ensures map fills container correctly
         this.intervalHandles.push(window.setInterval(() => this.updateSize(), 1000));
 
@@ -642,6 +645,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
     public destroy(): void {
         this.subscriptions.forEach(s => s.destroy());
         this.intervalHandles.forEach(h => window.clearInterval(h));
+        window.removeEventListener('resize', this.resizeHandler);
         super.destroy();
     }
 }

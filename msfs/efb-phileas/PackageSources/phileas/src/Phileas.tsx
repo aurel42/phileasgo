@@ -21,16 +21,30 @@ declare const BUILD_TIMESTAMP: string;
 class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
   protected defaultView = "MainPage";
 
-  private telemetry = Subject.create<any>(null);
-  private pois = Subject.create<any[]>([]);
+  // Equality functions prevent downstream subscriber cascades when poll data is unchanged
+  private telemetry = Subject.create<any>(null, (a: any, b: any) =>
+    a === b || (a && b && a.Latitude === b.Latitude && a.Longitude === b.Longitude
+      && a.Heading === b.Heading && a.Altitude === b.Altitude && a.AltitudeAGL === b.AltitudeAGL
+      && a.GroundSpeed === b.GroundSpeed && a.OnGround === b.OnGround));
+  private pois = Subject.create<any[]>([], (a: any[], b: any[]) =>
+    a === b || (a.length === b.length && a.every((p, i) =>
+      p.wikidata_id === b[i].wikidata_id && p.score === b[i].score
+      && p.is_on_cooldown === b[i].is_on_cooldown && p.beacon_color === b[i].beacon_color)));
   private settlements = Subject.create<any[]>([]);
   private apiVersion = Subject.create<string>("v0.0.0");
   private apiStats = Subject.create<any>(null);
-  private geography = Subject.create<any>(null);
-  private narratorStatus = Subject.create<any>(null);
+  private geography = Subject.create<any>(null, (a: any, b: any) =>
+    a === b || (a && b && a.city === b.city && a.country === b.country
+      && a.region === b.region && a.country_code === b.country_code
+      && a.city_country_code === b.city_country_code));
+  private narratorStatus = Subject.create<any>(null, (a: any, b: any) =>
+    a === b || (a && b && a.current_poi?.wikidata_id === b.current_poi?.wikidata_id
+      && a.preparing_poi?.wikidata_id === b.preparing_poi?.wikidata_id
+      && a.narration_frequency === b.narration_frequency && a.text_length === b.text_length));
 
   private aircraftConfig = Subject.create<any>(null);
   private updateTimer: any = null;
+  private abortController: AbortController | null = null;
   private lastConfigFetch = 0;
   private readonly CONFIG_INTERVAL = 30000;
 
@@ -70,10 +84,15 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
 
   private startLoop(): void {
     if (this.updateTimer) return;
+    this.abortController = new AbortController();
     this.loop();
   }
 
   private stopLoop(): void {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
     if (this.updateTimer) {
       clearTimeout(this.updateTimer);
       this.updateTimer = null;
@@ -81,8 +100,10 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
   }
 
   private async loop(): Promise<void> {
+    const signal = this.abortController?.signal;
     try {
-      const telResponse = await fetch("http://127.0.0.1:1920/api/telemetry");
+      const telResponse = await fetch("http://127.0.0.1:1920/api/telemetry", { signal });
+      if (signal?.aborted) return;
       if (telResponse.ok) {
         const telData = await telResponse.json();
         if (telData.Valid) {
@@ -94,8 +115,9 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
           const fetchConfig = now - this.lastConfigFetch >= this.CONFIG_INTERVAL;
 
           const promises: Promise<Response>[] = [
-            fetch("http://127.0.0.1:1920/api/pois/tracked"),
+            fetch("http://127.0.0.1:1920/api/pois/tracked", { signal }),
             fetch("http://127.0.0.1:1920/api/map/labels/sync", {
+              signal,
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -105,16 +127,17 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
                 Zoom: 10
               })
             }),
-            fetch("http://127.0.0.1:1920/api/stats"),
-            fetch("http://127.0.0.1:1920/api/version"),
-            fetch(`http://127.0.0.1:1920/api/geography?lat=${telemetry.Latitude}&lon=${telemetry.Longitude}`),
-            fetch("http://127.0.0.1:1920/api/narrator/status"),
+            fetch("http://127.0.0.1:1920/api/stats", { signal }),
+            fetch("http://127.0.0.1:1920/api/version", { signal }),
+            fetch(`http://127.0.0.1:1920/api/geography?lat=${telemetry.Latitude}&lon=${telemetry.Longitude}`, { signal }),
+            fetch("http://127.0.0.1:1920/api/narrator/status", { signal }),
           ];
           if (fetchConfig) {
-            promises.push(fetch("http://127.0.0.1:1920/api/config"));
+            promises.push(fetch("http://127.0.0.1:1920/api/config", { signal }));
           }
 
           const results = await Promise.all(promises);
+          if (signal?.aborted) return;
           const [poisRes, setRes, statsRes, verRes, geoRes, narRes] = results;
 
           if (poisRes.ok) this.pois.set(await poisRes.json());
@@ -134,7 +157,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
         }
       }
     } catch (err) {
-      // Minimal error logging to prevent spam
+      if (signal?.aborted) return;
       console.error("Phileas: Loop error");
     }
     // BY DESIGN: Main data loop frequency (1s) - maintained for responsive telemetry/data tracking

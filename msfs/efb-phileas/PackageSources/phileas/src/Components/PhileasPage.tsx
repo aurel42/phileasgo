@@ -84,15 +84,19 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     // Cached text nodes inside overlay lines — updated via textContent, never innerHTML
     private overlayPlayingText: Text | null = null;
     private overlayPreparingText: Text | null = null;
-    private overlayGeoMain: HTMLDivElement | null = null;
-    private overlayGeoSub: HTMLSpanElement | null = null;
-    private overlayGeoAccent: HTMLSpanElement | null = null;
-    private overlayStatusPill: HTMLDivElement | null = null;
+    private overlayGeoLoc: HTMLSpanElement | null = null;
+    private overlayStatusDot: HTMLDivElement | null = null;
+    private overlayStatusLabel: HTMLSpanElement | null = null;
     private overlayConfigPill: HTMLDivElement | null = null;
 
-    public onAfterRender(): void {
+    private readonly frqPips: HTMLDivElement[] = [];
+    private readonly lenPips: HTMLDivElement[] = [];
+
+    public onAfterRender(node: VNode): void {
+        super.onAfterRender(node);
+
         // Tab switching logic
-        this.activeTab.sub(tab => {
+        this.subscriptions.push(this.activeTab.sub(tab => {
             const isMap = tab === 'map';
             if (this.isMapVisible.get() !== isMap) {
                 this.isMapVisible.set(isMap);
@@ -105,7 +109,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
             if (tab === 'dashboard') this.updateDashboardCards();
             this.updateUiData(true);
-        });
+        }));
 
         // Subscribe to raw data props
         this.subscriptions.push(this.props.telemetry.sub(() => this.updateUiData(false)));
@@ -265,32 +269,60 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             preparingEl.appendChild(this.overlayPreparingText);
         }
 
-        // Location line
+        // Location line: near **City**, Admin1, Country [in Accent]
         const locationEl = this.overlayLocationRef.instance;
         if (locationEl) {
-            this.overlayGeoMain = document.createElement('div');
-            this.overlayGeoMain.className = 'geo-main';
-            const subRow = document.createElement('div');
-            subRow.className = 'geo-sub-row';
-            this.overlayGeoSub = document.createElement('span');
-            this.overlayGeoSub.className = 'geo-sub';
-            this.overlayGeoAccent = document.createElement('span');
-            this.overlayGeoAccent.className = 'geo-accent';
-            subRow.appendChild(this.overlayGeoSub);
-            subRow.appendChild(this.overlayGeoAccent);
-            locationEl.appendChild(this.overlayGeoMain);
-            locationEl.appendChild(subRow);
+            this.overlayGeoLoc = document.createElement('span');
+            this.overlayGeoLoc.className = 'geo-loc';
+            locationEl.appendChild(this.overlayGeoLoc);
         }
 
         // Status pill line
         const statusEl = this.overlayStatusRef.instance;
         if (statusEl) {
-            this.overlayStatusPill = document.createElement('div');
-            this.overlayStatusPill.className = 'status-pill';
-            this.overlayConfigPill = document.createElement('div');
-            this.overlayConfigPill.className = 'status-pill config-pill';
-            statusEl.appendChild(this.overlayStatusPill);
-            statusEl.appendChild(this.overlayConfigPill);
+            const pill = document.createElement('div');
+            pill.className = 'status-pill';
+            this.overlayStatusDot = document.createElement('div');
+            this.overlayStatusDot.className = 'status-dot';
+            this.overlayStatusLabel = document.createElement('span');
+            this.overlayStatusLabel.className = 'status-label';
+            pill.appendChild(this.overlayStatusDot);
+            pill.appendChild(this.overlayStatusLabel);
+            statusEl.appendChild(pill);
+
+            // Settings Pips (FRQ)
+            const frq = document.createElement('div');
+            frq.className = 'settings-group';
+            const frqLabel = document.createElement('span');
+            frqLabel.className = 'label';
+            frqLabel.textContent = 'FRQ';
+            const frqPipsCont = document.createElement('div');
+            frqPipsCont.className = 'pip-container';
+            for (let i = 0; i < 4; i++) {
+                const pip = document.createElement('div');
+                pip.className = 'pip';
+                frqPipsCont.appendChild(pip);
+                this.frqPips.push(pip);
+            }
+            frq.append(frqLabel, frqPipsCont);
+            statusEl.appendChild(frq);
+
+            // Settings Pips (LEN)
+            const len = document.createElement('div');
+            len.className = 'settings-group';
+            const lenLabel = document.createElement('span');
+            lenLabel.className = 'label';
+            lenLabel.textContent = 'LEN';
+            const lenPipsCont = document.createElement('div');
+            lenPipsCont.className = 'pip-container';
+            for (let i = 0; i < 5; i++) {
+                const pip = document.createElement('div');
+                pip.className = 'pip';
+                lenPipsCont.appendChild(pip);
+                this.lenPips.push(pip);
+            }
+            len.append(lenLabel, lenPipsCont);
+            statusEl.appendChild(len);
         }
     }
 
@@ -324,45 +356,72 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             }
         }
 
-        // Location
-        if (this.overlayGeoMain) {
-            this.overlayGeoMain.textContent = this.geoDisplay.main.get();
-        }
-        if (this.overlayGeoSub) {
-            this.overlayGeoSub.textContent = this.geoDisplay.sub.get();
-        }
-        if (this.overlayGeoAccent) {
-            const accent = this.geoDisplay.accent.get();
-            this.overlayGeoAccent.textContent = accent;
-            this.overlayGeoAccent.style.display = accent ? '' : 'none';
+        // Location (Single Line) — DOM APIs only, no innerHTML
+        if (this.overlayGeoLoc) {
+            const geo = this.props.geography.get();
+            if (geo) {
+                const el = this.overlayGeoLoc;
+                el.textContent = '';
+                if (geo.city) {
+                    if (geo.city === 'Unknown') {
+                        el.appendChild(document.createTextNode('Far from civilization'));
+                    } else {
+                        el.appendChild(document.createTextNode('near '));
+                        const strong = document.createElement('strong');
+                        strong.textContent = geo.city;
+                        el.appendChild(strong);
+                    }
+
+                    // Cross-border or region/country
+                    const suffix: string[] = [];
+                    if (geo.city_country_code && geo.country_code && geo.city_country_code !== geo.country_code) {
+                        if (geo.city_region) suffix.push(geo.city_region);
+                        suffix.push(geo.city_country);
+                        suffix.push(`[in ${geo.country}]`);
+                    } else {
+                        if (geo.region) suffix.push(geo.region);
+                        if (geo.country) suffix.push(geo.country);
+                    }
+                    if (suffix.length) {
+                        el.appendChild(document.createTextNode(', ' + suffix.join(', ')));
+                    }
+                } else if (geo.country) {
+                    el.textContent = geo.region ? `${geo.region}, ${geo.country}` : geo.country;
+                }
+            }
         }
 
-        // Status pills
-        if (this.overlayStatusPill) {
-            const stats = this.props.apiStats.get();
+        // Status pills & Dots
+        const stats = this.props.apiStats.get();
+        if (this.overlayStatusDot && this.overlayStatusLabel) {
             const isSimRunning = !!(stats?.sim?.state === 'running');
             const isConnected = !!(stats?.providers?.simconnect?.api_success > 0);
 
-            let statusClass = 'state-disconnected';
+            let statusClass = 'disconnected';
             let statusText = 'Disconnected';
 
             if (isSimRunning) {
-                statusClass = 'state-sim-running';
+                statusClass = 'sim-running';
                 statusText = 'Sim Running';
             } else if (isConnected) {
-                statusClass = 'state-connected';
+                statusClass = 'connected';
                 statusText = 'Connected';
             }
 
-            this.overlayStatusPill.className = `status-pill ${statusClass}`;
-            this.overlayStatusPill.textContent = statusText;
+            this.overlayStatusDot.className = `status-dot ${statusClass}`;
+            this.overlayStatusLabel.textContent = `SIM ${statusText}`;
         }
-        if (this.overlayConfigPill) {
-            const config = this.props.aircraftConfig.get();
-            this.overlayConfigPill.textContent = config
-                ? `${config.aircraft_icon?.toUpperCase()} (${config.aircraft_size}px)`
-                : '...';
-        }
+
+        // Settings Pips
+        const frq = narrator?.narration_frequency ?? 0;
+        const len = narrator?.text_length ?? 0;
+
+        this.frqPips.forEach((p, i) => {
+            p.className = `pip ${frq > i ? 'active' : ''} ${frq > i && i >= 2 ? 'high' : ''}`;
+        });
+        this.lenPips.forEach((p, i) => {
+            p.className = `pip ${len > i ? 'active' : ''} ${len > i && i >= 4 ? 'high' : ''}`;
+        });
     }
 
     private updateStatsCard(stats: any): void {
