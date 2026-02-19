@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## v0.3.203 (2026-02-19)
+- **Fix**: Fixed EFB status incorrectly reporting "SIM DISCONNECTED" while the simulator is active.
+- **Improvement**: Standardized EFB map markers to use a consistent hot-air balloon design.
+- **Improvement**: Added visible and tracked POI counters to the EFB status overlay for better content awareness.
+- **Improvement**: Increased spacing between narrator settings on the EFB for improved readability.
+
 ## v0.3.202 (2026-02-19)
 - **Fix**: **Oversized EFB Map Markers**. Resolved an issue where POI beacons appeared map-filling by enforcing explicit CSS dimensions on SVG elements.
 - **Improvement**: **Polished EFB Status Overlay**. Refined the map status card with left-aligned labels and a single-line location display for better readability.

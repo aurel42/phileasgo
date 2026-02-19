@@ -15,6 +15,7 @@
 CLAUDE.md
 task.md
 .claude/
+.agent/
 bin/
 logs/
 configs/phileas.yaml

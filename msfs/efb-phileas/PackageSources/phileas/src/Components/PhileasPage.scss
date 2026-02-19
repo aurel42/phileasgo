@@ -314,14 +314,14 @@
 
     .location-line {
         .geo-loc {
-            font-size: 16px;
+            font-size: 14px;
             color: #ccc;
             line-height: 1.4;
 
             strong {
                 color: #fff;
                 font-weight: bold;
-                font-size: 16px; // Same size as surrounding text
+                font-size: 14px; // Harmonized
             }
         }
     }
@@ -357,9 +357,11 @@
                 background-color: #2ecc71;
                 box-shadow: 0 0 5px #2ecc71;
             }
+
             &.connected {
                 background-color: #3498db;
             }
+
             &.disconnected {
                 background-color: #e74c3c;
             }
@@ -370,6 +372,7 @@
         display: flex;
         align-items: center;
         gap: 8px;
+        margin-left: 10px; // Extra spacing from the pill/previous group
 
         .label {
             font-size: 11px;
@@ -398,6 +401,15 @@
                 }
             }
         }
+    }
+
+    .poi-status {
+        margin-left: auto;
+        font-size: 12px;
+        color: #777;
+        font-family: monospace;
+        letter-spacing: -0.2px;
+        padding-right: 10px;
     }
 }
 

@@ -87,6 +87,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     private overlayGeoLoc: HTMLSpanElement | null = null;
     private overlayStatusDot: HTMLDivElement | null = null;
     private overlayStatusLabel: HTMLSpanElement | null = null;
+    private overlayPoiStatus: HTMLSpanElement | null = null;
     private overlayConfigPill: HTMLDivElement | null = null;
 
     private readonly frqPips: HTMLDivElement[] = [];
@@ -290,6 +291,13 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             pill.appendChild(this.overlayStatusLabel);
             statusEl.appendChild(pill);
 
+            // POI Status
+            const poiStatus = document.createElement('div');
+            poiStatus.className = 'poi-status';
+            this.overlayPoiStatus = document.createElement('span');
+            poiStatus.appendChild(this.overlayPoiStatus);
+            statusEl.appendChild(poiStatus);
+
             // Settings Pips (FRQ)
             const frq = document.createElement('div');
             frq.className = 'settings-group';
@@ -394,22 +402,32 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         // Status pills & Dots
         const stats = this.props.apiStats.get();
         if (this.overlayStatusDot && this.overlayStatusLabel) {
-            const isSimRunning = !!(stats?.sim?.state === 'running');
-            const isConnected = !!(stats?.providers?.simconnect?.api_success > 0);
+            const tel = this.props.telemetry.get();
+            const simState = tel?.SimState || 'disconnected';
 
             let statusClass = 'disconnected';
             let statusText = 'Disconnected';
 
-            if (isSimRunning) {
+            if (simState === 'active') {
                 statusClass = 'sim-running';
                 statusText = 'Sim Running';
-            } else if (isConnected) {
+            } else if (simState === 'inactive') {
                 statusClass = 'connected';
                 statusText = 'Connected';
             }
 
             this.overlayStatusDot.className = `status-dot ${statusClass}`;
             this.overlayStatusLabel.textContent = `SIM ${statusText}`;
+        }
+
+        // POI Counts
+        if (this.overlayPoiStatus) {
+            const rawPois = this.props.pois.get() || [];
+            const competitive = rawPois.filter(p => !isPoiOnCooldown(p) && (p.score ?? 0) > 0).length;
+            const visible = rawPois.length;
+            const tracked = stats?.active_pois || 0;
+
+            this.overlayPoiStatus.textContent = `POI(vis) ${competitive} ◆ ${visible} | POI(tracked) ${tracked}`;
         }
 
         // Settings Pips

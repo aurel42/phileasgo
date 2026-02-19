@@ -112,14 +112,16 @@ function createBeaconElement(color: string, size: number): HTMLDivElement {
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', String(size));
-    svg.setAttribute('height', String(size * 1.5));
-    svg.setAttribute('viewBox', '0 0 100 150');
+    svg.setAttribute('height', String(size * 1.25));
+    svg.setAttribute('viewBox', '0 0 40 50');
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    svg.style.cssText = `position:relative;display:block;width:${size}px;height:${size * 1.5}px;pointer-events:none;`;
+    svg.style.cssText = `position:relative;display:block;width:${size}px;height:${size * 1.25}px;pointer-events:none;filter:drop-shadow(0 0 1px white);`;
     svg.innerHTML =
-        `<path d="M50,140 C50,140 10,90 10,50 A40,40 0 1,1 90,50 C90,90 50,140 50,140 Z" ` +
-        `fill="${color}" stroke="white" stroke-width="5"/>` +
-        `<circle cx="50" cy="50" r="15" fill="white" opacity="0.5"/>`;
+        `<path d="M20,5 C12,5 5,12 5,22 C5,28 10,35 20,42 C30,35 35,28 35,22 C35,12 28,5 20,5" ` +
+        `fill="${color}" stroke="black" stroke-width="1.5"/>` +
+        `<line x1="12" y1="36" x2="16" y2="42" stroke="black" stroke-width="1" />` +
+        `<line x1="28" y1="36" x2="24" y2="42" stroke="black" stroke-width="1" />` +
+        `<rect x="16" y="42" width="8" height="6" rx="1" fill="#1a1a1a" stroke="black" stroke-width="1" />`;
     wrapper.appendChild(svg);
 
     return wrapper;
@@ -558,9 +560,12 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         const playingId = narrator?.current_poi?.id || narrator?.current_poi?.wikidata_id;
         const preparingId = narrator?.preparing_poi?.id || narrator?.preparing_poi?.wikidata_id;
 
-        // Selection A: Non-cooldown POIs + playing/preparing (inline to avoid array allocation)
-        let minLat = tel.Latitude, maxLat = tel.Latitude;
-        let minLon = tel.Longitude, maxLon = tel.Longitude;
+        // Always center on aircraft position
+        const acLat = tel.Latitude;
+        const acLon = tel.Longitude;
+
+        // Selection A: Non-cooldown POIs + playing/preparing — track max offset from aircraft
+        let maxLatDiff = 0, maxLonDiff = 0;
         let hasSelection = false;
 
         for (const p of pois) {
@@ -569,51 +574,55 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             const isPlaying = playingId && (p.id === playingId || p.wikidata_id === playingId);
             const isPreparing = preparingId && (p.id === preparingId || p.wikidata_id === preparingId);
             if (isCooldown && !isPlaying && !isPreparing) continue;
-            if (p.lat < minLat) minLat = p.lat;
-            if (p.lat > maxLat) maxLat = p.lat;
-            if (p.lon < minLon) minLon = p.lon;
-            if (p.lon > maxLon) maxLon = p.lon;
+            maxLatDiff = Math.max(maxLatDiff, Math.abs(p.lat - acLat));
+            maxLonDiff = Math.max(maxLonDiff, Math.abs(p.lon - acLon));
             hasSelection = true;
         }
 
-        // Selection B Fallback: if A yielded nothing, expand bbox over ALL POIs
+        // Selection B Fallback: if A yielded nothing, expand over ALL POIs
         if (!hasSelection) {
             for (const p of pois) {
                 if (p.lat === undefined || p.lon === undefined) continue;
-                if (p.lat < minLat) minLat = p.lat;
-                if (p.lat > maxLat) maxLat = p.lat;
-                if (p.lon < minLon) minLon = p.lon;
-                if (p.lon > maxLon) maxLon = p.lon;
+                maxLatDiff = Math.max(maxLatDiff, Math.abs(p.lat - acLat));
+                maxLonDiff = Math.max(maxLonDiff, Math.abs(p.lon - acLon));
             }
         }
 
-        const latSpan = maxLat - minLat;
-        const lonSpan = maxLon - minLon;
-
-        const targetLat = (minLat + maxLat) / 2;
-        const targetLon = (minLon + maxLon) / 2;
         let range: number;
 
-        if (latSpan === 0 && lonSpan === 0) {
-            // Selection C Emergency: Aircraft only
+        if (maxLatDiff === 0 && maxLonDiff === 0) {
+            // Aircraft only — no POIs or all co-located
             const isOnGround = !!(tel.OnGround);
             // 4km on ground (~2.16nm), 50km in air (~27nm)
             range = (isOnGround ? 2.16 : 27) / 3440.065;
         } else {
-            // Padding: add ~0.5nm buffer for POI disc clearance
-            const latPad = Math.max(0.005, latSpan * 0.15);
-            const lonPad = Math.max(0.005, lonSpan * 0.15);
+            // Padding: buffer for POI disc clearance
+            const latPad = Math.max(0.005, maxLatDiff * 0.15);
+            const lonPad = Math.max(0.005, maxLonDiff * 0.15);
+            const paddedLatDiff = maxLatDiff + latPad;
+            const paddedLonDiff = maxLonDiff + lonPad;
 
-            this.framingScratchA.set(targetLat, targetLon);
-            this.framingScratchB.set(maxLat + latPad, maxLon + lonPad);
-            range = this.framingScratchA.distance(this.framingScratchB);
+            // range = full viewport height (default rangeEndpoints [0.5,0,0.5,1])
+            // Vertical: full extent from aircraft ± paddedLatDiff
+            this.framingScratchA.set(acLat - paddedLatDiff, acLon);
+            this.framingScratchB.set(acLat + paddedLatDiff, acLon);
+            const vertRange = this.framingScratchA.distance(this.framingScratchB);
+
+            // Horizontal: full extent, then aspect-ratio-correct to equivalent range
+            this.framingScratchA.set(acLat, acLon - paddedLonDiff);
+            this.framingScratchB.set(acLat, acLon + paddedLonDiff);
+            const horizExtent = this.framingScratchA.distance(this.framingScratchB);
+            const projSize = this.mapSystem.context.projection.getProjectedSize();
+            const horizRange = horizExtent * (projSize[1] / projSize[0]);
+
+            range = Math.max(vertRange, horizRange);
 
             // Clamp max range to 60nm
             range = Math.min(60 / 3440.065, range);
         }
 
         this.mapSystem.context.projection.setQueued({
-            target: this.framingScratchA.set(targetLat, targetLon),
+            target: this.framingScratchA.set(acLat, acLon),
             scaleFactor: null,
             range: Math.max(1.5 / 3440.065, range) // min 1.5nm for visibility
         });
