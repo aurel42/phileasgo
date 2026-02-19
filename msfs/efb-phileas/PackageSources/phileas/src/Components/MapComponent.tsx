@@ -1,7 +1,7 @@
 import {
     ComponentProps, DisplayComponent, FSComponent, VNode, Subject,
     MapSystemBuilder, EventBus, Vec2Math, MapLayer,
-    MapLayerProps, GeoPoint,
+    MapLayerProps, GeoPoint, MapProjection,
     MapSystemKeys
 } from "@microsoft/msfs-sdk";
 
@@ -92,8 +92,8 @@ interface PoiMarker {
     id: string;
     wrapper: HTMLDivElement;
     img: HTMLImageElement;
-    beacon?: HTMLDivElement;
-    beaconColor?: string;
+    beacon: HTMLDivElement | undefined;
+    beaconColor: string | undefined;
     lat: number;
     lon: number;
 }
@@ -134,22 +134,28 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
     private markers = new Map<string, PoiMarker>();
     private pois: any[] = [];
     private subscriptions: any[] = [];
+    private data: any;
+
+    // Scratch objects — reused every projection cycle to avoid per-frame allocations
+    private readonly targetVec = Vec2Math.create();
+    private readonly projVec = Vec2Math.create();
+    private readonly geoScratch = new GeoPoint(0, 0);
 
     public onAttached(): void {
-        const data = (this.props.model as any).getModule("PhileasData");
+        this.data = (this.props.model as any).getModule("PhileasData");
 
-        this.subscriptions.push(data.pois.sub((p: any[]) => {
+        this.subscriptions.push(this.data.pois.sub((p: any[]) => {
             this.pois = p;
             this.rebuildMarkers();
-        }));
+        }, true));
 
         // Recolor markers when narrator state changes (playing/preparing)
-        this.subscriptions.push(data.narratorStatus.sub(() => {
+        this.subscriptions.push(this.data.narratorStatus.sub(() => {
             this.recolorMarkers();
-        }));
+        }, true));
     }
 
-    public onMapProjectionChanged(): void {
+    public onMapProjectionChanged(_mapProjection: MapProjection, _changeFlags: number): void {
         this.repositionMarkers();
     }
 
@@ -157,7 +163,7 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
     private rebuildMarkers(): void {
         if (!this.containerRef.instance) return;
         const container = this.containerRef.instance;
-        const narratorStatus = (this.props.model as any).getModule("PhileasData").narratorStatus.get();
+        const narratorStatus = this.data.narratorStatus.get();
 
         // Determine which POI IDs are still present
         const currentIds = new Set<string>();
@@ -205,7 +211,7 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 wrapper.appendChild(img);
                 container.appendChild(wrapper);
 
-                marker = { id, wrapper, img, lat: poi.lat, lon: poi.lon };
+                marker = { id, wrapper, img, beacon: undefined, beaconColor: undefined, lat: poi.lat, lon: poi.lon };
 
                 if (poi.beacon_color) {
                     marker.beacon = createBeaconElement(poi.beacon_color, 12);
@@ -235,8 +241,8 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                     }
                 } else if (marker.beacon) {
                     marker.beacon.remove();
-                    delete marker.beacon;
-                    delete marker.beaconColor;
+                    marker.beacon = undefined;
+                    marker.beaconColor = undefined;
                 }
             }
         }
@@ -246,7 +252,7 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
 
     /** Update only colors (narrator status changed). */
     private recolorMarkers(): void {
-        const narratorStatus = (this.props.model as any).getModule("PhileasData").narratorStatus.get();
+        const narratorStatus = this.data.narratorStatus.get();
         const container = this.containerRef.instance;
         if (!container) return;
 
@@ -268,8 +274,8 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 }
             } else if (marker.beacon) {
                 marker.beacon.remove();
-                delete marker.beacon;
-                delete marker.beaconColor;
+                marker.beacon = undefined;
+                marker.beaconColor = undefined;
             }
         }
         if (needsReposition) this.repositionMarkers();
@@ -280,14 +286,14 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
         const size = this.props.mapProjection.getProjectedSize();
         const cx = size[0] / 2;
         const cy = size[1] / 2;
-        const targetProj = this.props.mapProjection.project(
-            this.props.mapProjection.getTarget(), Vec2Math.create());
+        this.props.mapProjection.project(
+            this.props.mapProjection.getTarget(), this.targetVec);
 
         for (const [, marker] of this.markers) {
-            const projected = this.props.mapProjection.project(
-                new GeoPoint(marker.lat, marker.lon), Vec2Math.create());
-            const x = cx + (projected[0] - targetProj[0]);
-            const y = cy + (projected[1] - targetProj[1]);
+            this.geoScratch.set(marker.lat, marker.lon);
+            this.props.mapProjection.project(this.geoScratch, this.projVec);
+            const x = cx + (this.projVec[0] - this.targetVec[0]);
+            const y = cy + (this.projVec[1] - this.targetVec[1]);
 
             if (x < -DISC_SIZE || x > size[0] + DISC_SIZE ||
                 y < -DISC_SIZE || y > size[1] + DISC_SIZE) {
@@ -334,15 +340,21 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
     private shadowSvg: SVGSVGElement | null = null;
     private currentConfig: any = null;
     private subscriptions: any[] = [];
+    private data: any;
+
+    // Scratch objects — reused every tick to avoid per-frame allocations
+    private readonly targetVec = Vec2Math.create();
+    private readonly projVec = Vec2Math.create();
+    private readonly geoScratch = new GeoPoint(0, 0);
 
     public onAttached(): void {
-        const data = (this.props.model as any).getModule("PhileasData");
+        this.data = (this.props.model as any).getModule("PhileasData");
 
-        this.subscriptions.push(data.aircraftConfig.sub((config: any) => {
+        this.subscriptions.push(this.data.aircraftConfig.sub((config: any) => {
             if (!config) return;
             this.currentConfig = config;
             this.rebuildIcon();
-        }));
+        }, true));
     }
 
     /** Rebuild main + shadow SVGs from current config. */
@@ -361,11 +373,13 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
         this.shadowSvg = null;
 
         // Shadow SVG — all paths filled black
+        // Position centered; per-tick transform handles AGL offset + scale (GPU-composited)
         const shadow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         shadow.setAttribute('viewBox', '0 0 100 100');
         shadow.style.cssText =
-            `position:absolute;left:calc(50% - ${size / 2}px);top:calc(50% - ${size / 2}px);` +
-            `width:${size}px;height:${size}px;filter:blur(3px);opacity:0.3;`;
+            `position:absolute;left:50%;top:50%;width:${size}px;height:${size}px;` +
+            `transform-origin:center;transform:translate(-50%,-50%);` +
+            `filter:blur(3px);opacity:0.3;`;
         shadow.innerHTML = aircraftSvgPaths(iconType, 'black', 'black');
         el.appendChild(shadow);
         this.shadowSvg = shadow;
@@ -380,11 +394,7 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
         el.appendChild(main);
     }
 
-    public onMapProjectionChanged(): void {
-        this.updateIcon();
-    }
-
-    public onUpdated(): void {
+    public onUpdated(_time: number, _elapsed: number): void {
         this.updateIcon();
     }
 
@@ -392,12 +402,9 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
         const el = this.iconRef.instance;
         if (!el) return;
 
-        const data = (this.props.model as any).getModule("PhileasData");
-        if (!data) return;
-
-        const pos = data.planePosition.get();
-        const heading = data.planeHeading.get();
-        const tel = data.telemetry.get();
+        const pos = this.data.planePosition.get();
+        const heading = this.data.planeHeading.get();
+        const tel = this.data.telemetry.get();
         const config = this.currentConfig;
 
         if (!pos || !tel || !config) {
@@ -408,12 +415,12 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
         const projSize = this.props.mapProjection.getProjectedSize();
         const cx = projSize[0] / 2;
         const cy = projSize[1] / 2;
-        const targetProj = this.props.mapProjection.project(
-            this.props.mapProjection.getTarget(), Vec2Math.create());
-        const projected = this.props.mapProjection.project(
-            new GeoPoint(pos.lat, pos.lon), Vec2Math.create());
-        const x = cx + (projected[0] - targetProj[0]);
-        const y = cy + (projected[1] - targetProj[1]);
+        this.props.mapProjection.project(
+            this.props.mapProjection.getTarget(), this.targetVec);
+        this.geoScratch.set(pos.lat, pos.lon);
+        this.props.mapProjection.project(this.geoScratch, this.projVec);
+        const x = cx + (this.projVec[0] - this.targetVec[0]);
+        const y = cy + (this.projVec[1] - this.targetVec[1]);
 
         el.style.display = '';
         el.style.left = `${x}px`;
@@ -426,18 +433,15 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
             el.style.transform = `translate(-50%,-50%)`;
         }
 
-        // Update shadow offset/scale based on altitude AGL
+        // Update shadow offset/scale based on altitude AGL (transform-only, GPU-composited)
         if (this.shadowSvg) {
-            const size = config.aircraft_size || 32;
             const agl = tel.AltitudeAGL ?? 0;
             const ratio = Math.min(Math.max(agl / 10000, 0), 1);
+            const size = config.aircraft_size || 32;
             const offset = ratio * (size * 0.6);
             const scale = 1 - (ratio * 0.5);
-            const s = size * scale;
-            this.shadowSvg.style.left = `calc(50% - ${s / 2}px + ${offset}px)`;
-            this.shadowSvg.style.top = `calc(50% - ${s / 2}px + ${offset}px)`;
-            this.shadowSvg.style.width = `${s}px`;
-            this.shadowSvg.style.height = `${s}px`;
+            this.shadowSvg.style.transform =
+                `translate(calc(-50% + ${offset}px), calc(-50% + ${offset}px)) scale(${scale})`;
         }
     }
 
@@ -468,6 +472,13 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
     private lastFramingUpdate = 0;
     // BY DESIGN: Adaptive framing frequency matches main loop/map clock (1s)
     private readonly FRAMING_INTERVAL = 1000;
+
+    // Scratch GeoPoints for updateFraming — reused to avoid per-second allocations
+    private readonly framingScratchA = new GeoPoint(0, 0);
+    private readonly framingScratchB = new GeoPoint(0, 0);
+
+    private subscriptions: any[] = [];
+    private intervalHandles: number[] = [];
 
     constructor(props: MapComponentProps) {
         super(props);
@@ -504,31 +515,31 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
     public onAfterRender(): void {
         // Subscribe AFTER render — FSComponent does not deliver Subject
         // notifications to subscriptions created during the constructor.
-        this.props.telemetry.sub((t) => {
+        this.subscriptions.push(this.props.telemetry.sub((t) => {
             if (!t || !t.Valid) return;
             this.planePos.set(t.Latitude, t.Longitude);
             this.planePosition.set({ lat: t.Latitude, lon: t.Longitude });
             this.planeHeading.set(t.Heading);
             this.updateFraming(false);
-        });
+        }));
 
-        this.props.pois.sub(() => this.updateFraming(false));
+        this.subscriptions.push(this.props.pois.sub(() => this.updateFraming(false)));
 
         this.updateSize();
         window.addEventListener('resize', () => this.updateSize());
         // BY DESIGN: Map resize check frequency (1s) - ensures map fills container correctly
-        setInterval(() => this.updateSize(), 1000);
+        this.intervalHandles.push(window.setInterval(() => this.updateSize(), 1000));
 
         // The EFB EventBus has no ClockPublisher, so `realTime` events never
         // fire and withClockUpdate(1) never triggers the MapSystem update cycle.
         // Drive it manually at 1 Hz so applyQueued() runs and layers update.
-        setInterval(() => {
+        this.intervalHandles.push(window.setInterval(() => {
             try {
                 this.mapSystem?.ref.instance?.update(Date.now());
             } catch {
                 // map not yet ready or destroyed
             }
-        }, 1000);
+        }, 1000));
     }
 
     private updateFraming(force: boolean): void {
@@ -560,11 +571,12 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
 
         const centerLat = (minLat + maxLat) / 2;
         const centerLon = (minLon + maxLon) / 2;
-        const rangeRad = new GeoPoint(centerLat, centerLon)
-            .distance(new GeoPoint(maxLat + latPad, maxLon + lonPad));
+        this.framingScratchA.set(centerLat, centerLon);
+        this.framingScratchB.set(maxLat + latPad, maxLon + lonPad);
+        const rangeRad = this.framingScratchA.distance(this.framingScratchB);
 
         projection.setQueued({
-            target: new GeoPoint(centerLat, centerLon),
+            target: this.framingScratchA,
             scaleFactor: null,
             range: Math.min(50 / 3440.065, Math.max(1 / 3440.065, rangeRad)),
         });
@@ -591,5 +603,11 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
                 {this.mapSystem.map}
             </div>
         );
+    }
+
+    public destroy(): void {
+        this.subscriptions.forEach(s => s.destroy());
+        this.intervalHandles.forEach(h => window.clearInterval(h));
+        super.destroy();
     }
 }

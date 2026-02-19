@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## v0.3.199 (2026-02-19)
+- **Improvement**: **Optimized EFB Map Engine**. Rewrote aircraft and POI rendering logic to significantly reduce CPU overhead and improve frame stability in the MSFS EFB.
+- **Fix**: **Memory Management**. Implemented proper resource cleanup for EFB map subscriptions and background intervals.
+- **Fix**: **Shadow Fidelity**. Corrected aircraft shadow scaling and offset behavior using hardware-accelerated transforms.
+
 ## v0.3.198 (2026-02-19)
 - **Feature**: **Custom EFB Aircraft Icons**. The EFB map now supports user-selected aircraft types and colors, matching the main UI.
 - **Feature**: **EFB POI Balloons**. Added colored beacon balloons to the EFB map for currently narrated or recently played POIs.
