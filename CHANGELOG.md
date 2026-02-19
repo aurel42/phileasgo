@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## v0.3.207 (2026-02-19)
+- **Improvement**: **Internal Documentation Polish**. Updated backend skill definitions and cleaned up project documentation for better clarity and alignment with current architecture.
+
 ## v0.3.206 (2026-02-19)
 - **Fix**: **POI Cooldown Amnesia**. Fixed an issue where POI narrations would repeat too soon after a memory eviction or teleport by persisting "Last Played" timestamps to the database.
 
