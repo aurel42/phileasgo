@@ -17,6 +17,7 @@ type POIProvider interface {
 	GetNarrationCandidates(limit int, minScore *float64) []*model.POI
 	CountScoredAbove(threshold float64, limit int) int
 	GetPOIsNear(lat, lon, radiusMeters float64) []*model.POI
+	ClearBeaconColor(color string)
 
 	LastScoredPosition() (lat, lon float64)
 }

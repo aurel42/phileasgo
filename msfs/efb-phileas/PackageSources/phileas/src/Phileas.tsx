@@ -47,6 +47,8 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
   private abortController: AbortController | null = null;
   private lastConfigFetch = 0;
   private readonly CONFIG_INTERVAL = 30000;
+  private lastPoiFetch = 0;
+  private readonly POI_INTERVAL = 5000;
 
   protected registerViews(): void {
     this.appViewService.registerPage("MainPage", () => (
@@ -113,9 +115,9 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
           // Parallel fetches for efficiency
           const now = Date.now();
           const fetchConfig = now - this.lastConfigFetch >= this.CONFIG_INTERVAL;
+          const fetchPois = now - this.lastPoiFetch >= this.POI_INTERVAL;
 
           const promises: Promise<Response>[] = [
-            fetch("http://127.0.0.1:1920/api/pois/tracked", { signal }),
             fetch("http://127.0.0.1:1920/api/map/labels/sync", {
               signal,
               method: 'POST',
@@ -132,15 +134,17 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
             fetch(`http://127.0.0.1:1920/api/geography?lat=${telemetry.Latitude}&lon=${telemetry.Longitude}`, { signal }),
             fetch("http://127.0.0.1:1920/api/narrator/status", { signal }),
           ];
+          if (fetchPois) {
+            promises.push(fetch("http://127.0.0.1:1920/api/pois/tracked", { signal }));
+          }
           if (fetchConfig) {
             promises.push(fetch("http://127.0.0.1:1920/api/config", { signal }));
           }
 
           const results = await Promise.all(promises);
           if (signal?.aborted) return;
-          const [poisRes, setRes, statsRes, verRes, geoRes, narRes] = results;
+          const [setRes, statsRes, verRes, geoRes, narRes] = results;
 
-          if (poisRes.ok) this.pois.set(await poisRes.json());
           if (setRes.ok) this.settlements.set(await setRes.json());
           if (statsRes.ok) this.apiStats.set(await statsRes.json());
           if (verRes.ok) {
@@ -149,8 +153,14 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
           }
           if (geoRes.ok) this.geography.set(await geoRes.json());
           if (narRes.ok) this.narratorStatus.set(await narRes.json());
+          let nextIdx = 5;
+          if (fetchPois) {
+            const poisRes = results[nextIdx++];
+            if (poisRes.ok) this.pois.set(await poisRes.json());
+            this.lastPoiFetch = now;
+          }
           if (fetchConfig) {
-            const cfgRes = results[6];
+            const cfgRes = results[nextIdx++];
             if (cfgRes.ok) this.aircraftConfig.set(await cfgRes.json());
             this.lastConfigFetch = now;
           }

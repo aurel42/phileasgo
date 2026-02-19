@@ -472,8 +472,8 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
     private readonly planeHeading = Subject.create<number>(0);
 
     private lastFramingUpdate = 0;
-    // BY DESIGN: Adaptive framing frequency matches main loop/map clock (1s)
-    private readonly FRAMING_INTERVAL = 1000;
+    // BY DESIGN: Framing frequency (5s) — avoids micro-zoom adjustments every tick
+    private readonly FRAMING_INTERVAL = 5000;
 
     // Scratch GeoPoints for updateFraming — reused to avoid per-second allocations
     private readonly framingScratchA = new GeoPoint(0, 0);

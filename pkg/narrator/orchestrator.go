@@ -571,6 +571,12 @@ func (o *Orchestrator) assignBeaconColor(p *model.POI) {
 	o.colorIndex++
 
 	entry := o.beaconRegistry[key]
+
+	// Reclaim: clear this color from any POI that currently holds it
+	if pm := o.POIManager(); pm != nil {
+		pm.ClearBeaconColor(entry.MapColor)
+	}
+
 	p.BeaconColor = entry.MapColor
 	slog.Info("Orchestrator: Assigned beacon color to POI", "poi", p.WikidataID, "color", key, "hex", p.BeaconColor)
 }

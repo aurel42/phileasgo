@@ -223,6 +223,8 @@ func (m *MockPOIProvider) GetPOIsNear(lat, lon, radiusMeters float64) []*model.P
 	return []*model.POI{}
 }
 
+func (m *MockPOIProvider) ClearBeaconColor(color string) {}
+
 func (m *MockPOIProvider) GetFilteredCandidates(filterMode string, targetCount int, minScore float64, isOnGround bool) ([]*model.POI, float64) {
 	return []*model.POI{}, 0.0
 }

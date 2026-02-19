@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go test:*)",
+      "Bash(make test:*)",
+      "Bash(make build:*)",
+      "Bash(go tool cover:*)",
+      "Bash(npm install)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(go build:*)",
+      "Bash(git show:*)",
+      "Bash(make build-ui:*)",
+      "Bash(make build-web:*)",
+      "Bash(make:*)",
+      "Bash(grep:*)",
+      "Bash(npm run build:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(git log:*)",
+      "Bash(for c in d089b29 fbe760e ea5c9da 3c06520 83c0994 f0562c0 a433c82 30fd99e 1384145)",
+      "Bash(do echo \"=== $c ===\")",
+      "Bash(done)",
+      "Bash(go vet:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(go tool pprof:*)",
+      "WebFetch(domain:microsoft.github.io)",
+      "Bash(git -C /c/Users/aurel/Projects/phileasgo diff --stat HEAD)",
+      "Bash(git -C /c/Users/aurel/Projects/phileasgo add msfs/efb-phileas/PackageSources/phileas/src/Components/MapComponent.tsx)",
+      "Bash(git -C:*)",
+      "WebSearch",
+      "Bash(find:*)",
+      "Bash(while read hash msg)",
+      "Bash(do echo \"=== $msg ===\")",
+      "Bash(PYTHONIOENCODING=utf-8 python:*)"
+    ]
+  }
+}

@@ -12,10 +12,10 @@
 *.out
 
 # Project specific
-CLAUDE.md
+#CLAUDE.md
 task.md
-.claude/
-.agent/
+#.claude/
+#.agent/
 bin/
 logs/
 configs/phileas.yaml

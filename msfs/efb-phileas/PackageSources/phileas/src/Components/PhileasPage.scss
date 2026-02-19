@@ -378,11 +378,11 @@
             font-size: 11px;
             color: #666;
             font-weight: bold;
+            margin-right: 4px; // Backup for label text space
         }
 
         .pip-container {
             display: flex;
-            gap: 2px;
         }
 
         .pip {
@@ -390,6 +390,11 @@
             height: 6px;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 1px;
+            margin-right: 4px;
+
+            &:last-child {
+                margin-right: 0;
+            }
 
             &.active {
                 background: #f39c12;
@@ -410,6 +415,18 @@
         font-family: monospace;
         letter-spacing: -0.2px;
         padding-right: 10px;
+
+        .poi-count-active {
+            color: #E9C46A; // Yellow (matching map markers at score 0)
+        }
+
+        .poi-count-cooldown {
+            color: #356285; // Blue (matching map markers in cooldown)
+        }
+
+        .poi-count-tracked {
+            color: #eee; // Visible gray/white
+        }
     }
 }
 

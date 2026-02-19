@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## v0.3.204 (2026-02-19)
+- **Fix**: Corrected "Tracked POI" count display on the EFB status card.
+- **Improvement**: Color-coded the EFB POI status counters to match the map (Yellow for Active, Blue for Cooldown).
+- **Improvement**: Optimized EFB status card performance by using targeted DOM updates.
+- **Improvement**: Added breathing room to narrator settings and fixed pip spacing for better readability on various screens.
+- **Improvement**: Smoothed map movement by reducing the frequency of automatic framing adjustments.
+
 ## v0.3.203 (2026-02-19)
 - **Fix**: Fixed EFB status incorrectly reporting "SIM DISCONNECTED" while the simulator is active.
 - **Improvement**: Standardized EFB map markers to use a consistent hot-air balloon design.

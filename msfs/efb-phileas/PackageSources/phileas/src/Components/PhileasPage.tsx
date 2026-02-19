@@ -68,13 +68,6 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     private statsCells = new Map<string, { success: HTMLSpanElement; errors: HTMLSpanElement }>();
     private diagCells = new Map<string, { mem: HTMLTableCellElement; cpu: HTMLTableCellElement }>();
 
-    // Geographic Display
-    private readonly geoDisplay = {
-        main: Subject.create<string>("Locating..."),
-        sub: Subject.create<string>(""),
-        accent: Subject.create<string>(""),     // "in [country]" when city is cross-border
-    };
-
     // Overlay: refs from render(), cached text elements populated in onAfterRender()
     private readonly overlayPlayingRef = FSComponent.createRef<HTMLDivElement>();
     private readonly overlayPreparingRef = FSComponent.createRef<HTMLDivElement>();
@@ -88,7 +81,9 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     private overlayStatusDot: HTMLDivElement | null = null;
     private overlayStatusLabel: HTMLSpanElement | null = null;
     private overlayPoiStatus: HTMLSpanElement | null = null;
-    private overlayConfigPill: HTMLDivElement | null = null;
+    private overlayPoiActive: HTMLSpanElement | null = null;
+    private overlayPoiCooldown: HTMLSpanElement | null = null;
+    private overlayPoiTracked: HTMLSpanElement | null = null;
 
     private readonly frqPips: HTMLDivElement[] = [];
     private readonly lenPips: HTMLDivElement[] = [];
@@ -135,30 +130,12 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
         const t = this.props.telemetry.get();
 
-        // 1. Update Geography Display & Dashboard (2s)
+        // 1. Update Dashboard & Overlay (2s)
         if (shouldUpdateDashboard) {
             this.lastDashboardUpdate = now;
-            const geo = this.props.geography.get();
-            if (geo) {
-                if (geo.city) {
-                    this.geoDisplay.main.set(geo.city === 'Unknown' ? "Far from civilization" : `near ${geo.city}`);
-                    // Cross-border: city is in a different country than the airspace we're flying over
-                    if (geo.city_country_code && geo.country_code && geo.city_country_code !== geo.country_code) {
-                        this.geoDisplay.sub.set(`${geo.city_region ? geo.city_region + ', ' : ''}${geo.city_country}`);
-                        this.geoDisplay.accent.set(`in ${geo.country}`);
-                    } else {
-                        this.geoDisplay.sub.set(`${geo.region ? geo.region + ', ' : ''}${geo.country}`);
-                        this.geoDisplay.accent.set('');
-                    }
-                } else if (geo.country) {
-                    this.geoDisplay.main.set(geo.country);
-                    this.geoDisplay.sub.set(geo.region || "");
-                    this.geoDisplay.accent.set('');
-                }
-            }
         }
 
-        // Update Overlay if on Map tab (same 2s cadence as geography)
+        // Update Overlay if on Map tab (same 2s cadence)
         if (shouldUpdateDashboard && this.activeTab.get() === 'map') {
             this.updateStatusOverlay();
         }
@@ -210,8 +187,9 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         return 12742 * Math.asin(Math.sqrt(a)) / 1.852; // NM
     }
 
-    public onDestroy(): void {
+    public destroy(): void {
         this.subscriptions.forEach(s => s.destroy && s.destroy());
+        super.destroy();
     }
 
     private setTab(tab: string) {
@@ -291,10 +269,25 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             pill.appendChild(this.overlayStatusLabel);
             statusEl.appendChild(pill);
 
-            // POI Status
+            // POI Status — build colored spans once, update textContent later
             const poiStatus = document.createElement('div');
             poiStatus.className = 'poi-status';
             this.overlayPoiStatus = document.createElement('span');
+
+            this.overlayPoiActive = document.createElement('span');
+            this.overlayPoiActive.className = 'poi-count-active';
+            this.overlayPoiCooldown = document.createElement('span');
+            this.overlayPoiCooldown.className = 'poi-count-cooldown';
+            this.overlayPoiTracked = document.createElement('span');
+            this.overlayPoiTracked.className = 'poi-count-tracked';
+
+            this.overlayPoiStatus.appendChild(document.createTextNode('POI '));
+            this.overlayPoiStatus.appendChild(this.overlayPoiActive);
+            this.overlayPoiStatus.appendChild(document.createTextNode(' | '));
+            this.overlayPoiStatus.appendChild(this.overlayPoiCooldown);
+            this.overlayPoiStatus.appendChild(document.createTextNode(' | POI(tracked) '));
+            this.overlayPoiStatus.appendChild(this.overlayPoiTracked);
+
             poiStatus.appendChild(this.overlayPoiStatus);
             statusEl.appendChild(poiStatus);
 
@@ -303,7 +296,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             frq.className = 'settings-group';
             const frqLabel = document.createElement('span');
             frqLabel.className = 'label';
-            frqLabel.textContent = 'FRQ';
+            frqLabel.textContent = 'FRQ ';
             const frqPipsCont = document.createElement('div');
             frqPipsCont.className = 'pip-container';
             for (let i = 0; i < 4; i++) {
@@ -320,7 +313,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             len.className = 'settings-group';
             const lenLabel = document.createElement('span');
             lenLabel.className = 'label';
-            lenLabel.textContent = 'LEN';
+            lenLabel.textContent = 'LEN ';
             const lenPipsCont = document.createElement('div');
             lenPipsCont.className = 'pip-container';
             for (let i = 0; i < 5; i++) {
@@ -403,31 +396,29 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         const stats = this.props.apiStats.get();
         if (this.overlayStatusDot && this.overlayStatusLabel) {
             const tel = this.props.telemetry.get();
-            const simState = tel?.SimState || 'disconnected';
+            const simStateStr = tel?.SimState || 'disconnected';
 
             let statusClass = 'disconnected';
-            let statusText = 'Disconnected';
-
-            if (simState === 'active') {
+            if (simStateStr === 'active') {
                 statusClass = 'sim-running';
-                statusText = 'Sim Running';
-            } else if (simState === 'inactive') {
+            } else if (simStateStr === 'inactive') {
                 statusClass = 'connected';
-                statusText = 'Connected';
             }
 
             this.overlayStatusDot.className = `status-dot ${statusClass}`;
-            this.overlayStatusLabel.textContent = `SIM ${statusText}`;
+            this.overlayStatusLabel.textContent = `SIM ${simStateStr.toUpperCase()}`;
         }
 
-        // POI Counts
-        if (this.overlayPoiStatus) {
+        // POI Counts — update cached spans, no DOM rebuild
+        if (this.overlayPoiActive && this.overlayPoiCooldown && this.overlayPoiTracked) {
             const rawPois = this.props.pois.get() || [];
-            const competitive = rawPois.filter(p => !isPoiOnCooldown(p) && (p.score ?? 0) > 0).length;
-            const visible = rawPois.length;
-            const tracked = stats?.active_pois || 0;
+            const active = rawPois.filter(p => !isPoiOnCooldown(p)).length;
+            const cooldown = rawPois.filter(p => isPoiOnCooldown(p)).length;
+            const tracked = stats?.tracking?.active_pois || 0;
 
-            this.overlayPoiStatus.textContent = `POI(vis) ${competitive} ◆ ${visible} | POI(tracked) ${tracked}`;
+            this.overlayPoiActive.textContent = String(active);
+            this.overlayPoiCooldown.textContent = String(cooldown);
+            this.overlayPoiTracked.textContent = String(tracked);
         }
 
         // Settings Pips

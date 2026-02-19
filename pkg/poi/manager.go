@@ -673,6 +673,19 @@ func (m *Manager) UpdateRivers(ctx context.Context, lat, lon, heading float64) (
 	return nil, nil
 }
 
+// ClearBeaconColor removes a beacon color from any tracked POI that currently holds it.
+// This is called before reassigning the color to a new POI, ensuring at most one POI
+// holds a given beacon color at any time.
+func (m *Manager) ClearBeaconColor(color string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, p := range m.trackedPOIs {
+		if p.BeaconColor == color {
+			p.BeaconColor = ""
+		}
+	}
+}
+
 // GetPOIsNear returns POIs from the tracked cache within radiusMeters of the given point.
 func (m *Manager) GetPOIsNear(lat, lon, radiusMeters float64) []*model.POI {
 	m.mu.RLock()
