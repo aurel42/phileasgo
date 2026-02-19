@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## v0.3.208 (2026-02-19)
+- **Improvement**: **Project Skills Integration**. Added project-specific AI skills and workflows to the repository to improve collaborative agent experience.
+
 ## v0.3.207 (2026-02-19)
 - **Improvement**: **Internal Documentation Polish**. Updated backend skill definitions and cleaned up project documentation for better clarity and alignment with current architecture.
 

@@ -15,7 +15,8 @@
 #CLAUDE.md
 task.md
 #.claude/
-#.agent/
+.agent/rules/
+.agent/workflows/
 bin/
 logs/
 configs/phileas.yaml
