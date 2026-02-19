@@ -14,7 +14,7 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 - **User Interface**: Comes with a headless server, a web UI, an experimental overlay for streaming, and a Windows app (a wrapper around the web UI) for easy import into VR.
     - Live map showing aircraft position and POIs around your aircraft.
     - Trigger narrations manually or review nearby POIs.
-    - No in-game interface. I investigated what it would take to turn the interface into an EFB app, and, while I still find the idea sexy, MSFS's security/sandbox model makes this more difficult than it should be.
+    - **MSFS EFB Companion**: An integrated Electronic Flight Bag application for MSFS 2024. Provides an immersive in-game interface for map tracking, POI lists, and status monitoring. See [EFB Application](#efb-application) for details.
 - **Visual Markers (VFR)**: Spawns in-sim balloons to help you visually identify a specific landmark. A formation of balloons travels with your aircraft pointing in the direction of the active POI. When you get close, the formation is replaced with a single balloon that sinks towards the POI. You will know which mountain or settlement the tour guide is talking about, if you want to see the castle the tour guide mentioned, just follow the balloons.
 - **As resource-friendly as possible**: While Phileas gets a lot of data from Wikidata and Wikipedia, it tries to be responsible about it (it only gets the data it needs when it needs it, all responses are cached).
 - **Highly configurable**: Most aspects of Phileas can be configured by editing yaml files, all the LLM prompts can be edited which allows for radically different experiences.
@@ -64,6 +64,19 @@ The install script will:
 - Download and extract ETOPO1 global elevation data (for Line-of-Sight visibility)
 - Prompt you to manually download and place MSFS POI data (Master.csv)
 - Generate the default configuration file with default values (if missing)
+- **Optional**: Install the EFB application to your MSFS Community folder (see below).
+
+### EFB Installation
+
+If you have the **MSFS 2024 SDK** installed, you can automatically build and install the EFB package:
+
+1. Open a terminal in the project root.
+2. Run:
+   ```bash
+   make install-efb
+   ```
+
+This will build the EFB source, compile the MSFS package, and copy it to your `Community` folder. If you don't have the SDK, you can manually copy a pre-built package if available from the releases.
 
 ### API Key Configuration
 
@@ -138,6 +151,23 @@ You can tweak the behavior of the tour guide by modifying other files in `config
     - **`common/`**: Defines the shared persona traits and values (Identity, Voice, Constraints, Situation). **Edit these files if the tour guide's "politics" or worldview are not to your liking.** They currently define a narrator who is critical of imperialism/authoritarianism and sides with the oppressed; you can adjust these instructions to match your preferred narrative neutrality or bias.
 
 *Note*: If you want a configuration change in these files to take effect, you need to restart `PhileasGUI.exe`. You can do that mid-flight, Phileas remembers where you've been.
+
+## EFB Application
+
+PhileasGo includes a native MSFS 2024 EFB application, providing an immersive in-cockpit experience.
+
+### Key Features
+- **Interactive Bing Map**: Live aircraft tracking and POI visualization directly on your tablet.
+- **Live Narrator Status**: See precisely what the AI is talking about (**Playing**) or preparing to describe next (**Preparing**).
+- **Sim-Status Monitoring**: Real-time feedback on connection status and simulator activity (ACTIVE/INACTIVE).
+- **POI Tracking**: Access the list of nearby Points of Interest and Settlements without leaving the plane.
+- **Narration Pips**: Visual indicators for Frequency and Length settings, allowing you to verify squawk-based configurations at a glance.
+
+### Navigation Tabs
+- **Map**: The primary navigation view with the visibility cone and POI markers.
+- **POIs**: A detailed list of tracked Points of Interest sorted by distance.
+- **Cities**: A list of nearby settlements, categorized by population and distance.
+- **System**: Detailed API statistics and system diagnostics for the background service.
 
 ## Usage
 

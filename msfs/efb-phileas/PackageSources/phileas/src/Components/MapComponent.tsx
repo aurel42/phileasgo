@@ -77,6 +77,14 @@ function poiDiscColor(poi: any, narratorStatus: any): string {
         `${lerpInt(0x6a, 0x46, t).toString(16).padStart(2, '0')}`;
 }
 
+function poiScaleFactor(poi: any, narratorStatus: any): number {
+    if (narratorStatus) {
+        if (poi.wikidata_id === narratorStatus.current_poi?.wikidata_id) return 1.5;
+        if (poi.wikidata_id === narratorStatus.preparing_poi?.wikidata_id) return 1.25;
+    }
+    return 1.0;
+}
+
 interface MapComponentProps extends ComponentProps {
     bus: EventBus;
     telemetry: Subject<any>;
@@ -96,6 +104,7 @@ interface PoiMarker {
     beaconColor: string | undefined;
     lat: number;
     lon: number;
+    scale: number;
 }
 
 /** Creates a beacon pin element (plain DOM — no FSComponent lifecycle). */
@@ -214,7 +223,10 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 wrapper.appendChild(img);
                 container.appendChild(wrapper);
 
-                marker = { id, wrapper, img, beacon: undefined, beaconColor: undefined, lat: poi.lat, lon: poi.lon };
+                const scale = poiScaleFactor(poi, narratorStatus);
+                wrapper.style.transform = `translate(-50%,-50%) scale(${scale})`;
+
+                marker = { id, wrapper, img, beacon: undefined, beaconColor: undefined, lat: poi.lat, lon: poi.lon, scale };
 
                 if (poi.beacon_color) {
                     marker.beacon = createBeaconElement(poi.beacon_color, DISC_SIZE * 0.5);
@@ -227,9 +239,12 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
             } else {
                 // Update existing marker color and coords
                 const cooldown = isOnCooldown(poi);
+                const scale = poiScaleFactor(poi, narratorStatus);
                 marker.wrapper.style.background = poiDiscColor(poi, narratorStatus);
                 marker.wrapper.style.zIndex = cooldown ? '1' : '2';
                 marker.wrapper.style.opacity = cooldown ? '0.7' : '1';
+                marker.wrapper.style.transform = `translate(-50%,-50%) scale(${scale})`;
+                marker.scale = scale;
                 marker.lat = poi.lat;
                 marker.lon = poi.lon;
 
@@ -265,6 +280,9 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
             if (!marker) continue;
 
             marker.wrapper.style.background = poiDiscColor(poi, narratorStatus);
+            const scale = poiScaleFactor(poi, narratorStatus);
+            marker.wrapper.style.transform = `translate(-50%,-50%) scale(${scale})`;
+            marker.scale = scale;
 
             if (poi.beacon_color) {
                 if (!marker.beacon || marker.beaconColor !== poi.beacon_color) {
@@ -310,7 +328,7 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 if (marker.beacon) {
                     marker.beacon.style.display = 'block';
                     marker.beacon.style.left = `${x}px`;
-                    marker.beacon.style.top = `${y - DISC_SIZE / 2 - 2}px`;
+                    marker.beacon.style.top = `${y - (DISC_SIZE * marker.scale) / 2 - 2}px`;
                 }
             }
         }

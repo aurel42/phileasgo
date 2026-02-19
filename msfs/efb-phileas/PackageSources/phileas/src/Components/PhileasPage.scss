@@ -53,9 +53,16 @@
                 border-color: #f39c12;
             }
 
-            &.active {
+            &.selected {
                 background: #f39c12;
                 color: #000;
+                border-color: #f39c12;
+            }
+
+            // Override EFB gamepad focus frame (white border applied by host CSS)
+            &.focus {
+                outline: none;
+                box-shadow: none;
                 border-color: #f39c12;
             }
         }
@@ -258,6 +265,62 @@
         margin: 0 0 15px 0;
         color: #fff;
         font-size: 22px;
+    }
+
+    // Settings View
+    .settings-view {
+        max-width: 600px;
+        margin: 0 auto;
+        padding-top: 10px;
+
+        h2 {
+            font-size: 18px;
+            color: #f39c12;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 0;
+            border-bottom: 1px solid #222;
+
+            &:last-child {
+                border-bottom: none;
+            }
+
+            .settings-label {
+                font-size: 16px;
+                color: #ccc;
+            }
+
+            .settings-control {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+
+                &.mode-toggle {
+                    width: 180px;
+                    justify-content: flex-end;
+                }
+
+                .slider-value-box {
+                    font-family: monospace;
+                    font-size: 14px;
+                    color: #f39c12;
+                    background: #222;
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    min-width: 30px;
+                    text-align: center;
+                }
+            }
+        }
     }
 }
 

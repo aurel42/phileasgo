@@ -1,6 +1,15 @@
 ﻿# Changelog
 
+## v0.3.205 (2026-02-19)
+- **Feature**: **EFB Settings Tab**. Added a comprehensive settings panel to the EFB application, allowing pilots to configure narration and POI filtering directly from the cockpit.
+- **Improvement**: **Dynamic Map Scaling**. The EFB map now automatically scales the active POI marker being narrated by 1.5x for better visual focus.
+- **Improvement**: **Native EFB Controls**. Integrated native `Switch`, `Incremental`, and `Slider` components for a truly premium and reactive cockpit experience.
+- **Improvement**: **Navigation Polish**. Toolbar buttons now correctly highlight the active tab and feature high-fidelity selection states.
+- **Fix**: **Settlement List Layout**. Fixed column alignment and header discrepancies in the EFB settlements view.
+- **Fix**: **Config Synchronization**. Implemented robust loop prevention to ensure seamless synchronization between EFB controls and the backend configuration.
+
 ## v0.3.204 (2026-02-19)
+- First version with a halfway functional EFB app.
 - **Fix**: Corrected "Tracked POI" count display on the EFB status card.
 - **Improvement**: Color-coded the EFB POI status counters to match the map (Yellow for Active, Blue for Cooldown).
 - **Improvement**: Optimized EFB status card performance by using targeted DOM updates.

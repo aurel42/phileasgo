@@ -1,4 +1,4 @@
-import { TTButton, GamepadUiView, RequiredProps, TVNode, UiViewProps, List } from "@efb/efb-api";
+import { TTButton, GamepadUiView, RequiredProps, TVNode, UiViewProps, List, Switch, Slider, Incremental } from "@efb/efb-api";
 import { FSComponent, Subject, VNode, ArraySubject, EventBus } from "@microsoft/msfs-sdk";
 import { MapComponent } from "./MapComponent";
 
@@ -48,6 +48,15 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
     private readonly isMapVisible = Subject.create<boolean>(true);
 
+    // Internal state for Settings Tab
+    private readonly settingPaused = Subject.create<boolean>(false);
+    private readonly settingFreq = Subject.create<number>(3);
+    private readonly settingLength = Subject.create<number>(3);
+    private readonly settingFilterMode = Subject.create<string>("fixed");
+    private readonly settingMinScore = Subject.create<number>(0.5);
+    private readonly settingTargetCount = Subject.create<number>(20);
+    private settingsSyncing = false;
+
     // BY DESIGN: UI Component Update Frequencies - maintained for readability/performance balance
     private readonly DASHBOARD_INTERVAL = 2000; // Dashboard: 2s
     private readonly LIST_INTERVAL = 5000;      // POIs/Cities/Map Overlay: 5s
@@ -61,6 +70,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     private readonly dashboardContainerRef = FSComponent.createRef<HTMLDivElement>();
     private readonly poisContainerRef = FSComponent.createRef<HTMLDivElement>();
     private readonly settlementsContainerRef = FSComponent.createRef<HTMLDivElement>();
+    private readonly settingsContainerRef = FSComponent.createRef<HTMLDivElement>();
 
     // Dashboard card refs + cached mutable elements
     private readonly statsCardRef = FSComponent.createRef<HTMLDivElement>();
@@ -102,6 +112,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             if (this.dashboardContainerRef.instance) this.dashboardContainerRef.instance.style.display = tab === 'dashboard' ? 'block' : 'none';
             if (this.poisContainerRef.instance) this.poisContainerRef.instance.style.display = tab === 'pois' ? 'block' : 'none';
             if (this.settlementsContainerRef.instance) this.settlementsContainerRef.instance.style.display = tab === 'settlements' ? 'block' : 'none';
+            if (this.settingsContainerRef.instance) this.settingsContainerRef.instance.style.display = tab === 'settings' ? 'block' : 'none';
 
             if (tab === 'dashboard') this.updateDashboardCards();
             this.updateUiData(true);
@@ -115,6 +126,31 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         this.subscriptions.push(this.props.apiStats.sub(() => {
             if (this.activeTab.get() === 'dashboard') this.updateDashboardCards();
         }));
+
+        // Settings synchronization
+        this.subscriptions.push(this.props.aircraftConfig.sub(cfg => {
+            if (!cfg) return;
+            this.settingsSyncing = true;
+            this.settingFreq.set(cfg.narration_frequency ?? 3);
+            this.settingLength.set(cfg.text_length ?? 3);
+            this.settingFilterMode.set(cfg.filter_mode || 'fixed');
+            this.settingMinScore.set(cfg.min_poi_score ?? 0.5);
+            this.settingTargetCount.set(cfg.target_poi_count ?? 20);
+            this.settingsSyncing = false;
+        }));
+        this.subscriptions.push(this.props.narratorStatus.sub(status => {
+            if (!status) return;
+            this.settingsSyncing = true;
+            this.settingPaused.set(status.is_user_paused ?? false);
+            this.settingsSyncing = false;
+        }));
+
+        this.subscriptions.push(this.settingPaused.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('paused', val); }));
+        this.subscriptions.push(this.settingFreq.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('narration_frequency', val); }));
+        this.subscriptions.push(this.settingLength.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('text_length', val); }));
+        this.subscriptions.push(this.settingFilterMode.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('filter_mode', val); }));
+        this.subscriptions.push(this.settingMinScore.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('min_poi_score', val); }));
+        this.subscriptions.push(this.settingTargetCount.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('target_poi_count', val); }));
 
         // Build overlay DOM structure once — subsequent updates only touch textContent
         this.buildOverlayDom();
@@ -194,6 +230,30 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
     private setTab(tab: string) {
         this.activeTab.set(tab);
+        if (tab === 'settings') {
+            // Force immediate config refresh when opening settings
+            fetch("http://127.0.0.1:1920/api/config")
+                .then(r => r.json())
+                .then(data => this.props.aircraftConfig.set(data))
+                .catch(() => { });
+        }
+    }
+
+    private async updateBackendConfig(key: string, value: any) {
+        if (key === 'paused') {
+            fetch("http://127.0.0.1:1920/api/audio/control", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: value ? 'pause' : 'resume' })
+            }).catch(e => console.error("Failed to update pause state", e));
+            return;
+        }
+
+        fetch("http://127.0.0.1:1920/api/config", {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [key]: value })
+        }).catch(e => console.error(`Failed to update config ${key}`, e));
     }
 
     private renderPoiItem = (item: PoiItem): VNode => {
@@ -519,6 +579,75 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         el.style.display = '';
     }
 
+    private renderSettingsView(): VNode {
+        const freqLabels = ['Rarely', 'Normal', 'Active', 'Hyperactive'];
+        const lenLabels = ['Short', 'Brief', 'Normal', 'Detailed', 'Long'];
+
+        return (
+            <div class="settings-view">
+                <h2>Narration Settings</h2>
+
+                <div class="settings-row">
+                    <div class="settings-label">Pause Narration</div>
+                    <div class="settings-control">
+                        <Switch checked={this.settingPaused} />
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label">Frequency</div>
+                    <div class="settings-control">
+                        <Incremental
+                            value={this.settingFreq}
+                            min={1} max={4} step={1}
+                            formatter={(v) => freqLabels[v - 1] || String(v)}
+                            useTextbox={false}
+                        />
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label">Script Length</div>
+                    <div class="settings-control">
+                        <Incremental
+                            value={this.settingLength}
+                            min={1} max={5} step={1}
+                            formatter={(v) => lenLabels[v - 1] || String(v)}
+                            useTextbox={false}
+                        />
+                    </div>
+                </div>
+
+                <h2 style="margin-top: 20px;">POI Selection</h2>
+
+                <div class="settings-row">
+                    <div class="settings-label">Selection Mode</div>
+                    <div class="settings-control mode-toggle">
+                        <TTButton
+                            key={this.settingFilterMode.map(m => m === 'fixed' ? 'Fixed Score' : 'Adaptive Count')}
+                            callback={() => this.settingFilterMode.set(this.settingFilterMode.get() === 'fixed' ? 'adaptive' : 'fixed')}
+                        />
+                    </div>
+                </div>
+
+                <div class="settings-row" style={this.settingFilterMode.map(m => m === 'fixed' ? '' : 'display:none')}>
+                    <div class="settings-label">Min Score</div>
+                    <div class="settings-control">
+                        <div class="slider-value-box">{this.settingMinScore.map(s => s.toFixed(1))}</div>
+                        <Slider value={this.settingMinScore} min={-10} max={10} step={0.5} />
+                    </div>
+                </div>
+                <div class="settings-row" style={this.settingFilterMode.map(m => m === 'adaptive' ? '' : 'display:none')}>
+                    <div class="settings-label">Target Count</div>
+                    <div class="settings-control">
+                        <div class="slider-value-box">{this.settingTargetCount}</div>
+                        <Slider value={this.settingTargetCount} min={5} max={50} step={1} />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     public render(): TVNode<HTMLDivElement> {
         return (
             <div ref={this.gamepadUiViewRef} class="phileas-page">
@@ -526,10 +655,11 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
                 <div class="phileas-toolbar">
                     <div class="brand">Phileas&nbsp;<span class="version">{this.props.apiVersion}</span></div>
-                    <TTButton key="Map" callback={() => this.setTab('map')} />
-                    <TTButton key="POIs" callback={() => this.setTab('pois')} />
-                    <TTButton key="Cities" callback={() => this.setTab('settlements')} />
-                    <TTButton key="System" callback={() => this.setTab('dashboard')} />
+                    <TTButton key="Map" callback={() => this.setTab('map')} selected={this.activeTab.map(t => t === 'map')} />
+                    <TTButton key="POIs" callback={() => this.setTab('pois')} selected={this.activeTab.map(t => t === 'pois')} />
+                    <TTButton key="Cities" callback={() => this.setTab('settlements')} selected={this.activeTab.map(t => t === 'settlements')} />
+                    <TTButton key="Settings" callback={() => this.setTab('settings')} selected={this.activeTab.map(t => t === 'settings')} />
+                    <TTButton key="System" callback={() => this.setTab('dashboard')} selected={this.activeTab.map(t => t === 'dashboard')} />
                 </div>
 
                 <div class="phileas-content">
@@ -588,8 +718,13 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                         <List data={this.uiSettlements} renderItem={this.renderSettlementItem} class="efb-list" refreshOnUpdate={true} />
                     </div>
 
+                    {/* Settings View */}
+                    <div ref={this.settingsContainerRef} class="view-container scrollable no-telemetry" style="display: none;">
+                        {this.renderSettingsView()}
+                    </div>
+
                 </div>
-            </div>
+            </div >
         );
     }
 }
