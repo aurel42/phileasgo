@@ -20,6 +20,7 @@ interface PhileasPageProps extends RequiredProps<UiViewProps, "appViewService"> 
     apiStats: Subject<any>;
     geography: Subject<any>;
     narratorStatus: Subject<any>;
+    aircraftConfig: Subject<any>;
 }
 
 interface PoiItem {
@@ -324,6 +325,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                             settlements={this.props.settlements}
                             isVisible={this.isMapVisible}
                             narratorStatus={this.props.narratorStatus}
+                            aircraftConfig={this.props.aircraftConfig}
                         />
                     </div>
 

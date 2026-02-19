@@ -5,6 +5,8 @@ import {
     MapSystemKeys
 } from "@microsoft/msfs-sdk";
 
+import { aircraftSvgPaths, AircraftType } from "./AircraftIcon";
+
 import "./MapComponent.scss";
 
 declare const BASE_URL: string;
@@ -82,6 +84,7 @@ interface MapComponentProps extends ComponentProps {
     settlements: Subject<any>;
     isVisible: Subject<boolean>;
     narratorStatus: Subject<any>;
+    aircraftConfig: Subject<any>;
 }
 
 /** Cached DOM marker for a single POI. */
@@ -89,8 +92,36 @@ interface PoiMarker {
     id: string;
     wrapper: HTMLDivElement;
     img: HTMLImageElement;
+    beacon?: HTMLDivElement;
+    beaconColor?: string;
     lat: number;
     lon: number;
+}
+
+/** Creates a beacon pin element (plain DOM — no FSComponent lifecycle). */
+function createBeaconElement(color: string, size: number): HTMLDivElement {
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:absolute;transform:translate(-50%,-100%);pointer-events:none;';
+
+    const haloSize = size * 2;
+    const halo = document.createElement('div');
+    halo.style.cssText = `position:absolute;left:50%;top:50%;width:${haloSize}px;height:${haloSize}px;` +
+        `background:radial-gradient(circle,${color}66 0%,transparent 70%);` +
+        `transform:translate(-50%,-50%);border-radius:50%;`;
+    wrapper.appendChild(halo);
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', String(size));
+    svg.setAttribute('height', String(size * 1.5));
+    svg.setAttribute('viewBox', '0 0 100 150');
+    svg.style.cssText = 'position:relative;display:block;';
+    svg.innerHTML =
+        `<path d="M50,140 C50,140 10,90 10,50 A40,40 0 1,1 90,50 C90,90 50,140 50,140 Z" ` +
+        `fill="${color}" stroke="white" stroke-width="5"/>` +
+        `<circle cx="50" cy="50" r="15" fill="white" opacity="0.5"/>`;
+    wrapper.appendChild(svg);
+
+    return wrapper;
 }
 
 /**
@@ -138,6 +169,7 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
         for (const [id, marker] of this.markers) {
             if (!currentIds.has(id)) {
                 marker.wrapper.remove();
+                if (marker.beacon) marker.beacon.remove();
                 this.markers.delete(id);
             }
         }
@@ -172,7 +204,16 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
 
                 wrapper.appendChild(img);
                 container.appendChild(wrapper);
+
                 marker = { id, wrapper, img, lat: poi.lat, lon: poi.lon };
+
+                if (poi.beacon_color) {
+                    marker.beacon = createBeaconElement(poi.beacon_color, 12);
+                    marker.beacon.style.zIndex = '3';
+                    marker.beaconColor = poi.beacon_color;
+                    container.appendChild(marker.beacon);
+                }
+
                 this.markers.set(id, marker);
             } else {
                 // Update existing marker color and coords
@@ -182,6 +223,21 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 marker.wrapper.style.opacity = cooldown ? '0.7' : '1';
                 marker.lat = poi.lat;
                 marker.lon = poi.lon;
+
+                // Update beacon: create, remove, or rebuild if color changed
+                if (poi.beacon_color) {
+                    if (!marker.beacon || marker.beaconColor !== poi.beacon_color) {
+                        if (marker.beacon) marker.beacon.remove();
+                        marker.beacon = createBeaconElement(poi.beacon_color, 12);
+                        marker.beacon.style.zIndex = '3';
+                        marker.beaconColor = poi.beacon_color;
+                        container.appendChild(marker.beacon);
+                    }
+                } else if (marker.beacon) {
+                    marker.beacon.remove();
+                    delete marker.beacon;
+                    delete marker.beaconColor;
+                }
             }
         }
 
@@ -191,12 +247,32 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
     /** Update only colors (narrator status changed). */
     private recolorMarkers(): void {
         const narratorStatus = (this.props.model as any).getModule("PhileasData").narratorStatus.get();
+        const container = this.containerRef.instance;
+        if (!container) return;
+
+        let needsReposition = false;
         for (const poi of this.pois) {
             const marker = this.markers.get(poi.wikidata_id);
-            if (marker) {
-                marker.wrapper.style.background = poiDiscColor(poi, narratorStatus);
+            if (!marker) continue;
+
+            marker.wrapper.style.background = poiDiscColor(poi, narratorStatus);
+
+            if (poi.beacon_color) {
+                if (!marker.beacon || marker.beaconColor !== poi.beacon_color) {
+                    if (marker.beacon) marker.beacon.remove();
+                    marker.beacon = createBeaconElement(poi.beacon_color, 12);
+                    marker.beacon.style.zIndex = '3';
+                    marker.beaconColor = poi.beacon_color;
+                    container.appendChild(marker.beacon);
+                    needsReposition = true;
+                }
+            } else if (marker.beacon) {
+                marker.beacon.remove();
+                delete marker.beacon;
+                delete marker.beaconColor;
             }
         }
+        if (needsReposition) this.repositionMarkers();
     }
 
     /** Update only screen positions (projection changed). */
@@ -216,10 +292,17 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
             if (x < -DISC_SIZE || x > size[0] + DISC_SIZE ||
                 y < -DISC_SIZE || y > size[1] + DISC_SIZE) {
                 marker.wrapper.style.display = 'none';
+                if (marker.beacon) marker.beacon.style.display = 'none';
             } else {
                 marker.wrapper.style.display = 'flex';
                 marker.wrapper.style.left = `${x}px`;
                 marker.wrapper.style.top = `${y}px`;
+
+                if (marker.beacon) {
+                    marker.beacon.style.display = 'block';
+                    marker.beacon.style.left = `${x}px`;
+                    marker.beacon.style.top = `${y - DISC_SIZE / 2 - 2}px`;
+                }
             }
         }
     }
@@ -241,9 +324,61 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
  * Custom airplane icon layer. Reads position/heading from the PhileasData
  * module (driven by HTTP telemetry) instead of the OwnAirplaneProps module
  * (which depends on SimVar bindings that don't exist in the EFB).
+ *
+ * Uses imperative DOM — render() creates an empty wrapper; onAttached()
+ * subscribes to aircraftConfig and rebuilds the SVGs when the icon/colors change.
+ * updateIcon() runs per tick to set position, rotation, and shadow offset.
  */
 class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
     private readonly iconRef = FSComponent.createRef<HTMLDivElement>();
+    private shadowSvg: SVGSVGElement | null = null;
+    private currentConfig: any = null;
+    private subscriptions: any[] = [];
+
+    public onAttached(): void {
+        const data = (this.props.model as any).getModule("PhileasData");
+
+        this.subscriptions.push(data.aircraftConfig.sub((config: any) => {
+            if (!config) return;
+            this.currentConfig = config;
+            this.rebuildIcon();
+        }));
+    }
+
+    /** Rebuild main + shadow SVGs from current config. */
+    private rebuildIcon(): void {
+        const el = this.iconRef.instance;
+        if (!el || !this.currentConfig) return;
+
+        const config = this.currentConfig;
+        const iconType = (config.aircraft_icon || 'jet') as AircraftType;
+        const size = config.aircraft_size || 32;
+        const colorMain = config.aircraft_color_main || '#e67e22';
+        const colorAccent = config.aircraft_color_accent || '#ffffff';
+
+        // Clear previous content
+        el.innerHTML = '';
+        this.shadowSvg = null;
+
+        // Shadow SVG — all paths filled black
+        const shadow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        shadow.setAttribute('viewBox', '0 0 100 100');
+        shadow.style.cssText =
+            `position:absolute;left:calc(50% - ${size / 2}px);top:calc(50% - ${size / 2}px);` +
+            `width:${size}px;height:${size}px;filter:blur(3px);opacity:0.3;`;
+        shadow.innerHTML = aircraftSvgPaths(iconType, 'black', 'black');
+        el.appendChild(shadow);
+        this.shadowSvg = shadow;
+
+        // Main icon SVG
+        const main = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        main.setAttribute('viewBox', '0 0 100 100');
+        main.style.cssText =
+            `position:absolute;left:50%;top:50%;width:${size}px;height:${size}px;` +
+            `transform:translate(-50%,-50%);filter:drop-shadow(0px 2px 2px rgba(0,0,0,0.3));`;
+        main.innerHTML = aircraftSvgPaths(iconType, colorMain, colorAccent);
+        el.appendChild(main);
+    }
 
     public onMapProjectionChanged(): void {
         this.updateIcon();
@@ -262,16 +397,17 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
 
         const pos = data.planePosition.get();
         const heading = data.planeHeading.get();
+        const tel = data.telemetry.get();
+        const config = this.currentConfig;
 
-        // Don't render until we have real telemetry
-        if (!pos) {
+        if (!pos || !tel || !config) {
             el.style.display = 'none';
             return;
         }
 
-        const size = this.props.mapProjection.getProjectedSize();
-        const cx = size[0] / 2;
-        const cy = size[1] / 2;
+        const projSize = this.props.mapProjection.getProjectedSize();
+        const cx = projSize[0] / 2;
+        const cy = projSize[1] / 2;
         const targetProj = this.props.mapProjection.project(
             this.props.mapProjection.getTarget(), Vec2Math.create());
         const projected = this.props.mapProjection.project(
@@ -282,19 +418,40 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
         el.style.display = '';
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
-        el.style.transform = `translate(-50%,-50%) rotate(${heading}deg)`;
+
+        // Balloons stay upright
+        if (config.aircraft_icon !== 'balloon') {
+            el.style.transform = `translate(-50%,-50%) rotate(${heading}deg)`;
+        } else {
+            el.style.transform = `translate(-50%,-50%)`;
+        }
+
+        // Update shadow offset/scale based on altitude AGL
+        if (this.shadowSvg) {
+            const size = config.aircraft_size || 32;
+            const agl = tel.AltitudeAGL ?? 0;
+            const ratio = Math.min(Math.max(agl / 10000, 0), 1);
+            const offset = ratio * (size * 0.6);
+            const scale = 1 - (ratio * 0.5);
+            const s = size * scale;
+            this.shadowSvg.style.left = `calc(50% - ${s / 2}px + ${offset}px)`;
+            this.shadowSvg.style.top = `calc(50% - ${s / 2}px + ${offset}px)`;
+            this.shadowSvg.style.width = `${s}px`;
+            this.shadowSvg.style.height = `${s}px`;
+        }
     }
 
     public render(): VNode {
         return (
             <div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
                 <div ref={this.iconRef}
-                    style="position:absolute;width:32px;height:32px;pointer-events:none;display:none;">
-                    <img src={`${BASE_URL}/assets/icons/airfield.svg`}
-                        style="width:100%;height:100%;" />
-                </div>
+                    style="position:absolute;pointer-events:none;display:none;" />
             </div>
         );
+    }
+
+    public onDestroy(): void {
+        this.subscriptions.forEach(s => s.destroy());
     }
 }
 
@@ -326,6 +483,8 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
                 narratorStatus: this.props.narratorStatus,
                 planePosition: this.planePosition,
                 planeHeading: this.planeHeading,
+                telemetry: this.props.telemetry,
+                aircraftConfig: this.props.aircraftConfig,
             }))
             .withLayer("PhileasPois", (context: any) =>
                 <PhileasPoiLayer model={context.model} mapProjection={context.projection} />, 100)

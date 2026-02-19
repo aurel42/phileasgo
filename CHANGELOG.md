@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## v0.3.198 (2026-02-19)
+- **Feature**: **Custom EFB Aircraft Icons**. The EFB map now supports user-selected aircraft types and colors, matching the main UI.
+- **Feature**: **EFB POI Balloons**. Added colored beacon balloons to the EFB map for currently narrated or recently played POIs.
+- **Improvement**: **Noto Sans Migration**. Migrated EFB application fonts to Noto Sans for expanded character and language support.
+- **Improvement**: **EFB UI Polish**. Refined toolbar spacing and versioning visibility.
+
 ## v0.3.197 (2026-02-19)
 - **Fix**: **EFB Map Viewport**. Fixed a 20px offset and coordinate desync that made the aircraft icon invisible and map framing incorrect.
 
