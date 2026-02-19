@@ -266,7 +266,7 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
             if (poi.beacon_color) {
                 if (!marker.beacon || marker.beaconColor !== poi.beacon_color) {
                     if (marker.beacon) marker.beacon.remove();
-                    marker.beacon = createBeaconElement(poi.beacon_color, 12);
+                    marker.beacon = createBeaconElement(poi.beacon_color, DISC_SIZE * 0.5);
                     marker.beacon.style.zIndex = '3';
                     marker.beaconColor = poi.beacon_color;
                     container.appendChild(marker.beacon);
@@ -468,7 +468,6 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
     private readonly planePosition = Subject.create<{ lat: number, lon: number } | null>(null);
     private readonly planeHeading = Subject.create<number>(0);
 
-    private planePos = new GeoPoint(0, 0);
     private lastFramingUpdate = 0;
     // BY DESIGN: Adaptive framing frequency matches main loop/map clock (1s)
     private readonly FRAMING_INTERVAL = 1000;
@@ -517,7 +516,6 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         // notifications to subscriptions created during the constructor.
         this.subscriptions.push(this.props.telemetry.sub((t) => {
             if (!t || !t.Valid) return;
-            this.planePos.set(t.Latitude, t.Longitude);
             this.planePosition.set({ lat: t.Latitude, lon: t.Longitude });
             this.planeHeading.set(t.Heading);
             this.updateFraming(false);
@@ -557,32 +555,40 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         const playingId = narrator?.current_poi?.id || narrator?.current_poi?.wikidata_id;
         const preparingId = narrator?.preparing_poi?.id || narrator?.preparing_poi?.wikidata_id;
 
-        // Selection A: Non-cooldown POIs + playing/preparing
-        let selection = pois.filter(p => !isOnCooldown(p) ||
-            (playingId && (p.id === playingId || p.wikidata_id === playingId)) ||
-            (preparingId && (p.id === preparingId || p.wikidata_id === preparingId)));
-
-        // Selection B Fallback: if A resulted in only the plane, take ALL POIs
-        if (selection.length === 0) {
-            selection = pois;
-        }
-
+        // Selection A: Non-cooldown POIs + playing/preparing (inline to avoid array allocation)
         let minLat = tel.Latitude, maxLat = tel.Latitude;
         let minLon = tel.Longitude, maxLon = tel.Longitude;
+        let hasSelection = false;
 
-        for (const p of selection) {
+        for (const p of pois) {
             if (p.lat === undefined || p.lon === undefined) continue;
+            const isCooldown = isOnCooldown(p);
+            const isPlaying = playingId && (p.id === playingId || p.wikidata_id === playingId);
+            const isPreparing = preparingId && (p.id === preparingId || p.wikidata_id === preparingId);
+            if (isCooldown && !isPlaying && !isPreparing) continue;
             if (p.lat < minLat) minLat = p.lat;
             if (p.lat > maxLat) maxLat = p.lat;
             if (p.lon < minLon) minLon = p.lon;
             if (p.lon > maxLon) maxLon = p.lon;
+            hasSelection = true;
+        }
+
+        // Selection B Fallback: if A yielded nothing, expand bbox over ALL POIs
+        if (!hasSelection) {
+            for (const p of pois) {
+                if (p.lat === undefined || p.lon === undefined) continue;
+                if (p.lat < minLat) minLat = p.lat;
+                if (p.lat > maxLat) maxLat = p.lat;
+                if (p.lon < minLon) minLon = p.lon;
+                if (p.lon > maxLon) maxLon = p.lon;
+            }
         }
 
         const latSpan = maxLat - minLat;
         const lonSpan = maxLon - minLon;
 
-        let targetLat = (minLat + maxLat) / 2;
-        let targetLon = (minLon + maxLon) / 2;
+        const targetLat = (minLat + maxLat) / 2;
+        const targetLon = (minLon + maxLon) / 2;
         let range: number;
 
         if (latSpan === 0 && lonSpan === 0) {

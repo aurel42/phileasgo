@@ -75,12 +75,20 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         accent: Subject.create<string>(""),     // "in [country]" when city is cross-border
     };
 
-    // Overlay Refs
-    private readonly statusOverlayRef = FSComponent.createRef<HTMLDivElement>();
+    // Overlay: refs from render(), cached text elements populated in onAfterRender()
     private readonly overlayPlayingRef = FSComponent.createRef<HTMLDivElement>();
     private readonly overlayPreparingRef = FSComponent.createRef<HTMLDivElement>();
     private readonly overlayLocationRef = FSComponent.createRef<HTMLDivElement>();
     private readonly overlayStatusRef = FSComponent.createRef<HTMLDivElement>();
+
+    // Cached text nodes inside overlay lines — updated via textContent, never innerHTML
+    private overlayPlayingText: Text | null = null;
+    private overlayPreparingText: Text | null = null;
+    private overlayGeoMain: HTMLDivElement | null = null;
+    private overlayGeoSub: HTMLSpanElement | null = null;
+    private overlayGeoAccent: HTMLSpanElement | null = null;
+    private overlayStatusPill: HTMLDivElement | null = null;
+    private overlayConfigPill: HTMLDivElement | null = null;
 
     public onAfterRender(): void {
         // Tab switching logic
@@ -107,6 +115,9 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         this.subscriptions.push(this.props.apiStats.sub(() => {
             if (this.activeTab.get() === 'dashboard') this.updateDashboardCards();
         }));
+
+        // Build overlay DOM structure once — subsequent updates only touch textContent
+        this.buildOverlayDom();
 
         // Initial update
         this.updateUiData(true);
@@ -142,8 +153,8 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             }
         }
 
-        // Update Overlay if on Map tab
-        if (this.activeTab.get() === 'map') {
+        // Update Overlay if on Map tab (same 2s cadence as geography)
+        if (shouldUpdateDashboard && this.activeTab.get() === 'map') {
             this.updateStatusOverlay();
         }
 
@@ -230,52 +241,105 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         }
     }
 
-    private updateStatusOverlay(): void {
-        const overlay = this.statusOverlayRef.instance;
-        if (!overlay) return;
+    /** Build overlay DOM once — cache element refs for fast textContent updates. */
+    private buildOverlayDom(): void {
+        // Playing line: <span class="label">Playing:</span> <text>
+        const playingEl = this.overlayPlayingRef.instance;
+        if (playingEl) {
+            const label = document.createElement('span');
+            label.className = 'label';
+            label.textContent = 'Playing:';
+            this.overlayPlayingText = document.createTextNode(' ');
+            playingEl.appendChild(label);
+            playingEl.appendChild(this.overlayPlayingText);
+        }
 
+        // Preparing line: <span class="label">Preparing:</span> <text>
+        const preparingEl = this.overlayPreparingRef.instance;
+        if (preparingEl) {
+            const label = document.createElement('span');
+            label.className = 'label';
+            label.textContent = 'Preparing:';
+            this.overlayPreparingText = document.createTextNode(' ');
+            preparingEl.appendChild(label);
+            preparingEl.appendChild(this.overlayPreparingText);
+        }
+
+        // Location line
+        const locationEl = this.overlayLocationRef.instance;
+        if (locationEl) {
+            this.overlayGeoMain = document.createElement('div');
+            this.overlayGeoMain.className = 'geo-main';
+            const subRow = document.createElement('div');
+            subRow.className = 'geo-sub-row';
+            this.overlayGeoSub = document.createElement('span');
+            this.overlayGeoSub.className = 'geo-sub';
+            this.overlayGeoAccent = document.createElement('span');
+            this.overlayGeoAccent.className = 'geo-accent';
+            subRow.appendChild(this.overlayGeoSub);
+            subRow.appendChild(this.overlayGeoAccent);
+            locationEl.appendChild(this.overlayGeoMain);
+            locationEl.appendChild(subRow);
+        }
+
+        // Status pill line
+        const statusEl = this.overlayStatusRef.instance;
+        if (statusEl) {
+            this.overlayStatusPill = document.createElement('div');
+            this.overlayStatusPill.className = 'status-pill';
+            this.overlayConfigPill = document.createElement('div');
+            this.overlayConfigPill.className = 'status-pill config-pill';
+            statusEl.appendChild(this.overlayStatusPill);
+            statusEl.appendChild(this.overlayConfigPill);
+        }
+    }
+
+    /** Update overlay text content — no innerHTML, no DOM tree reconstruction. */
+    private updateStatusOverlay(): void {
         const narrator = this.props.narratorStatus.get();
         const playing = narrator?.current_poi;
         const preparing = narrator?.preparing_poi;
-        const stats = this.props.apiStats.get();
 
-        // Line 1: Playing
+        // Playing
         const playingEl = this.overlayPlayingRef.instance;
-        if (playingEl) {
+        if (playingEl && this.overlayPlayingText) {
             if (playing) {
-                playingEl.innerHTML = `<span class="label">Playing:</span> ${playing.name_user || playing.name_en || playing.name_local || playing.wikidata_id}`;
+                this.overlayPlayingText.textContent =
+                    ' ' + (playing.name_user || playing.name_en || playing.name_local || playing.wikidata_id);
                 playingEl.style.display = 'block';
             } else {
                 playingEl.style.display = 'none';
             }
         }
 
-        // Line 2: Preparing
+        // Preparing
         const preparingEl = this.overlayPreparingRef.instance;
-        if (preparingEl) {
+        if (preparingEl && this.overlayPreparingText) {
             if (preparing) {
-                preparingEl.innerHTML = `<span class="label">Preparing:</span> ${preparing.name_user || preparing.name_en || preparing.name_local || preparing.wikidata_id}`;
+                this.overlayPreparingText.textContent =
+                    ' ' + (preparing.name_user || preparing.name_en || preparing.name_local || preparing.wikidata_id);
                 preparingEl.style.display = 'block';
             } else {
                 preparingEl.style.display = 'none';
             }
         }
 
-        // Line 3: Location (EXACT Dashboard logic)
-        const locationEl = this.overlayLocationRef.instance;
-        if (locationEl) {
-            locationEl.innerHTML = `
-                <div class="geo-main">${this.geoDisplay.main.get()}</div>
-                <div class="geo-sub-row">
-                    <span class="geo-sub">${this.geoDisplay.sub.get()}</span>
-                    ${this.geoDisplay.accent.get() ? `<span class="geo-accent">${this.geoDisplay.accent.get()}</span>` : ''}
-                </div>
-            `;
+        // Location
+        if (this.overlayGeoMain) {
+            this.overlayGeoMain.textContent = this.geoDisplay.main.get();
+        }
+        if (this.overlayGeoSub) {
+            this.overlayGeoSub.textContent = this.geoDisplay.sub.get();
+        }
+        if (this.overlayGeoAccent) {
+            const accent = this.geoDisplay.accent.get();
+            this.overlayGeoAccent.textContent = accent;
+            this.overlayGeoAccent.style.display = accent ? '' : 'none';
         }
 
-        // Line 4: Status Pill
-        const statusEl = this.overlayStatusRef.instance;
-        if (statusEl) {
+        // Status pills
+        if (this.overlayStatusPill) {
+            const stats = this.props.apiStats.get();
             const isSimRunning = !!(stats?.sim?.state === 'running');
             const isConnected = !!(stats?.providers?.simconnect?.api_success > 0);
 
@@ -290,13 +354,14 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                 statusText = 'Connected';
             }
 
+            this.overlayStatusPill.className = `status-pill ${statusClass}`;
+            this.overlayStatusPill.textContent = statusText;
+        }
+        if (this.overlayConfigPill) {
             const config = this.props.aircraftConfig.get();
-            const configText = config ? `${config.aircraft_icon?.toUpperCase()} (${config.aircraft_size}px)` : '...';
-
-            statusEl.innerHTML = `
-                <div class="status-pill ${statusClass}">${statusText}</div>
-                <div class="status-pill config-pill">${configText}</div>
-            `;
+            this.overlayConfigPill.textContent = config
+                ? `${config.aircraft_icon?.toUpperCase()} (${config.aircraft_size}px)`
+                : '...';
         }
     }
 
@@ -413,7 +478,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                         />
 
                         {/* Status Overlay */}
-                        <div ref={this.statusOverlayRef} class="phileas-overlay">
+                        <div class="phileas-overlay">
                             <div ref={this.overlayPlayingRef} class="status-line playing-line" style="display: none;" />
                             <div ref={this.overlayPreparingRef} class="status-line preparing-line" style="display: none;" />
                             <div ref={this.overlayLocationRef} class="status-line location-line" />

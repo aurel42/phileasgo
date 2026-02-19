@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## v0.3.201 (2026-02-19)
+- **Fix**: **hotfixes for premature release by a braindead agent**.
+- **Performance**: Improved Status Overlay update efficiency by caching text nodes and using `textContent` instead of `innerHTML`.
+- **Logic**: Optimized Map Framing boundaries and plane position tracking to avoid redundant allocations.
+- **UI**: Finished proportional POI balloon resizing.
+
 ## v0.3.200 (2026-02-19)
 - **Feature**: **Map Status Overlay**. Added a dynamic 2-4 line vertical status overlay on the map showing narrator playback (Playing/Preparing), detailed geography, and sim connection status.
 - **Improvement**: **Staggered Map Framing**. Implemented a multi-stage framing logic that prioritizes active POIs, falls back to all POIs, and finally uses fixed radii (4km on ground, 50km in air).
