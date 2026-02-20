@@ -2,6 +2,7 @@ package audio
 
 import (
 	"testing"
+	"time"
 )
 
 type dummyStreamer struct {
@@ -65,5 +66,54 @@ func TestBiquadFilter_Consistency(t *testing.T) {
 	val := samples[0][0]
 	if val == 1.0 {
 		t.Error("LowPass filter did not modify signal")
+	}
+}
+
+func TestSmoothVolume_Stream(t *testing.T) {
+	// 1. Test basic gain application
+	ds := &dummyStreamer{samples: [][2]float64{{1.0, 1.0}, {1.0, 1.0}}}
+	sv := NewSmoothVolume(ds, 0.5)
+
+	samples := make([][2]float64, 2)
+	n, ok := sv.Stream(samples)
+
+	if n != 2 || !ok {
+		t.Fatalf("Stream failed: n=%d, ok=%v", n, ok)
+	}
+	if samples[0][0] != 0.5 || samples[1][0] != 0.5 {
+		t.Errorf("Expected samples to be 0.5, got %v, %v", samples[0][0], samples[1][0])
+	}
+
+	// 2. Test volume ramping (smoothing)
+	ds2 := &dummyStreamer{samples: [][2]float64{{1.0, 1.0}, {1.0, 1.0}, {1.0, 1.0}, {1.0, 1.0}}}
+	sv2 := NewSmoothVolume(ds2, 0.0)
+
+	// Set target to 1.0 over 4 samples (at 1Hz for simplicity)
+	sv2.SetTargetVolume(1.0, 1.0, 4*time.Second) // step = 1.0 / 4 = 0.25
+
+	samples2 := make([][2]float64, 4)
+	sv2.Stream(samples2)
+
+	// Samples should be [0.25, 0.5, 0.75, 1.0]
+	expected := []float64{0.25, 0.5, 0.75, 1.0}
+	for i, exp := range expected {
+		if samples2[i][0] != exp {
+			t.Errorf("Sample %d: expected %f, got %f", i, exp, samples2[i][0])
+		}
+	}
+
+	// 3. Test FadeTo
+	ds3 := &dummyStreamer{samples: [][2]float64{{1.0, 1.0}, {1.0, 1.0}}}
+	sv3 := NewSmoothVolume(ds3, 1.0)
+	sv3.FadeTo(0.0, 1.0, 2*time.Second) // step = 1.0 / 2 = 0.5
+
+	samples3 := make([][2]float64, 2)
+	sv3.Stream(samples3)
+
+	if samples3[0][0] != 0.5 {
+		t.Errorf("Fade sample 0: expected 0.5, got %f", samples3[0][0])
+	}
+	if samples3[1][0] != 0.0 {
+		t.Errorf("Fade sample 1: expected 0.0, got %f", samples3[1][0])
 	}
 }

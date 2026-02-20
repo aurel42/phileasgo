@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## v0.3.210 (2026-02-20)
+- **Fix**: Corrected misaligned EFB settings buttons and undersized sliders for better usability in the cockpit.
+- **Improvement**: Added `is_user_paused` state to the status API to improve UI synchronization.
+- **Improvement**: Unified CSS component scoping in the EFB to prevent unintended style inheritance.
+
 ## v0.3.209 (2026-02-20)
 - **Feature**: **Audio Fading**. Added volume fades to pause, resume, and stop actions to eliminate audible clicks.
 - **Improvement**: **Volume Smoothing**. Smooth volume transitions when using the master volume slider.

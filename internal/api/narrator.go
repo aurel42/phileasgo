@@ -88,6 +88,7 @@ type NarratorStatusResponse struct {
 	TextLength         int            `json:"text_length"`
 	ShowInfoPanel      bool           `json:"show_info_panel"`
 	CurrentDurationMs  int64          `json:"current_duration_ms"` // Added
+	IsUserPaused       bool           `json:"is_user_paused"`      // Added
 }
 
 // HandlePlay handles POST /api/narrator/play
@@ -159,6 +160,7 @@ func (h *NarratorHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		TextLength:         textLen,
 		ShowInfoPanel:      h.narrator.CurrentShowInfoPanel(),
 		CurrentDurationMs:  h.narrator.CurrentDuration().Milliseconds(),
+		IsUserPaused:       h.audio.IsUserPaused(),
 	}
 
 	// Check if state changed

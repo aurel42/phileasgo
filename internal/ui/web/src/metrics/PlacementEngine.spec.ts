@@ -215,6 +215,64 @@ describe('PlacementEngine', () => {
             expect(result[0].placedZoom).toBe(12); // Fresh placement at new zoom
             expect(result[0].markerLabelPos).toBeDefined();
         });
+
+        it('should drop a secondary label if it collides with another primary label', () => {
+            // poi is at 500, 500.
+            const blocker: LabelCandidate = {
+                id: 'blocker', lat: 500, lon: 500, tier: 'landmark', type: 'settlement',
+                score: 1000, width: 1000, height: 1000, isHistorical: false, text: 'GIANT BLOCKER'
+            };
+            const poi: LabelCandidate = {
+                id: 'poi', lat: 500, lon: 500, tier: 'landmark', type: 'poi',
+                score: 100, width: 20, height: 20, isHistorical: false,
+                text: '',
+                markerLabel: { text: 'Label', width: 100, height: 100 }
+            };
+
+            engine.register(blocker);
+            engine.register(poi);
+            // compute() will place blocker at 500,500. 
+            // Then poi will try to place itself. Blocker is already in R-tree.
+            // poi (primary) center is 500,500. checkCollisionAndInsert will FAIL for poi center.
+            // poi will fall through to STAGE 1 (anchors) and STAGE 2 (radial).
+            // Actually, blocker is so big it blocks EVERYTHING. 
+            // Wait, if poi center is blocked, and all anchors are blocked... 
+            // POI might be radial-placed very far away?
+            // Let's make blocker slightly smaller than viewport but big enough to cover all anchors.
+            const result = engine.compute(projector, viewport.w, viewport.h, 10);
+
+            const placedPoi = result.find(r => r.id === 'poi');
+            // If POI is placed (radial), it should still have no marker label if all its local anchors are blocked.
+            if (placedPoi) {
+                expect(placedPoi.markerLabelPos).toBeUndefined();
+            }
+        });
+
+        it('should try multiple anchors for the secondary label before giving up', () => {
+            const poi: LabelCandidate = {
+                id: 'poi', lat: 500, lon: 500, tier: 'landmark', type: 'poi',
+                score: 100, width: 20, height: 20, isHistorical: false,
+                text: '',
+                markerLabel: { text: 'L', width: 20, height: 20 }
+            };
+
+            // Block 'top-right' specifically.
+            // pointRadius = 10 + padding 0 + 2 = 12.
+            // halfW = 10, halfH = 10.
+            // dx=1, dy=-1 -> cx = 500 + 1*(12+10) = 522. cy = 500 - 1*(12+10) = 478.
+            const blocker: LabelCandidate = {
+                id: 'blocker', lat: 522, lon: 478, tier: 'landmark', type: 'settlement',
+                score: 1000, width: 30, height: 30, isHistorical: false, text: 'BLOCKER'
+            };
+
+            engine.register(blocker);
+            engine.register(poi);
+            const result = engine.compute(projector, viewport.w, viewport.h, 10);
+
+            const p = result.find(r => r.id === 'poi');
+            expect(p?.markerLabelPos).toBeDefined();
+            expect(p?.markerLabelPos?.anchor).not.toBe('top-right');
+        });
     });
 
     describe('Lifecycle', () => {

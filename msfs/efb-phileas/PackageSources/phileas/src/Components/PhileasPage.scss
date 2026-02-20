@@ -322,32 +322,40 @@
                 }
 
                 // Native EFB Component overrides
-                msfs-incremental {
+                .incremental {
                     width: 100%;
                     max-width: 250px;
 
-                    .incremental-button {
+                    .incremental-decrease,
+                    .incremental-increase {
                         width: 45px;
                         height: 45px;
                         min-width: 45px;
                     }
                 }
 
-                msfs-slider {
+                // Scope to direct child to avoid leaking into .switch-container .slider
+                >.slider {
                     flex: 1;
                     min-width: 180px;
+                    height: 40px;
 
                     .slider-track {
                         height: 4px;
                         background: #333;
                     }
 
-                    .slider-thumb {
+                    .slider-button {
                         width: 24px;
                         height: 24px;
                         background: #f39c12;
                         border: 2px solid #000;
                     }
+                }
+
+                .switch-container {
+                    width: 60px;
+                    height: 32px;
                 }
             }
         }

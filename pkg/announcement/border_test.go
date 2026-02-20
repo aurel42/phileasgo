@@ -192,3 +192,26 @@ func TestBorder_UserPaused(t *testing.T) {
 		t.Errorf("Expected lastLocation to be updated to B, got %s", b.lastLocation.CountryCode)
 	}
 }
+
+func TestBorder_RegionSuppression_NoCity(t *testing.T) {
+	geo := &mockBorderGeo{}
+	dp := &mockDP{}
+	b := NewBorder(config.DefaultConfig(), geo, dp, dp)
+	b.checkCooldown = 0
+
+	// 1. Initial Setup: FR, Normandy, City A, Land
+	b.lastLocation = model.LocationInfo{CountryCode: "FR", Admin1Name: "Normandy", CityName: "City A", Zone: "land"}
+
+	// 2. Move to Brittany, but NO CITY (CityName="")
+	geo.loc = model.LocationInfo{CountryCode: "FR", Admin1Name: "Brittany", CityName: "", Zone: "land"}
+
+	if b.ShouldGenerate(&sim.Telemetry{}) {
+		t.Error("Expected region change to be suppressed when CityName is empty")
+	}
+
+	// 3. Move back to Normandy (internal state was updated to Brittany)
+	geo.loc = model.LocationInfo{CountryCode: "FR", Admin1Name: "Normandy", CityName: "City A", Zone: "land"}
+	if b.ShouldGenerate(&sim.Telemetry{}) {
+		t.Error("Expected no trigger returning to original region if coming from suppressed region")
+	}
+}
