@@ -35,7 +35,11 @@ This workflow guides the release process for PhileasGo, ensuring code quality, v
             - Describe the **symptom** the user experienced, not the **solution** you implemented.
             - **Bad**: "Refactored the offset logic to use geodesic distance."
             - **Good**: "Fixed formation balloons appearing in the wrong location."
-        - **No Selling**: Do not use words like "smart", "intelligent", "robust", or "optimized" unless the user significantly feels the difference.
+        - **No Selling**: 
+            - Use a dry, factual, and direct tone.
+            - Avoid hyperbolic or marketing language: "professional", "premium", "smart", "intelligent", "robust", "optimized".
+            - **Bad**: "Implemented a professional cross-fading system for a premium feel."
+            - **Good**: "Added volume fades to audio actions to eliminate clicks."
 5.  **Commit**:
     - Commit all changes with a descriptive message.
     ```bash
