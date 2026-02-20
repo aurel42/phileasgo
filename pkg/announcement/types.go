@@ -74,4 +74,7 @@ type DataProvider interface {
 	// Prompt Data Assembly
 	AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data
 	AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data
+
+	// State
+	IsUserPaused() bool
 }

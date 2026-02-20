@@ -155,3 +155,40 @@ func TestBorder_GetPromptData(t *testing.T) {
 		t.Error("Expected FlightData from AssembleGeneric")
 	}
 }
+
+func TestBorder_UserPaused(t *testing.T) {
+	geo := &mockBorderGeo{}
+	dp := &mockDP{}
+	b := NewBorder(config.DefaultConfig(), geo, dp, dp)
+	b.checkCooldown = 0
+
+	// 1. Initial Setup: Country A
+	b.lastLocation = model.LocationInfo{CountryCode: "A"}
+
+	// 2. Set UserPaused = true
+	dp.UserPaused = true
+
+	// 3. Move to Country B
+	geo.loc = model.LocationInfo{CountryCode: "B"}
+
+	if b.ShouldGenerate(&sim.Telemetry{}) {
+		t.Fatal("Expected ShouldGenerate to be false when user is paused")
+	}
+
+	// 4. Verify event was still logged
+	found := false
+	for _, e := range dp.events {
+		if e.Title == "Border Crossing" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Expected border crossing to be logged in events even if paused")
+	}
+
+	// 5. Verify lastLocation was updated (preventing repeat trigger when unpaused)
+	if b.lastLocation.CountryCode != "B" {
+		t.Errorf("Expected lastLocation to be updated to B, got %s", b.lastLocation.CountryCode)
+	}
+}

@@ -15,8 +15,7 @@
 #CLAUDE.md
 task.md
 #.claude/
-.agent/rules/
-.agent/workflows/
+# .agent/ is now included in the repository
 bin/
 logs/
 configs/phileas.yaml

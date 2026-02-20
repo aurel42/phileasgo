@@ -134,6 +134,7 @@ func (m *mockPhase2NarratorService) ReplayLast(ctx context.Context) bool { retur
 func (m *mockPhase2NarratorService) PlayBorder(ctx context.Context, from, to string, tel *sim.Telemetry) bool {
 	return true
 }
+func (m *mockPhase2NarratorService) IsUserPaused() bool { return false }
 func TestPhase2_CanPreparePOI(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Narrator.AutoNarrate = true

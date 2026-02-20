@@ -99,6 +99,7 @@ func (m *mockNarratorService) AssemblePOI(ctx context.Context, p *model.POI, t *
 func (m *mockNarratorService) AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data {
 	return nil
 }
+func (m *mockNarratorService) IsUserPaused() bool                                      { return false }
 func (m *mockNarratorService) RecordNarration(ctx context.Context, n *model.Narrative) {}
 
 type mockPOIManager struct {

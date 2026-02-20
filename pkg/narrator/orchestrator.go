@@ -525,6 +525,10 @@ func (o *Orchestrator) GetLocation(lat, lon float64) model.LocationInfo {
 	return model.LocationInfo{}
 }
 
+func (o *Orchestrator) IsUserPaused() bool {
+	return o.audio.IsUserPaused()
+}
+
 func (o *Orchestrator) GetPOIsNear(lat, lon, radius float64) []*model.POI {
 	if ai, ok := o.gen.(announcement.DataProvider); ok {
 		return ai.GetPOIsNear(lat, lon, radius)

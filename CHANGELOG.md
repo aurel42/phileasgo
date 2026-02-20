@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## v0.3.209 (2026-02-20)
+- **Feature**: **Audio Fading**. Added volume fades to pause, resume, and stop actions to eliminate audible clicks.
+- **Improvement**: **Volume Smoothing**. Smooth volume transitions when using the master volume slider.
+- **Improvement**: **Border Crossing Silence**. Border crossing announcements are skipped when the narrator is paused.
+- **Fix**: **Pause/Resume Race Condition**. Fixed audio getting stuck when toggled too quickly.
+- **Improvement**: **Repository Alignment**. Integrated project-specific AI instructions and workflows.
+
 ## v0.3.208 (2026-02-19)
 - **Improvement**: **Project Skills Integration**. Added project-specific AI skills and workflows to the repository to improve collaborative agent experience.
 

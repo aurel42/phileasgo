@@ -100,6 +100,14 @@ func (b *Border) ShouldGenerate(t *sim.Telemetry) bool {
 		})
 	}
 
+	// [NEW] If user is paused, we ONLY log. We don't queue or create a script/audio.
+	if b.provider.IsUserPaused() {
+		slog.Debug("Border: Skipping narrative generation (User Paused)", "from", from, "to", to)
+		b.lastLocation = curr // Mark as processed
+		b.Reset()             // Clear any internal state
+		return false
+	}
+
 	b.lastLocation = curr // Update location only after success or handled logic
 
 	// Reset Base state to ensure we can generate fresh

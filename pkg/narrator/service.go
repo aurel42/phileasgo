@@ -110,6 +110,8 @@ type Service interface {
 	GetLastTransition(stage string) time.Time
 	AssemblePOI(ctx context.Context, p *model.POI, t *sim.Telemetry, strategy string) prompt.Data
 	AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data
+	// IsUserPaused returns true if the audio is paused by the user.
+	IsUserPaused() bool
 }
 
 // StubService is a stub implementation of the narrator service.
@@ -395,4 +397,9 @@ func (s *StubService) AssemblePOI(ctx context.Context, p *model.POI, t *sim.Tele
 func (s *StubService) AssembleGeneric(ctx context.Context, t *sim.Telemetry) prompt.Data {
 	return nil
 }
+
+func (s *StubService) IsUserPaused() bool {
+	return false
+}
+
 func (s *StubService) RecordNarration(ctx context.Context, n *model.Narrative) {}

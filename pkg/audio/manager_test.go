@@ -198,6 +198,66 @@ func TestGetVoiceByID(t *testing.T) {
 	}
 }
 
+func TestPauseResumeRace(t *testing.T) {
+	m := New(&config.NarratorConfig{})
+	m.ctrl = &beep.Ctrl{}
+	m.streamer = NewSmoothVolume(nil, 1.0)
+	m.currentSampleRate = 44100
+
+	// 1. Trigger Pause (async)
+	m.Pause()
+
+	if !m.IsPaused() {
+		t.Error("Expected IsPaused to be true immediately after Pause()")
+	}
+
+	// 2. Immediately Resume
+	m.Resume()
+
+	if m.IsPaused() {
+		t.Error("Expected IsPaused to be false after Resume()")
+	}
+
+	// 3. Wait for the Pause goroutine to finish its sleep (60ms)
+	time.Sleep(100 * time.Millisecond)
+
+	// 4. Verify it didn't stomp on Resume
+	if m.IsPaused() {
+		t.Error("Race Condition: Pause goroutine stomped on Resume state")
+	}
+	if m.ctrl.Paused {
+		t.Error("Race Condition: Controller is paused but should be playing")
+	}
+}
+
+func TestPauseStopRace(t *testing.T) {
+	m := New(&config.NarratorConfig{})
+	m.ctrl = &beep.Ctrl{}
+	m.streamer = NewSmoothVolume(nil, 1.0)
+	m.currentSampleRate = 44100
+
+	// 1. Trigger Pause (async)
+	m.Pause()
+
+	// 2. Immediately Stop
+	m.Stop()
+
+	if m.IsPaused() {
+		t.Error("Expected IsPaused to be false after Stop()")
+	}
+
+	// 3. Wait for the Pause goroutine to finish its sleep (60ms)
+	time.Sleep(100 * time.Millisecond)
+
+	// 4. Verify it didn't stomp or panic
+	if m.IsPaused() {
+		t.Error("Race Condition: Pause goroutine stomped on Stop state")
+	}
+	if m.ctrl != nil {
+		t.Error("Expected m.ctrl to be nil after Stop()")
+	}
+}
+
 // Helper for concise error returning
 type strErr string
 

@@ -16,6 +16,7 @@ type mockDP struct {
 	AssemblePOIFunc       func(context.Context, *model.POI, *sim.Telemetry, string) prompt.Data
 	AssembleGenericFunc   func(context.Context, *sim.Telemetry) prompt.Data
 	GetPOIsNearFunc       func(float64, float64, float64) []*model.POI
+	UserPaused            bool
 }
 
 func (m *mockDP) GetRepeatTTL() time.Duration {
@@ -57,4 +58,8 @@ func (m *mockDP) GetPOIsNear(lat, lon, radius float64) []*model.POI {
 
 func (m *mockDP) GetLocation(lat, lon float64) model.LocationInfo {
 	return model.LocationInfo{}
+}
+
+func (m *mockDP) IsUserPaused() bool {
+	return m.UserPaused
 }

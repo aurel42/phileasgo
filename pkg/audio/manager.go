@@ -10,7 +10,6 @@ import (
 	"phileasgo/pkg/config"
 
 	"github.com/gopxl/beep/v2"
-	"github.com/gopxl/beep/v2/effects"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
 	"github.com/gopxl/beep/v2/wav"
@@ -68,7 +67,7 @@ type Manager struct {
 	lastNarrationFile  string
 	speakerInitialized bool
 	currentSampleRate  beep.SampleRate
-	streamer           *effects.Volume // Added for volume control
+	streamer           *SmoothVolume // Controlled via speaker.Lock()
 	trackStreamer      beep.StreamSeekCloser
 	trackFormat        beep.Format
 	config             *config.NarratorConfig
@@ -114,15 +113,8 @@ func (m *Manager) Play(filepath string, startPaused bool, onComplete func()) err
 			"high", m.config.AudioEffects.HighCutoff)
 	}
 
-	// Wrap in Volume control
-	// Map 0-1 linear volume to Beep logic (Base 2)
-	// Simple mapping: for now we pass it through, SetVolume handles calculation
-	volStreamer := &effects.Volume{
-		Streamer: finalStreamer,
-		Base:     2,
-		Volume:   volumeToPower(m.volume),
-		Silent:   m.volume <= 0.01,
-	}
+	// Wrap in SmoothVolume control for click-free adjustments and fading
+	volStreamer := NewSmoothVolume(finalStreamer, m.volume)
 
 	m.streamer = volStreamer
 	m.trackStreamer = streamer
@@ -179,20 +171,36 @@ func (m *Manager) Play(filepath string, startPaused bool, onComplete func()) err
 	return nil
 }
 
-// Pause pauses current playback.
+// Pause pauses current playback with a smooth fade-out.
 func (m *Manager) Pause() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.ctrl != nil {
+	if m.ctrl != nil && !m.isPaused {
+		// Initiate fade out
+		fadeDuration := 50 * time.Millisecond
 		speaker.Lock()
-		m.ctrl.Paused = true
+		m.streamer.FadeTo(0, float64(m.currentSampleRate), fadeDuration)
 		speaker.Unlock()
-		m.isPaused = true
+
+		// Wait for fade to complete
+		m.isPaused = true // Mark as paused immediately to prevent new commands
+		go func() {
+			time.Sleep(fadeDuration + 10*time.Millisecond)
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			// Only pause controller if we are still supposed to be paused
+			// (i.e., someone didn't call Resume() or Stop() in the meantime)
+			if m.ctrl != nil && m.isPaused {
+				speaker.Lock()
+				m.ctrl.Paused = true
+				speaker.Unlock()
+			}
+		}()
 	}
 }
 
-// Resume resumes paused playback.
+// Resume resumes paused playback with a smooth fade-in.
 func (m *Manager) Resume() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -200,6 +208,8 @@ func (m *Manager) Resume() {
 	if m.ctrl != nil && m.isPaused {
 		speaker.Lock()
 		m.ctrl.Paused = false
+		// Fade in back to 1.0 (multiplier for targetVolume)
+		m.streamer.FadeTo(1.0, float64(m.currentSampleRate), 100*time.Millisecond)
 		speaker.Unlock()
 		m.isPaused = false
 	}
@@ -214,29 +224,29 @@ func (m *Manager) Stop() {
 }
 
 func (m *Manager) stopLocked() {
-	// Graceful shutdown: mute first to prevent audio "crack"
+	// Graceful shutdown: fade out first to prevent audio "crack"
 	if m.streamer != nil && m.ctrl != nil {
+		fadeDuration := 40 * time.Millisecond
 		speaker.Lock()
-		m.streamer.Silent = true
+		m.streamer.FadeTo(0, float64(m.currentSampleRate), fadeDuration)
 		speaker.Unlock()
-		// Brief delay to allow silent samples to flush through the audio buffer
-		// This prevents the abrupt termination "pop" sound
-		time.Sleep(20 * time.Millisecond)
+		// Brief delay to allow fade to complete
+		time.Sleep(fadeDuration + 10*time.Millisecond)
 	}
 
 	// Now clear the speaker before closing the streamer
 	if m.ctrl != nil {
 		speaker.Clear()
 		m.ctrl = nil
-		m.isPaused = false
+	}
+	m.isPaused = false
 
-		// If we have a pending callback, call it now as we've stopped playback
-		if m.onComplete != nil {
-			callback := m.onComplete
-			m.onComplete = nil
-			// Call in a goroutine to avoid deadlocks if callback calls back into manager
-			go callback()
-		}
+	// If we have a pending callback, call it now as we've stopped playback
+	if m.onComplete != nil {
+		callback := m.onComplete
+		m.onComplete = nil
+		// Call in a goroutine to avoid deadlocks if callback calls back into manager
+		go callback()
 	}
 
 	if m.trackStreamer != nil {
@@ -291,11 +301,11 @@ func (m *Manager) IsBusy() bool {
 	return m.ctrl != nil
 }
 
-// IsPaused returns true if playback is paused.
+// IsPaused returns true if playback is loaded and paused.
 func (m *Manager) IsPaused() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.isPaused
+	return m.ctrl != nil && m.isPaused
 }
 
 // SetVolume sets playback volume (0.0 to 1.0).
@@ -313,8 +323,8 @@ func (m *Manager) SetVolume(vol float64) {
 	// Update live streamer if playing
 	if m.streamer != nil {
 		speaker.Lock()
-		m.streamer.Volume = volumeToPower(vol)
-		m.streamer.Silent = vol <= 0.01
+		// Smoothly transition to new target volume over 20ms to avoid clicks
+		m.streamer.SetTargetVolume(vol, float64(m.currentSampleRate), 20*time.Millisecond)
 		speaker.Unlock()
 	}
 }

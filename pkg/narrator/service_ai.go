@@ -231,6 +231,10 @@ func (s *AIService) GetLocation(lat, lon float64) model.LocationInfo {
 	return s.geoSvc.GetLocation(lat, lon)
 }
 
+func (s *AIService) IsUserPaused() bool {
+	return false // Generator itself isn't "paused", the playback orchestrator is.
+}
+
 func (s *AIService) GetPOIsNear(lat, lon, radius float64) []*model.POI {
 	return s.poiMgr.GetPOIsNear(lat, lon, radius)
 }
