@@ -249,6 +249,12 @@ func TestHandleSetConfig(t *testing.T) {
 			wantKey: "show_visibility_layer",
 			wantVal: "true",
 		},
+		{
+			name:    "Update Pause Between Narrations",
+			req:     ConfigRequest{PauseBetweenNarrations: ptrFloat(45.0)},
+			wantKey: "narrator.pause_between_narrations",
+			wantVal: "45s",
+		},
 	}
 
 	for _, tt := range tests {

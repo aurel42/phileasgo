@@ -10,7 +10,7 @@ EFB_PACKAGE_NAME=charliebravo-efb-phileas
 
 MSFS_SDK=C:/MSFS 2024 SDK
 PACKAGE_TOOL=$(MSFS_SDK)/Tools/bin/fspackagetool.exe
-COMMUNITY_DIR=C:/Users/aurel/AppData/Roaming/Microsoft Flight Simulator 2024/Packages/Community
+COMMUNITY_DIR=$(APPDATA)/Microsoft Flight Simulator 2024/Packages/Community
 
 all: build-web test build build-gui
 

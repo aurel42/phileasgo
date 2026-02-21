@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## v0.3.211 (2026-02-21)
+- **Fix**: Resolved EFB settings resetting to defaults when opening the application.
+- **Fix**: Corrected display of the target POI count setting in the EFB interface.
+- **Improvement**: Updated the build system to correctly use environment paths for MSFS 2024 installations.
+
 ## v0.3.210 (2026-02-20)
 - **Fix**: Corrected misaligned EFB settings buttons and undersized sliders for better usability in the cockpit.
 - **Improvement**: Added `is_user_paused` state to the status API to improve UI synchronization.

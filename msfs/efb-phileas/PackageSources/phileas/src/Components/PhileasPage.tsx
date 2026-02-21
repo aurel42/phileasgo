@@ -145,12 +145,14 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             this.settingsSyncing = false;
         }));
 
-        this.subscriptions.push(this.settingPaused.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('paused', val); }));
-        this.subscriptions.push(this.settingFreq.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('narration_frequency', val); }));
-        this.subscriptions.push(this.settingLength.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('text_length', val); }));
-        this.subscriptions.push(this.settingFilterMode.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('filter_mode', val); }));
-        this.subscriptions.push(this.settingMinScore.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('min_poi_score', val); }));
-        this.subscriptions.push(this.settingTargetCount.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('target_poi_count', val); }));
+        // initialNotify: false — suppress the immediate fire with placeholder defaults;
+        // only send to backend when the user actually changes a value.
+        this.subscriptions.push(this.settingPaused.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('paused', val); }, false));
+        this.subscriptions.push(this.settingFreq.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('narration_frequency', val); }, false));
+        this.subscriptions.push(this.settingLength.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('text_length', val); }, false));
+        this.subscriptions.push(this.settingFilterMode.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('filter_mode', val); }, false));
+        this.subscriptions.push(this.settingMinScore.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('min_poi_score', val); }, false));
+        this.subscriptions.push(this.settingTargetCount.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('target_poi_count', val); }, false));
 
         // Build overlay DOM structure once — subsequent updates only touch textContent
         this.buildOverlayDom();
