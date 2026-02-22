@@ -28,6 +28,7 @@ type Store interface {
 	ArticleStore
 	SeenEntityStore
 	MSFSPOIStore
+	RegionalCategoriesStore
 	StateStore
 
 	// Close closes the store connection.
@@ -728,6 +729,45 @@ func (s *SQLiteStore) ListGeodataCacheKeys(ctx context.Context, prefix string) (
 		keys = append(keys, k)
 	}
 	return keys, rows.Err()
+}
+
+// --- Regional Categories ---
+
+func (s *SQLiteStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
+	var categoriesJSON string
+	err := s.db.QueryRowContext(ctx, "SELECT categories FROM regional_categories WHERE lat_grid = ? AND lon_grid = ?", latGrid, lonGrid).Scan(&categoriesJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil // Not found
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var categories map[string]string
+	if err := json.Unmarshal([]byte(categoriesJSON), &categories); err != nil {
+		return nil, err
+	}
+	return categories, nil
+}
+
+func (s *SQLiteStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string) error {
+	if categories == nil {
+		return nil
+	}
+	categoriesJSON, err := json.Marshal(categories)
+	if err != nil {
+		return err
+	}
+
+	query := `INSERT INTO regional_categories (lat_grid, lon_grid, categories, created_at, updated_at)
+			  VALUES (?, ?, ?, ?, ?)
+			  ON CONFLICT(lat_grid, lon_grid) DO UPDATE SET
+			  categories=excluded.categories,
+			  updated_at=excluded.updated_at`
+
+	now := time.Now()
+	_, err = s.db.ExecContext(ctx, query, latGrid, lonGrid, string(categoriesJSON), now, now)
+	return err
 }
 
 // --- State ---

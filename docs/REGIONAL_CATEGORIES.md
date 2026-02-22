@@ -8,8 +8,8 @@ The "Dynamic Config" feature is currently implemented as a background scheduler 
 
 1. **Triggers**: It runs silently in the background, firing on the first run and subsequently only when the aircraft has moved more than 50 nautical miles **AND** 30 minutes have passed since the last execution.
 2. **Context Gathering**: Upon triggering, it gathers the aircraft's current location (Latitude, Longitude, Country, Region) and a list of existing static categories.
-3. **LLM Invocation**: It sends this data to the `gemini-2.5-flash` model using the `dynamic_config` profile and the `context/wikidata.tmpl` prompt. The prompt asks the AI to identify 3-5 specific Wikidata subclasses (P279) of structures or landmarks that are unique or iconic to that specific region (e.g., "Shinto Shrine" in Japan, "Pyramid" in Egypt).
-4. **Validation**: The AI returns a JSON list of class names. Because LLM-provided QIDs are untrustworthy, the `wikidata.Validator` searches Wikidata by name to resolve them back into validated QIDs.
+3. **LLM Invocation**: It sends this data to the configured model using two separate profiles: `regional_categories_ontological` and `regional_categories_topographical`. These sequential queries generate distinct but complementary sets of regional interests.
+4. **Validation**: The AI returns a JSON list of class names. **Strict Rule**: No examples or regional hints are allowed in the prompts (except for the size reference examples) to prevent model poisoning. Because LLM-provided QIDs are untrustworthy, the `wikidata.Validator` searches Wikidata by name to resolve them back into validated QIDs.
 5. **Application**: The validated QIDs (and their mapped parent categories) are pushed to the `Classifier` via `SetDynamicInterests`. This allows the application to recognize and score these highly-specific local POIs exactly as if they were part of the static `categories.yaml`.
 6. **No Reprocessing**: Once the new interests are added to the classifier, existing tracked POIs in the area are NOT re-evaluated against the new rules (`// Reprocessing disabled per user request`).
 
@@ -45,25 +45,32 @@ The "Dynamic Config" feature is currently implemented as a background scheduler 
 
 ## Multi-Phase Redesign Plan
 
-### Phase 1: Prompt Engineering & Testing Framework
-- **Create an LLM Test Harness**: A new test file (e.g., `pkg/core/regional_prompt_test.go`) that runs `context/wikidata.tmpl` using a set of fixed coordinates for areas the tester is intimately familiar with (Ruhrgebiet, Papua New Guinea, Nevada desert). Crucially, this harness must test the prompt against **multiple different LLM models** (as configured in `phileas.yaml`), since different models provide vastly different responses.
-- **Refine `wikidata.tmpl`**: Update the prompt to clearly define a "good" category. It must explicitly forbid individual instances (e.g., "Eiffel Tower"), overly specific architectural micro-classes (e.g., "Cast-iron Lattice Tower"), and generic terms we already track (e.g., "monument"). We need to guide it towards characteristic, culturally or geographically fascinating classes (e.g., "street market", "banlieue"). Force the LLM to output QIDs directly alongside names (to assist validation) and emphasize uniqueness. Iterate until tests consistently pass across different models.
+### Phase 1: The Stereoscopic Strategy & Testing Framework
+- **Stereoscopic Output**: Instead of a single generic query, the system runs two highly idiosyncratic queries to capture both the physical and functional essence of a place.
+    - **Ontological Profile (`regional_categories_ontological`)**: Focuses strictly on physical, skeletal, and architectural profiles (the "Terrain's Body"). It builds the "visual world" for pilot recognition (e.g., terraces, headframes, viaducts).
+    - **Topographical Profile (`regional_categories_topographical`)**: Focuses strictly on the socio-economic "soul" and human reason for place (the "Land's Utility"). It builds the "cultural world" for narration (e.g., ghost towns, plantations, markets).
+- **Strict Constraint**: No examples of any kind are permitted in these prompts (with the sole exception of the size definition list) to ensure global neutrality and prevent leading the models.
+- **Implementation**: Both queries are executed sequentially during the `RegionalCategoriesJob`.
 
 ### Phase 2: Terminology Pivot & Core Refactoring
 - Rename `DynamicConfigJob` to `RegionalContextJob`.
-- Update the job to clearly differentiate between fetching **Regional Categories** and (eventually) **Regional Config**.
-- Refactor `classifier.SetDynamicInterests` to `classifier.SetRegionalCategories`.
+-   Rename `DynamicConfigJob` to `RegionalCategoriesJob`.
+-   Update the job to clearly handle the dual-stream ingestion (`ontological` and `topographical` profiles).
+-   Refactor `classifier.SetDynamicInterests` to `classifier.SetRegionalCategories`.
+-   Ensure `wikidata.Validator` can handle the combined output stream without de-duplication loss.
 
 ### Phase 3: Spatial Persistence (The Cache Grid)
-- Extend the SQLite database with a new table: `regional_categories` (lat_grid INT, lon_grid INT, categories JSON).
-- Modify the `RegionalContextJob` to define a "tile" (e.g., `math.Floor(lat)`).
-- When the job triggers (or on spawn):
-  1. Check the local DB for the current 1x1 degree tile and its 8 neighbors. 
-  2. If categories exist in the local cache, inject them into the `Classifier` immediately.
-  3. If the tile is "empty," queue an LLM query, and save the result back into the `regional_categories` table.
+-   Extend the SQLite database with a new table: `regional_categories` (lat_grid INT, lon_grid INT, categories JSON).
+#### Stereoscopic Discovery with `RegionalCategoriesJob`
+The `RegionalCategoriesJob` (formerly `DynamicConfigJob`) triggers when the aircraft moves significantly or enters a new region. It performs two sequential LLM calls:
+-   Modify the `RegionalCategoriesJob` to define a "tile" (e.g., `math.Round(lat)`).
+-   When the job triggers (or on spawn):
+    1.  Check the local DB for the current 1x1 degree tile and its 8 neighbors.
+    2.  If categories exist in the local cache, inject them into the `Classifier` immediately.
+    3.  If the tile is "empty," queue an LLM query, and save the result back into the `regional_categories` table.
 
 ### Phase 4: Lightweight Reprocessing
-> [!WARNING]  
+> [!WARNING]
 > **Strict Testing Requirement**: The classification code is extremely finicky and prone to regressions. Before modifying any classification logic to build this, we MUST ensure unit tests exist for the specific code being touched. Tests must pass *before* the modification, and continue to pass *after*.
 - Add a new method to `poi.Manager`: `ReprocessIgnoredPOIs()`.
 - After applying new Regional Categories from the LLM, loop over `pm.trackedPOIs`.

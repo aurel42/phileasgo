@@ -501,9 +501,9 @@ func setupScheduler(cfg config.Provider, simClient sim.Client, st store.Store, n
 		apiHandler.SetValleyAltitude(altMeters)
 	})
 
-	dynamicJob := core.NewDynamicConfigJob(cfg, narratorSvc.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc)
-	sched.AddJob(dynamicJob)
-	sched.AddResettable(dynamicJob)
+	regionalCategoriesJob := core.NewRegionalCategoriesJob(cfg, narratorSvc.LLMProvider(), pm, v, svcs.Classifier, svcs.WikiSvc.GeoService(), svcs.WikiSvc, st)
+	sched.AddJob(regionalCategoriesJob)
+	sched.AddResettable(regionalCategoriesJob)
 
 	sched.AddJob(core.NewEvictionJob(cfg, svcs.PoiMgr, svcs.WikiSvc))
 

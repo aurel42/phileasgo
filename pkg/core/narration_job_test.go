@@ -570,6 +570,14 @@ func (m *MockStore) GetSeenEntitiesBatch(ctx context.Context, qids []string) (ma
 func (m *MockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]string) error {
 	return nil
 }
+
+func (m *MockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
+	return nil, nil
+}
+func (m *MockStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string) error {
+	return nil
+}
+
 func (m *MockStore) GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error) {
 	return nil, nil
 }

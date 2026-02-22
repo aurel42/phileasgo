@@ -131,6 +131,14 @@ func (d *DB) migrate() error {
 			instances TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
+		`CREATE TABLE IF NOT EXISTS regional_categories (
+			lat_grid INTEGER,
+			lon_grid INTEGER,
+			categories TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME,
+			PRIMARY KEY (lat_grid, lon_grid)
+		);`,
 	}
 
 	for _, q := range queries {

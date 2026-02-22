@@ -33,17 +33,28 @@ func TestClassifier_AuxiliaryCoverage(t *testing.T) {
 		t.Error("GetConfig returned wrong config")
 	}
 
-	// 2. Dynamic Interests
+	// 2. Regional Categories
 	dynamic := map[string]string{"Q_DYN": "Mountain"}
-	clf.SetDynamicInterests(dynamic)
+	clf.AddRegionalCategories(dynamic)
 
 	// Verify dynamic lookup works via Classify
-	// Classify first checks if the QID itself maps to a category
 	res, err := clf.Classify(context.Background(), "Q_DYN")
 	if err != nil {
 		t.Fatalf("Classify error: %v", err)
 	}
 	if res == nil || res.Category != "Mountain" {
 		t.Errorf("Expected dynamic match Mountain, got %v", res)
+	}
+
+	// 3. GetRegionalCategories
+	got := clf.GetRegionalCategories()
+	if got["Q_DYN"] != "Mountain" {
+		t.Errorf("GetRegionalCategories failed, expected Mountain, got %v", got["Q_DYN"])
+	}
+
+	// 4. ResetRegionalCategories
+	clf.ResetRegionalCategories()
+	if len(clf.GetRegionalCategories()) != 0 {
+		t.Error("ResetRegionalCategories did not clear categories")
 	}
 }

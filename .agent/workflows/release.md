@@ -2,7 +2,7 @@
 description: Release workflow for PhileasGo
 ---
 
-ONLY RELEASE WHEN PROMPTED BY THE USER. Permission for a release can NOT be given implicitly (e.g. by simply including it in a task list or an implementation plan).
+ONLY COMMIT OR RELEASE WHEN PROMPTED BY THE USER. Permission for a release can NOT be given implicitly (e.g. by simply including it in a task list or an implementation plan).
 This workflow guides the release process for PhileasGo, ensuring code quality, versioning, and documentation.
 0.  **Test Coverage**:
     - Ensure that we have good coverage using table-driven tests for the new or changed functionality.

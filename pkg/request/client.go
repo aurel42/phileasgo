@@ -91,6 +91,11 @@ func New(c cache.Cacher, t *tracker.Tracker, cfg ClientConfig) *Client {
 	}
 }
 
+// SetTransport sets a custom transport for the underlying HTTP client (for testing).
+func (c *Client) SetTransport(t http.RoundTripper) {
+	c.httpClient.Transport = t
+}
+
 // Get performs a GET request with queuing and caching if key is provided.
 func (c *Client) Get(ctx context.Context, u, cacheKey string) ([]byte, error) {
 	return c.GetWithHeaders(ctx, u, nil, cacheKey)

@@ -28,13 +28,13 @@ type WikidataClient interface {
 
 // Classifier handles "Smart" classification of Wikidata items
 type Classifier struct {
-	store         store.HierarchyStore
-	client        WikidataClient // Interface for testability
-	config        *config.CategoriesConfig
-	lookup        config.CategoryLookup
-	tracker       *tracker.Tracker
-	dynamicLookup config.CategoryLookup
-	mu            sync.RWMutex
+	store              store.HierarchyStore
+	client             WikidataClient // Interface for testability
+	config             *config.CategoriesConfig
+	lookup             config.CategoryLookup
+	tracker            *tracker.Tracker
+	regionalCategories config.CategoryLookup
+	mu                 sync.RWMutex
 }
 
 // NewClassifier creates a new classifier
@@ -566,11 +566,34 @@ func (c *Classifier) GetMultiplier(h, l, a float64) float64 {
 	return 1.0
 }
 
-// SetDynamicInterests updates the dynamic QID interests.
-func (c *Classifier) SetDynamicInterests(interests map[string]string) {
+// AddRegionalCategories appends new regional categories to the existing lookup.
+func (c *Classifier) AddRegionalCategories(categories map[string]string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.dynamicLookup = interests
+	if c.regionalCategories == nil {
+		c.regionalCategories = make(config.CategoryLookup)
+	}
+	for qid, cat := range categories {
+		c.regionalCategories[qid] = cat
+	}
+}
+
+// ResetRegionalCategories clears all active regional categories.
+func (c *Classifier) ResetRegionalCategories() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.regionalCategories = make(config.CategoryLookup)
+}
+
+// GetRegionalCategories returns a copy of the currently active regional categories.
+func (c *Classifier) GetRegionalCategories() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	res := make(map[string]string)
+	for k, v := range c.regionalCategories {
+		res[k] = v
+	}
+	return res
 }
 
 func (c *Classifier) getLookupMatch(qid string) (string, bool) {
@@ -579,11 +602,11 @@ func (c *Classifier) getLookupMatch(qid string) (string, bool) {
 		return cat, true
 	}
 
-	// 2. Dynamic Lookup
+	// 2. Regional Categories
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.dynamicLookup != nil {
-		if cat, ok := c.dynamicLookup[qid]; ok {
+	if c.regionalCategories != nil {
+		if cat, ok := c.regionalCategories[qid]; ok {
 			return cat, true
 		}
 	}

@@ -223,7 +223,7 @@ func (m *MockPOIProvider) GetPOIsNear(lat, lon, radiusMeters float64) []*model.P
 	return []*model.POI{}
 }
 
-func (m *MockPOIProvider) ClearBeaconColor(color string) {}
+func (m *MockPOIProvider) ClearBeaconColor(color string)                                 {}
 func (m *MockPOIProvider) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) {}
 
 func (m *MockPOIProvider) GetFilteredCandidates(filterMode string, targetCount int, minScore float64, isOnGround bool) ([]*model.POI, float64) {
@@ -453,6 +453,13 @@ func (m *MockStore) GetSeenEntitiesBatch(ctx context.Context, qids []string) (ma
 	return nil, nil
 }
 func (m *MockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]string) error {
+	return nil
+}
+
+func (m *MockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
+	return nil, nil
+}
+func (m *MockStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string) error {
 	return nil
 }
 

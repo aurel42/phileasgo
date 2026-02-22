@@ -102,6 +102,12 @@ func (m *mockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) 
 func (m *mockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]string) error {
 	return nil
 }
+func (m *mockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
+	return nil, nil
+}
+func (m *mockStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string) error {
+	return nil
+}
 func (m *mockStore) Close() error { return nil }
 
 type MockClassifier struct {
