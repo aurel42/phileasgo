@@ -1,6 +1,10 @@
 ﻿# Changelog
 
-## v0.3.211 (2026-02-21)
+## v0.3.212 (2026-02-23)
+- [Feature] Added an Active Regional Context card to the Web UI and MSFS EFB showing the active taxonomy region.
+- [Feature] Added a regional discovery system that triggers targeted POI rescans when entering new geographical areas.
+
+v0.3.211 (2026-02-21)
 - **Fix**: Resolved EFB settings resetting to defaults when opening the application.
 - **Fix**: Corrected display of the target POI count setting in the EFB interface.
 - **Improvement**: Updated the build system to correctly use environment paths for MSFS 2024 installations.

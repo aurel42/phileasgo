@@ -43,6 +43,8 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
       && a.narration_frequency === b.narration_frequency && a.text_length === b.text_length));
 
   private aircraftConfig = Subject.create<any>(null);
+  private regionalCategories = Subject.create<any[]>([], (a: any[], b: any[]) =>
+    a === b || (a.length === b.length && a.every((cat, i) => cat.qid === b[i].qid)));
   private updateTimer: any = null;
   private abortController: AbortController | null = null;
   private lastConfigFetch = 0;
@@ -63,6 +65,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
         geography={this.geography}
         narratorStatus={this.narratorStatus}
         aircraftConfig={this.aircraftConfig}
+        regionalCategories={this.regionalCategories}
       />
     ));
   }
@@ -136,6 +139,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
           ];
           if (fetchPois) {
             promises.push(fetch("http://127.0.0.1:1920/api/pois/tracked", { signal }));
+            promises.push(fetch("http://127.0.0.1:1920/api/regional", { signal }));
           }
           if (fetchConfig) {
             promises.push(fetch("http://127.0.0.1:1920/api/config", { signal }));
@@ -157,6 +161,8 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
           if (fetchPois) {
             const poisRes = results[nextIdx++];
             if (poisRes.ok) this.pois.set(await poisRes.json());
+            const regRes = results[nextIdx++];
+            if (regRes.ok) this.regionalCategories.set(await regRes.json());
             this.lastPoiFetch = now;
           }
           if (fetchConfig) {

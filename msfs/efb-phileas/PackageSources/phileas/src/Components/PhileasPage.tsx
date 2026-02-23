@@ -21,6 +21,7 @@ interface PhileasPageProps extends RequiredProps<UiViewProps, "appViewService"> 
     geography: Subject<any>;
     narratorStatus: Subject<any>;
     aircraftConfig: Subject<any>;
+    regionalCategories: Subject<any[]>;
 }
 
 interface PoiItem {
@@ -73,6 +74,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     private readonly settingsContainerRef = FSComponent.createRef<HTMLDivElement>();
 
     // Dashboard card refs + cached mutable elements
+    private readonly regionalCardRef = FSComponent.createRef<HTMLDivElement>();
     private readonly statsCardRef = FSComponent.createRef<HTMLDivElement>();
     private readonly diagnosticsCardRef = FSComponent.createRef<HTMLDivElement>();
     private statsCells = new Map<string, { success: HTMLSpanElement; errors: HTMLSpanElement }>();
@@ -144,6 +146,10 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             this.settingPaused.set(status.is_user_paused ?? false);
             this.settingsSyncing = false;
         }));
+
+        this.subscriptions.push(this.props.regionalCategories.sub(cats => {
+            this.updateRegionalCard(cats);
+        }, true));
 
         // initialNotify: false — suppress the immediate fire with placeholder defaults;
         // only send to backend when the user actually changes a value.
@@ -581,6 +587,56 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         el.style.display = '';
     }
 
+    private updateRegionalCard(categories: any[]): void {
+        const el = this.regionalCardRef.instance;
+        if (!el) return;
+
+        if (!categories || categories.length === 0) {
+            el.style.display = 'none';
+            return;
+        }
+
+        el.innerHTML = '';
+        const h3 = document.createElement('h3');
+        h3.textContent = 'Active Regional Context';
+
+        const flexCont = document.createElement('div');
+        flexCont.style.display = 'flex';
+        flexCont.style.flexWrap = 'wrap';
+        flexCont.style.gap = '8px';
+        flexCont.style.marginTop = '8px';
+
+        for (const cat of categories) {
+            const pill = document.createElement('div');
+            pill.style.display = 'inline-flex';
+            pill.style.alignItems = 'center';
+            pill.style.background = 'rgba(212, 175, 55, 0.1)';
+            pill.style.border = '1px solid rgba(212, 175, 55, 0.3)';
+            pill.style.borderRadius = '4px';
+            pill.style.padding = '4px 8px';
+
+            const catLabel = document.createElement('span');
+            catLabel.style.color = '#d4af37';
+            catLabel.style.marginRight = '6px';
+            catLabel.style.fontSize = '12px';
+            catLabel.style.fontWeight = '600';
+            catLabel.style.letterSpacing = '0.5px';
+            catLabel.textContent = (cat.category || '').toUpperCase();
+
+            const nameLabel = document.createElement('span');
+            nameLabel.style.fontSize = '12px';
+            nameLabel.textContent = cat.name;
+
+            pill.appendChild(catLabel);
+            pill.appendChild(nameLabel);
+            flexCont.appendChild(pill);
+        }
+
+        el.appendChild(h3);
+        el.appendChild(flexCont);
+        el.style.display = '';
+    }
+
     private renderSettingsView(): VNode {
         const freqLabels = ['Rarely', 'Normal', 'Active', 'Hyperactive'];
         const lenLabels = ['Short', 'Brief', 'Normal', 'Detailed', 'Long'];
@@ -688,6 +744,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
                     {/* System (formerly Dashboard) */}
                     <div ref={this.dashboardContainerRef} class="view-container scrollable no-telemetry" style="display: none;">
+                        <div ref={this.regionalCardRef} class="info-card" style="display: none;" />
                         <div ref={this.statsCardRef} class="info-card stats-card-grid" style="display: none;" />
                         <div ref={this.diagnosticsCardRef} class="info-card system-card" style="display: none;" />
 
