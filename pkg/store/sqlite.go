@@ -773,24 +773,36 @@ func (s *SQLiteStore) ListGeodataCacheKeys(ctx context.Context, prefix string) (
 
 // --- Regional Categories ---
 
-func (s *SQLiteStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
-	var categoriesJSON string
-	err := s.db.QueryRowContext(ctx, "SELECT categories FROM regional_categories WHERE lat_grid = ? AND lon_grid = ?", latGrid, lonGrid).Scan(&categoriesJSON)
+func (s *SQLiteStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (categories, labels map[string]string, err error) {
+	var categoriesJSON, labelsJSON sql.NullString
+	err = s.db.QueryRowContext(ctx, "SELECT categories, labels FROM regional_categories WHERE lat_grid = ? AND lon_grid = ?", latGrid, lonGrid).Scan(&categoriesJSON, &labelsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil // Not found
+		return nil, nil, nil // Not found
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	var categories map[string]string
-	if err := json.Unmarshal([]byte(categoriesJSON), &categories); err != nil {
-		return nil, err
+	if categoriesJSON.Valid && categoriesJSON.String != "" {
+		if err := json.Unmarshal([]byte(categoriesJSON.String), &categories); err != nil {
+			return nil, nil, err
+		}
+	} else {
+		categories = make(map[string]string)
 	}
-	return categories, nil
+
+	if labelsJSON.Valid && labelsJSON.String != "" {
+		if err := json.Unmarshal([]byte(labelsJSON.String), &labels); err != nil {
+			return nil, nil, err
+		}
+	} else {
+		labels = make(map[string]string)
+	}
+
+	return categories, labels, nil
 }
 
-func (s *SQLiteStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string) error {
+func (s *SQLiteStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories, labels map[string]string) error {
 	if categories == nil {
 		return nil
 	}
@@ -799,14 +811,24 @@ func (s *SQLiteStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGr
 		return err
 	}
 
-	query := `INSERT INTO regional_categories (lat_grid, lon_grid, categories, created_at, updated_at)
-			  VALUES (?, ?, ?, ?, ?)
+	labelsJSON := "[]"
+	if labels != nil {
+		lJSON, err := json.Marshal(labels)
+		if err != nil {
+			return err
+		}
+		labelsJSON = string(lJSON)
+	}
+
+	query := `INSERT INTO regional_categories (lat_grid, lon_grid, categories, labels, created_at, updated_at)
+			  VALUES (?, ?, ?, ?, ?, ?)
 			  ON CONFLICT(lat_grid, lon_grid) DO UPDATE SET
 			  categories=excluded.categories,
+			  labels=excluded.labels,
 			  updated_at=excluded.updated_at`
 
 	now := time.Now()
-	_, err = s.db.ExecContext(ctx, query, latGrid, lonGrid, string(categoriesJSON), now, now)
+	_, err = s.db.ExecContext(ctx, query, latGrid, lonGrid, string(categoriesJSON), labelsJSON, now, now)
 	return err
 }
 

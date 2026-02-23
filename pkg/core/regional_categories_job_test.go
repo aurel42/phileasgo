@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -79,24 +80,78 @@ func (m *mockHierarchyStore) GetClassification(ctx context.Context, qid string) 
 func (m *mockHierarchyStore) GetHierarchy(ctx context.Context, qid string) (*model.WikidataHierarchy, error) {
 	return nil, nil
 }
-func (m *mockHierarchyStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
-	return nil, nil
+func (m *mockHierarchyStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, map[string]string, error) {
+	return nil, nil, nil
 }
-func (m *mockHierarchyStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string) error {
+func (m *mockHierarchyStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string, labels map[string]string) error {
 	return nil
 }
 
-func TestRegionalCategoriesJob_Merging(t *testing.T) {
-	st := &mockHierarchyStore{}
+func setupJob(t *testing.T, llmResp map[string]string) (*RegionalCategoriesJob, *classifier.Classifier, *mockSpatialStore) {
+	st := &mockSpatialStore{
+		cats:   make(map[string]map[string]string),
+		labels: make(map[string]map[string]string),
+	}
 	tr := tracker.New()
-	clf := classifier.NewClassifier(nil, nil, &config.CategoriesConfig{}, tr)
-	job := NewRegionalCategoriesJob(nil, nil, nil, nil, clf, nil, nil, st)
+	catCfg := &config.CategoriesConfig{
+		Categories: map[string]config.Category{
+			"Sights":   {Weight: 50},
+			"Shopping": {Weight: 30},
+			"Mountain": {Weight: 40},
+		},
+	}
+	clf := classifier.NewClassifier(st, nil, catCfg, tr)
+	dummyCfg := config.NewProvider(&config.Config{
+		Wikidata: config.WikidataConfig{
+			Area: config.AreaConfig{MaxDist: 80000},
+		},
+	}, nil)
+
+	mLLM := &mockLLM{responses: llmResp}
+	promptDir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(promptDir, "context"), 0755)
+	_ = os.WriteFile(filepath.Join(promptDir, "context", "ontological.tmpl"), []byte("onto"), 0644)
+	_ = os.WriteFile(filepath.Join(promptDir, "context", "topographical.tmpl"), []byte("topo"), 0644)
+	pm, _ := prompts.NewManager(promptDir)
+
+	cityFile := filepath.Join(t.TempDir(), "cities.txt")
+	adminFile := filepath.Join(t.TempDir(), "admin.txt")
+	// Need at least one valid-ish line to avoid NewService returning nil
+	_ = os.WriteFile(cityFile, []byte("1\tCity\tCity\t\t50\t10\t\t\tUS\t\t01\t\t\t\t1000\t\t\t\tEurope/London\t\n"), 0644)
+	_ = os.WriteFile(adminFile, []byte("US.01\tAlabama\tAlabama\t1234\n"), 0644)
+
+	geoSvc, err := geo.NewService(cityFile, adminFile)
+	if err != nil {
+		t.Fatalf("Failed to create geo service: %v", err)
+	}
+
+	reqClient := request.New(nil, tr, request.ClientConfig{})
+	wikiCl := wikidata.NewClient(reqClient, nil)
+	validator := wikidata.NewValidator(wikiCl)
+	wikiSvc := &wikidata.Service{}
+
+	job := NewRegionalCategoriesJob(dummyCfg, mLLM, pm, validator, clf, geoSvc, wikiSvc, st)
+	return job, clf, st
+}
+
+func waitJob(job *RegionalCategoriesJob) {
+	for i := 0; i < 100; i++ {
+		if job.TryLock() {
+			job.Unlock()
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestRegionalCategoriesJob_Merging(t *testing.T) {
+	job, clf, _ := setupJob(t, nil)
 
 	// Pre-seed with one category
-	clf.AddRegionalCategories(map[string]string{"Q1": "Cat1"})
+	clf.AddRegionalCategories(map[string]string{"Q1": "Cat1"}, nil)
 
 	// Simulate discovery of another one
-	job.classifier.AddRegionalCategories(map[string]string{"Q2": "Cat2"})
+	job.classifier.AddRegionalCategories(map[string]string{"Q2": "Cat2"}, nil)
 
 	res := clf.GetRegionalCategories()
 	if len(res) != 2 {
@@ -283,5 +338,79 @@ func TestRegionalCategoriesJob_SequentialLogic(t *testing.T) {
 	job.ResetSession(context.Background())
 	if !job.firstRun {
 		t.Error("ResetSession should set firstRun to true")
+	}
+}
+
+func TestRegionalCategoriesJob_ShouldFire_Thresholds(t *testing.T) {
+	job, _, _ := setupJob(t, map[string]string{"regional_categories_ontological": "{}"})
+
+	tel := &sim.Telemetry{Latitude: 50, Longitude: 10}
+
+	// First run
+	if !job.ShouldFire(tel) {
+		t.Error("ShouldFire should be true on first run")
+	}
+	job.Run(context.Background(), tel)
+	waitJob(job) // Wait for unlock
+
+	// Immediate second call
+	if job.ShouldFire(tel) {
+		t.Error("ShouldFire should be false immediately after run")
+	}
+
+	// Move slightly (under 50nm)
+	telSmallMove := &sim.Telemetry{Latitude: 50.1, Longitude: 10.1}
+	if job.ShouldFire(telSmallMove) {
+		t.Error("ShouldFire should be false for small move")
+	}
+
+	// Move far (>50nm) but no time passed
+	telFarMove := &sim.Telemetry{Latitude: 52, Longitude: 12}
+	if job.ShouldFire(telFarMove) {
+		t.Error("ShouldFire should be false if enough distance but not enough time")
+	}
+
+	// Enough distance AND time (manually sets lastRunTime)
+	job.lastRunTime = time.Now().Add(-31 * time.Minute)
+	if !job.ShouldFire(telFarMove) {
+		t.Error("ShouldFire should be true after 50nm AND 30min")
+	}
+}
+
+type mockSpatialStore struct {
+	mockHierarchyStore
+	cats   map[string]map[string]string // gridKey -> qid -> cat
+	labels map[string]map[string]string // gridKey -> qid -> label
+}
+
+func (m *mockSpatialStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, map[string]string, error) {
+	key := fmt.Sprintf("%d_%d", latGrid, lonGrid)
+	return m.cats[key], m.labels[key], nil
+}
+
+func TestRegionalCategoriesJob_SpatialCacheLoading(t *testing.T) {
+	job, clf, st := setupJob(t, nil)
+	st.cats["50_10"] = map[string]string{"Q_LOCAL": "LocalCat"}
+	st.labels["50_10"] = map[string]string{"Q_LOCAL": "LocalLabel"}
+
+	// Run with telemetry in 50, 10
+	job.Run(context.Background(), &sim.Telemetry{Latitude: 50.1, Longitude: 10.1})
+	waitJob(job) // Wait for unlock
+
+	// Wait for background routine (above waitJob might be enough, but let's keep polling for the classifier update)
+	var res map[string]string
+	for i := 0; i < 20; i++ {
+		res = clf.GetRegionalCategories()
+		if len(res) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if res["Q_LOCAL"] != "LocalCat" {
+		t.Errorf("Expected Q_LOCAL from cache, got %v", res)
+	}
+	if clf.GetRegionalLabels()["Q_LOCAL"] != "LocalLabel" {
+		t.Errorf("Expected LocalLabel from cache, got %v", clf.GetRegionalLabels())
 	}
 }

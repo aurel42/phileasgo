@@ -1,8 +1,13 @@
 ﻿# Changelog
 
+## v0.3.213 (2026-02-23)
+- **Improvement**: Implemented asymmetric map centering and heading-based bias in EFB to prevent status box occlusion.
+- **Fix**: Resolved issue where regional categories occasionally displayed as raw Wikidata IDs instead of localized names.
+- **Fix**: Corrected EFB map zoom levels and range calculations at extreme latitudes.
+
 ## v0.3.212 (2026-02-23)
-- [Feature] Added an Active Regional Context card to the Web UI and MSFS EFB showing the active taxonomy region.
 - [Feature] Added a regional discovery system that triggers targeted POI rescans when entering new geographical areas.
+- [Feature] Added an Active Regional Context card to the Web UI and MSFS EFB showing the active taxonomy region.
 
 v0.3.211 (2026-02-21)
 - **Fix**: Resolved EFB settings resetting to defaults when opening the application.

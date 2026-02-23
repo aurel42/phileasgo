@@ -13,6 +13,8 @@ declare const BASE_URL: string;
 
 const DISC_SIZE = 30;   // colored circle diameter (px)
 const ICON_SIZE = 24;   // icon inside disc, 20% larger than original 20px
+const VIEW_CENTER_Y = 0.4; // Aircraft vertical position (0.4 = 40% from top)
+const HEADING_BIAS = 0.25; // 25% offset opposite of heading
 // RGB packed as R | G<<8 | B<<16, required by MapTerrainColorsModule
 function packColor(r: number, g: number, b: number): number {
     return r | (g << 8) | (b << 16);
@@ -105,6 +107,7 @@ interface PoiMarker {
     lat: number;
     lon: number;
     scale: number;
+    badgeContainer: HTMLDivElement | undefined;
 }
 
 /** Creates a beacon pin element (plain DOM — no FSComponent lifecycle). */
@@ -171,6 +174,59 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
         this.repositionMarkers();
     }
 
+    private updateMarkerBadges(marker: PoiMarker, poi: any): void {
+        const hasMsfs = !!poi.is_msfs_poi || (poi.badges && poi.badges.includes('msfs'));
+        const isDeferred = poi.badges && poi.badges.includes('deferred');
+        const isNoLos = poi.los_status === 2;
+
+        let neededBadges = 0;
+        if (hasMsfs) neededBadges++;
+        if (isDeferred) neededBadges++;
+        if (isNoLos) neededBadges++;
+
+        if (neededBadges === 0) {
+            if (marker.badgeContainer) {
+                marker.badgeContainer.remove();
+                marker.badgeContainer = undefined;
+            }
+            return;
+        }
+
+        if (!marker.badgeContainer) {
+            marker.badgeContainer = document.createElement('div');
+            marker.badgeContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
+            marker.wrapper.appendChild(marker.badgeContainer);
+        }
+
+        const container = marker.badgeContainer;
+        const badgeStateKey = `${hasMsfs ? 'M' : ''}${isDeferred ? 'D' : ''}${isNoLos ? 'L' : ''}`;
+
+        if (container.dataset.badgeState === badgeStateKey) {
+            return;
+        }
+
+        container.innerHTML = '';
+        container.dataset.badgeState = badgeStateKey;
+
+        if (hasMsfs) {
+            const el = document.createElement('div');
+            el.style.cssText = 'position:absolute;top:-6px;right:-6px;color:#fbbf24;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.5));z-index:10;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;';
+            el.textContent = '\u2605';
+            container.appendChild(el);
+        }
+
+        const blBadges: string[] = [];
+        if (isDeferred) blBadges.push('\u231B'); // Hourglass (safer than clock emoji)
+        if (isNoLos) blBadges.push('\u2298');   // Slashed circle (safer than blocked emoji)
+
+        blBadges.forEach((iconText, idx) => {
+            const el = document.createElement('div');
+            el.style.cssText = `position:absolute;bottom:-6px;left:${-6 + (idx * 16)}px;font-size:16px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.5));z-index:11;`;
+            el.textContent = iconText;
+            container.appendChild(el);
+        });
+    }
+
     /** Full rebuild: remove stale markers, create new ones, reposition all. */
     private rebuildMarkers(): void {
         if (!this.containerRef.instance) return;
@@ -226,7 +282,8 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 const scale = poiScaleFactor(poi, narratorStatus);
                 wrapper.style.transform = `translate(-50%,-50%) scale(${scale})`;
 
-                marker = { id, wrapper, img, beacon: undefined, beaconColor: undefined, lat: poi.lat, lon: poi.lon, scale };
+                marker = { id, wrapper, img, beacon: undefined, beaconColor: undefined, lat: poi.lat, lon: poi.lon, scale, badgeContainer: undefined };
+                this.updateMarkerBadges(marker, poi);
 
                 if (poi.beacon_color) {
                     marker.beacon = createBeaconElement(poi.beacon_color, DISC_SIZE * 0.5);
@@ -247,6 +304,7 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 marker.scale = scale;
                 marker.lat = poi.lat;
                 marker.lon = poi.lon;
+                this.updateMarkerBadges(marker, poi);
 
                 // Update beacon: create, remove, or rebuild if color changed
                 if (poi.beacon_color) {
@@ -305,8 +363,9 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
     /** Update only screen positions (projection changed). */
     private repositionMarkers(): void {
         const size = this.props.mapProjection.getProjectedSize();
-        const cx = size[0] / 2;
-        const cy = size[1] / 2;
+        const offset = this.props.mapProjection.getTargetProjectedOffset();
+        const cx = size[0] / 2 + offset[0];
+        const cy = size[1] / 2 + offset[1];
         this.props.mapProjection.project(
             this.props.mapProjection.getTarget(), this.targetVec);
 
@@ -434,8 +493,9 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
         }
 
         const projSize = this.props.mapProjection.getProjectedSize();
-        const cx = projSize[0] / 2;
-        const cy = projSize[1] / 2;
+        const offset = this.props.mapProjection.getTargetProjectedOffset();
+        const cx = projSize[0] / 2 + offset[0];
+        const cy = projSize[1] / 2 + offset[1];
         this.props.mapProjection.project(
             this.props.mapProjection.getTarget(), this.targetVec);
         this.geoScratch.set(pos.lat, pos.lon);
@@ -493,9 +553,8 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
     // BY DESIGN: Framing frequency (5s) — avoids micro-zoom adjustments every tick
     private readonly FRAMING_INTERVAL = 5000;
 
-    // Scratch GeoPoints for updateFraming — reused to avoid per-second allocations
+    // Scratch GeoPoint for updateFraming — reused to avoid per-second allocations
     private readonly framingScratchA = new GeoPoint(0, 0);
-    private readonly framingScratchB = new GeoPoint(0, 0);
 
     private subscriptions: any[] = [];
     private intervalHandles: number[] = [];
@@ -524,6 +583,9 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
                 <PhileasAirplaneLayer model={context.model} mapProjection={context.projection} />, 200);
 
         this.mapSystem = builder.build("phileas-map-system");
+
+        // Offset the projection target so the background map (Bing/Terrain) matches aircraft centering
+        this.mapSystem.context.projection.set({ targetProjectedOffset: Vec2Math.create(0, -this.size.get()[1] * (0.5 - VIEW_CENTER_Y)) });
 
         // Initialize Bing earth colors so the terrain layer renders instead of the black fallback
         const terrainModule = this.mapSystem.context.model.getModule(MapSystemKeys.TerrainColors);
@@ -582,6 +644,17 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         const acLat = tel.Latitude;
         const acLon = tel.Longitude;
 
+        // Update Projection Offset: Static Vertical Offset (Option 1) + Heading Bias (Option 2)
+        const projSize = this.mapSystem.context.projection.getProjectedSize();
+        const hdgRad = tel.Heading * (Math.PI / 180);
+        const biasDist = Math.min(projSize[0], projSize[1]) * HEADING_BIAS;
+        const bx = biasDist * Math.sin(hdgRad);
+        const by = -biasDist * Math.cos(hdgRad);
+
+        const staticOffsetY = -projSize[1] * (0.5 - VIEW_CENTER_Y);
+        // Plane moves opposite to heading (shift target by -bias)
+        this.mapSystem.context.projection.set({ targetProjectedOffset: Vec2Math.create(-bx, staticOffsetY - by) });
+
         // Selection A: Non-cooldown POIs + playing/preparing — track max offset from aircraft
         let maxLatDiff = 0, maxLonDiff = 0;
         let hasSelection = false;
@@ -620,18 +693,17 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             const paddedLatDiff = maxLatDiff + latPad;
             const paddedLonDiff = maxLonDiff + lonPad;
 
-            // range = full viewport height (default rangeEndpoints [0.5,0,0.5,1])
-            // Vertical: full extent from aircraft ± paddedLatDiff
-            this.framingScratchA.set(acLat - paddedLatDiff, acLon);
-            this.framingScratchB.set(acLat + paddedLatDiff, acLon);
-            const vertRange = this.framingScratchA.distance(this.framingScratchB);
+            // Vertical Range Calculation:
+            // We want paddedLatDiff to fit within the "safe radius" above and below the plane.
+            // Safe space is 40% of viewport height (Top 0% -> Plane 40% -> Status Box 80%).
+            const deg2rad = Math.PI / 180;
+            const vertRange = (paddedLatDiff * deg2rad) / VIEW_CENTER_Y;
 
-            // Horizontal: full extent, then aspect-ratio-correct to equivalent range
-            this.framingScratchA.set(acLat, acLon - paddedLonDiff);
-            this.framingScratchB.set(acLat, acLon + paddedLonDiff);
-            const horizExtent = this.framingScratchA.distance(this.framingScratchB);
+            // Horizontal Range Calculation:
+            // Plane is centered horizontally (50%), so safe radius is 50% of width.
             const projSize = this.mapSystem.context.projection.getProjectedSize();
-            const horizRange = horizExtent * (projSize[1] / projSize[0]);
+            const aspect = projSize[1] / projSize[0];
+            const horizRange = ((paddedLonDiff * Math.cos(acLat * deg2rad)) * deg2rad / 0.5) * aspect;
 
             range = Math.max(vertRange, horizRange);
 
@@ -655,6 +727,9 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
             const current = this.size.get();
             if (current[0] !== w || current[1] !== h) {
                 this.size.set(Vec2Math.create(w, h));
+                if (this.mapSystem) {
+                    this.mapSystem.context.projection.set({ targetProjectedOffset: Vec2Math.create(0, -h * (0.5 - VIEW_CENTER_Y)) });
+                }
                 this.updateFraming(true);
             }
         }

@@ -122,9 +122,10 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 
 		// 2. Check Cache for current tile and 8 neighbors
 		cachedSubclasses := make(map[string]string)
+		cachedLabels := make(map[string]string)
 		for dLat := -1; dLat <= 1; dLat++ {
 			for dLon := -1; dLon <= 1; dLon++ {
-				cats, err := j.store.GetRegionalCategories(ctx, latGrid+dLat, lonGrid+dLon)
+				cats, labels, err := j.store.GetRegionalCategories(ctx, latGrid+dLat, lonGrid+dLon)
 				if err != nil {
 					slog.Error("RegionalCategoriesJob: Cache lookup failed", "lat", latGrid+dLat, "lon", lonGrid+dLon, "error", err)
 					continue
@@ -132,12 +133,15 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 				for qid, cat := range cats {
 					cachedSubclasses[qid] = cat
 				}
+				for qid, label := range labels {
+					cachedLabels[qid] = label
+				}
 			}
 		}
 
 		if len(cachedSubclasses) > 0 {
 			slog.Info("RegionalCategoriesJob: Loading regional categories from spatial cache", "count", len(cachedSubclasses))
-			j.classifier.AddRegionalCategories(cachedSubclasses)
+			j.classifier.AddRegionalCategories(cachedSubclasses, cachedLabels)
 
 			// We also scavenge the area when loading from cache because we might have teleported into this cache zone
 			if err := j.wikiSvc.ScavengeArea(ctx, lat, lon, radius, heading, arc); err != nil {
@@ -146,7 +150,7 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 		}
 
 		// 3. Check if current tile needs LLM discovery
-		currentTile, _ := j.store.GetRegionalCategories(ctx, latGrid, lonGrid)
+		currentTile, _, _ := j.store.GetRegionalCategories(ctx, latGrid, lonGrid)
 		if currentTile != nil {
 			slog.Info("RegionalCategoriesJob: Current tile already discovered, skipping LLM", "lat", latGrid, "lon", lonGrid)
 			return
@@ -171,7 +175,7 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 		if len(combinedSubclasses) == 0 {
 			slog.Info("RegionalCategoriesJob: No regional categories suggested")
 			// Save empty map to current tile to avoid repeat LLM calls for "dead" zones
-			_ = j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, make(map[string]string))
+			_ = j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, make(map[string]string), make(map[string]string))
 			return
 		}
 
@@ -253,7 +257,14 @@ func (j *RegionalCategoriesJob) processSubclasses(ctx context.Context, latGrid, 
 	}
 
 	if len(regionalCategories) > 0 {
-		j.classifier.AddRegionalCategories(regionalCategories)
+		regionalLabels := make(map[string]string)
+		for _, sub := range subclasses {
+			if v, ok := validated[sub.Name]; ok {
+				regionalLabels[v.QID] = v.Label
+			}
+		}
+
+		j.classifier.AddRegionalCategories(regionalCategories, regionalLabels)
 		slog.Info("RegionalCategoriesJob: Appended new regional categories to classifier", "count", len(regionalCategories))
 
 		// Reprocess local cache based on new rules immediately
@@ -262,13 +273,13 @@ func (j *RegionalCategoriesJob) processSubclasses(ctx context.Context, latGrid, 
 		}
 
 		// Save to spatial cache for current tile
-		if err := j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, regionalCategories); err != nil {
+		if err := j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, regionalCategories, regionalLabels); err != nil {
 			slog.Error("RegionalCategoriesJob: Failed to save to spatial cache", "error", err)
 		}
 	} else {
 		slog.Warn("RegionalCategoriesJob: No valid regional categories found in suggestion")
 		// Save empty to avoid repeat LLM
-		_ = j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, make(map[string]string))
+		_ = j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, make(map[string]string), make(map[string]string))
 	}
 }
 

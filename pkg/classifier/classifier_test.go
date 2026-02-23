@@ -433,9 +433,9 @@ func TestClassifier_Classify_Detailed(t *testing.T) {
 			clf := classifier.NewClassifier(st, cl, cfg, tr)
 
 			if tt.name == "Regional Category Priority" {
-				clf.AddRegionalCategories(map[string]string{"Q_CONFLICT_CLASS": "RegionalMatch"})
+				clf.AddRegionalCategories(map[string]string{"Q_CONFLICT_CLASS": "RegionalMatch"}, nil)
 			} else if tt.name == "Regional Bypasses Cached Ignored Sentinel in slowPathHierarchy" {
-				clf.AddRegionalCategories(map[string]string{"Q_REGIONAL_CLASS": "RegionalMatch"})
+				clf.AddRegionalCategories(map[string]string{"Q_REGIONAL_CLASS": "RegionalMatch"}, nil)
 			}
 
 			res, err := clf.Classify(context.Background(), tt.qid)
@@ -523,7 +523,7 @@ func TestClassifier_Explain(t *testing.T) {
 	}
 	clf := classifier.NewClassifier(st, cl, cfg, tracker.New())
 
-	clf.AddRegionalCategories(map[string]string{"Q_HIKE": "Hike"})
+	clf.AddRegionalCategories(map[string]string{"Q_HIKE": "Hike"}, nil)
 	cl.Claims["Q_INST"] = map[string][]string{"P31": {"Q_HIKE"}}
 
 	exp, err := clf.Explain(context.Background(), "Q_INST")

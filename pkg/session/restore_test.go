@@ -110,10 +110,10 @@ func (m *MockStore) SaveMSFSPOI(ctx context.Context, poi *model.MSFSPOI) error {
 func (m *MockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) (bool, error) {
 	return false, nil
 }
-func (m *MockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
-	return nil, nil
+func (m *MockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, map[string]string, error) {
+	return nil, nil, nil
 }
-func (m *MockStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string) error {
+func (m *MockStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string, labels map[string]string) error {
 	return nil
 }
 

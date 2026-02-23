@@ -35,7 +35,8 @@ func TestClassifier_AuxiliaryCoverage(t *testing.T) {
 
 	// 2. Regional Categories
 	dynamic := map[string]string{"Q_DYN": "Mountain"}
-	clf.AddRegionalCategories(dynamic)
+	labels := map[string]string{"Q_DYN": "Everest"}
+	clf.AddRegionalCategories(dynamic, labels)
 
 	// Verify dynamic lookup works via Classify
 	res, err := clf.Classify(context.Background(), "Q_DYN")
@@ -52,9 +53,18 @@ func TestClassifier_AuxiliaryCoverage(t *testing.T) {
 		t.Errorf("GetRegionalCategories failed, expected Mountain, got %v", got["Q_DYN"])
 	}
 
-	// 4. ResetRegionalCategories
+	// 4. GetRegionalLabels
+	lgot := clf.GetRegionalLabels()
+	if lgot["Q_DYN"] != "Everest" {
+		t.Errorf("GetRegionalLabels failed, expected Everest, got %v", lgot["Q_DYN"])
+	}
+
+	// 5. ResetRegionalCategories
 	clf.ResetRegionalCategories()
 	if len(clf.GetRegionalCategories()) != 0 {
 		t.Error("ResetRegionalCategories did not clear categories")
+	}
+	if len(clf.GetRegionalLabels()) != 0 {
+		t.Error("ResetRegionalCategories did not clear labels")
 	}
 }

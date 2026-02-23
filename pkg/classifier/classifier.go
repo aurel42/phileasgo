@@ -34,17 +34,19 @@ type Classifier struct {
 	lookup             config.CategoryLookup
 	tracker            *tracker.Tracker
 	regionalCategories config.CategoryLookup
+	regionalLabels     map[string]string
 	mu                 sync.RWMutex
 }
 
 // NewClassifier creates a new classifier
 func NewClassifier(s store.HierarchyStore, c WikidataClient, cfg *config.CategoriesConfig, tr *tracker.Tracker) *Classifier {
 	return &Classifier{
-		store:   s,
-		client:  c,
-		config:  cfg,
-		lookup:  cfg.BuildLookup(),
-		tracker: tr,
+		store:          s,
+		client:         c,
+		config:         cfg,
+		lookup:         cfg.BuildLookup(),
+		tracker:        tr,
+		regionalLabels: make(map[string]string),
 	}
 }
 
@@ -578,23 +580,30 @@ func (c *Classifier) GetMultiplier(h, l, a float64) float64 {
 	return 1.0
 }
 
-// AddRegionalCategories appends new regional categories to the existing lookup.
-func (c *Classifier) AddRegionalCategories(categories map[string]string) {
+// AddRegionalCategories appends new regional categories and their labels to the existing lookup.
+func (c *Classifier) AddRegionalCategories(categories, labels map[string]string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.regionalCategories == nil {
 		c.regionalCategories = make(config.CategoryLookup)
 	}
+	if c.regionalLabels == nil {
+		c.regionalLabels = make(map[string]string)
+	}
 	for qid, cat := range categories {
 		c.regionalCategories[qid] = cat
 	}
+	for qid, label := range labels {
+		c.regionalLabels[qid] = label
+	}
 }
 
-// ResetRegionalCategories clears all active regional categories.
+// ResetRegionalCategories clears all active regional categories and labels.
 func (c *Classifier) ResetRegionalCategories() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.regionalCategories = make(config.CategoryLookup)
+	c.regionalLabels = make(map[string]string)
 }
 
 // HasRegionalCategories returns true if any regional categories are active.
@@ -610,6 +619,17 @@ func (c *Classifier) GetRegionalCategories() map[string]string {
 	defer c.mu.RUnlock()
 	res := make(map[string]string)
 	for k, v := range c.regionalCategories {
+		res[k] = v
+	}
+	return res
+}
+
+// GetRegionalLabels returns a copy of the currently active regional labels.
+func (c *Classifier) GetRegionalLabels() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	res := make(map[string]string)
+	for k, v := range c.regionalLabels {
 		res[k] = v
 	}
 	return res

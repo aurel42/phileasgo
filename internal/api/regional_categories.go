@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 
 	"phileasgo/pkg/classifier"
 	"phileasgo/pkg/store"
@@ -44,14 +45,21 @@ func (h *RegionalCategoriesHandler) HandleGet(w http.ResponseWriter, r *http.Req
 
 	response := make([]RegionalCategoryResponse, 0, len(cats))
 	ctx := r.Context()
+	regionalLabels := h.classifier.GetRegionalLabels()
 
-	// Look up the human-readable names from the hierarchy DB cache
+	// Look up the human-readable names
 	for qid, categoryName := range cats {
 		displayName := qid
 
-		hNode, err := h.store.GetHierarchy(ctx, qid)
-		if err == nil && hNode != nil && hNode.Name != "" {
-			displayName = hNode.Name
+		// 1. Try regional labels from classifier (labels discovered by LLM/Validator)
+		if lbl, ok := regionalLabels[qid]; ok && lbl != "" {
+			displayName = lbl
+		} else {
+			// 2. Fallback to hierarchy DB cache
+			hNode, err := h.store.GetHierarchy(ctx, qid)
+			if err == nil && hNode != nil && hNode.Name != "" {
+				displayName = hNode.Name
+			}
 		}
 
 		response = append(response, RegionalCategoryResponse{
@@ -60,6 +68,11 @@ func (h *RegionalCategoriesHandler) HandleGet(w http.ResponseWriter, r *http.Req
 			Category: categoryName,
 		})
 	}
+
+	// Sort by QID to ensure stable response order for EFB comparison
+	sort.Slice(response, func(i, j int) bool {
+		return response[i].QID < response[j].QID
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {

@@ -135,6 +135,7 @@ func (d *DB) migrate() error {
 			lat_grid INTEGER,
 			lon_grid INTEGER,
 			categories TEXT,
+			labels TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME,
 			PRIMARY KEY (lat_grid, lon_grid)
@@ -161,6 +162,14 @@ func (d *DB) migrate() error {
 	if err == nil && colCount == 0 {
 		if _, err := d.Exec("ALTER TABLE poi ADD COLUMN thumbnail_url TEXT"); err != nil {
 			return fmt.Errorf("failed to add thumbnail_url column: %w", err)
+		}
+	}
+
+	// Migration: Add labels column to regional_categories if missing
+	err = d.QueryRow("SELECT count(*) FROM pragma_table_info('regional_categories') WHERE name='labels'").Scan(&colCount)
+	if err == nil && colCount == 0 {
+		if _, err := d.Exec("ALTER TABLE regional_categories ADD COLUMN labels TEXT"); err != nil {
+			return fmt.Errorf("failed to add labels column to regional_categories: %w", err)
 		}
 	}
 

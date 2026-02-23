@@ -115,10 +115,10 @@ func (m *mockStore) DeleteSeenEntities(ctx context.Context, qids []string) error
 	m.deletedSeen = append(m.deletedSeen, qids...)
 	return nil
 }
-func (m *mockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
-	return nil, nil
+func (m *mockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, map[string]string, error) {
+	return nil, nil, nil
 }
-func (m *mockStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string) error {
+func (m *mockStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string, labels map[string]string) error {
 	return nil
 }
 func (m *mockStore) Close() error { return nil }

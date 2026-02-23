@@ -36,11 +36,15 @@ func (m *mockHierarchyStore) SaveClassification(ctx context.Context, qid, catego
 
 func TestRegionalCategoriesHandler_HandleGet(t *testing.T) {
 	c := classifier.NewClassifier(nil, nil, &config.CategoriesConfig{}, nil)
-	// Inject some test regional categories
+	// Inject some test regional categories with labels
 	c.AddRegionalCategories(map[string]string{
 		"Q123": "Sights",
 		"Q456": "Shopping",
 		"Q789": "Nature",
+	}, map[string]string{
+		"Q123": "Shinto Shrine",
+		"Q456": "Night Market",
+		"Q789": "Fallback Nature Name",
 	})
 
 	mockStore := &mockHierarchyStore{
@@ -70,35 +74,15 @@ func TestRegionalCategoriesHandler_HandleGet(t *testing.T) {
 		t.Errorf("expected 3 results, got %d", len(response))
 	}
 
-	// Verify mappings (order is not guaranteed due to map iteration)
-	foundShrine := false
-	foundMarket := false
-	foundFallback := false
-
-	for _, item := range response {
-		switch item.QID {
-		case "Q123":
-			foundShrine = true
-			if item.Name != "Shinto Shrine" || item.Category != "Sights" {
-				t.Errorf("mismatch Q123: %+v", item)
-			}
-		case "Q456":
-			foundMarket = true
-			if item.Name != "Night Market" || item.Category != "Shopping" {
-				t.Errorf("mismatch Q456: %+v", item)
-			}
-		case "Q789":
-			foundFallback = true
-			if item.Name != "Q789" || item.Category != "Nature" {
-				t.Errorf("mismatch Q789: %+v", item)
-			}
-		default:
-			t.Errorf("unexpected QID: %s", item.QID)
-		}
+	// Verify mappings and stable sort order (Q123 < Q456 < Q789)
+	if response[0].QID != "Q123" || response[0].Name != "Shinto Shrine" || response[0].Category != "Sights" {
+		t.Errorf("item 0 mismatch: %+v", response[0])
 	}
-
-	if !foundShrine || !foundMarket || !foundFallback {
-		t.Errorf("missing expected items in response")
+	if response[1].QID != "Q456" || response[1].Name != "Night Market" || response[1].Category != "Shopping" {
+		t.Errorf("item 1 mismatch: %+v", response[1])
+	}
+	if response[2].QID != "Q789" || response[2].Name != "Fallback Nature Name" || response[2].Category != "Nature" {
+		t.Errorf("item 2 mismatch: %+v", response[2])
 	}
 }
 

@@ -101,10 +101,10 @@ func (m *apiMockStore) DeleteSeenEntities(ctx context.Context, qids []string) er
 func (m *apiMockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) (bool, error) {
 	return false, nil
 }
-func (m *apiMockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
-	return nil, nil
+func (m *apiMockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, map[string]string, error) {
+	return nil, nil, nil
 }
-func (m *apiMockStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string) error {
+func (m *apiMockStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string, labels map[string]string) error {
 	return nil
 }
 func (m *apiMockStore) Close() error { return nil }

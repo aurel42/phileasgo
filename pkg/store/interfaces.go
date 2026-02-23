@@ -71,8 +71,8 @@ type MSFSPOIStore interface {
 
 // RegionalCategoriesStore handles spatial caching of regional subclasses.
 type RegionalCategoriesStore interface {
-	GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error)
-	SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string) error
+	GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (categories map[string]string, labels map[string]string, err error)
+	SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string, labels map[string]string) error
 }
 
 // StateStore handles persistent application state.
