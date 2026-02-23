@@ -128,6 +128,11 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 		if len(cachedSubclasses) > 0 {
 			slog.Info("RegionalCategoriesJob: Loading regional categories from spatial cache", "count", len(cachedSubclasses))
 			j.classifier.AddRegionalCategories(cachedSubclasses)
+
+			// We also scavenge the area when loading from cache because we might have teleported into this cache zone
+			if err := j.wikiSvc.ScavengeArea(ctx, lat, lon, 30.0); err != nil {
+				slog.Warn("RegionalCategoriesJob: Cache Load ScavengeArea failed", "error", err)
+			}
 		}
 
 		// 3. Check if current tile needs LLM discovery
@@ -240,6 +245,11 @@ func (j *RegionalCategoriesJob) processSubclasses(ctx context.Context, latGrid, 
 	if len(regionalCategories) > 0 {
 		j.classifier.AddRegionalCategories(regionalCategories)
 		slog.Info("RegionalCategoriesJob: Appended new regional categories to classifier", "count", len(regionalCategories))
+
+		// Reprocess local cache based on new rules immediately
+		if err := j.wikiSvc.ScavengeArea(ctx, float64(latGrid), float64(lonGrid), 30.0); err != nil {
+			slog.Warn("RegionalCategoriesJob: Failed to scavenge area after discovering new rules", "error", err)
+		}
 
 		// Save to spatial cache for current tile
 		if err := j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, regionalCategories); err != nil {

@@ -25,6 +25,10 @@ func (s *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float6
 func (s *MockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]string) error {
 	return nil
 }
+
+func (s *MockStore) DeleteSeenEntities(ctx context.Context, qids []string) error {
+	return nil
+}
 func (s *MockStore) SaveMSFSPOI(ctx context.Context, p *model.MSFSPOI) error { return nil }
 func (s *MockStore) GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error) {
 	return nil, nil

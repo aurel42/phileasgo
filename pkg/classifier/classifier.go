@@ -53,7 +53,7 @@ func NewClassifier(s store.HierarchyStore, c WikidataClient, cfg *config.Categor
 // cache all hierarchy nodes (classes) it traverses.
 func (c *Classifier) Classify(ctx context.Context, qid string) (*model.ClassificationResult, error) {
 	// 1. Config Check (for known roots or direct matches)
-	if catName, ok := c.getLookupMatch(qid); ok {
+	if catName, _, ok := c.getLookupMatch(qid); ok {
 		return c.resultFor(catName), nil
 	}
 
@@ -163,7 +163,7 @@ func (c *Classifier) ClassifyBatch(ctx context.Context, entities map[string]wiki
 
 	for qid, meta := range entities {
 		// 1. Config Check
-		if catName, ok := c.getLookupMatch(qid); ok {
+		if catName, _, ok := c.getLookupMatch(qid); ok {
 			results[qid] = c.resultFor(catName)
 			continue
 		}
@@ -203,7 +203,7 @@ func (c *Classifier) ClassifyBatch(ctx context.Context, entities map[string]wiki
 // Results for these nodes ARE cached in the wikidata_hierarchy table.
 func (c *Classifier) classifyHierarchyNode(ctx context.Context, qid string) (*model.ClassificationResult, error) {
 	// 1. Config Check (for known roots like "Q62447" -> "Aerodrome")
-	if catName, ok := c.getLookupMatch(qid); ok {
+	if catName, _, ok := c.getLookupMatch(qid); ok {
 		return c.resultFor(catName), nil
 	}
 
@@ -211,18 +211,23 @@ func (c *Classifier) classifyHierarchyNode(ctx context.Context, qid string) (*mo
 	storedCat, found, err := c.store.GetClassification(ctx, qid)
 	if err == nil && found {
 		if storedCat == catIgnored {
-			// Cached as explicitly ignored
-			return &model.ClassificationResult{Ignored: true}, nil
-		}
-		if storedCat == catDeadEnd {
-			// Cached as a Dead End
-			return nil, nil
-		}
-		if storedCat != "" {
+			if !c.HasRegionalCategories() {
+				// Cached as explicitly ignored, and no regional overrides active
+				return &model.ClassificationResult{Ignored: true}, nil
+			}
+			// Regional categories active: must re-evaluate this ignored node
+			slog.Debug("Bypassing __IGNORED__ sentinel due to active regional categories", "qid", qid)
+		} else if storedCat == catDeadEnd {
+			if !c.HasRegionalCategories() {
+				// Cached as a Dead End, no regional overrides active
+				return nil, nil
+			}
+			// Regional categories active: must re-evaluate this dead end
+			slog.Debug("Bypassing __DEADEND__ sentinel due to active regional categories", "qid", qid)
+		} else if storedCat != "" {
 			return c.resultFor(storedCat), nil
 		}
-
-		// Continue if completely empty (legacy or intermediate)
+		// Continue if completely empty (legacy or intermediate) or if sentinel was bypassed
 	}
 
 	// 3. Slow Path: Graph Traversal (Subclass Of P279)
@@ -240,12 +245,18 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 		label = hNode.Name
 		if hNode.Category != "" {
 			if hNode.Category == catIgnored {
-				return &model.ClassificationResult{Ignored: true}, nil
+				if !c.HasRegionalCategories() {
+					return &model.ClassificationResult{Ignored: true}, nil
+				}
+				slog.Debug("slowPathHierarchy: Bypassing __IGNORED__ sentinel due to active regional categories", "qid", qid)
+			} else if hNode.Category == catDeadEnd {
+				if !c.HasRegionalCategories() {
+					return nil, nil
+				}
+				slog.Debug("slowPathHierarchy: Bypassing __DEADEND__ sentinel due to active regional categories", "qid", qid)
+			} else {
+				return c.resultFor(hNode.Category), nil
 			}
-			if hNode.Category == catDeadEnd {
-				return nil, nil
-			}
-			return c.resultFor(hNode.Category), nil
 		}
 	} else {
 		// 2. Fetch from API if not in structural cache
@@ -257,13 +268,13 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 	}
 
 	// Immediate check for category match or ignored
-	// Immediate check for category match or ignored
 	// Prioritize MATCH over IGNORE for direct parents
 
 	// 1. Check ALL parents for a match first
 	for _, sub := range subclasses {
-		if catName, ok := c.getLookupMatch(sub); ok {
-			return c.finalizeMatch(ctx, qid, catName, subclasses, label)
+		if catName, isRegional, ok := c.getLookupMatch(sub); ok {
+			logging.TraceDefault("Match found as direct subclass", "qid", qid, "matched", sub, "category", catName)
+			return c.finalizeMatch(ctx, qid, catName, subclasses, label, isRegional)
 		}
 	}
 
@@ -297,16 +308,17 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 
 	for len(queue) > 0 && currentDepth <= maxDepth {
 		// 1. Filter & Layer Scan: Check cache for matches/ignores
-		toFetch, parentsFromCache, layerMatch, layerIgnore := c.scanLayerCache(ctx, queue)
+		toFetch, parentsFromCache, layerMatch, layerIgnore, layerMatchRegional := c.scanLayerCache(ctx, queue)
 
 		// 2. Fetch: Batch request for missing nodes
 		if len(toFetch) > 0 {
 			fetchedParents := c.fetchAndCacheLayer(ctx, toFetch)
 			for id, parents := range fetchedParents {
 				parentsFromCache[id] = parents
-				m, ig := c.checkFetchedForMatches(id, parents)
+				m, ig, isRegional := c.checkFetchedForMatches(id, parents)
 				if layerMatch == "" {
 					layerMatch = m
+					layerMatchRegional = isRegional
 				}
 				if layerIgnore == "" {
 					layerIgnore = ig
@@ -316,13 +328,13 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 
 		// 3. Layer Priority Check
 		if layerMatch != "" {
-			return c.finalizeMatch(ctx, qid, layerMatch, subclasses, label)
+			return c.finalizeMatch(ctx, qid, layerMatch, subclasses, label, layerMatchRegional)
 		}
 
 		// 4. Build Next Layer & Final Layer Check
-		nextQueue, matchedCat, ignoredCat := c.buildNextLayer(queue, parentsFromCache, visited)
+		nextQueue, matchedCat, ignoredCat, matchedRegional := c.buildNextLayer(queue, parentsFromCache, visited)
 		if matchedCat != "" {
-			return c.finalizeMatch(ctx, qid, matchedCat, subclasses, label)
+			return c.finalizeMatch(ctx, qid, matchedCat, subclasses, label, matchedRegional)
 		}
 
 		// If we found an ignore in this layer (either cached or direct parent match),
@@ -345,9 +357,11 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 }
 
 // propagateIgnored marks all nodes in the BFS path as __IGNORED__ to prevent
-func (c *Classifier) scanLayerCache(ctx context.Context, queue []string) (toFetch []string, parentsFromCache map[string][]string, layerMatch, layerIgnore string) {
+func (c *Classifier) scanLayerCache(ctx context.Context, queue []string) (toFetch []string, parentsFromCache map[string][]string, layerMatch, layerIgnore string, layerMatchRegional bool) {
 	toFetch = make([]string, 0, len(queue))
 	parentsFromCache = make(map[string][]string)
+
+	hasRegional := c.HasRegionalCategories()
 
 	for _, id := range queue {
 		match, parents, foundInDB := c.checkCacheOrDB(ctx, id)
@@ -359,24 +373,42 @@ func (c *Classifier) scanLayerCache(ctx context.Context, queue []string) (toFetc
 		if match != "" {
 			switch match {
 			case catIgnored:
-				layerIgnore = id
+				if !hasRegional {
+					layerIgnore = id
+				}
 			case catDeadEnd:
-				// Skip
+				if hasRegional {
+					// Need to re-evaluate its parents if we have regional config
+					// Because we found it in DB, we DO have its parents
+					if len(parents) == 0 {
+						// Literally no parents ever recorded
+					} else {
+						// We need to check its parents against the regional config!
+						// Add it to the queue of things to 'nextLayer' process even if it's deadend locally
+						// To do this simply, we just pretend it wasn't matched so we scan its parents.
+						match = ""
+					}
+				}
 			default:
 				if layerMatch == "" {
 					layerMatch = match
+					layerMatchRegional = false // If it came from DB, it's not a fresh regional match. (Wait, if it was regional, we wouldn't have saved it to DB! So DB matches are always static.)
 				}
 			}
 		}
+
+		// If sentinels were bypassed due to regional config, `match` might now be ""
+		// But we STILL don't want to re-fetch it from Wiki. We use its cached parents.
 		parentsFromCache[id] = parents
 	}
 	return
 }
 
-func (c *Classifier) checkFetchedForMatches(id string, parents []string) (match, ignore string) {
+func (c *Classifier) checkFetchedForMatches(id string, parents []string) (match, ignore string, isRegional bool) {
 	for _, p := range parents {
-		if cat, ok := c.getLookupMatch(p); ok {
+		if cat, reg, ok := c.getLookupMatch(p); ok {
 			match = cat
+			isRegional = reg
 			return
 		}
 		if _, ok := c.config.IgnoredCategories[p]; ok {
@@ -397,8 +429,8 @@ func (c *Classifier) propagateIgnored(ctx context.Context, nodes []string) {
 }
 
 // buildNextLayer processes current queue and parents to produce next queue layer.
-// Returns nextQueue, matchedCategory (if found), and ignoredCategory (if found).
-func (c *Classifier) buildNextLayer(queue []string, parentsFromCache map[string][]string, visited map[string]bool) (nextQueue []string, matchedCat, ignoredCat string) {
+// Returns nextQueue, matchedCategory (if found), ignoredCategory (if found), and matchedRegional.
+func (c *Classifier) buildNextLayer(queue []string, parentsFromCache map[string][]string, visited map[string]bool) (nextQueue []string, matchedCat, ignoredCat string, matchedRegional bool) {
 	nextQueue = make([]string, 0)
 	var foundIgnored string
 
@@ -407,8 +439,8 @@ func (c *Classifier) buildNextLayer(queue []string, parentsFromCache map[string]
 		parents := parentsFromCache[id]
 		for _, p := range parents {
 			// Check for matching category
-			if catName, ok := c.getLookupMatch(p); ok {
-				return nil, catName, ""
+			if catName, isRegional, ok := c.getLookupMatch(p); ok {
+				return nil, catName, "", isRegional
 			}
 		}
 	}
@@ -436,10 +468,10 @@ func (c *Classifier) buildNextLayer(queue []string, parentsFromCache map[string]
 	}
 
 	if foundIgnored != "" {
-		return nil, "", foundIgnored
+		return nil, "", foundIgnored, false
 	}
 
-	return nextQueue, "", ""
+	return nextQueue, "", "", false
 }
 
 // checkCacheOrDB checks if a node is already classified or cached in DB.
@@ -448,7 +480,7 @@ func (c *Classifier) checkCacheOrDB(ctx context.Context, id string) (category st
 	hNode, err := c.store.GetHierarchy(ctx, id)
 	if err == nil && hNode != nil {
 		if hNode.Category != "" {
-			return hNode.Category, nil, true
+			return hNode.Category, hNode.Parents, true
 		}
 		return "", hNode.Parents, true
 	}
@@ -472,30 +504,13 @@ func (c *Classifier) fetchAndCacheLayer(ctx context.Context, ids []string) map[s
 		if len(parents) == 0 {
 			category = catDeadEnd
 		}
-		for _, p := range parents {
-			if cat, ok := c.getLookupMatch(p); ok {
-				category = cat
-				break
-			}
-			// FIX: Check if parent is ignored to prevent "cache poisoning" (saved as "")
-			if _, ok := c.config.IgnoredCategories[p]; ok {
-				category = "__IGNORED__"
-				// Don't break immediately? If another parent is a MATCH, we prefer MATCH.
-				// But we established earlier in the loop order that MATCH > IGNORE.
-				// The lookup match above covers MATCH.
-				// So if we find IGNORE here, we can set it, but we should continue checking for MATCH?
-				// Actually, `getLookupMatch` check above handles the MATCH case first for the current parent `p`.
-				// If p is ignored, we set category. But what if a later parent `p2` is a MATCH?
-				// The logic in slowPathHierarchy checks ALL parents for match first.
-				// Here we just want to save *some* valid state.
-				// If we find an ignored parent, we should probably record it, UNLESS we find a match later?
-				// Let's iterate all parents for MATCH first, then for IGNORE.
-			}
-		}
 
 		// 1. Scan for Match first (Priority)
+		// Note: We deliberately do NOT check regional matches here!
+		// fetchAndCacheLayer saves directly to the global database.
+		// If we evaluate regional matches here, we pollute the global DB cache.
 		for _, p := range parents {
-			if cat, ok := c.getLookupMatch(p); ok {
+			if cat, ok := c.lookup[p]; ok { // Use c.lookup directly to bypass regional
 				category = cat
 				break
 			}
@@ -522,10 +537,14 @@ func (c *Classifier) fetchAndCacheLayer(ctx context.Context, ids []string) map[s
 	return results
 }
 
-func (c *Classifier) finalizeMatch(ctx context.Context, qid, catName string, parents []string, label string) (*model.ClassificationResult, error) {
-	// Update DB with match
-	if err := c.store.SaveClassification(ctx, qid, catName, parents, label); err != nil {
-		return nil, fmt.Errorf("failed to save classification: %w", err)
+func (c *Classifier) finalizeMatch(ctx context.Context, qid, catName string, parents []string, label string, isRegional bool) (*model.ClassificationResult, error) {
+	// Update DB with match, UNLESS it's a regional match to prevent global cache pollution.
+	if !isRegional {
+		if err := c.store.SaveClassification(ctx, qid, catName, parents, label); err != nil {
+			return nil, fmt.Errorf("failed to save classification: %w", err)
+		}
+	} else {
+		slog.Debug("Bypassed saving regional classification to DB", "qid", qid, "category", catName)
 	}
 	return c.resultFor(catName), nil
 }
@@ -585,6 +604,13 @@ func (c *Classifier) ResetRegionalCategories() {
 	c.regionalCategories = make(config.CategoryLookup)
 }
 
+// HasRegionalCategories returns true if any regional categories are active.
+func (c *Classifier) HasRegionalCategories() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.regionalCategories) > 0
+}
+
 // GetRegionalCategories returns a copy of the currently active regional categories.
 func (c *Classifier) GetRegionalCategories() map[string]string {
 	c.mu.RLock()
@@ -596,10 +622,10 @@ func (c *Classifier) GetRegionalCategories() map[string]string {
 	return res
 }
 
-func (c *Classifier) getLookupMatch(qid string) (string, bool) {
+func (c *Classifier) getLookupMatch(qid string) (string, bool, bool) {
 	// 1. Static Lookup
 	if cat, ok := c.lookup[qid]; ok {
-		return cat, true
+		return cat, false, true
 	}
 
 	// 2. Regional Categories
@@ -607,9 +633,9 @@ func (c *Classifier) getLookupMatch(qid string) (string, bool) {
 	defer c.mu.RUnlock()
 	if c.regionalCategories != nil {
 		if cat, ok := c.regionalCategories[qid]; ok {
-			return cat, true
+			return cat, true, true
 		}
 	}
 
-	return "", false
+	return "", false, false
 }

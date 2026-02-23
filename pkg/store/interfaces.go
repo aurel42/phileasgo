@@ -59,6 +59,7 @@ type ArticleStore interface {
 type SeenEntityStore interface {
 	GetSeenEntitiesBatch(ctx context.Context, qids []string) (map[string][]string, error)
 	MarkEntitiesSeen(ctx context.Context, entities map[string][]string) error
+	DeleteSeenEntities(ctx context.Context, qids []string) error
 }
 
 // MSFSPOIStore handles Microsoft Flight Simulator POI data.

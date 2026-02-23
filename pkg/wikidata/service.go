@@ -440,6 +440,99 @@ func (s *Service) getNeighborhoodStats(tile HexTile) rescue.MedianStats {
 	return rescue.CalculateMedian(neighbors)
 }
 
+// ScavengeArea performs a surgical reset of the immediate area.
+// It retrieves recently fetched Wikidata tiles from the DB cache within radiusKm,
+// extracts all QIDs found within them, completely removes those QIDs from the
+// global `seen_entities` negative cache, and evicts the tiles from the local memory
+// cache `recentTiles`. This forces the pipeline to re-evaluate the local area
+// using the new classifier rules without needing fresh network API calls.
+func (s *Service) ScavengeArea(ctx context.Context, lat, lon float64, radiusKm float64) error {
+	if s.logger == nil {
+		s.logger = slog.Default()
+	}
+	if s.store == nil || s.recentTiles == nil {
+		s.logger.Warn("ScavengeArea: Skipping (Service not fully initialized)")
+		return nil
+	}
+	s.logger.Info("Starting Area Scavenge", "lat", lat, "lon", lon, "radius_km", radiusKm)
+
+	// Approximate bounding box ~ 1 degree is roughly 111km
+	offsetLat := radiusKm / 111.0
+	offsetLon := radiusKm / (111.0 * math.Cos(lat*math.Pi/180.0))
+
+	minLat := lat - offsetLat
+	maxLat := lat + offsetLat
+	minLon := lon - offsetLon
+	maxLon := lon + offsetLon
+
+	// 1. Get tiles strictly from DB cache (since we need the raw JSON to find QIDs)
+	records, err := s.store.GetGeodataInBounds(ctx, minLat, maxLat, minLon, maxLon)
+	if err != nil {
+		return fmt.Errorf("failed to get geodata bounds: %w", err)
+	}
+
+	var allQIDs []string
+	evictKeys := make([]string, 0)
+
+	// 2. Parse tiles for QIDs
+	for _, rec := range records {
+		if !strings.HasPrefix(rec.Key, "wd_h3_") {
+			continue
+		}
+
+		// Strictly filter by radius distance
+		distKm := geo.Distance(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: rec.Lat, Lon: rec.Lon}) / 1000.0
+		if distKm > radiusKm {
+			continue
+		}
+
+		// Fetch raw JSON payload
+		data, _, found := s.store.GetGeodataCache(ctx, rec.Key)
+		if !found || len(data) == 0 {
+			continue
+		}
+
+		// Parse the SPARQL response using the streaming parser
+		articles, _, errParse := ParseSPARQLStreaming(strings.NewReader(string(data)))
+		if errParse != nil {
+			s.logger.Warn("Failed to parse scavenged tile", "key", rec.Key, "error", errParse)
+			continue
+		}
+
+		// Extract QIDs
+		for i := range articles {
+			allQIDs = append(allQIDs, articles[i].QID)
+		}
+
+		evictKeys = append(evictKeys, rec.Key)
+	}
+
+	if len(allQIDs) == 0 {
+		s.logger.Info("ScavengeArea found no entities", "radius", radiusKm)
+		return nil
+	}
+
+	// 3. Purge QIDs from seen_entities, completely "un-ignoring" them
+	if err := s.store.DeleteSeenEntities(ctx, allQIDs); err != nil {
+		return fmt.Errorf("failed to delete seen entities: %w", err)
+	}
+	s.logger.Info("ScavengeArea successfully un-ignored entities", "unignored_count", len(allQIDs))
+
+	// 4. Evict from memory cache so the scheduler picks them up exactly on the next tick
+	s.recentMu.Lock()
+	evictedCount := 0
+	for _, key := range evictKeys {
+		if _, exists := s.recentTiles[key]; exists {
+			delete(s.recentTiles, key)
+			evictedCount++
+		}
+	}
+	s.recentMu.Unlock()
+
+	s.logger.Info("ScavengeArea evicted local tiles memory cache", "evicted_tiles", evictedCount)
+	return nil
+}
+
 func (s *Service) updateTileStats(key string, lat, lon float64, articles []Article) {
 	// Map non-Ignored wikidata.Article to rescue.Article for processing
 	var rescueArticles []rescue.Article

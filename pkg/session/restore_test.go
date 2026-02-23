@@ -98,6 +98,10 @@ func (m *MockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]
 	return nil
 }
 
+func (m *MockStore) DeleteSeenEntities(ctx context.Context, qids []string) error {
+	return nil
+}
+
 // MSFSPOIStore
 func (m *MockStore) GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error) {
 	return nil, nil

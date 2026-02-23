@@ -571,6 +571,10 @@ func (m *MockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]
 	return nil
 }
 
+func (m *MockStore) DeleteSeenEntities(ctx context.Context, qids []string) error {
+	return nil
+}
+
 func (m *MockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
 	return nil, nil
 }

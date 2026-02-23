@@ -149,6 +149,10 @@ func (m *MockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]
 	return nil
 }
 
+func (m *MockStore) DeleteSeenEntities(ctx context.Context, qids []string) error {
+	return nil
+}
+
 func (m *MockStore) SaveHierarchy(ctx context.Context, h *model.WikidataHierarchy) error {
 	m.Hierarchies[h.QID] = h
 	return nil
@@ -315,6 +319,23 @@ func TestClassifier_Classify_Detailed(t *testing.T) {
 			expectedCat: "RegionalMatch",
 		},
 		{
+			name: "Regional Bypasses Cached Ignored Sentinel in slowPathHierarchy",
+			qid:  "Q_BYPASS_SLOW_PATH",
+			setupClient: func(c *MockClient) {
+				c.Claims["Q_BYPASS_SLOW_PATH"] = map[string][]string{"P31": {"Q_IGN_CLASS"}}
+				c.Claims["Q_IGN_CLASS"] = map[string][]string{"P279": {"Q_REGIONAL_CLASS"}}
+			},
+			setupStore: func(s *MockStore) {
+				s.Hierarchies["Q_IGN_CLASS"] = &model.WikidataHierarchy{
+					QID:      "Q_IGN_CLASS",
+					Category: "__IGNORED__",
+					Parents:  []string{"Q_REGIONAL_CLASS"}, // Ensure parents are returned from checkCacheOrDB
+				}
+				// Q_REGIONAL_CLASS will be matched regionally
+			},
+			expectedCat: "RegionalMatch",
+		},
+		{
 			name: "Cached Ignored in scanLayerCache",
 			qid:  "Q_CACHED_IGN",
 			setupClient: func(c *MockClient) {
@@ -413,6 +434,8 @@ func TestClassifier_Classify_Detailed(t *testing.T) {
 
 			if tt.name == "Regional Category Priority" {
 				clf.AddRegionalCategories(map[string]string{"Q_CONFLICT_CLASS": "RegionalMatch"})
+			} else if tt.name == "Regional Bypasses Cached Ignored Sentinel in slowPathHierarchy" {
+				clf.AddRegionalCategories(map[string]string{"Q_REGIONAL_CLASS": "RegionalMatch"})
 			}
 
 			res, err := clf.Classify(context.Background(), tt.qid)

@@ -21,8 +21,9 @@ import (
 // Add GeodataCacheMap to mockStore to support caching tests
 type mockStore struct {
 	pois          map[string]*model.POI
-	geodataCache  map[string][]byte // New
-	geodataCacheR map[string]int    // New
+	geodataCache  map[string][]byte
+	geodataCacheR map[string]int
+	deletedSeen   []string
 }
 
 func (m *mockStore) GetPOI(ctx context.Context, id string) (*model.POI, error) {
@@ -67,7 +68,14 @@ func (m *mockStore) SetGeodataCache(ctx context.Context, key string, val []byte,
 	return nil
 }
 func (m *mockStore) GetGeodataInBounds(ctx context.Context, minLat, maxLat, minLon, maxLon float64) ([]store.GeodataRecord, error) {
-	return nil, nil
+	var results []store.GeodataRecord
+	for k := range m.geodataCache {
+		// Mock: return everything centered at 50,10
+		if strings.HasPrefix(k, "wd_h3_") {
+			results = append(results, store.GeodataRecord{Key: k, Lat: 50.0, Lon: 10.0, Radius: 9800})
+		}
+	}
+	return results, nil
 }
 func (m *mockStore) ListGeodataCacheKeys(ctx context.Context, prefix string) ([]string, error) {
 	return nil, nil
@@ -100,6 +108,11 @@ func (m *mockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) 
 	return false, nil
 }
 func (m *mockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]string) error {
+	return nil
+}
+
+func (m *mockStore) DeleteSeenEntities(ctx context.Context, qids []string) error {
+	m.deletedSeen = append(m.deletedSeen, qids...)
 	return nil
 }
 func (m *mockStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, error) {
@@ -590,5 +603,52 @@ func TestUpdateTileStats(t *testing.T) {
 		t.Error("Tile stats not saved for T_IGNORED")
 	} else if stats.Stats.MaxHeight != 100 {
 		t.Errorf("Expected MaxHeight 100 (excluding Ignored 5000), got %f", stats.Stats.MaxHeight)
+	}
+}
+
+func TestScavengeArea(t *testing.T) {
+	ms := &mockStore{
+		geodataCache:  make(map[string][]byte),
+		geodataCacheR: make(map[string]int),
+	}
+	svc := &Service{
+		store:       ms,
+		logger:      slog.Default(),
+		recentTiles: make(map[string]TileWrapper),
+	}
+
+	// 1. Prepare geodata cache with dummy SPARQL response
+	// The response should have Q123 and Q456
+	dummyJSON := "{\"results\": {\"bindings\": [{\"item\": {\"value\": \"http://www.wikidata.org/entity/Q123\"}}, {\"item\": {\"value\": \"http://www.wikidata.org/entity/Q456\"}}]}}"
+	ms.SetGeodataCache(context.Background(), "wd_h3_test1", []byte(dummyJSON), 9800, 50.0, 10.0)
+
+	// 2. Add to recentTiles memory cache
+	svc.recentMu.Lock()
+	svc.recentTiles["wd_h3_test1"] = TileWrapper{}
+	svc.recentMu.Unlock()
+
+	// 3. Execute ScavengeArea
+	err := svc.ScavengeArea(context.Background(), 50.0, 10.0, 25.0)
+	if err != nil {
+		t.Fatalf("ScavengeArea failed: %v", err)
+	}
+
+	// 4. Verify QIDs were deleted from seen cache
+	if len(ms.deletedSeen) != 2 {
+		t.Errorf("Expected 2 QIDs deleted, got %d. List: %v", len(ms.deletedSeen), ms.deletedSeen)
+	}
+	deletedSet := make(map[string]bool)
+	for _, qid := range ms.deletedSeen {
+		deletedSet[qid] = true
+	}
+	if !deletedSet["Q123"] || !deletedSet["Q456"] {
+		t.Errorf("Expected Q123 and Q456 to be deleted, got: %v", ms.deletedSeen)
+	}
+
+	// 5. Verify tile was evicted from memory cache
+	svc.recentMu.RLock()
+	defer svc.recentMu.RUnlock()
+	if _, exists := svc.recentTiles["wd_h3_test1"]; exists {
+		t.Errorf("Expected wd_h3_test1 to be evicted from recentTiles")
 	}
 }

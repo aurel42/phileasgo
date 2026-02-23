@@ -94,6 +94,10 @@ func (m *apiMockStore) GetSeenEntitiesBatch(ctx context.Context, qids []string) 
 func (m *apiMockStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]string) error {
 	return nil
 }
+
+func (m *apiMockStore) DeleteSeenEntities(ctx context.Context, qids []string) error {
+	return nil
+}
 func (m *apiMockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) (bool, error) {
 	return false, nil
 }

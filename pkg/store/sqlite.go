@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -388,8 +389,8 @@ func (s *SQLiteStore) SaveClassification(ctx context.Context, qid, category stri
 	query := `INSERT INTO wikidata_hierarchy (qid, name, parents, category, created_at, updated_at) 
 			  VALUES (?, ?, ?, ?, ?, ?)
 			  ON CONFLICT(qid) DO UPDATE SET
-			  name=excluded.name,
-			  parents=excluded.parents,
+			  name=CASE WHEN excluded.name = '' THEN wikidata_hierarchy.name ELSE excluded.name END,
+			  parents=CASE WHEN excluded.parents = 'null' THEN wikidata_hierarchy.parents ELSE excluded.parents END,
 			  category=CASE 
 				  -- 1. New value is a real category: always take it
 				  WHEN excluded.category NOT IN ('', '__IGNORED__', '__DEADEND__') THEN excluded.category
@@ -496,7 +497,6 @@ func (s *SQLiteStore) GetSeenEntitiesBatch(ctx context.Context, qids []string) (
 		if err := rows.Scan(&qid, &instancesJSON); err != nil {
 			return nil, err
 		}
-
 		var instances []string
 		if instancesJSON.Valid && instancesJSON.String != "" {
 			_ = json.Unmarshal([]byte(instancesJSON.String), &instances)
@@ -506,21 +506,61 @@ func (s *SQLiteStore) GetSeenEntitiesBatch(ctx context.Context, qids []string) (
 	return seen, nil
 }
 
+// MarkEntitiesSeen records a batch of QIDs as seen.
 func (s *SQLiteStore) MarkEntitiesSeen(ctx context.Context, entities map[string][]string) error {
 	if len(entities) == 0 {
 		return nil
 	}
 
-	query := `INSERT OR IGNORE INTO seen_entities (qid, instances, created_at) VALUES (?, ?, ?)`
-	now := time.Now()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
+	stmt, err := tx.PrepareContext(ctx, "INSERT OR IGNORE INTO seen_entities (qid, instances, created_at) VALUES (?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	now := time.Now().UTC()
 	for qid, instances := range entities {
-		var instancesJSON string
-		if len(instances) > 0 {
-			b, _ := json.Marshal(instances)
-			instancesJSON = string(b)
+		instancesJSON, err := json.Marshal(instances)
+		if err != nil {
+			return err
 		}
-		if _, err := s.db.ExecContext(ctx, query, qid, instancesJSON, now); err != nil {
+		if _, err := stmt.ExecContext(ctx, qid, string(instancesJSON), now); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// DeleteSeenEntities removes specific QIDs from the seen cache, allowing them to be re-evaluated.
+func (s *SQLiteStore) DeleteSeenEntities(ctx context.Context, qids []string) error {
+	if len(qids) == 0 {
+		return nil
+	}
+
+	// Chunk the deletes to avoid SQLite limits on bound parameters (usually 999 or 32766)
+	// We'll use a conservative chunk size of 500
+	chunkSize := 500
+	for i := 0; i < len(qids); i += chunkSize {
+		end := i + chunkSize
+		if end > len(qids) {
+			end = len(qids)
+		}
+		chunk := qids[i:end]
+
+		query := "DELETE FROM seen_entities WHERE qid IN (?" + strings.Repeat(",?", len(chunk)-1) + ")"
+		args := make([]interface{}, len(chunk))
+		for j, qid := range chunk {
+			args[j] = qid
+		}
+
+		if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
 			return err
 		}
 	}
