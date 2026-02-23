@@ -29,7 +29,7 @@ func (v *Validator) ValidateBatch(ctx context.Context, suggestions map[string]st
 	qidsToCheck := v.extractQIDs(suggestions)
 
 	// 1. Batch lookup labels
-	actualLabels := v.fetchLabels(ctx, qidsToCheck)
+	actualLabels := v.FetchLabels(ctx, qidsToCheck)
 
 	// 2. Process and Fallback
 	for name, qid := range suggestions {
@@ -60,7 +60,8 @@ func (v *Validator) extractQIDs(suggestions map[string]string) []string {
 	return qids
 }
 
-func (v *Validator) fetchLabels(ctx context.Context, qids []string) map[string]string {
+// FetchLabels retrieves English labels for a set of QIDs.
+func (v *Validator) FetchLabels(ctx context.Context, qids []string) map[string]string {
 	actualLabels := make(map[string]string)
 	if len(qids) == 0 {
 		return actualLabels
@@ -72,7 +73,7 @@ func (v *Validator) fetchLabels(ctx context.Context, qids []string) map[string]s
 	}
 	for qid, m := range metadata {
 		if lbl, ok := m.Labels["en"]; ok {
-			actualLabels[qid] = strings.ToLower(lbl)
+			actualLabels[qid] = lbl
 		}
 	}
 	return actualLabels
@@ -84,7 +85,7 @@ func (v *Validator) tryDirectMatch(name, qid string, actualLabels map[string]str
 	}
 	lname := strings.ToLower(name)
 	if actual, ok := actualLabels[qid]; ok {
-		if strings.Contains(actual, lname) || strings.Contains(lname, actual) {
+		if strings.Contains(strings.ToLower(actual), lname) || strings.Contains(lname, strings.ToLower(actual)) {
 			slog.Debug("Validator: QID verified", "name", name, "qid", qid, "actual", actual)
 			return ValidatedQID{QID: qid, Label: actual}, true
 		}

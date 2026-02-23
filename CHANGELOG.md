@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## v0.3.214 (2026-02-23)
+- **Fix (Hotfix)**: Implemented automatic label hydration for regional categories. Tiles with missing labels (legacy cache) are now automatically hydrated with human-readable names in the background.
+- **Improved**: `request.Client` now gracefully handles missing caches, preventing potential runtime panics during edge cases and testing.
+
 ## v0.3.213 (2026-02-23)
 - **Improvement**: Implemented asymmetric map centering and heading-based bias in EFB to prevent status box occlusion.
 - **Fix**: Resolved issue where regional categories occasionally displayed as raw Wikidata IDs instead of localized names.

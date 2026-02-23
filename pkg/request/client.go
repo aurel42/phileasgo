@@ -111,7 +111,7 @@ func (c *Client) GetWithHeaders(ctx context.Context, u string, headers map[strin
 	provider := normalizeProvider(host)
 
 	// 1. Check Cache (Only if key is provided)
-	if cacheKey != "" {
+	if cacheKey != "" && c.cache != nil {
 		if val, hit := c.cache.GetCache(ctx, cacheKey); hit {
 			c.tracker.TrackCacheHit(provider)
 			logging.TraceDefault("Cache Hit", "provider", provider, "key", cacheKey)
@@ -244,8 +244,8 @@ func (c *Client) worker(provider string, q <-chan job) {
 
 		if err == nil {
 			c.tracker.TrackAPISuccess(provider)
-			// Cache result (Only if key is provided)
-			if j.cacheKey != "" {
+			// Cache result (Only if key is provided and cache is available)
+			if j.cacheKey != "" && c.cache != nil {
 				if err := c.cache.SetCache(context.Background(), j.cacheKey, body); err != nil {
 					slog.Error("Failed to cache response", "url", j.req.URL, "error", err)
 				}

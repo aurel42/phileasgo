@@ -141,6 +141,27 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 
 		if len(cachedSubclasses) > 0 {
 			slog.Info("RegionalCategoriesJob: Loading regional categories from spatial cache", "count", len(cachedSubclasses))
+
+			// Check for missing labels and hydrate if necessary
+			missingLabelQIDs := []string{}
+			for qid := range cachedSubclasses {
+				if cachedLabels[qid] == "" {
+					missingLabelQIDs = append(missingLabelQIDs, qid)
+				}
+			}
+
+			if len(missingLabelQIDs) > 0 {
+				slog.Info("RegionalCategoriesJob: Hydrating missing labels from legacy cache", "count", len(missingLabelQIDs))
+				hydrated := j.validator.FetchLabels(ctx, missingLabelQIDs)
+				for qid, label := range hydrated {
+					cachedLabels[qid] = label
+				}
+				// Save back to spatial cache to persistent the fixes
+				if err := j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, cachedSubclasses, cachedLabels); err != nil {
+					slog.Warn("RegionalCategoriesJob: Failed to update cache with hydrated labels", "error", err)
+				}
+			}
+
 			j.classifier.AddRegionalCategories(cachedSubclasses, cachedLabels)
 
 			// We also scavenge the area when loading from cache because we might have teleported into this cache zone

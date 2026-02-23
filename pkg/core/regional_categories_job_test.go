@@ -58,10 +58,17 @@ type mockTransport struct {
 
 func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	q := req.URL.Query().Get("search")
+	if q == "" {
+		q = req.URL.Query().Get("ids")
+	}
 	resp, ok := m.responses[q]
 	if !ok {
 		// Fallback to a default or empty if not found
-		resp = `{"search": []}`
+		if req.URL.Query().Get("action") == "wbgetentities" {
+			resp = `{"entities": {}}`
+		} else {
+			resp = `{"search": []}`
+		}
 	}
 	return &http.Response{
 		StatusCode: 200,
@@ -87,7 +94,7 @@ func (m *mockHierarchyStore) SaveRegionalCategories(ctx context.Context, latGrid
 	return nil
 }
 
-func setupJob(t *testing.T, llmResp map[string]string) (*RegionalCategoriesJob, *classifier.Classifier, *mockSpatialStore) {
+func setupJob(t *testing.T, llmResp map[string]string, transport http.RoundTripper) (*RegionalCategoriesJob, *classifier.Classifier, *mockSpatialStore) {
 	st := &mockSpatialStore{
 		cats:   make(map[string]map[string]string),
 		labels: make(map[string]map[string]string),
@@ -126,6 +133,9 @@ func setupJob(t *testing.T, llmResp map[string]string) (*RegionalCategoriesJob, 
 	}
 
 	reqClient := request.New(nil, tr, request.ClientConfig{})
+	if transport != nil {
+		reqClient.SetTransport(transport)
+	}
 	wikiCl := wikidata.NewClient(reqClient, nil)
 	validator := wikidata.NewValidator(wikiCl)
 	wikiSvc := &wikidata.Service{}
@@ -145,7 +155,7 @@ func waitJob(job *RegionalCategoriesJob) {
 }
 
 func TestRegionalCategoriesJob_Merging(t *testing.T) {
-	job, clf, _ := setupJob(t, nil)
+	job, clf, _ := setupJob(t, nil, nil)
 
 	// Pre-seed with one category
 	clf.AddRegionalCategories(map[string]string{"Q1": "Cat1"}, nil)
@@ -342,7 +352,7 @@ func TestRegionalCategoriesJob_SequentialLogic(t *testing.T) {
 }
 
 func TestRegionalCategoriesJob_ShouldFire_Thresholds(t *testing.T) {
-	job, _, _ := setupJob(t, map[string]string{"regional_categories_ontological": "{}"})
+	job, _, _ := setupJob(t, map[string]string{"regional_categories_ontological": "{}"}, nil)
 
 	tel := &sim.Telemetry{Latitude: 50, Longitude: 10}
 
@@ -389,7 +399,7 @@ func (m *mockSpatialStore) GetRegionalCategories(ctx context.Context, latGrid, l
 }
 
 func TestRegionalCategoriesJob_SpatialCacheLoading(t *testing.T) {
-	job, clf, st := setupJob(t, nil)
+	job, clf, st := setupJob(t, nil, nil)
 	st.cats["50_10"] = map[string]string{"Q_LOCAL": "LocalCat"}
 	st.labels["50_10"] = map[string]string{"Q_LOCAL": "LocalLabel"}
 
@@ -413,4 +423,41 @@ func TestRegionalCategoriesJob_SpatialCacheLoading(t *testing.T) {
 	if clf.GetRegionalLabels()["Q_LOCAL"] != "LocalLabel" {
 		t.Errorf("Expected LocalLabel from cache, got %v", clf.GetRegionalLabels())
 	}
+}
+func TestRegionalCategoriesJob_LabelHydration(t *testing.T) {
+	// Mock Wikidata response for Q_MISSING -> "New Hydrated Label"
+	transport := &mockTransport{
+		responses: map[string]string{
+			"Q_MISSING": `{"entities": {"Q_MISSING": {"labels": {"en": {"value": "New Hydrated Label"}}}} }`,
+		},
+	}
+
+	job, clf, st := setupJob(t, nil, transport)
+
+	// Pre-seed cache with a category but NO label
+	st.cats["50_10"] = map[string]string{"Q_MISSING": "LocalCat"}
+	st.labels["50_10"] = map[string]string{"Q_MISSING": ""} // Empty label
+
+	// Run job
+	job.Run(context.Background(), &sim.Telemetry{Latitude: 50.1, Longitude: 10.1})
+	waitJob(job)
+
+	// Verify classifier has the hydrated label
+	resLabels := clf.GetRegionalLabels()
+	if resLabels["Q_MISSING"] != "New Hydrated Label" {
+		t.Errorf("Expected hydrated label 'New Hydrated Label', got %q", resLabels["Q_MISSING"])
+	}
+
+	// Verify spatial cache was updated
+	updatedLabels := st.labels["50_10"]
+	if updatedLabels["Q_MISSING"] != "New Hydrated Label" {
+		t.Errorf("Expected spatial cache to be updated with 'New Hydrated Label', got %v", updatedLabels)
+	}
+}
+
+func (m *mockSpatialStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string, labels map[string]string) error {
+	key := fmt.Sprintf("%d_%d", latGrid, lonGrid)
+	m.cats[key] = categories
+	m.labels[key] = labels
+	return nil
 }
