@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { InfoPanel } from './components/InfoPanel';
 import { POIInfoPanel } from './components/POIInfoPanel';
 import { PlaybackControls } from './components/PlaybackControls';
+import { RegionalCategoriesCard } from './components/RegionalCategoriesCard';
 import { useTelemetry } from './hooks/useTelemetry';
 import { useTrackedPOIs } from './hooks/usePOIs';
 import type { POI } from './hooks/usePOIs';
@@ -460,21 +461,24 @@ function App() {
             onSettingsClick={() => navigate('/settings')}
           />
         ) : (
-          <InfoPanel
-            telemetry={telemetry}
-            status={hasConnectionError ? 'error' : status}
-            isRetrying={status === 'pending' && hasConnectionError}
-            nonBlueCount={nonBlueCount}
-            blueCount={blueCount}
-            minPoiScore={minPoiScore}
-            targetCount={targetCount}
-            filterMode={filterMode}
-            narrationFrequency={narrationFrequency}
-            textLength={textLength}
-            onSettingsClick={() => navigate('/settings')}
-            isDiagnosticsOpen={isDiagnosticsOpen}
-            onDiagnosticsToggle={setIsDiagnosticsOpen}
-          />
+          <>
+            <InfoPanel
+              telemetry={telemetry}
+              status={hasConnectionError ? 'error' : status}
+              isRetrying={status === 'pending' && hasConnectionError}
+              nonBlueCount={nonBlueCount}
+              blueCount={blueCount}
+              minPoiScore={minPoiScore}
+              targetCount={targetCount}
+              filterMode={filterMode}
+              narrationFrequency={narrationFrequency}
+              textLength={textLength}
+              onSettingsClick={() => navigate('/settings')}
+              isDiagnosticsOpen={isDiagnosticsOpen}
+              onDiagnosticsToggle={setIsDiagnosticsOpen}
+            />
+            <RegionalCategoriesCard />
+          </>
         )}
       </div>
 

@@ -446,7 +446,8 @@ func (s *Service) getNeighborhoodStats(tile HexTile) rescue.MedianStats {
 // global `seen_entities` negative cache, and evicts the tiles from the local memory
 // cache `recentTiles`. This forces the pipeline to re-evaluate the local area
 // using the new classifier rules without needing fresh network API calls.
-func (s *Service) ScavengeArea(ctx context.Context, lat, lon float64, radiusKm float64) error {
+// If arc is < 360, it will only scavenge tiles within the specified arc angle around the heading.
+func (s *Service) ScavengeArea(ctx context.Context, lat, lon, radiusKm, heading, arc float64) error {
 	if s.logger == nil {
 		s.logger = slog.Default()
 	}
@@ -471,41 +472,8 @@ func (s *Service) ScavengeArea(ctx context.Context, lat, lon float64, radiusKm f
 		return fmt.Errorf("failed to get geodata bounds: %w", err)
 	}
 
-	var allQIDs []string
-	evictKeys := make([]string, 0)
-
 	// 2. Parse tiles for QIDs
-	for _, rec := range records {
-		if !strings.HasPrefix(rec.Key, "wd_h3_") {
-			continue
-		}
-
-		// Strictly filter by radius distance
-		distKm := geo.Distance(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: rec.Lat, Lon: rec.Lon}) / 1000.0
-		if distKm > radiusKm {
-			continue
-		}
-
-		// Fetch raw JSON payload
-		data, _, found := s.store.GetGeodataCache(ctx, rec.Key)
-		if !found || len(data) == 0 {
-			continue
-		}
-
-		// Parse the SPARQL response using the streaming parser
-		articles, _, errParse := ParseSPARQLStreaming(strings.NewReader(string(data)))
-		if errParse != nil {
-			s.logger.Warn("Failed to parse scavenged tile", "key", rec.Key, "error", errParse)
-			continue
-		}
-
-		// Extract QIDs
-		for i := range articles {
-			allQIDs = append(allQIDs, articles[i].QID)
-		}
-
-		evictKeys = append(evictKeys, rec.Key)
-	}
+	allQIDs, evictKeys := s.extractQIDsFromTiles(ctx, records, lat, lon, radiusKm, heading, arc)
 
 	if len(allQIDs) == 0 {
 		s.logger.Info("ScavengeArea found no entities", "radius", radiusKm)
@@ -591,4 +559,51 @@ func (s *Service) EnsurePOIsLoaded(ctx context.Context, qids []string, lat, lon 
 func (s *Service) GetPOIsNear(ctx context.Context, lat, lon, radiusMeters float64) ([]*model.POI, error) {
 	// Delegate to POI Manager which holds the tracked POIs
 	return s.poi.GetPOIsNear(lat, lon, radiusMeters), nil
+}
+
+func (s *Service) extractQIDsFromTiles(ctx context.Context, records []store.GeodataRecord, lat, lon, radiusKm, heading, arc float64) (allQIDs, evictKeys []string) {
+	for _, rec := range records {
+		if !strings.HasPrefix(rec.Key, "wd_h3_") {
+			continue
+		}
+
+		// Strictly filter by radius distance
+		distKm := geo.Distance(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: rec.Lat, Lon: rec.Lon}) / 1000.0
+		if distKm > radiusKm {
+			continue
+		}
+
+		if arc < 360.0 {
+			bearing := geo.Bearing(geo.Point{Lat: lat, Lon: lon}, geo.Point{Lat: rec.Lat, Lon: rec.Lon})
+			diff := math.Abs(bearing - heading)
+			if diff > 180 {
+				diff = 360 - diff
+			}
+			if diff > arc/2.0 {
+				continue
+			}
+		}
+
+		// Fetch raw JSON payload
+		data, _, found := s.store.GetGeodataCache(ctx, rec.Key)
+		if !found || len(data) == 0 {
+			continue
+		}
+
+		// Parse the SPARQL response using the streaming parser
+		articles, _, errParse := ParseSPARQLStreaming(strings.NewReader(string(data)))
+		if errParse != nil {
+			s.logger.Warn("Failed to parse scavenged tile", "key", rec.Key, "error", errParse)
+			continue
+		}
+
+		// Extract QIDs
+		for i := range articles {
+			allQIDs = append(allQIDs, articles[i].QID)
+		}
+
+		evictKeys = append(evictKeys, rec.Key)
+	}
+
+	return allQIDs, evictKeys
 }

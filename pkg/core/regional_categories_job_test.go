@@ -192,7 +192,12 @@ func TestRegionalCategoriesJob_Pipeline(t *testing.T) {
 			_ = os.WriteFile(cityFile, []byte(""), 0644)
 			_ = os.WriteFile(adminFile, []byte(""), 0644)
 			geoSvc, _ := geo.NewService(cityFile, adminFile)
-			job := NewRegionalCategoriesJob(nil, mLLM, pm, validator, clf, geoSvc, &wikidata.Service{}, st)
+			dummyCfg := config.NewProvider(&config.Config{
+				Wikidata: config.WikidataConfig{
+					Area: config.AreaConfig{MaxDist: 80000},
+				},
+			}, nil)
+			job := NewRegionalCategoriesJob(dummyCfg, mLLM, pm, validator, clf, geoSvc, &wikidata.Service{}, st)
 
 			// Trigger Run (starts goroutine)
 			job.Run(context.Background(), &sim.Telemetry{Latitude: 50, Longitude: 10})

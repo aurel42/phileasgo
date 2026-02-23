@@ -24,11 +24,11 @@ Resolves a single taxonomy node (a class QID, not an article):
 
 1. **Config Check** (`getLookupMatch`): is this QID mapped in `categories.yaml` or in regional categories? If yes, return result.
 2. **DB Cache Check** (`GetClassification`): look up the `wikidata_hierarchy` table:
-   - `__IGNORED__` → return `Ignored: true`
-   - `__DEADEND__` → return `nil` (this node was fully traversed before and led nowhere)
+   - `__IGNORED__` → return `Ignored: true` **unless** regional categories are active (see below)
+   - `__DEADEND__` → return `nil` **unless** regional categories are active (see below)
    - Non-empty string → return that category
    - Empty string or not found → continue to slow path
-3. **Slow Path** (`slowPathHierarchy` → `searchHierarchy`): BFS traversal of `P279` parents.
+3. **Slow Path** (`slowPathHierarchy` → `searchHierarchy`): `slowPathHierarchy` re-reads the node via `GetHierarchy` (which returns both category and parents). The same sentinel bypass applies here: if regional categories are active, `__IGNORED__` and `__DEADEND__` sentinels are skipped and the node's cached parents are used to continue the BFS without an API call.
 
 ### BFS Slow Path: `searchHierarchy`
 
@@ -36,8 +36,8 @@ Layer-by-layer BFS traversal up the `P279` (subclass-of) graph, max depth **4**.
 
 Each layer goes through:
 
-1. **`scanLayerCache`**: for each node in the current queue, check the DB for a cached classification or cached parents. Nodes not found in DB are added to a `toFetch` list. Cached matches/ignores are tracked per-layer.
-2. **`fetchAndCacheLayer`**: batch-fetch `P279` parents for all `toFetch` nodes from the Wikidata API. Each fetched node's parents are scanned for matches (priority) then ignores, and the result is saved to `wikidata_hierarchy`. Nodes with no parents are marked `__DEADEND__`.
+1. **`scanLayerCache`**: for each node in the current queue, check the DB for a cached classification or cached parents. Nodes not found in DB are added to a `toFetch` list. Cached matches/ignores are tracked per-layer. When regional categories are active, `__IGNORED__` sentinels are not counted as layer-level ignores (so the BFS continues through them). `__DEADEND__` nodes always have their cached parents made available for further traversal.
+2. **`fetchAndCacheLayer`**: batch-fetch `P279` parents for all `toFetch` nodes from the Wikidata API. Each fetched node's parents are scanned for matches then ignores, and the result is saved to `wikidata_hierarchy`. Nodes with no parents are marked `__DEADEND__`. **Cache pollution prevention**: the match scan here uses `c.lookup` directly (static categories only), so regional matches are never written to the persistent DB. Regional matches are still detected separately by `checkFetchedForMatches` (which uses `getLookupMatch`) and returned to the BFS callers with the `isRegional` flag.
 3. **Layer Priority Check**: if any match was found in the layer (from cache or fetch), finalize the match immediately.
 4. **`buildNextLayer`**: scan parents of all current-layer nodes. Match scan runs first across all parents; if found, return immediately. Then ignored scan runs. Unvisited parents that are neither matched nor ignored are added to the next queue.
 5. **Ignore Resolution**: if the layer contained an ignored result but no match, `propagateIgnored` marks **all** traversed nodes (the entire BFS path) as `__IGNORED__` to short-circuit future traversals.
@@ -61,9 +61,36 @@ Runtime-injected QID→Category mappings, used for location-specific classificat
 
 - **`AddRegionalCategories(map)`**: appends entries to the `regionalCategories` lookup (thread-safe via `sync.RWMutex`).
 - **`ResetRegionalCategories()`**: clears all regional entries (called on teleport).
+- **`HasRegionalCategories()`**: read-lock check returning true if any regional categories are active. Used as the gate for sentinel bypass throughout the classifier.
 - **Lookup order** in `getLookupMatch`: static lookup first, then regional categories. Both are O(1) map lookups.
 
 Regional categories are checked at every point where `getLookupMatch` is called: fast lookup, hierarchy node resolution, and parent scanning during BFS.
+
+#### Cache Pollution Prevention
+
+Regional matches must not leak into the global DB cache (`wikidata_hierarchy`), because they are transient and location-specific. Two mechanisms enforce this:
+
+1. **`isRegional` flag**: `getLookupMatch` returns a three-value tuple `(category, isRegional, ok)`. The `isRegional` flag is tracked through the entire BFS — via `scanLayerCache`, `checkFetchedForMatches`, and `buildNextLayer` — and passed to `finalizeMatch`. When `isRegional` is true, `finalizeMatch` skips the DB save.
+2. **`fetchAndCacheLayer` static-only scan**: when saving freshly-fetched nodes to DB, the match scan uses `c.lookup` directly (bypassing regional categories) so that only static matches are persisted.
+
+#### Sentinel Bypass
+
+When `HasRegionalCategories()` is true, `__IGNORED__` and `__DEADEND__` sentinels are treated as "soft" — they do not short-circuit. Instead, the classifier re-enters the slow path using the node's cached parents (L4 structural cache) to check whether any parent now matches a regional category. This avoids API calls: the structural data is already in the DB.
+
+The bypass is applied consistently at both `classifyHierarchyNode` (L3 cache check) and `slowPathHierarchy` (L4 structural cache check). Without regional categories, sentinels behave exactly as before — hard short-circuits.
+
+#### ScavengeArea
+
+Source: `pkg/wikidata/service.go`
+
+After regional categories are added (from spatial cache on teleport, or from LLM discovery), `ScavengeArea` resets the local area so the pipeline re-evaluates entities against the new rules:
+
+1. Reads cached SPARQL tiles from the DB within a bounding box (radius + heading/arc filter).
+2. Parses each tile to extract QIDs.
+3. Deletes those QIDs from `seen_entities` via `DeleteSeenEntities`, un-ignoring them.
+4. Evicts tiles from the in-memory `recentTiles` cache so the scheduler picks them up on the next tick.
+
+Arc filtering: when in flight, scavenging is limited to the forward hemisphere (180° arc around the heading). On the ground, the full 360° circle is scavenged.
 
 ### Sentinel Values
 
@@ -71,10 +98,12 @@ The classifier uses two sentinel strings stored in `wikidata_hierarchy.category`
 
 | Sentinel | Meaning |
 |---|---|
-| `__IGNORED__` | This node (and its descendants) resolve to an ignored category. Future traversals return `Ignored: true` immediately. |
-| `__DEADEND__` | This node was fully traversed (all P279 paths exhausted up to depth 4) with no match or ignore. Future traversals return `nil` immediately. |
+| `__IGNORED__` | This node (and its descendants) resolve to an ignored category. Future traversals return `Ignored: true` immediately — unless regional categories are active, in which case the sentinel is bypassed and parents are re-evaluated. |
+| `__DEADEND__` | This node was fully traversed (all P279 paths exhausted up to depth 4) with no match or ignore. Future traversals return `nil` immediately — unless regional categories are active, in which case the sentinel is bypassed and parents are re-evaluated. |
 
 An empty string means the node exists in the DB (structural cache with parents) but has not been classified yet.
+
+When sentinels are bypassed, the node's cached parents (stored alongside the sentinel in the `wikidata_hierarchy` table) are used for further traversal. No API calls are needed.
 
 ## 2. The Filter Pipeline
 
@@ -147,7 +176,9 @@ Classification uses a 4-layer cache to minimize redundant API calls and DB queri
 |---|---|---|---|
 | **L1 — Static Lookup** | In-memory map | QID → Category from `categories.yaml` | Built once at startup, immutable |
 | **L2 — Regional Categories** | In-memory map | QID → Category injected at runtime | Added via `AddRegionalCategories`, cleared on teleport via `ResetRegionalCategories` |
-| **L3 — Classification Cache** | DB (`wikidata_hierarchy.category`) | Resolved category, `__IGNORED__`, or `__DEADEND__` | Persistent across sessions |
-| **L4 — Structural Cache** | DB (`wikidata_hierarchy.parents`) | P279 parent QIDs for a node | Persistent; avoids re-fetching hierarchy from Wikidata API |
+| **L3 — Classification Cache** | DB (`wikidata_hierarchy.category`) | Resolved category, `__IGNORED__`, or `__DEADEND__` | Persistent across sessions. Sentinels bypassed when L2 is non-empty. |
+| **L4 — Structural Cache** | DB (`wikidata_hierarchy.parents`) | P279 parent QIDs for a node | Persistent; avoids re-fetching hierarchy from Wikidata API. Critical during sentinel bypass — provides parents for re-traversal without API calls. |
 
 Lookup order: L1 → L2 → L3 → (L4 for structural data) → Wikidata API (slow path).
+
+When L2 (regional categories) is non-empty, L3 sentinels become soft: the classifier re-enters the BFS using L4's cached parents. This means L4 is more important than ever — without it, every bypassed sentinel would require a fresh API call to Wikidata. Positive matches in L3 (real category names, not sentinels) are unaffected and always short-circuit.

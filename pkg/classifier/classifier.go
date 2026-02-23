@@ -210,22 +210,25 @@ func (c *Classifier) classifyHierarchyNode(ctx context.Context, qid string) (*mo
 	// 2. Fast Path: DB Cache
 	storedCat, found, err := c.store.GetClassification(ctx, qid)
 	if err == nil && found {
-		if storedCat == catIgnored {
+		switch storedCat {
+		case catIgnored:
 			if !c.HasRegionalCategories() {
 				// Cached as explicitly ignored, and no regional overrides active
 				return &model.ClassificationResult{Ignored: true}, nil
 			}
 			// Regional categories active: must re-evaluate this ignored node
 			slog.Debug("Bypassing __IGNORED__ sentinel due to active regional categories", "qid", qid)
-		} else if storedCat == catDeadEnd {
+		case catDeadEnd:
 			if !c.HasRegionalCategories() {
 				// Cached as a Dead End, no regional overrides active
 				return nil, nil
 			}
 			// Regional categories active: must re-evaluate this dead end
 			slog.Debug("Bypassing __DEADEND__ sentinel due to active regional categories", "qid", qid)
-		} else if storedCat != "" {
-			return c.resultFor(storedCat), nil
+		default:
+			if storedCat != "" {
+				return c.resultFor(storedCat), nil
+			}
 		}
 		// Continue if completely empty (legacy or intermediate) or if sentinel was bypassed
 	}
@@ -244,17 +247,18 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 		subclasses = hNode.Parents
 		label = hNode.Name
 		if hNode.Category != "" {
-			if hNode.Category == catIgnored {
+			switch hNode.Category {
+			case catIgnored:
 				if !c.HasRegionalCategories() {
 					return &model.ClassificationResult{Ignored: true}, nil
 				}
 				slog.Debug("slowPathHierarchy: Bypassing __IGNORED__ sentinel due to active regional categories", "qid", qid)
-			} else if hNode.Category == catDeadEnd {
+			case catDeadEnd:
 				if !c.HasRegionalCategories() {
 					return nil, nil
 				}
 				slog.Debug("slowPathHierarchy: Bypassing __DEADEND__ sentinel due to active regional categories", "qid", qid)
-			} else {
+			default:
 				return c.resultFor(hNode.Category), nil
 			}
 		}
@@ -377,18 +381,7 @@ func (c *Classifier) scanLayerCache(ctx context.Context, queue []string) (toFetc
 					layerIgnore = id
 				}
 			case catDeadEnd:
-				if hasRegional {
-					// Need to re-evaluate its parents if we have regional config
-					// Because we found it in DB, we DO have its parents
-					if len(parents) == 0 {
-						// Literally no parents ever recorded
-					} else {
-						// We need to check its parents against the regional config!
-						// Add it to the queue of things to 'nextLayer' process even if it's deadend locally
-						// To do this simply, we just pretend it wasn't matched so we scan its parents.
-						match = ""
-					}
-				}
+				// Bypass sentinel if regional overrides are active (handled inherently by parents array)
 			default:
 				if layerMatch == "" {
 					layerMatch = match
@@ -622,7 +615,7 @@ func (c *Classifier) GetRegionalCategories() map[string]string {
 	return res
 }
 
-func (c *Classifier) getLookupMatch(qid string) (string, bool, bool) {
+func (c *Classifier) getLookupMatch(qid string) (category string, isRegional, ok bool) {
 	// 1. Static Lookup
 	if cat, ok := c.lookup[qid]; ok {
 		return cat, false, true

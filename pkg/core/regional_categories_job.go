@@ -102,6 +102,16 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 	// Context Data (Capture synchronously to avoid race conditions with telemetry pointer)
 	lat := t.Latitude
 	lon := t.Longitude
+	heading := t.Heading
+	onGround := t.IsOnGround
+
+	// Determine ScavengeArea range
+	radius := 30.0
+	arc := 360.0
+	if !onGround {
+		radius = float64(j.appCfg.AppConfig().Wikidata.Area.MaxDist) / 1000.0 // Convert meters to km
+		arc = 180.0                                                           // +/- 90 degrees forward
+	}
 
 	go func() {
 		defer j.Unlock() // Release lock when the background job completes
@@ -130,7 +140,7 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 			j.classifier.AddRegionalCategories(cachedSubclasses)
 
 			// We also scavenge the area when loading from cache because we might have teleported into this cache zone
-			if err := j.wikiSvc.ScavengeArea(ctx, lat, lon, 30.0); err != nil {
+			if err := j.wikiSvc.ScavengeArea(ctx, lat, lon, radius, heading, arc); err != nil {
 				slog.Warn("RegionalCategoriesJob: Cache Load ScavengeArea failed", "error", err)
 			}
 		}
@@ -165,7 +175,7 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 			return
 		}
 
-		j.processSubclasses(ctx, latGrid, lonGrid, combinedSubclasses)
+		j.processSubclasses(ctx, latGrid, lonGrid, combinedSubclasses, radius, heading, arc)
 	}()
 }
 
@@ -210,7 +220,7 @@ func (j *RegionalCategoriesJob) generateSubclasses(ctx context.Context, lat, lon
 	return combined
 }
 
-func (j *RegionalCategoriesJob) processSubclasses(ctx context.Context, latGrid, lonGrid int, subclasses []subclass) {
+func (j *RegionalCategoriesJob) processSubclasses(ctx context.Context, latGrid, lonGrid int, subclasses []subclass, radius, heading, arc float64) {
 	// Validate QIDs (Lookup by name since we don't trust LLM QIDs)
 	suggestions := make(map[string]string)
 	for _, sub := range subclasses {
@@ -247,7 +257,7 @@ func (j *RegionalCategoriesJob) processSubclasses(ctx context.Context, latGrid, 
 		slog.Info("RegionalCategoriesJob: Appended new regional categories to classifier", "count", len(regionalCategories))
 
 		// Reprocess local cache based on new rules immediately
-		if err := j.wikiSvc.ScavengeArea(ctx, float64(latGrid), float64(lonGrid), 30.0); err != nil {
+		if err := j.wikiSvc.ScavengeArea(ctx, float64(latGrid), float64(lonGrid), radius, heading, arc); err != nil {
 			slog.Warn("RegionalCategoriesJob: Failed to scavenge area after discovering new rules", "error", err)
 		}
 

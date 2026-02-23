@@ -410,6 +410,7 @@ func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns 
 	labelMgr := labels.NewManager(svcs.WikiSvc.GeoService(), svcs.PoiMgr, cfg)
 	labelH := api.NewMapLabelsHandler(labelMgr)
 	simH := api.NewSimCommandHandler(simClient)
+	regionalH := api.NewRegionalCategoriesHandler(svcs.Classifier, st)
 
 	srv := api.NewServer(appCfg.Server.Address,
 		telH,
@@ -425,6 +426,7 @@ func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns 
 		api.NewTripHandler(sessionMgr, st),
 		labelH,
 		simH,
+		regionalH,
 		shutdownFunc,
 	)
 

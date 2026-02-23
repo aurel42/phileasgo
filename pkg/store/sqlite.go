@@ -516,7 +516,7 @@ func (s *SQLiteStore) MarkEntitiesSeen(ctx context.Context, entities map[string]
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.PrepareContext(ctx, "INSERT OR IGNORE INTO seen_entities (qid, instances, created_at) VALUES (?, ?, ?)")
 	if err != nil {

@@ -628,7 +628,7 @@ func TestScavengeArea(t *testing.T) {
 	svc.recentMu.Unlock()
 
 	// 3. Execute ScavengeArea
-	err := svc.ScavengeArea(context.Background(), 50.0, 10.0, 25.0)
+	err := svc.ScavengeArea(context.Background(), 50.0, 10.0, 25.0, 0.0, 360.0)
 	if err != nil {
 		t.Fatalf("ScavengeArea failed: %v", err)
 	}
