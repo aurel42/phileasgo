@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## v0.3.215 (2026-02-23)
+- **Fix**: Replaced UTF-8 POI badges in EFB map with SVG icons to resolve "tofu" rendering.
+- **Improvement**: Optimized EFB top bar for VR by moving the version number to the System tab to save horizontal space.
+- **Improvement**: Implemented explicit z-layering for POI markers on the EFB map (active POIs now render on top).
+
 ## v0.3.214 (2026-02-23)
 - **Fix (Hotfix)**: Implemented automatic label hydration for regional categories. Tiles with missing labels (legacy cache) are now automatically hydrated with human-readable names in the background.
 - **Improved**: `request.Client` now gracefully handles missing caches, preventing potential runtime panics during edge cases and testing.

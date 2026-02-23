@@ -20,6 +20,28 @@ function packColor(r: number, g: number, b: number): number {
     return r | (g << 8) | (b << 16);
 }
 
+/** Badge geometry paths (15x15 viewBox) */
+const BADGE_PATHS = {
+    star: 'M7.5,0l-2,5h-5l4,3.5l-2,6l5-3.5l5,3.5l-2-6l4-3.5h-5L7.5,0z',
+    hourglass: 'M3,1h9v2L9.5,5.5v4L12,12v2H3v-2l2.5-2.5v-4L3,3V1z M5,2.5l2.5,2.5L10,2.5H5z M7.5,10L5,12.5h5L7.5,10z',
+    blocked: 'M7.5,1.5a6,6,0,1,0,6,6A6,6,0,0,0,7.5,1.5ZM3.5,7.5h8v1h-8Z'
+};
+
+/** Creates an SVG badge element (plain DOM). */
+function createBadgeSvg(path: string, color: string, size: number = 16): SVGSVGElement {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', String(size));
+    svg.setAttribute('height', String(size));
+    svg.setAttribute('viewBox', '0 0 15 15');
+    svg.style.cssText = `width:${size}px;height:${size}px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.5));pointer-events:none;`;
+    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathEl.setAttribute('d', path);
+    pathEl.setAttribute('fill', color);
+    svg.appendChild(pathEl);
+    return svg;
+}
+
+
 // 61-entry earth color array (index 0 = water, 1-60 = terrain by elevation)
 function buildEarthColors(): number[] {
     const colors: number[] = [];
@@ -86,6 +108,19 @@ function poiScaleFactor(poi: any, narratorStatus: any): number {
     }
     return 1.0;
 }
+
+function getPoiZIndex(poi: any, narratorStatus: any): string {
+    if (narratorStatus) {
+        if (poi.wikidata_id === narratorStatus.current_poi?.wikidata_id ||
+            poi.wikidata_id === narratorStatus.preparing_poi?.wikidata_id) return '3';
+    }
+    return isOnCooldown(poi) ? '1' : '2';
+}
+
+function getPoiOpacity(poi: any): string {
+    return isOnCooldown(poi) ? '0.7' : '1';
+}
+
 
 interface MapComponentProps extends ComponentProps {
     bus: EventBus;
@@ -209,21 +244,21 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
         container.dataset.badgeState = badgeStateKey;
 
         if (hasMsfs) {
-            const el = document.createElement('div');
-            el.style.cssText = 'position:absolute;top:-6px;right:-6px;color:#fbbf24;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.5));z-index:10;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;';
-            el.textContent = '\u2605';
-            container.appendChild(el);
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'position:absolute;top:-6px;right:-6px;z-index:10;display:flex;';
+            wrapper.appendChild(createBadgeSvg(BADGE_PATHS.star, '#fbbf24'));
+            container.appendChild(wrapper);
         }
 
         const blBadges: string[] = [];
-        if (isDeferred) blBadges.push('\u231B'); // Hourglass (safer than clock emoji)
-        if (isNoLos) blBadges.push('\u2298');   // Slashed circle (safer than blocked emoji)
+        if (isDeferred) blBadges.push(BADGE_PATHS.hourglass);
+        if (isNoLos) blBadges.push(BADGE_PATHS.blocked);
 
-        blBadges.forEach((iconText, idx) => {
-            const el = document.createElement('div');
-            el.style.cssText = `position:absolute;bottom:-6px;left:${-6 + (idx * 16)}px;font-size:16px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.5));z-index:11;`;
-            el.textContent = iconText;
-            container.appendChild(el);
+        blBadges.forEach((path, idx) => {
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = `position:absolute;bottom:-6px;left:${-6 + (idx * 16)}px;z-index:11;display:flex;`;
+            wrapper.appendChild(createBadgeSvg(path, 'white'));
+            container.appendChild(wrapper);
         });
     }
 
@@ -265,8 +300,8 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                     `border:1.5px solid rgba(0,0,0,0.45);` +
                     `box-shadow:0 2px 6px rgba(0,0,0,0.55);` +
                     `display:flex;align-items:center;justify-content:center;` +
-                    `z-index:${cooldown ? 1 : 2};` +
-                    `opacity:${cooldown ? '0.7' : '1'};`;
+                    `z-index:${getPoiZIndex(poi, narratorStatus)};` +
+                    `opacity:${getPoiOpacity(poi)};`;
 
                 const img = document.createElement("img");
                 img.src = poiIconUrl(poi.icon);
@@ -295,11 +330,10 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 this.markers.set(id, marker);
             } else {
                 // Update existing marker color and coords
-                const cooldown = isOnCooldown(poi);
                 const scale = poiScaleFactor(poi, narratorStatus);
                 marker.wrapper.style.background = poiDiscColor(poi, narratorStatus);
-                marker.wrapper.style.zIndex = cooldown ? '1' : '2';
-                marker.wrapper.style.opacity = cooldown ? '0.7' : '1';
+                marker.wrapper.style.zIndex = getPoiZIndex(poi, narratorStatus);
+                marker.wrapper.style.opacity = getPoiOpacity(poi);
                 marker.wrapper.style.transform = `translate(-50%,-50%) scale(${scale})`;
                 marker.scale = scale;
                 marker.lat = poi.lat;
@@ -338,7 +372,10 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
             if (!marker) continue;
 
             marker.wrapper.style.background = poiDiscColor(poi, narratorStatus);
+            marker.wrapper.style.zIndex = getPoiZIndex(poi, narratorStatus);
+            marker.wrapper.style.opacity = getPoiOpacity(poi);
             const scale = poiScaleFactor(poi, narratorStatus);
+
             marker.wrapper.style.transform = `translate(-50%,-50%) scale(${scale})`;
             marker.scale = scale;
 

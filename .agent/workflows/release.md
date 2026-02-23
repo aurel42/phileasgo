@@ -37,7 +37,7 @@ This workflow guides the release process for PhileasGo, ensuring code quality, v
             - **Good**: "Fixed formation balloons appearing in the wrong location."
         - **No Selling**: 
             - Use a dry, factual, and direct tone.
-            - Avoid hyperbolic or marketing language: "professional", "premium", "smart", "intelligent", "robust", "optimized".
+            - Avoid hyperbolic or marketing language: "professional", "premium", "smart", "intelligent".
             - **Bad**: "Implemented a professional cross-fading system for a premium feel."
             - **Good**: "Added volume fades to audio actions to eliminate clicks."
 5.  **Commit**:

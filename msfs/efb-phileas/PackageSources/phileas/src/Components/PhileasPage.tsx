@@ -712,7 +712,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                 <div class="status-bar-spacer"></div>
 
                 <div class="phileas-toolbar">
-                    <div class="brand">Phileas&nbsp;<span class="version">{this.props.apiVersion}</span></div>
+                    <div class="brand">Phileas</div>
                     <TTButton key="Map" callback={() => this.setTab('map')} selected={this.activeTab.map(t => t === 'map')} />
                     <TTButton key="POIs" callback={() => this.setTab('pois')} selected={this.activeTab.map(t => t === 'pois')} />
                     <TTButton key="Cities" callback={() => this.setTab('settlements')} selected={this.activeTab.map(t => t === 'settlements')} />

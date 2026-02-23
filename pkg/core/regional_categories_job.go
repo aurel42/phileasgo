@@ -121,46 +121,12 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 		lonGrid := int(math.Round(lon))
 
 		// 2. Check Cache for current tile and 8 neighbors
-		cachedSubclasses := make(map[string]string)
-		cachedLabels := make(map[string]string)
-		for dLat := -1; dLat <= 1; dLat++ {
-			for dLon := -1; dLon <= 1; dLon++ {
-				cats, labels, err := j.store.GetRegionalCategories(ctx, latGrid+dLat, lonGrid+dLon)
-				if err != nil {
-					slog.Error("RegionalCategoriesJob: Cache lookup failed", "lat", latGrid+dLat, "lon", lonGrid+dLon, "error", err)
-					continue
-				}
-				for qid, cat := range cats {
-					cachedSubclasses[qid] = cat
-				}
-				for qid, label := range labels {
-					cachedLabels[qid] = label
-				}
-			}
-		}
+		cachedSubclasses, cachedLabels := j.getNeighboringCategories(ctx, latGrid, lonGrid)
 
 		if len(cachedSubclasses) > 0 {
 			slog.Info("RegionalCategoriesJob: Loading regional categories from spatial cache", "count", len(cachedSubclasses))
 
-			// Check for missing labels and hydrate if necessary
-			missingLabelQIDs := []string{}
-			for qid := range cachedSubclasses {
-				if cachedLabels[qid] == "" {
-					missingLabelQIDs = append(missingLabelQIDs, qid)
-				}
-			}
-
-			if len(missingLabelQIDs) > 0 {
-				slog.Info("RegionalCategoriesJob: Hydrating missing labels from legacy cache", "count", len(missingLabelQIDs))
-				hydrated := j.validator.FetchLabels(ctx, missingLabelQIDs)
-				for qid, label := range hydrated {
-					cachedLabels[qid] = label
-				}
-				// Save back to spatial cache to persistent the fixes
-				if err := j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, cachedSubclasses, cachedLabels); err != nil {
-					slog.Warn("RegionalCategoriesJob: Failed to update cache with hydrated labels", "error", err)
-				}
-			}
+			j.hydrateMissingLabels(ctx, latGrid, lonGrid, cachedSubclasses, cachedLabels)
 
 			j.classifier.AddRegionalCategories(cachedSubclasses, cachedLabels)
 
@@ -170,38 +136,84 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 			}
 		}
 
-		// 3. Check if current tile needs LLM discovery
-		currentTile, _, _ := j.store.GetRegionalCategories(ctx, latGrid, lonGrid)
-		if currentTile != nil {
-			slog.Info("RegionalCategoriesJob: Current tile already discovered, skipping LLM", "lat", latGrid, "lon", lonGrid)
-			return
-		}
-
-		location := j.geo.GetLocation(lat, lon)
-		country := j.geo.GetCountry(lat, lon)
-		region := location.RegionName
-		if region == "" {
-			region = location.CityName
-		}
-
-		// Build category list for prompt
-		catNames := []string{}
-		for name := range j.classifier.GetConfig().Categories {
-			catNames = append(catNames, name)
-		}
-		categoryList := strings.Join(catNames, ", ")
-
-		combinedSubclasses := j.generateSubclasses(ctx, lat, lon, country, region, categoryList)
-
-		if len(combinedSubclasses) == 0 {
-			slog.Info("RegionalCategoriesJob: No regional categories suggested")
-			// Save empty map to current tile to avoid repeat LLM calls for "dead" zones
-			_ = j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, make(map[string]string), make(map[string]string))
-			return
-		}
-
-		j.processSubclasses(ctx, latGrid, lonGrid, combinedSubclasses, radius, heading, arc)
+		j.discoverNewCategories(ctx, lat, lon, latGrid, lonGrid, radius, heading, arc)
 	}()
+}
+
+func (j *RegionalCategoriesJob) getNeighboringCategories(ctx context.Context, latGrid, lonGrid int) (subclasses, labels map[string]string) {
+	subclasses = make(map[string]string)
+	labels = make(map[string]string)
+	for dLat := -1; dLat <= 1; dLat++ {
+		for dLon := -1; dLon <= 1; dLon++ {
+			cats, lbls, err := j.store.GetRegionalCategories(ctx, latGrid+dLat, lonGrid+dLon)
+			if err != nil {
+				slog.Error("RegionalCategoriesJob: Cache lookup failed", "lat", latGrid+dLat, "lon", lonGrid+dLon, "error", err)
+				continue
+			}
+			for qid, cat := range cats {
+				subclasses[qid] = cat
+			}
+			for qid, l := range lbls {
+				labels[qid] = l
+			}
+		}
+	}
+	return subclasses, labels
+}
+
+func (j *RegionalCategoriesJob) hydrateMissingLabels(ctx context.Context, latGrid, lonGrid int, subclasses, labels map[string]string) {
+	missingLabelQIDs := []string{}
+	for qid := range subclasses {
+		if labels[qid] == "" {
+			missingLabelQIDs = append(missingLabelQIDs, qid)
+		}
+	}
+
+	if len(missingLabelQIDs) > 0 {
+		slog.Info("RegionalCategoriesJob: Hydrating missing labels from legacy cache", "count", len(missingLabelQIDs))
+		hydrated := j.validator.FetchLabels(ctx, missingLabelQIDs)
+		for qid, label := range hydrated {
+			labels[qid] = label
+		}
+		// Save back to spatial cache to persist the fixes
+		if err := j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, subclasses, labels); err != nil {
+			slog.Warn("RegionalCategoriesJob: Failed to update cache with hydrated labels", "error", err)
+		}
+	}
+}
+
+func (j *RegionalCategoriesJob) discoverNewCategories(ctx context.Context, lat, lon float64, latGrid, lonGrid int, radius, heading, arc float64) {
+	// 3. Check if current tile needs LLM discovery
+	currentTile, _, _ := j.store.GetRegionalCategories(ctx, latGrid, lonGrid)
+	if currentTile != nil {
+		slog.Info("RegionalCategoriesJob: Current tile already discovered, skipping LLM", "lat", latGrid, "lon", lonGrid)
+		return
+	}
+
+	location := j.geo.GetLocation(lat, lon)
+	country := j.geo.GetCountry(lat, lon)
+	region := location.RegionName
+	if region == "" {
+		region = location.CityName
+	}
+
+	// Build category list for prompt
+	catNames := []string{}
+	for name := range j.classifier.GetConfig().Categories {
+		catNames = append(catNames, name)
+	}
+	categoryList := strings.Join(catNames, ", ")
+
+	combinedSubclasses := j.generateSubclasses(ctx, lat, lon, country, region, categoryList)
+
+	if len(combinedSubclasses) == 0 {
+		slog.Info("RegionalCategoriesJob: No regional categories suggested")
+		// Save empty map to current tile to avoid repeat LLM calls for "dead" zones
+		_ = j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, make(map[string]string), make(map[string]string))
+		return
+	}
+
+	j.processSubclasses(ctx, latGrid, lonGrid, combinedSubclasses, radius, heading, arc)
 }
 
 func (j *RegionalCategoriesJob) generateSubclasses(ctx context.Context, lat, lon float64, country, region, categoryList string) []subclass {
