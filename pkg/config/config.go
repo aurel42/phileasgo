@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -173,6 +174,7 @@ type NarratorConfig struct {
 	Frequency                 int                `yaml:"frequency"` // 1=Rarely, 2=Normal, 3=Active, 4=Hyperactive
 	PauseDuration             Duration           `yaml:"pause_between_narrations"`
 	RepeatTTL                 Duration           `yaml:"repeat_ttl"`
+	TakeoffDelay              Duration           `yaml:"delay_after_takeoff"`
 	TargetLanguage            string             `yaml:"target_language"` // Deprecated: use ActiveTargetLanguage
 	ActiveTargetLanguage      string             `yaml:"active_target_language"`
 	TargetLanguageLibrary     []string           `yaml:"target_language_library"`
@@ -459,6 +461,7 @@ func DefaultConfig() *Config {
 			Frequency:                 3, // Active
 			PauseDuration:             Duration(4 * time.Second),
 			RepeatTTL:                 Duration(30 * 24 * time.Hour), // 30d
+			TakeoffDelay:              Duration(10 * time.Second),
 			TargetLanguage:            "en-US",
 			ActiveTargetLanguage:      "en-US",
 			TargetLanguageLibrary:     []string{"en-US", "en-GB", "de-DE", "fr-FR", "es-ES", "pl-PL"},
@@ -563,6 +566,15 @@ func Load(path string) (*Config, error) {
 		// If file does not exist, save defaults
 		if err := Save(path, cfg); err != nil {
 			return nil, fmt.Errorf("failed to save config file: %w", err)
+		}
+	}
+
+	// Load sibling llm.yaml if the main config has no LLM providers configured.
+	// This allows the LLM config to live in a separate, repo-tracked file while
+	// phileas.yaml remains user-specific and gitignored.
+	if len(cfg.LLM.Providers) == 0 {
+		if err := loadSiblingLLM(dir, cfg); err != nil {
+			return nil, err
 		}
 	}
 
@@ -683,42 +695,62 @@ func GenerateDefault(path string) error {
 	return Save(path, DefaultConfig())
 }
 
+// loadSiblingLLM loads LLM provider config from a sibling llm.yaml file in the given directory.
+// This lets the LLM config be repo-tracked while phileas.yaml stays user-specific and gitignored.
+func loadSiblingLLM(dir string, cfg *Config) error {
+	llmPath := filepath.Join(dir, "llm.yaml")
+	if _, err := os.Stat(llmPath); err != nil {
+		return nil // No sibling file — not an error
+	}
+
+	llmData, err := os.ReadFile(llmPath)
+	if err != nil {
+		return fmt.Errorf("failed to read LLM config file: %w", err)
+	}
+
+	var llmWrapper struct {
+		LLM LLMConfig `yaml:"llm"`
+	}
+	if err := yaml.Unmarshal(llmData, &llmWrapper); err != nil {
+		return fmt.Errorf("failed to parse LLM config file: %w", err)
+	}
+
+	cfg.LLM = llmWrapper.LLM
+	slog.Info("LLM config loaded from sibling file", "path", llmPath)
+	return nil
+}
+
 func loadSecretsFromEnv(cfg *Config) {
 	loadLLMSecrets(cfg)
 	loadTTSSecrets(cfg)
 }
 
 func loadLLMSecrets(cfg *Config) {
-	// LLM Providers
-	// We iterate over the configured providers and look for specific Env Vars
+	// Map known identifiers to their expected environment variable names.
+	// We try by name first (preferred after consolidation, e.g. name "groq" with type "openai"),
+	// then fall back to type (for providers with custom names, e.g. name "my-gemini" with type "gemini").
+	envKeys := map[string]string{
+		"gemini":     "GEMINI_API_KEY",
+		"groq":       "GROQ_API_KEY",
+		"openai":     "OPENAI_API_KEY",
+		"perplexity": "PERPLEXITY_API_KEY",
+		"deepseek":   "DEEPSEEK_API_KEY",
+		"nvidia":     "NVIDIA_API_KEY",
+	}
+
 	for name, p := range cfg.LLM.Providers {
-		switch p.Type {
-		case "gemini":
-			if key := os.Getenv("GEMINI_API_KEY"); key != "" {
-				p.Key = key
-			}
-		case "groq":
-			if key := os.Getenv("GROQ_API_KEY"); key != "" {
-				p.Key = key
-			}
-		case "openai":
-			if key := os.Getenv("OPENAI_API_KEY"); key != "" {
-				p.Key = key
-			}
-		case "perplexity", "sonar":
-			if key := os.Getenv("PERPLEXITY_API_KEY"); key != "" {
-				p.Key = key
-			}
-		case "deepseek":
-			if key := os.Getenv("DEEPSEEK_API_KEY"); key != "" {
-				p.Key = key
-			}
-		case "nvidia":
-			if key := os.Getenv("NVIDIA_API_KEY"); key != "" {
+		envKey := ""
+		// Try name first, then type
+		if ek, ok := envKeys[name]; ok {
+			envKey = ek
+		} else if ek, ok := envKeys[p.Type]; ok {
+			envKey = ek
+		}
+		if envKey != "" {
+			if key := os.Getenv(envKey); key != "" {
 				p.Key = key
 			}
 		}
-		// Update the map because p is a copy
 		cfg.LLM.Providers[name] = p
 	}
 }

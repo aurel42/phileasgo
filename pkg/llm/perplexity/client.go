@@ -21,6 +21,7 @@ type Client struct {
 	rc       *request.Client
 	apiKey   string
 	profiles map[string]string
+	label    string
 
 	mu sync.RWMutex
 }
@@ -140,6 +141,19 @@ func (c *Client) HasProfile(name string) bool {
 	return ok && model != ""
 }
 
+// SetLabel configures the provider label used for tracking and stats.
+func (c *Client) SetLabel(label string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.label = label
+}
+
+func (c *Client) getLabel() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.label
+}
+
 func (c *Client) execute(ctx context.Context, sreq sonarRequest) (string, error) {
 	if c.apiKey == "" {
 		return "", fmt.Errorf("api key is missing")
@@ -154,6 +168,9 @@ func (c *Client) execute(ctx context.Context, sreq sonarRequest) (string, error)
 		"Authorization": "Bearer " + c.apiKey,
 		"Content-Type":  "application/json",
 	}
+
+	// Always inject the provider label for accurate tracking/stats
+	ctx = context.WithValue(ctx, request.CtxProviderLabel, c.getLabel())
 
 	respBody, err := c.rc.PostWithHeaders(ctx, baseURL, body, headers)
 	if err != nil {
@@ -232,6 +249,9 @@ func (c *Client) Search(ctx context.Context, query string) (*SearchResult, error
 		"Authorization": "Bearer " + c.apiKey,
 		"Content-Type":  "application/json",
 	}
+
+	// Always inject the provider label for accurate tracking/stats
+	ctx = context.WithValue(ctx, request.CtxProviderLabel, c.getLabel())
 
 	respBody, err := c.rc.PostWithHeaders(ctx, baseURL, body, headers)
 	if err != nil {

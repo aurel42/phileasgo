@@ -54,6 +54,7 @@ llm:
         openai:
             type: "openai"
             key: "test-key"
+            base_url: "https://api.openai.com/v1"
             profiles:
                 narration: "gpt-4o"
     fallback: ["openai"]

@@ -15,7 +15,7 @@ func TestNormalizeProvider(t *testing.T) {
 		{"api.groq.com", "groq"}, // checking if existing logic covers this
 		{"api.perplexity.ai", "perplexity"},
 		{"api.deepseek.com", "deepseek"}, // The new requirement
-		{"other.com", "other.com"},
+		{"other.com", "other"},
 	}
 
 	for _, tt := range tests {

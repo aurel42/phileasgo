@@ -206,6 +206,18 @@ func (j *NarrationJob) PrepareEssay(ctx context.Context, t *sim.Telemetry) {
 func (j *NarrationJob) checkFlightStagePOI(t *sim.Telemetry) bool {
 	switch t.FlightStage {
 	case sim.StageAirborne, sim.StageClimb, sim.StageCruise, sim.StageDescend:
+		// [NEW] Reinstate post-takeoff delay to allow 'letsgo' announcement to play
+		// and prevent selecting low-value POIs immediately on rotate.
+		takeOffTime := j.sim.GetLastTransition(sim.StageTakeOff)
+		if !takeOffTime.IsZero() {
+			delay := j.cfgProv.TakeoffDelay(context.Background())
+			if time.Since(takeOffTime) < delay {
+				slog.Debug("NarrationJob: Auto-narration suppressed during post-takeoff delay",
+					"elapsed", time.Since(takeOffTime).Round(time.Second),
+					"delay", delay)
+				return false
+			}
+		}
 		return true
 	case sim.StageLanded:
 		// Also allowed on ground for airport narration, but NOT once landed (until debriefed)

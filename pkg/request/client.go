@@ -29,6 +29,10 @@ type CtxKey string
 // Value should be an int.
 const CtxMaxAttempts CtxKey = "max_attempts"
 
+// CtxProviderLabel is the context key for an explicit provider label (e.g., "groq", "deepseek").
+// This overrides the hostname-based normalization.
+const CtxProviderLabel CtxKey = "provider_label"
+
 // Client handles HTTP requests with queuing, caching, and tracking.
 type Client struct {
 	httpClient *http.Client
@@ -108,7 +112,7 @@ func (c *Client) GetWithHeaders(ctx context.Context, u string, headers map[strin
 		return nil, fmt.Errorf("invalid url: %w", err)
 	}
 	host := parsedURL.Host
-	provider := normalizeProvider(host)
+	provider := c.resolveProvider(ctx, host)
 
 	// 1. Check Cache (Only if key is provided)
 	if cacheKey != "" && c.cache != nil {
@@ -153,7 +157,7 @@ func (c *Client) PostWithHeaders(ctx context.Context, u string, body []byte, hea
 		return nil, fmt.Errorf("invalid url: %w", err)
 	}
 	host := parsedURL.Host
-	provider := normalizeProvider(host)
+	provider := c.resolveProvider(ctx, host)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(body))
 	if err != nil {
@@ -173,6 +177,13 @@ func (c *Client) PostWithHeaders(ctx context.Context, u string, body []byte, hea
 	}
 }
 
+func (c *Client) resolveProvider(ctx context.Context, host string) string {
+	if label, ok := ctx.Value(CtxProviderLabel).(string); ok && label != "" {
+		return label
+	}
+	return normalizeProvider(host)
+}
+
 func normalizeProvider(host string) string {
 	// Group all wikidata subdomains (www, query, etc.) into one "wikidata" provider for serialization
 	if strings.HasSuffix(host, ".wikidata.org") || host == "wikidata.org" {
@@ -181,21 +192,26 @@ func normalizeProvider(host string) string {
 	if strings.HasSuffix(host, ".wikipedia.org") || host == "wikipedia.org" {
 		return "wikipedia"
 	}
+
+	// Google's multi-service domain doesn't extract a useful name dynamically
 	if strings.HasSuffix(host, "googleapis.com") {
 		return "gemini"
 	}
-	if strings.HasSuffix(host, "groq.com") {
-		return "groq"
+
+	// Dynamic normalization: pick the second-to-last part (e.g. api.groq.com -> groq)
+	parts := strings.Split(host, ".")
+	if len(parts) >= 2 {
+		// handle common TLDs or just pick the domain
+		domain := parts[len(parts)-2]
+		// Special cases for common TLDs to avoid returning "com" or "ai"
+		if domain == "com" || domain == "org" || domain == "net" || domain == "ai" || domain == "io" || domain == "edu" {
+			if len(parts) >= 3 {
+				domain = parts[len(parts)-3]
+			}
+		}
+		return domain
 	}
-	if strings.HasSuffix(host, "perplexity.ai") {
-		return "perplexity"
-	}
-	if strings.HasSuffix(host, "deepseek.com") {
-		return "deepseek"
-	}
-	if strings.HasSuffix(host, "nvidia.com") {
-		return "nvidia"
-	}
+
 	return host
 }
 
@@ -271,7 +287,7 @@ func (c *Client) PostWithCache(ctx context.Context, u string, body []byte, heade
 		return nil, fmt.Errorf("invalid url: %w", err)
 	}
 	host := parsedURL.Host
-	provider := normalizeProvider(host)
+	provider := c.resolveProvider(ctx, host)
 
 	// 1. Check Cache
 	if cacheKey != "" {
@@ -309,7 +325,7 @@ func (c *Client) PostWithGeodataCache(ctx context.Context, u string, body []byte
 		return nil, fmt.Errorf("invalid url: %w", err)
 	}
 	host := parsedURL.Host
-	provider := normalizeProvider(host)
+	provider := c.resolveProvider(ctx, host)
 
 	// 1. Check Geodata Cache
 	if cacheKey != "" {
@@ -356,7 +372,7 @@ func (c *Client) PostWithGeodataCache(ctx context.Context, u string, body []byte
 
 // executeWithBackoff attempts the request with exponential backoff on retryable errors.
 func (c *Client) executeWithBackoff(req *http.Request) ([]byte, error) {
-	provider := normalizeProvider(req.URL.Host)
+	provider := c.resolveProvider(req.Context(), req.URL.Host)
 
 	maxAttempts := c.retries
 	if v := req.Context().Value(CtxMaxAttempts); v != nil {

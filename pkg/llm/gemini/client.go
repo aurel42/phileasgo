@@ -32,6 +32,7 @@ type Client struct {
 	// Temperature settings for narration (base + jitter with bell curve)
 	temperatureBase   float32
 	temperatureJitter float32
+	label             string
 
 	mu sync.RWMutex
 }
@@ -45,6 +46,7 @@ func NewClient(cfg config.ProviderConfig, rc *request.Client, t *tracker.Tracker
 		profiles:          cfg.Profiles,
 		temperatureBase:   1.0, // Defaults
 		temperatureJitter: 0.3,
+		label:             "gemini", // Default label
 	}
 
 	if c.apiKey != "" {
@@ -86,6 +88,22 @@ func (c *Client) SetTemperature(base, jitter float32) {
 	c.temperatureJitter = jitter
 }
 
+// SetLabel configures the provider label used for tracking and stats.
+func (c *Client) SetLabel(label string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.label = label
+}
+
+func (c *Client) getLabel() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.label == "" {
+		return "gemini"
+	}
+	return c.label
+}
+
 func (c *Client) getTemperature() *float32 {
 	// Simple randomization within range
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -120,7 +138,7 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 	resp, err := client.Models.GenerateContent(ctx, modelName, genai.Text(prompt), config)
 	if err != nil {
 		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
+			c.tracker.TrackAPIFailure(c.getLabel())
 		}
 		return "", fmt.Errorf("generate text error: %w", err)
 	}
@@ -133,13 +151,13 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 	text, err := getResponseText(resp)
 	if err != nil {
 		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
+			c.tracker.TrackAPIFailure(c.getLabel())
 		}
 		return "", err
 	}
 
 	if c.tracker != nil {
-		c.tracker.TrackAPISuccess("gemini")
+		c.tracker.TrackAPISuccess(c.getLabel())
 	}
 
 	return text, nil
@@ -166,7 +184,7 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 	resp, err := client.Models.GenerateContent(ctx, modelName, genai.Text(prompt), config)
 	if err != nil {
 		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
+			c.tracker.TrackAPIFailure(c.getLabel())
 		}
 		return fmt.Errorf("generate json error: %w", err)
 	}
@@ -174,7 +192,7 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 	text, err := getResponseText(resp)
 	if err != nil {
 		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
+			c.tracker.TrackAPIFailure(c.getLabel())
 		}
 		return err
 	}
@@ -184,13 +202,13 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 
 	if err := json.Unmarshal([]byte(cleaned), target); err != nil {
 		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
+			c.tracker.TrackAPIFailure(c.getLabel())
 		}
 		return fmt.Errorf("failed to unmarshal JSON response: %w. Response: %s", err, cleaned)
 	}
 
 	if c.tracker != nil {
-		c.tracker.TrackAPISuccess("gemini")
+		c.tracker.TrackAPISuccess(c.getLabel())
 	}
 
 	return nil
@@ -241,7 +259,7 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 	resp, err := client.Models.GenerateContent(ctx, modelName, contents, config)
 	if err != nil {
 		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
+			c.tracker.TrackAPIFailure(c.getLabel())
 		}
 		return "", fmt.Errorf("generate image text error: %w", err)
 	}
@@ -249,13 +267,13 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 	text, err := getResponseText(resp)
 	if err != nil {
 		if c.tracker != nil {
-			c.tracker.TrackAPIFailure("gemini")
+			c.tracker.TrackAPIFailure(c.getLabel())
 		}
 		return "", err
 	}
 
 	if c.tracker != nil {
-		c.tracker.TrackAPISuccess("gemini")
+		c.tracker.TrackAPISuccess(c.getLabel())
 	}
 
 	return text, nil

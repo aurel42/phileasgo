@@ -99,22 +99,81 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
-			name: "LLM_Env_Override",
+			name: "LLM_From_Sibling",
 			setup: func() {
-				t.Setenv("GEMINI_API_KEY", "env_secret_key")
-				// Provide config with empty key for gemini
-				err := os.WriteFile(configPath, []byte("llm:\n  providers:\n    p1:\n      type: gemini\n      key: \"\"\n"), 0o644)
+				// Main config has no LLM block; sibling llm.yaml provides it
+				err := os.WriteFile(configPath, []byte("tts:\n  engine: edge-tts\n"), 0o644)
 				if err != nil {
 					t.Fatalf("failed to setup test file: %v", err)
 				}
+				llmPath := filepath.Join(filepath.Dir(configPath), "llm.yaml")
+				err = os.WriteFile(llmPath, []byte("llm:\n  providers:\n    groq:\n      type: openai\n      base_url: https://api.groq.com/openai/v1\n      profiles:\n        narration: llama-3.1-8b-instant\n  fallback: [\"groq\"]\n"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup llm.yaml: %v", err)
+				}
 			},
 			validate: func(t *testing.T, cfg *Config) {
-				p1, ok := cfg.LLM.Providers["p1"]
-				if !ok {
-					t.Fatal("provider p1 missing")
+				if len(cfg.LLM.Providers) != 1 {
+					t.Fatalf("expected 1 provider from sibling, got %d", len(cfg.LLM.Providers))
 				}
-				if p1.Key != "env_secret_key" {
-					t.Errorf("expected Key 'env_secret_key', got '%s'", p1.Key)
+				groq, ok := cfg.LLM.Providers["groq"]
+				if !ok {
+					t.Fatal("expected groq provider from sibling")
+				}
+				if groq.Profiles["narration"] != "llama-3.1-8b-instant" {
+					t.Errorf("expected groq narration model, got %s", groq.Profiles["narration"])
+				}
+			},
+			checkFile: func(t *testing.T) {},
+		},
+		{
+			name: "LLM_PhileasOverride",
+			setup: func() {
+				// Main config HAS an LLM block — should win over sibling
+				err := os.WriteFile(configPath, []byte("llm:\n  providers:\n    gemini:\n      type: gemini\n      profiles:\n        narration: gemini-pro\n  fallback: [\"gemini\"]\n"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup test file: %v", err)
+				}
+				// Sibling also exists but should be ignored
+				llmPath := filepath.Join(filepath.Dir(configPath), "llm.yaml")
+				err = os.WriteFile(llmPath, []byte("llm:\n  providers:\n    groq:\n      type: openai\n      profiles:\n        narration: llama\n  fallback: [\"groq\"]\n"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup llm.yaml: %v", err)
+				}
+			},
+			validate: func(t *testing.T, cfg *Config) {
+				// Should have gemini from phileas.yaml, NOT groq from sibling
+				if len(cfg.LLM.Providers) != 1 {
+					t.Fatalf("expected 1 provider, got %d", len(cfg.LLM.Providers))
+				}
+				if _, ok := cfg.LLM.Providers["gemini"]; !ok {
+					t.Error("expected gemini from phileas.yaml override, not sibling")
+				}
+			},
+			checkFile: func(t *testing.T) {},
+		},
+		{
+			name: "LLM_Env_Override",
+			setup: func() {
+				t.Setenv("GEMINI_API_KEY", "env_secret_key")
+				// Provide config with empty key for gemini via sibling
+				err := os.WriteFile(configPath, []byte("tts:\n  engine: edge-tts\n"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup test file: %v", err)
+				}
+				llmPath := filepath.Join(filepath.Dir(configPath), "llm.yaml")
+				err = os.WriteFile(llmPath, []byte("llm:\n  providers:\n    gemini:\n      type: gemini\n      key: \"\"\n  fallback: [\"gemini\"]\n"), 0o644)
+				if err != nil {
+					t.Fatalf("failed to setup llm.yaml: %v", err)
+				}
+			},
+			validate: func(t *testing.T, cfg *Config) {
+				p, ok := cfg.LLM.Providers["gemini"]
+				if !ok {
+					t.Fatal("provider gemini missing")
+				}
+				if p.Key != "env_secret_key" {
+					t.Errorf("expected Key 'env_secret_key', got '%s'", p.Key)
 				}
 			},
 			checkFile: func(t *testing.T) {
@@ -217,6 +276,7 @@ func TestLoad(t *testing.T) {
 			// Ideally each test case should run in isolation or cleanup.
 			// However `Load` overwrites. But to be safe let's remove file before `setup`.
 			os.Remove(configPath)
+			os.Remove(filepath.Join(filepath.Dir(configPath), "llm.yaml"))
 			tt.setup()
 
 			cfg, err := Load(configPath)

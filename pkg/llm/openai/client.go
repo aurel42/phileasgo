@@ -22,6 +22,7 @@ type Client struct {
 	apiKey   string
 	baseURL  string
 	profiles map[string]string
+	label    string
 
 	// Temperature settings
 	temperatureBase   float32
@@ -30,35 +31,35 @@ type Client struct {
 	mu sync.RWMutex
 }
 
-// openaiRequest follows the standard Chat Completions format.
-type openaiRequest struct {
+// Request follows the standard OpenAI Chat Completions format.
+type Request struct {
 	Model          string          `json:"model"`
-	Messages       []openaiMessage `json:"messages"`
-	ResponseFormat *responseFormat `json:"response_format,omitempty"`
+	Messages       []Message       `json:"messages"`
+	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
 	Temperature    float32         `json:"temperature,omitempty"`
 }
 
-type openaiMessage struct {
+type Message struct {
 	Role    string `json:"role"`
-	Content any    `json:"content"` // Can be string or []contentPart
+	Content any    `json:"content"` // Can be string or []ContentPart
 }
 
-type contentPart struct {
+type ContentPart struct {
 	Type     string           `json:"type"`
 	Text     string           `json:"text,omitempty"`
-	ImageURL *imageURLContent `json:"image_url,omitempty"`
+	ImageURL *ImageURLContent `json:"image_url,omitempty"`
 }
 
-type imageURLContent struct {
+type ImageURLContent struct {
 	URL string `json:"url"`
 }
 
-type responseFormat struct {
+type ResponseFormat struct {
 	Type string `json:"type"`
 }
 
-// openaiResponse follows the standard Chat Completions response format.
-type openaiResponse struct {
+// Response follows the standard Chat Completions response format.
+type Response struct {
 	Choices []struct {
 		Message struct {
 			Content string `json:"content"`
@@ -86,9 +87,17 @@ func NewClient(cfg config.ProviderConfig, defaultBaseURL string, rc *request.Cli
 		apiKey:            cfg.Key,
 		profiles:          cfg.Profiles,
 		rc:                rc,
+		label:             cfg.Type, // Use config type as label if available, fallback handled in factory
 		temperatureBase:   1.0,
 		temperatureJitter: 0.3,
 	}, nil
+}
+
+// SetLabel sets the provider label for request tracking.
+func (c *Client) SetLabel(label string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.label = label
 }
 
 // ValidateModels checks if the configured models are available.
@@ -146,7 +155,7 @@ func (c *Client) ValidateModels(ctx context.Context) error {
 }
 
 func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string, error) {
-	model, err := c.resolveModel(name)
+	model, err := c.ResolveModel(name)
 	if err != nil {
 		return "", err
 	}
@@ -156,46 +165,46 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 		temp = 1.0
 	}
 
-	req := openaiRequest{
+	req := Request{
 		Model: model,
-		Messages: []openaiMessage{
+		Messages: []Message{
 			{Role: "user", Content: prompt},
 		},
 		Temperature: temp,
 	}
 
-	return c.execute(ctx, req)
+	return c.Execute(ctx, req)
 }
 
 func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
-	model, err := c.resolveModel(name)
+	model, err := c.ResolveModel(name)
 	if err != nil {
 		return err
 	}
 
-	// DeepSeek (and others) require "json" in the prompt for json_object mode
+	// OpenAI-compatible providers (Groq, Nvidia, etc.) require "json" in the prompt for json_object mode.
 	if !strings.Contains(strings.ToLower(prompt), "json") {
 		prompt += " Respond in JSON."
 	}
 
 	var temp float32 = 0.1
-	var respFmt *responseFormat = &responseFormat{Type: "json_object"}
+	var respFmt *ResponseFormat = &ResponseFormat{Type: "json_object"}
 
 	if isReasoner(model) {
 		temp = 1.0
-		respFmt = nil // Reasoner/R1 doesn't support json_object mode
+		respFmt = nil // Reasoners/R1 don't support json_object mode well
 	}
 
-	req := openaiRequest{
+	req := Request{
 		Model: model,
-		Messages: []openaiMessage{
+		Messages: []Message{
 			{Role: "user", Content: prompt},
 		},
 		ResponseFormat: respFmt,
 		Temperature:    temp,
 	}
 
-	respText, err := c.execute(ctx, req)
+	respText, err := c.Execute(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -210,7 +219,7 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 }
 
 func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
-	model, err := c.resolveModel(name)
+	model, err := c.ResolveModel(name)
 	if err != nil {
 		return "", err
 	}
@@ -224,30 +233,26 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 	dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, b64Data)
 
 	var temp float32 = 0.7
-	if isReasoner(model) {
-		temp = 1.0
-	}
-
-	req := openaiRequest{
+	req := Request{
 		Model: model,
-		Messages: []openaiMessage{
+		Messages: []Message{
 			{
 				Role: "user",
-				Content: []contentPart{
+				Content: []ContentPart{
 					{Type: "text", Text: prompt},
-					{Type: "image_url", ImageURL: &imageURLContent{URL: dataURL}},
+					{Type: "image_url", ImageURL: &ImageURLContent{URL: dataURL}},
 				},
 			},
 		},
 		Temperature: temp,
 	}
 
-	return c.execute(ctx, req)
+	return c.Execute(ctx, req)
 }
 
 func (c *Client) Close() {}
 
-func (c *Client) execute(ctx context.Context, oreq openaiRequest) (string, error) {
+func (c *Client) Execute(ctx context.Context, oreq Request) (string, error) {
 	if c.apiKey == "" {
 		return "", fmt.Errorf("api key is missing")
 	}
@@ -263,12 +268,21 @@ func (c *Client) execute(ctx context.Context, oreq openaiRequest) (string, error
 	}
 
 	u := c.baseURL + "/chat/completions"
+
+	// Apply Label to Context
+	c.mu.RLock()
+	label := c.label
+	c.mu.RUnlock()
+	if label != "" {
+		ctx = context.WithValue(ctx, request.CtxProviderLabel, label)
+	}
+
 	respBody, err := c.rc.PostWithHeaders(ctx, u, body, headers)
 	if err != nil {
 		return "", err
 	}
 
-	var oresp openaiResponse
+	var oresp Response
 	if err := json.Unmarshal(respBody, &oresp); err != nil {
 		return "", fmt.Errorf("failed to unmarshal response: %w", err)
 	}
@@ -291,7 +305,7 @@ func (c *Client) HasProfile(name string) bool {
 	return ok && c.profiles[name] != ""
 }
 
-func (c *Client) resolveModel(intent string) (string, error) {
+func (c *Client) ResolveModel(intent string) (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 

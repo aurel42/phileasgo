@@ -24,6 +24,7 @@ type Provider interface {
 	MinScoreThreshold(ctx context.Context) float64
 	NarrationFrequency(ctx context.Context) int
 	RepeatTTL(ctx context.Context) time.Duration
+	TakeoffDelay(ctx context.Context) time.Duration
 	TargetLanguage(ctx context.Context) string
 	ActiveTargetLanguage(ctx context.Context) string
 	TargetLanguageLibrary(ctx context.Context) []string
@@ -162,6 +163,10 @@ func (p *UnifiedProvider) NarrationLengthLong(ctx context.Context) int {
 
 func (p *UnifiedProvider) RepeatTTL(ctx context.Context) time.Duration {
 	return p.getDuration(ctx, KeyRepeatTTL, time.Duration(p.base.Narrator.RepeatTTL))
+}
+
+func (p *UnifiedProvider) TakeoffDelay(ctx context.Context) time.Duration {
+	return p.getDuration(ctx, "delay_after_takeoff", time.Duration(p.base.Narrator.TakeoffDelay))
 }
 
 func (p *UnifiedProvider) TargetLanguage(ctx context.Context) string {

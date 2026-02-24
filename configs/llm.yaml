@@ -1,0 +1,84 @@
+# LLM Provider Configuration
+# --------------------------
+# This file defines the LLM providers, their models, and the failover order.
+# API keys are loaded from environment variables (see .env / .env.local).
+
+llm:
+    providers:
+        deepseek:
+            type: openai
+            base_url: https://api.deepseek.com
+            profiles:
+                announcements: deepseek-chat
+                border: deepseek-chat
+                debriefing: deepseek-reasoner
+                essay: deepseek-reasoner
+                narration: deepseek-chat
+                script_rescue: deepseek-chat
+                summary: deepseek-chat
+                thumbnails: deepseek-chat
+                regional_categories_ontological: deepseek-chat
+            free_tier: false
+            timeout: 30s
+        gemini:
+            type: gemini
+            base_url: ""
+            profiles:
+                announcements: gemini-2.5-flash-lite
+                border: gemini-2.5-flash-lite
+                debriefing: gemini-2.5-flash-lite
+                essay: gemini-pro-latest
+                narration: gemini-2.5-flash
+                screenshot: gemini-pro-latest
+                script_rescue: gemini-2.5-flash-lite
+                summary: gemini-2.5-flash-lite
+                thumbnails: gemini-2.5-flash-lite
+                regional_categories_topographical: gemini-pro-latest
+                regional_categories_ontological: gemini-2.5-flash
+            free_tier: false
+            timeout: 1m30s
+        groq:
+            type: openai
+            base_url: https://api.groq.com/openai/v1
+            profiles:
+                announcements: llama-3.1-8b-instant
+                border: groq/compound-mini
+                debriefing: groq/compound-mini
+                essay: openai/gpt-oss-120b
+                narration: meta-llama/llama-4-scout-17b-16e-instruct
+                script_rescue: moonshotai/kimi-k2-instruct
+                summary: llama-3.1-8b-instant
+                thumbnails: groq/compound-mini
+            free_tier: true
+            timeout: 30s
+        nvidia:
+            type: openai
+            base_url: https://integrate.api.nvidia.com/v1
+            free_tier: true
+            timeout: 2m0s
+            profiles:
+                # Core Profiles
+                narration: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+                essay: "nvidia/llama-3.1-nemotron-ultra-253b-v1"
+                screenshot: "meta/llama-3.2-90b-vision-instruct"
+                announcements: "nvidia/llama-3.1-nemotron-nano-8b-v1"
+                debriefing: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+                border: "nvidia/llama-3.1-nemotron-nano-8b-v1"
+
+                # Utility & Logic Profiles
+                script_rescue: "nvidia/nvidia-nemotron-nano-9b-v2"
+                summary: "nvidia/nemotron-mini-4b-instruct"
+                thumbnails: "nvidia/llama-3.1-nemotron-nano-8b-v1"
+        perplexity:
+            type: perplexity
+            base_url: ""
+            profiles:
+                pregrounding: sonar
+            free_tier: false
+            timeout: 30s
+    fallback:
+        - groq
+        - nvidia
+        - deepseek
+        - gemini
+        - perplexity

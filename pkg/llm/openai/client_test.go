@@ -25,7 +25,7 @@ func TestOpenAI_GenerateText(t *testing.T) {
 			t.Errorf("Expected Bearer test_key, got %s", r.Header.Get("Authorization"))
 		}
 
-		resp := openaiResponse{}
+		resp := Response{}
 		resp.Choices = []struct {
 			Message struct {
 				Content string `json:"content"`
@@ -62,7 +62,7 @@ func TestOpenAI_GenerateText(t *testing.T) {
 
 func TestOpenAI_GenerateJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := openaiResponse{}
+		resp := Response{}
 		resp.Choices = []struct {
 			Message struct {
 				Content string `json:"content"`
@@ -179,19 +179,19 @@ func TestOpenAI_ResolveModel(t *testing.T) {
 	c, _ := NewClient(cfg, "http://localhost", rc)
 
 	// Test with a known profile
-	m, _ := c.resolveModel("narration")
+	m, _ := c.ResolveModel("narration")
 	if m != "pro-model" {
 		t.Errorf("expected pro-model, got %s", m)
 	}
 
 	// Test with an unknown profile, should return error
-	_, err := c.resolveModel("other")
+	_, err := c.ResolveModel("other")
 	if err == nil {
 		t.Errorf("expected error for unknown profile, got nil")
 	}
 
 	// Test with an empty profile name, should return error
-	_, err = c.resolveModel("")
+	_, err = c.ResolveModel("")
 	if err == nil {
 		t.Errorf("expected error for empty profile, got nil")
 	}

@@ -4,11 +4,8 @@ import (
 	"fmt"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm"
-	"phileasgo/pkg/llm/deepseek"
 	"phileasgo/pkg/llm/failover"
 	"phileasgo/pkg/llm/gemini"
-	"phileasgo/pkg/llm/groq"
-	"phileasgo/pkg/llm/nvidia"
 	"phileasgo/pkg/llm/openai"
 	"phileasgo/pkg/llm/perplexity"
 	"phileasgo/pkg/request"
@@ -20,6 +17,11 @@ import (
 	"phileasgo/pkg/tts/sapi"
 	"time"
 )
+
+// labelable is implemented by LLM clients that support an explicit provider label for tracking.
+type labelable interface {
+	SetLabel(string)
+}
 
 // NewLLMProvider returns an LLM provider based on configuration, wrapped in a failover chain.
 func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *request.Client, t *tracker.Tracker) (llm.Provider, error) {
@@ -37,31 +39,14 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 			return nil, fmt.Errorf("provider %q not found in config", name)
 		}
 
-		var sub llm.Provider
-		var err error
-
-		switch pCfg.Type {
-		case "gemini":
-			sub, err = gemini.NewClient(pCfg, rc, t)
-		case "groq":
-			sub, err = groq.NewClient(pCfg, rc)
-		case "openai":
-			// For generic openai, we use fixed URL for now.
-			// Generic OpenAI support is primarily for self-hosted or other standard proxies.
-			url := "https://api.openai.com/v1"
-			sub, err = openai.NewClient(pCfg, url, rc)
-		case "perplexity", "sonar":
-			sub, err = perplexity.NewClient(pCfg, rc)
-		case "deepseek":
-			sub, err = deepseek.NewClient(pCfg, rc)
-		case "nvidia":
-			sub, err = nvidia.NewClient(pCfg, rc)
-		default:
-			return nil, fmt.Errorf("unknown llm provider type: %s", pCfg.Type)
-		}
-
+		sub, err := buildProvider(pCfg, name, rc, t)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize provider %q: %w", name, err)
+		}
+
+		// Ensure the provider knows its identity for stats/tracking
+		if l, ok := sub.(labelable); ok {
+			l.SetLabel(name)
 		}
 
 		providers = append(providers, sub)
@@ -80,6 +65,20 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 
 	// Wrap in Failover Provider with unified logging and names
 	return failover.New(providers, names, timeouts, hCfg.Path, hCfg.Enabled, t)
+}
+
+// buildProvider constructs a single LLM provider from its configuration.
+func buildProvider(pCfg config.ProviderConfig, name string, rc *request.Client, t *tracker.Tracker) (llm.Provider, error) {
+	switch pCfg.Type {
+	case "gemini":
+		return gemini.NewClient(pCfg, rc, t)
+	case "openai", "groq", "nvidia", "deepseek":
+		return openai.NewClient(pCfg, "", rc)
+	case "perplexity":
+		return perplexity.NewClient(pCfg, rc)
+	default:
+		return nil, fmt.Errorf("unknown llm provider type: %s", pCfg.Type)
+	}
 }
 
 // NewTTSProvider returns a TTS provider based on configuration.
