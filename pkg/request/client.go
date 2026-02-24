@@ -193,6 +193,9 @@ func normalizeProvider(host string) string {
 	if strings.HasSuffix(host, "deepseek.com") {
 		return "deepseek"
 	}
+	if strings.HasSuffix(host, "nvidia.com") {
+		return "nvidia"
+	}
 	return host
 }
 

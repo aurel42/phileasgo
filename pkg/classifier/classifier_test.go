@@ -804,3 +804,44 @@ func runClassifierTest(t *testing.T, tt *classifierTestCase, cfg *config.Categor
 		t.Errorf("Expected %d DB Hierarchy calls, got %d", tt.expectHier, st.GetHierCalls)
 	}
 }
+func TestClassifier_IsCoveredByStaticConfig(t *testing.T) {
+	cfg := &config.CategoriesConfig{
+		Categories: map[string]config.Category{
+			"Match": {QIDs: map[string]string{"Q_MATCH_ROOT": "Match"}},
+		},
+	}
+	st := &MockStore{
+		Classifications: make(map[string]string),
+		Hierarchies:     make(map[string]*model.WikidataHierarchy),
+	}
+	cl := &MockClient{Claims: make(map[string]map[string][]string)}
+	clf := classifier.NewClassifier(st, cl, cfg, tracker.New())
+
+	// Case 1: Direct match
+	cat, covered := clf.IsCoveredByStaticConfig(context.Background(), "Q_MATCH_ROOT")
+	if !covered || cat != "Match" {
+		t.Errorf("Case 1: Expected direct match, got %v, %v", cat, covered)
+	}
+
+	// Case 2: Deep match
+	cl.Claims["Q_SUB"] = map[string][]string{"P279": {"Q_MATCH_ROOT"}}
+	cat, covered = clf.IsCoveredByStaticConfig(context.Background(), "Q_SUB")
+	if !covered || cat != "Match" {
+		t.Errorf("Case 2: Expected deep match, got %v, %v", cat, covered)
+	}
+
+	// Case 3: Regional conflict (should be ignored)
+	clf.AddRegionalCategories(map[string]string{"Q_REG_MATCH": "RegionalMatch"}, nil)
+	cl.Claims["Q_REG_CHILD"] = map[string][]string{"P279": {"Q_REG_MATCH"}}
+	cat, covered = clf.IsCoveredByStaticConfig(context.Background(), "Q_REG_CHILD")
+	if covered {
+		t.Errorf("Case 3: Expected no static match for regional node, got %v", cat)
+	}
+
+	// Case 4: Node covered by both should return static
+	cl.Claims["Q_BOTH"] = map[string][]string{"P279": {"Q_MATCH_ROOT", "Q_REG_MATCH"}}
+	cat, covered = clf.IsCoveredByStaticConfig(context.Background(), "Q_BOTH")
+	if !covered || cat != "Match" {
+		t.Errorf("Case 4: Expected static match to be found, got %v, %v", cat, covered)
+	}
+}

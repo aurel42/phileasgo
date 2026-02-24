@@ -37,8 +37,12 @@ func TestValidator_ValidateBatch(t *testing.T) {
 
 		if action == "wbsearchentities" {
 			search := r.URL.Query().Get("search")
-			if search == "Tower" {
+			if search == "The Tower" {
 				fmt.Fprint(w, `{"search": [{"id": "Q3", "label": "The Tower"}]}`)
+				return
+			}
+			if search == "castle" {
+				fmt.Fprint(w, `{"search": [{"id": "Q1", "label": "Castle"}]}`)
 				return
 			}
 			fmt.Fprint(w, `{"search": []}`)
@@ -66,9 +70,9 @@ func TestValidator_ValidateBatch(t *testing.T) {
 
 	// Test Cases
 	suggestions := map[string]string{
-		"Castle": "Q1",  // Exact match (Label "Castle")
-		"Lake":   "Q2",  // Mismatch (Label "River") -> Fallback (fail)
-		"Tower":  "Q99", // Bad QID -> Fallback search "Tower" -> Finds "Q3"
+		"Castle":    "Q1",  // Exact match (Label "Castle")
+		"Lake":      "Q2",  // Mismatch (Label "River") -> Fallback (fail)
+		"The Tower": "Q99", // Bad QID -> Fallback search "The Tower" -> Finds "Q3" ("The Tower")
 	}
 
 	ctx := context.Background()
@@ -79,19 +83,25 @@ func TestValidator_ValidateBatch(t *testing.T) {
 		t.Errorf("Expected Castle -> Q1, got %v", res)
 	}
 
-	// Verify "Lake" -> Should fail or be validated?
-	// ValidateBatch:
-	// 1. fetchLabels(Q1, Q2, Q99). Q2->River.
-	// 2. tryDirectMatch("Lake", "Q2", ...) -> "river" != "lake" -> false.
-	// 3. trySearchFallback("Lake") -> empty -> false.
-	// So "Lake" should be missing.
+	// Verify "Lake" -> Should fail
 	if _, ok := results["Lake"]; ok {
 		t.Errorf("Expected Lake to be invalid, but got %v", results["Lake"])
 	}
 
-	// Verify "Tower" -> Search fallback -> Q3
-	if res, ok := results["Tower"]; !ok || res.QID != "Q3" {
-		t.Errorf("Expected Tower -> Q3 (rescued), got %v", res)
+	// Verify "The Tower" -> Search fallback -> Q3
+	// Note: previous test suggested "Tower" but found "The Tower".
+	// Under strict matching, "Tower" would fail to match "The Tower".
+	if res, ok := results["The Tower"]; !ok || res.QID != "Q3" {
+		t.Errorf("Expected The Tower -> Q3 (rescued), got %v", res)
+	}
+
+	// Add a case for small case difference
+	suggestionsCase := map[string]string{
+		"castle": "Q99", // Should find Q1 "Castle"
+	}
+	resCase := v.ValidateBatch(ctx, suggestionsCase)
+	if res, ok := resCase["castle"]; !ok || res.QID != "Q1" {
+		t.Errorf("Expected castle (lowercase) -> Q1 (search), got %v", res)
 	}
 }
 

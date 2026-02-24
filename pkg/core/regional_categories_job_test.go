@@ -19,6 +19,7 @@ import (
 	"phileasgo/pkg/store"
 	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/wikidata"
+	"sync"
 	"testing"
 	"time"
 )
@@ -89,6 +90,9 @@ func (m *mockHierarchyStore) GetHierarchy(ctx context.Context, qid string) (*mod
 }
 func (m *mockHierarchyStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, map[string]string, error) {
 	return nil, nil, nil
+}
+func (m *mockHierarchyStore) SaveClassification(ctx context.Context, qid, category string, parents []string, label string) error {
+	return nil
 }
 func (m *mockHierarchyStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string, labels map[string]string) error {
 	return nil
@@ -193,6 +197,8 @@ func TestRegionalCategoriesJob_Pipeline(t *testing.T) {
 			wikidataResps: map[string]string{
 				"Shinto Shrine": `{"search": [{"id": "Q123", "label": "Shinto Shrine"}]}`,
 				"Night Market":  `{"search": [{"id": "Q456", "label": "Night Market"}]}`,
+				"Q123":          `{"entities": {"Q123": {"labels": {"en": {"value": "Shinto Shrine"}}} }}`,
+				"Q456":          `{"entities": {"Q456": {"labels": {"en": {"value": "Night Market"}}} }}`,
 			},
 			expectedCats: map[string]string{"Q123": "Sights", "Q456": "Shopping"},
 		},
@@ -202,6 +208,7 @@ func TestRegionalCategoriesJob_Pipeline(t *testing.T) {
 			topographicalResp: `{"subclasses": []}`,
 			wikidataResps: map[string]string{
 				"Local Shrine": `{"search": [{"id": "Q789", "label": "Local Shrine"}]}`,
+				"Q789":         `{"entities": {"Q789": {"labels": {"en": {"value": "Local Shrine"}}} }}`,
 			},
 			expectedCats: map[string]string{"Q789": "Sights"},
 		},
@@ -212,9 +219,22 @@ func TestRegionalCategoriesJob_Pipeline(t *testing.T) {
 			wikidataResps: map[string]string{
 				"Castle":    `{"search": [{"id": "Q1", "label": "Castle"}]}`,
 				"Aerodrome": `{"search": [{"id": "Q2", "label": "Aerodrome"}]}`,
+				"Q1":        `{"entities": {"Q1": {"labels": {"en": {"value": "Castle"}}} }}`,
+				"Q2":        `{"entities": {"Q2": {"labels": {"en": {"value": "Aerodrome"}}} }}`,
 			},
 			// Castle Q1 added once. Aerodrome Q2 is already in static config.
 			expectedCats: map[string]string{"Q1": "Sights"},
+		},
+		{
+			name:              "Deep Redundancy Filtering (Subclass)",
+			ontologicalResp:   `{"subclasses": [{"name": "Alcázar", "category": "Sights", "size": "M"}]}`,
+			topographicalResp: `{"subclasses": []}`,
+			wikidataResps: map[string]string{
+				"Alcázar":   `{"search": [{"id": "Q_ALCAZAR", "label": "Alcázar"}]}`,
+				"Q_ALCAZAR": `{"entities": {"Q_ALCAZAR": {"labels": {"en": {"value": "Alcázar"}}, "claims": {"P279": [{"mainsnak": {"datavalue": {"value": {"id": "Q_CASTLE"}}}}]} }}}`,
+			},
+			// Q_CASTLE is in static config
+			expectedCats: map[string]string{}, // Should be skipped as redundant
 		},
 	}
 
@@ -230,14 +250,16 @@ func TestRegionalCategoriesJob_Pipeline(t *testing.T) {
 			catCfg := &config.CategoriesConfig{
 				Categories: map[string]config.Category{
 					"Aerodrome": {Weight: 100, QIDs: map[string]string{"Q2": ""}},
-					"Sights":    {Weight: 50},
+					"Sights":    {Weight: 50, QIDs: map[string]string{"Q_CASTLE": ""}},
 					"Shopping":  {Weight: 30},
 				},
 			}
 
-			st := &mockHierarchyStore{}
+			st := &mockSpatialStore{
+				cats:   make(map[string]map[string]string),
+				labels: make(map[string]map[string]string),
+			}
 			tr := tracker.New()
-			clf := classifier.NewClassifier(st, nil, catCfg, tr)
 
 			promptDir := t.TempDir()
 			_ = os.MkdirAll(filepath.Join(promptDir, "context"), 0755)
@@ -252,6 +274,7 @@ func TestRegionalCategoriesJob_Pipeline(t *testing.T) {
 
 			wikiCl := wikidata.NewClient(reqClient, nil)
 			validator := wikidata.NewValidator(wikiCl)
+			clf := classifier.NewClassifier(st, wikiCl, catCfg, tr)
 			cityFile := filepath.Join(t.TempDir(), "c.txt")
 			adminFile := filepath.Join(t.TempDir(), "a.txt")
 			_ = os.WriteFile(cityFile, []byte(""), 0644)
@@ -391,9 +414,12 @@ type mockSpatialStore struct {
 	mockHierarchyStore
 	cats   map[string]map[string]string // gridKey -> qid -> cat
 	labels map[string]map[string]string // gridKey -> qid -> label
+	mu     sync.Mutex
 }
 
 func (m *mockSpatialStore) GetRegionalCategories(ctx context.Context, latGrid, lonGrid int) (map[string]string, map[string]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	key := fmt.Sprintf("%d_%d", latGrid, lonGrid)
 	return m.cats[key], m.labels[key], nil
 }
@@ -456,8 +482,64 @@ func TestRegionalCategoriesJob_LabelHydration(t *testing.T) {
 }
 
 func (m *mockSpatialStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGrid int, categories map[string]string, labels map[string]string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	key := fmt.Sprintf("%d_%d", latGrid, lonGrid)
 	m.cats[key] = categories
 	m.labels[key] = labels
 	return nil
+}
+
+func TestRegionalCategoriesJob_Pruning(t *testing.T) {
+	// Setup with a cached category that is now redundant (e.g. Q_SUB_CASTLE)
+	// We'll mock the hierarchy so Q_SUB_CASTLE is a subclass of Q_STATIC_CASTLE
+	transport := &mockTransport{
+		responses: map[string]string{
+			"Q_SUB_CASTLE": `{"entities": {"Q_SUB_CASTLE": {"labels": {"en": {"value": "Alcázar"}}, "claims": {"P279": [{"mainsnak": {"datavalue": {"value": {"id": "Q_STATIC_CASTLE"}}}}]} }}}`,
+		},
+	}
+
+	st := &mockSpatialStore{
+		cats:   make(map[string]map[string]string),
+		labels: make(map[string]map[string]string),
+	}
+	tr := tracker.New()
+	catCfg := &config.CategoriesConfig{
+		Categories: map[string]config.Category{
+			"Sights": {Weight: 50, QIDs: map[string]string{"Q_STATIC_CASTLE": ""}},
+		},
+	}
+
+	reqClient := request.New(nil, tr, request.ClientConfig{})
+	reqClient.SetTransport(transport)
+	wikiCl := wikidata.NewClient(reqClient, nil)
+
+	clf := classifier.NewClassifier(st, wikiCl, catCfg, tr)
+	dummyCfg := config.NewProvider(&config.Config{
+		Wikidata: config.WikidataConfig{
+			Area: config.AreaConfig{MaxDist: 80000},
+		},
+	}, nil)
+
+	// Pre-seed cache
+	st.cats["50_10"] = map[string]string{"Q_SUB_CASTLE": "LocalCat"}
+	st.labels["50_10"] = map[string]string{"Q_SUB_CASTLE": "Alcázar"}
+
+	job := NewRegionalCategoriesJob(dummyCfg, &mockLLM{}, nil, nil, clf, nil, &wikidata.Service{}, st)
+
+	// Run job
+	job.Run(context.Background(), &sim.Telemetry{Latitude: 50.1, Longitude: 10.1})
+	waitJob(job)
+
+	// Verify classifier does NOT have Q_SUB_CASTLE
+	res := clf.GetRegionalCategories()
+	if _, ok := res["Q_SUB_CASTLE"]; ok {
+		t.Error("Expected Q_SUB_CASTLE to be pruned from regional categories")
+	}
+
+	// Verify spatial cache was updated and pruned
+	updatedCats := st.cats["50_10"]
+	if _, ok := updatedCats["Q_SUB_CASTLE"]; ok {
+		t.Error("Expected Q_SUB_CASTLE to be pruned from spatial cache store")
+	}
 }

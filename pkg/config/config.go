@@ -450,24 +450,8 @@ func DefaultConfig() *Config {
 			},
 		},
 		LLM: LLMConfig{
-			Providers: map[string]ProviderConfig{
-				"gemini": {
-					Type: "gemini",
-					Key:  "",
-					Profiles: map[string]string{
-						"essay":                             "gemini-2.5-flash",
-						"narration":                         "gemini-2.5-flash-lite",
-						"announcements":                     "gemini-2.5-flash-lite",
-						"regional_categories_ontological":   "gemini-2.0-flash",
-						"regional_categories_topographical": "gemini-2.0-flash",
-						"script_rescue":                     "gemini-2.5-flash-lite",
-						"thumbnails":                        "gemini-2.5-flash-lite",
-						"screenshot":                        "gemini-2.5-flash-lite",
-					},
-					FreeTier: true,
-				},
-			},
-			Fallback: []string{"gemini"},
+			Providers: map[string]ProviderConfig{},
+			Fallback:  []string{},
 		},
 		Narrator: NarratorConfig{
 			AutoNarrate:               true,
@@ -700,6 +684,11 @@ func GenerateDefault(path string) error {
 }
 
 func loadSecretsFromEnv(cfg *Config) {
+	loadLLMSecrets(cfg)
+	loadTTSSecrets(cfg)
+}
+
+func loadLLMSecrets(cfg *Config) {
 	// LLM Providers
 	// We iterate over the configured providers and look for specific Env Vars
 	for name, p := range cfg.LLM.Providers {
@@ -724,11 +713,17 @@ func loadSecretsFromEnv(cfg *Config) {
 			if key := os.Getenv("DEEPSEEK_API_KEY"); key != "" {
 				p.Key = key
 			}
+		case "nvidia":
+			if key := os.Getenv("NVIDIA_API_KEY"); key != "" {
+				p.Key = key
+			}
 		}
 		// Update the map because p is a copy
 		cfg.LLM.Providers[name] = p
 	}
+}
 
+func loadTTSSecrets(cfg *Config) {
 	// TTS - Fish Audio
 	if key := os.Getenv("FISH_API_KEY"); key != "" {
 		cfg.TTS.FishAudio.Key = key

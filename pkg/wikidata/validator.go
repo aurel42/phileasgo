@@ -102,20 +102,24 @@ func (v *Validator) trySearchFallback(ctx context.Context, name, lname string) (
 		return ValidatedQID{}, false
 	}
 
-	if len(results) > 0 {
-		best := results[0]
-		lbest := strings.ToLower(best.Label)
-		if strings.Contains(lbest, lname) || strings.Contains(lname, lbest) {
-			slog.Info("Validator: Search fallback success", "name", name, "found_qid", best.ID, "found_label", best.Label)
-		} else {
-			// Weak match - warn but still use it (Wikidata knows best)
-			slog.Warn("Validator: Weak search match, using anyway", "requested", name, "found_label", best.Label, "qid", best.ID)
+	normRequested := v.normalize(name)
+	for _, result := range results {
+		if v.normalize(result.Label) == normRequested {
+			slog.Info("Validator: Search match success (exact)", "name", name, "found_qid", result.ID, "found_label", result.Label)
+			return ValidatedQID{QID: result.ID, Label: result.Label}, true
 		}
-		// Return using Wikidata's actual label (for specific_category use)
-		return ValidatedQID{QID: best.ID, Label: best.Label}, true
 	}
-	slog.Warn("Validator: No search results", "name", name)
+
+	slog.Warn("Validator: No near-exact search match found in results", "name", name, "results_count", len(results))
 	return ValidatedQID{}, false
+}
+
+func (v *Validator) normalize(s string) string {
+	s = strings.ToLower(s)
+	s = strings.TrimSpace(s)
+	// Simple space normalization (replace multiple spaces with single space)
+	fields := strings.Fields(s)
+	return strings.Join(fields, " ")
 }
 
 // VerifyStartupConfig checks all categories in the config and returns a report.

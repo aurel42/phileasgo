@@ -49,6 +49,14 @@ history:
         enabled: true
 db:
     path: ":memory:" # Use in-memory DB for test
+llm:
+    providers:
+        openai:
+            type: "openai"
+            key: "test-key"
+            profiles:
+                narration: "gpt-4o"
+    fallback: ["openai"]
 tts:
     engine: "edge-tts"
 `

@@ -120,19 +120,33 @@ func (j *RegionalCategoriesJob) Run(ctx context.Context, t *sim.Telemetry) {
 		latGrid := int(math.Round(lat))
 		lonGrid := int(math.Round(lon))
 
-		// 2. Check Cache for current tile and 8 neighbors
-		cachedSubclasses, cachedLabels := j.getNeighboringCategories(ctx, latGrid, lonGrid)
+		// 1. Process CURRENT TILE first (Pruning ensures isolation)
+		currentSubclasses, currentLabels := j.processCurrentTileCache(ctx, latGrid, lonGrid)
 
-		if len(cachedSubclasses) > 0 {
-			slog.Info("RegionalCategoriesJob: Loading regional categories from spatial cache", "count", len(cachedSubclasses))
+		// 2. Load neighboring context (includes current tile again, but that's fine as we use the pruned version if available)
+		allSubclasses, allLabels := j.getNeighboringCategories(ctx, latGrid, lonGrid)
 
-			j.hydrateMissingLabels(ctx, latGrid, lonGrid, cachedSubclasses, cachedLabels)
+		// Override with our freshly pruned/hydrated current tile to be sure
+		if currentSubclasses != nil {
+			for qid, cat := range currentSubclasses {
+				allSubclasses[qid] = cat
+			}
+			for qid, lbl := range currentLabels {
+				allLabels[qid] = lbl
+			}
+		}
 
-			j.classifier.AddRegionalCategories(cachedSubclasses, cachedLabels)
+		if len(allSubclasses) > 0 {
+			slog.Info("RegionalCategoriesJob: Loading regional categories (current + neighbors)", "count", len(allSubclasses))
+			if j.classifier != nil {
+				j.classifier.AddRegionalCategories(allSubclasses, allLabels)
+			}
 
 			// We also scavenge the area when loading from cache because we might have teleported into this cache zone
-			if err := j.wikiSvc.ScavengeArea(ctx, lat, lon, radius, heading, arc); err != nil {
-				slog.Warn("RegionalCategoriesJob: Cache Load ScavengeArea failed", "error", err)
+			if j.wikiSvc != nil {
+				if err := j.wikiSvc.ScavengeArea(ctx, lat, lon, radius, heading, arc); err != nil {
+					slog.Warn("RegionalCategoriesJob: Cache Load ScavengeArea failed", "error", err)
+				}
 			}
 		}
 
@@ -159,6 +173,36 @@ func (j *RegionalCategoriesJob) getNeighboringCategories(ctx context.Context, la
 		}
 	}
 	return subclasses, labels
+}
+
+func (j *RegionalCategoriesJob) processCurrentTileCache(ctx context.Context, latGrid, lonGrid int) (subclasses, labels map[string]string) {
+	currentSubclasses, currentLabels, err := j.store.GetRegionalCategories(ctx, latGrid, lonGrid)
+	if err != nil || len(currentSubclasses) == 0 {
+		return nil, nil
+	}
+
+	pruned := false
+	if j.classifier != nil {
+		for qid, catName := range currentSubclasses {
+			if staticCat, covered := j.classifier.IsCoveredByStaticConfig(ctx, qid); covered {
+				slog.Info("RegionalCategoriesJob: Pruning redundant cached category from current tile", "qid", qid, "label", currentLabels[qid], "regional_cat", catName, "covered_by", staticCat)
+				delete(currentSubclasses, qid)
+				delete(currentLabels, qid)
+				pruned = true
+			}
+		}
+	}
+
+	if pruned {
+		slog.Info("RegionalCategoriesJob: Current tile pruned of redundant categories", "remaining", len(currentSubclasses))
+		if err := j.store.SaveRegionalCategories(ctx, latGrid, lonGrid, currentSubclasses, currentLabels); err != nil {
+			slog.Warn("RegionalCategoriesJob: Failed to update current tile after pruning", "error", err)
+		}
+	}
+
+	// Hydrate missing labels for current tile specifically
+	j.hydrateMissingLabels(ctx, latGrid, lonGrid, currentSubclasses, currentLabels)
+	return currentSubclasses, currentLabels
 }
 
 func (j *RegionalCategoriesJob) hydrateMissingLabels(ctx context.Context, latGrid, lonGrid int, subclasses, labels map[string]string) {
@@ -273,9 +317,19 @@ func (j *RegionalCategoriesJob) processSubclasses(ctx context.Context, latGrid, 
 		if !ok {
 			continue
 		}
-		if j.isKnownQID(v.QID) {
-			slog.Debug("RegionalCategoriesJob: Skipping duplicate static QID", "name", sub.Name, "qid", v.QID)
+
+		// Length check to prevent descriptions/papers from being accepted
+		if len(sub.Name) > 60 || len(sub.SpecificCategory) > 60 {
+			slog.Warn("RegionalCategoriesJob: Suggestion too long, rejecting", "name", sub.Name, "specific", sub.SpecificCategory)
 			continue
+		}
+
+		// Check if this category is already covered by our static configuration (hierarchy check)
+		if j.classifier != nil {
+			if staticCat, covered := j.classifier.IsCoveredByStaticConfig(ctx, v.QID); covered {
+				slog.Info("RegionalCategoriesJob: Skipping redundant suggestion, already covered by static config", "name", sub.Name, "qid", v.QID, "covered_by", staticCat)
+				continue
+			}
 		}
 
 		// When category is "Generic", use specific_category instead
@@ -325,18 +379,6 @@ type subclass struct {
 
 type llmResponse struct {
 	Subclasses []subclass `json:"subclasses"`
-}
-
-func (j *RegionalCategoriesJob) isKnownQID(qid string) bool {
-	if j.classifier == nil || j.classifier.GetConfig() == nil {
-		return false
-	}
-	for _, catData := range j.classifier.GetConfig().Categories {
-		if _, exists := catData.QIDs[qid]; exists {
-			return true
-		}
-	}
-	return false
 }
 
 // ResetSession resets the job state for a new flight/teleport.

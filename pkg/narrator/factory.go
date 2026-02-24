@@ -8,6 +8,7 @@ import (
 	"phileasgo/pkg/llm/failover"
 	"phileasgo/pkg/llm/gemini"
 	"phileasgo/pkg/llm/groq"
+	"phileasgo/pkg/llm/nvidia"
 	"phileasgo/pkg/llm/openai"
 	"phileasgo/pkg/llm/perplexity"
 	"phileasgo/pkg/request"
@@ -53,6 +54,8 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 			sub, err = perplexity.NewClient(pCfg, rc)
 		case "deepseek":
 			sub, err = deepseek.NewClient(pCfg, rc)
+		case "nvidia":
+			sub, err = nvidia.NewClient(pCfg, rc)
 		default:
 			return nil, fmt.Errorf("unknown llm provider type: %s", pCfg.Type)
 		}

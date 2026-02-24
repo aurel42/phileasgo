@@ -204,9 +204,17 @@ func (c *Classifier) ClassifyBatch(ctx context.Context, entities map[string]wiki
 // classifyHierarchyNode determines the category for a taxonomy QID (a class).
 // Results for these nodes ARE cached in the wikidata_hierarchy table.
 func (c *Classifier) classifyHierarchyNode(ctx context.Context, qid string) (*model.ClassificationResult, error) {
+	return c.classifyHierarchyNodeInternal(ctx, qid, true)
+}
+
+func (c *Classifier) classifyHierarchyNodeInternal(ctx context.Context, qid string, includeRegional bool) (*model.ClassificationResult, error) {
 	// 1. Config Check (for known roots like "Q62447" -> "Aerodrome")
-	if catName, _, ok := c.getLookupMatch(qid); ok {
-		return c.resultFor(catName), nil
+	if catName, isRegional, ok := c.getLookupMatch(qid); ok {
+		if !includeRegional && isRegional {
+			// Skip regional matches in static-only mode
+		} else {
+			return c.resultFor(catName), nil
+		}
 	}
 
 	// 2. Fast Path: DB Cache
@@ -214,19 +222,19 @@ func (c *Classifier) classifyHierarchyNode(ctx context.Context, qid string) (*mo
 	if err == nil && found {
 		switch storedCat {
 		case catIgnored:
-			if !c.HasRegionalCategories() {
-				// Cached as explicitly ignored, and no regional overrides active
+			if !c.HasRegionalCategories() || !includeRegional {
+				// Cached as explicitly ignored, and no regional overrides active (or we are in static-only mode)
 				return &model.ClassificationResult{Ignored: true}, nil
 			}
 			// Regional categories active: must re-evaluate this ignored node
-			slog.Debug("Bypassing __IGNORED__ sentinel due to active regional categories", "qid", qid)
+			logging.TraceDefault("Bypassing __IGNORED__ sentinel due to active regional categories", "qid", qid)
 		case catDeadEnd:
-			if !c.HasRegionalCategories() {
-				// Cached as a Dead End, no regional overrides active
+			if !c.HasRegionalCategories() || !includeRegional {
+				// Cached as a Dead End, no regional overrides active (or we are in static-only mode)
 				return nil, nil
 			}
 			// Regional categories active: must re-evaluate this dead end
-			slog.Debug("Bypassing __DEADEND__ sentinel due to active regional categories", "qid", qid)
+			logging.TraceDefault("Bypassing __DEADEND__ sentinel due to active regional categories", "qid", qid)
 		default:
 			if storedCat != "" {
 				return c.resultFor(storedCat), nil
@@ -236,10 +244,10 @@ func (c *Classifier) classifyHierarchyNode(ctx context.Context, qid string) (*mo
 	}
 
 	// 3. Slow Path: Graph Traversal (Subclass Of P279)
-	return c.slowPathHierarchy(ctx, qid)
+	return c.slowPathHierarchyInternal(ctx, qid, includeRegional)
 }
 
-func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.ClassificationResult, error) {
+func (c *Classifier) slowPathHierarchyInternal(ctx context.Context, qid string, includeRegional bool) (*model.ClassificationResult, error) {
 	// 1. Check structural cache (Hierarchy table)
 	var subclasses []string
 	var label string
@@ -254,12 +262,12 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 				if !c.HasRegionalCategories() {
 					return &model.ClassificationResult{Ignored: true}, nil
 				}
-				slog.Debug("slowPathHierarchy: Bypassing __IGNORED__ sentinel due to active regional categories", "qid", qid)
+				logging.TraceDefault("slowPathHierarchy: Bypassing __IGNORED__ sentinel due to active regional categories", "qid", qid)
 			case catDeadEnd:
 				if !c.HasRegionalCategories() {
 					return nil, nil
 				}
-				slog.Debug("slowPathHierarchy: Bypassing __DEADEND__ sentinel due to active regional categories", "qid", qid)
+				logging.TraceDefault("slowPathHierarchy: Bypassing __DEADEND__ sentinel due to active regional categories", "qid", qid)
 			default:
 				return c.resultFor(hNode.Category), nil
 			}
@@ -279,6 +287,9 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 	// 1. Check ALL parents for a match first
 	for _, sub := range subclasses {
 		if catName, isRegional, ok := c.getLookupMatch(sub); ok {
+			if !includeRegional && isRegional {
+				continue
+			}
 			logging.TraceDefault("Match found as direct subclass", "qid", qid, "matched", sub, "category", catName)
 			return c.finalizeMatch(ctx, qid, catName, subclasses, label, isRegional)
 		}
@@ -292,11 +303,11 @@ func (c *Classifier) slowPathHierarchy(ctx context.Context, qid string) (*model.
 		}
 	}
 
-	return c.searchHierarchy(ctx, qid, subclasses, label)
+	return c.searchHierarchyInternal(ctx, qid, subclasses, label, includeRegional)
 }
 
-// searchHierarchy performs the BFS traversal for hierarchy discovery.
-func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses []string, label string) (*model.ClassificationResult, error) {
+// searchHierarchyInternal performs the BFS traversal for hierarchy discovery.
+func (c *Classifier) searchHierarchyInternal(ctx context.Context, qid string, subclasses []string, label string, includeRegional bool) (*model.ClassificationResult, error) {
 	// BFS Queue (Layered)
 	visited := make(map[string]bool)
 	visited[qid] = true
@@ -314,14 +325,14 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 
 	for len(queue) > 0 && currentDepth <= maxDepth {
 		// 1. Filter & Layer Scan: Check cache for matches/ignores
-		toFetch, parentsFromCache, layerMatch, layerIgnore, layerMatchRegional := c.scanLayerCache(ctx, queue)
+		toFetch, parentsFromCache, layerMatch, layerIgnore, layerMatchRegional := c.scanLayerCacheInternal(ctx, queue, includeRegional)
 
 		// 2. Fetch: Batch request for missing nodes
 		if len(toFetch) > 0 {
 			fetchedParents := c.fetchAndCacheLayer(ctx, toFetch)
 			for id, parents := range fetchedParents {
 				parentsFromCache[id] = parents
-				m, ig, isRegional := c.checkFetchedForMatches(id, parents)
+				m, ig, isRegional := c.checkFetchedForMatchesInternal(id, parents, includeRegional)
 				if layerMatch == "" {
 					layerMatch = m
 					layerMatchRegional = isRegional
@@ -338,7 +349,7 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 		}
 
 		// 4. Build Next Layer & Final Layer Check
-		nextQueue, matchedCat, ignoredCat, matchedRegional := c.buildNextLayer(queue, parentsFromCache, visited)
+		nextQueue, matchedCat, ignoredCat, matchedRegional := c.buildNextLayerInternal(queue, parentsFromCache, visited, includeRegional)
 		if matchedCat != "" {
 			return c.finalizeMatch(ctx, qid, matchedCat, subclasses, label, matchedRegional)
 		}
@@ -363,11 +374,11 @@ func (c *Classifier) searchHierarchy(ctx context.Context, qid string, subclasses
 }
 
 // propagateIgnored marks all nodes in the BFS path as __IGNORED__ to prevent
-func (c *Classifier) scanLayerCache(ctx context.Context, queue []string) (toFetch []string, parentsFromCache map[string][]string, layerMatch, layerIgnore string, layerMatchRegional bool) {
+func (c *Classifier) scanLayerCacheInternal(ctx context.Context, queue []string, includeRegional bool) (toFetch []string, parentsFromCache map[string][]string, layerMatch, layerIgnore string, layerMatchRegional bool) {
 	toFetch = make([]string, 0, len(queue))
 	parentsFromCache = make(map[string][]string)
 
-	hasRegional := c.HasRegionalCategories()
+	hasRegional := c.HasRegionalCategories() && includeRegional
 
 	for _, id := range queue {
 		match, parents, foundInDB := c.checkCacheOrDB(ctx, id)
@@ -399,9 +410,12 @@ func (c *Classifier) scanLayerCache(ctx context.Context, queue []string) (toFetc
 	return
 }
 
-func (c *Classifier) checkFetchedForMatches(id string, parents []string) (match, ignore string, isRegional bool) {
+func (c *Classifier) checkFetchedForMatchesInternal(id string, parents []string, includeRegional bool) (match, ignore string, isRegional bool) {
 	for _, p := range parents {
 		if cat, reg, ok := c.getLookupMatch(p); ok {
+			if !includeRegional && reg {
+				continue
+			}
 			match = cat
 			isRegional = reg
 			return
@@ -423,9 +437,9 @@ func (c *Classifier) propagateIgnored(ctx context.Context, nodes []string) {
 	}
 }
 
-// buildNextLayer processes current queue and parents to produce next queue layer.
+// buildNextLayerInternal processes current queue and parents to produce next queue layer.
 // Returns nextQueue, matchedCategory (if found), ignoredCategory (if found), and matchedRegional.
-func (c *Classifier) buildNextLayer(queue []string, parentsFromCache map[string][]string, visited map[string]bool) (nextQueue []string, matchedCat, ignoredCat string, matchedRegional bool) {
+func (c *Classifier) buildNextLayerInternal(queue []string, parentsFromCache map[string][]string, visited map[string]bool, includeRegional bool) (nextQueue []string, matchedCat, ignoredCat string, matchedRegional bool) {
 	nextQueue = make([]string, 0)
 	var foundIgnored string
 
@@ -435,6 +449,9 @@ func (c *Classifier) buildNextLayer(queue []string, parentsFromCache map[string]
 		for _, p := range parents {
 			// Check for matching category
 			if catName, isRegional, ok := c.getLookupMatch(p); ok {
+				if !includeRegional && isRegional {
+					continue
+				}
 				return nil, catName, "", isRegional
 			}
 		}
@@ -604,6 +621,34 @@ func (c *Classifier) ResetRegionalCategories() {
 	defer c.mu.Unlock()
 	c.regionalCategories = make(config.CategoryLookup)
 	c.regionalLabels = make(map[string]string)
+}
+
+// IsCoveredByStaticConfig returns the matching static category name and true if the QID
+// eventually resolves to a category defined in the main configuration.
+func (c *Classifier) IsCoveredByStaticConfig(ctx context.Context, qid string) (string, bool) {
+	if c.client == nil {
+		// Without a Wikidata client we cannot traverse the hierarchy, so only
+		// direct lookup matches are possible. Check the static lookup directly.
+		if cat, isRegional, ok := c.getLookupMatch(qid); ok && !isRegional {
+			return cat, true
+		}
+		return "", false
+	}
+	res, err := c.classifyHierarchyNodeInternal(ctx, qid, false)
+	if err != nil {
+		logging.TraceDefault("Classifier: IsCoveredByStaticConfig error", "qid", qid, "error", err)
+		return "", false
+	}
+	if res == nil {
+		logging.TraceDefault("Classifier: IsCoveredByStaticConfig nil result", "qid", qid)
+		return "", false
+	}
+	if res.Ignored {
+		logging.TraceDefault("Classifier: IsCoveredByStaticConfig ignored node", "qid", qid)
+		return "", false
+	}
+	slog.Info("Classifier: IsCoveredByStaticConfig found match", "qid", qid, "category", res.Category)
+	return res.Category, true
 }
 
 // HasRegionalCategories returns true if any regional categories are active.

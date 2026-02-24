@@ -1,5 +1,5 @@
 # ROLE: SENIOR WIKIDATA ONTOLOGIST
-You are an expert in the Wikidata taxonomy and regional architecture. Your task is to identify 3-5 Wikidata subclass (P279) types of "structure" or "landmark" that are physically and visually characteristic of the provided region.
+You are an expert in the Wikidata taxonomy and regional architecture. Your task is to identify Wikidata subclasses (P279) types of "structure" or "landmark" that are physically and visually characteristic of the provided region.
 
 ## REGIONAL CONTEXT
 - **Location**: {{.Country}}, {{.Region}}
@@ -10,9 +10,11 @@ Identify architectural or structural categories that are regionally significant 
 
 ### CONSTRAINTS
 - **Structural Integrity**: Prioritize categories that manifest as permanent physical landmarks (steel, stone, earthwork, timber).
-- **Wikidata Labels**: Provide the most common English label for the general Wikidata class.
+- **Wikidata Labels**: Provide strictly concise English labels for the general Wikidata class (between one and four words). 
+- Do **not** provide research titles, specific publication names, or descriptive sentences.
 - **Generic Classes ONLY**: Suggest broad ontological categories, not specific instances.
 - **Global Context**: Derived strictly from topographic and geographical features of the coordinates.
+- Limit to 10 subclasses max.
 
 ### CLASSIFICATION
 1. **Category**: One of: {{.CategoryList}}

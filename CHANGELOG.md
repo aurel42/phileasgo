@@ -1,5 +1,13 @@
 ﻿# Changelog
 
+## v0.3.216 (2026-02-24)
+- **Feature**: **Nvidia LLM Provider**. Added support for Nvidia AI inference endpoints via the `NVIDIA_API_KEY` environment variable.
+- **Improvement**: **Hierarchy-Aware Filtering**. Regional category discovery now automatically detects and skips categories already covered by Phileas's static configuration (e.g. subclass detection).
+- **Fix**: **Geographic Cache Pollution**. Fixed a bug where regional categories would incorrectly "bleed" into neighboring tiles when loading from the spatial database.
+- **Improvement**: **High-Confidence Validation**. Rebuilt the Wikidata validator with strict near-exact string matching to eliminate noisy search results like scientific papers or unrelated documents.
+- **Improvement**: **Concise Category Labels**. Enforced a 60-character limit and updated prompt instructions to ensure regional categories remain brief and readable (1-4 words).
+- **Improvement**: **Nvidia Stats Tracking**. Added support for monitoring and rate-limiting `nvidia.com` traffic in the developer dashboard.
+
 ## v0.3.215 (2026-02-23)
 - **Fix**: Replaced UTF-8 POI badges in EFB map with SVG icons to resolve "tofu" rendering.
 - **Improvement**: Optimized EFB top bar for VR by moving the version number to the System tab to save horizontal space.
