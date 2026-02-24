@@ -7,7 +7,8 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 ## Features
 
 - **AI Tour Guide**: Generates context-aware, real-time briefings for landmarks using LLMs.
-- **Multi-Provider LLM Support**: Supports Google Gemini, Groq, DeepSeek, and Perplexity for grounding.
+- **Multi-Provider LLM Support**: Supports Google Gemini, Groq, DeepSeek, Nvidia (free for development), and Perplexity for grounding.
+- **Regional Categories**: Automatically discovers local high-interest categories based on your current location (e.g. "Alcázar" in Spain, "Mountain Pass" in the Alps). Redundant categories are automatically pruned if already covered by the static configuration.
 - **Terrain & Visibility Awareness**: Uses ETOPO1 global elevation data for line-of-sight calculations. It's not perfect, because of the low resolution (to conserve resources), Phileas will occasionally point out landmarks hidden behind mountain ranges.
 - **Smart POI Prioritization**: Weighs amount of available data, visibility, distance, novelty and other factors to pick good POIs. You can tune the weights for each category or add new categories.
 - **Immersive Audio**: Supports Edge TTS (free/default), Azure Speech, and Fish Audio. Optional bandpass filter to simulate aviation headset/radio audio.
@@ -36,7 +37,7 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 ## LLM Providers
 
 PhileasGo supports multiple LLM providers. 
-You only need **one** of the following: Groq, Gemini, DeepSeek, any OpenAI-compatible API (needs testing).
+You only need **one** of the following: Groq, Gemini, DeepSeek, Nvidia (free for development), or any OpenAI-compatible API (needs testing).
 Phileas can optionally make use of the Perplexity API for grounding.
 
 If you have access to a paid tier from one provider, and a free tier from another provider, configure a fallback chain in configs/phileas.yaml (e.g., `llm.fallback: ["groq", "gemini"]`). Should you hit the quotas for the free tier, PhileasGo will use the next provider in the chain. This is particularly useful for Groq, which has a generous free tier but can be rate-limited during peak hours. 
@@ -96,6 +97,7 @@ The `.env.template` file shows all available options:
 GEMINI_API_KEY=your_gemini_key_here
 GROQ_API_KEY=your_groq_key_here
 DEEPSEEK_API_KEY=your_deepseek_key_here
+NVIDIA_API_KEY=your_nvidia_key_here # free for development
 OPENAI_API_KEY=your_openai_key_here # untested
 
 PERPLEXITY_API_KEY=your_perplexity_key_here # optional grounding
