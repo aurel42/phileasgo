@@ -60,7 +60,6 @@ llm:
                 # Core Profiles
                 narration: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
                 essay: "nvidia/llama-3.1-nemotron-ultra-253b-v1"
-                screenshot: "meta/llama-3.2-90b-vision-instruct"
                 announcements: "nvidia/llama-3.1-nemotron-nano-8b-v1"
                 debriefing: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
                 border: "nvidia/llama-3.1-nemotron-nano-8b-v1"

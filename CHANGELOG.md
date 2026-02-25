@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## v0.3.218 (2026-02-25)
+- **Fix**: **Nvidia Screenshot Refusals**. Removed the Nvidia vision model (`meta/llama-3.2-90b-vision-instruct`) from the screenshot profile due to aggressive false-positive content safety refusals on flight simulator imagery. Screenshots now fall through to Gemini.
+
 ## v0.3.217 (2026-02-24)
 - **Feature**: **Unified LLM Providers**. Consolidated all OpenAI-compatible providers (DeepSeek, Groq, Nvidia) into a single `openai` type. Provider-specific packages are removed; the unified client handles reasoner models, base URLs, and tracking labels automatically.
 - **Feature**: **Tracked LLM Configuration**. Extracted LLM provider config from `phileas.yaml` into a separate `configs/llm.yaml` that can be committed to the repository. The main config auto-loads the sibling file when no LLM block is present.
