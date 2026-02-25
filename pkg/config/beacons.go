@@ -21,7 +21,7 @@ type BeaconRegistry map[string]BeaconRegistryEntry
 // beaconsFile is the top-level YAML structure supporting an optional order array.
 type beaconsFile struct {
 	Order   []string                       `yaml:"order"`
-	Entries map[string]BeaconRegistryEntry  `yaml:",inline"`
+	Entries map[string]BeaconRegistryEntry `yaml:",inline"`
 }
 
 // LoadBeacons loads the beacon registry from a YAML file.

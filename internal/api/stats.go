@@ -61,17 +61,17 @@ type TrackingStats struct {
 type GoMemStats struct {
 	HeapAllocMB   float64 `json:"heap_alloc_mb"`   // Live heap objects
 	HeapInuseMB   float64 `json:"heap_inuse_mb"`   // Heap spans in use (includes fragmentation)
-	HeapIdleMB    float64 `json:"heap_idle_mb"`     // Heap spans not in use (returned or reusable)
-	HeapSysMB     float64 `json:"heap_sys_mb"`      // Heap memory obtained from OS
-	StackInuseMB  float64 `json:"stack_inuse_mb"`   // Stack memory
-	MSpanInuseMB  float64 `json:"mspan_inuse_mb"`   // Runtime mspan structures
-	MCacheInuseMB float64 `json:"mcache_inuse_mb"`  // Runtime mcache structures
-	GCSysMB       float64 `json:"gc_sys_mb"`        // GC metadata
-	OtherSysMB    float64 `json:"other_sys_mb"`     // Other runtime allocations
-	TotalSysMB    float64 `json:"total_sys_mb"`     // Total memory from OS
-	NumGC         uint32  `json:"num_gc"`           // Completed GC cycles
-	NumGoroutine  int     `json:"num_goroutine"`    // Active goroutines
-	HeapObjects   uint64  `json:"heap_objects"`     // Live heap object count
+	HeapIdleMB    float64 `json:"heap_idle_mb"`    // Heap spans not in use (returned or reusable)
+	HeapSysMB     float64 `json:"heap_sys_mb"`     // Heap memory obtained from OS
+	StackInuseMB  float64 `json:"stack_inuse_mb"`  // Stack memory
+	MSpanInuseMB  float64 `json:"mspan_inuse_mb"`  // Runtime mspan structures
+	MCacheInuseMB float64 `json:"mcache_inuse_mb"` // Runtime mcache structures
+	GCSysMB       float64 `json:"gc_sys_mb"`       // GC metadata
+	OtherSysMB    float64 `json:"other_sys_mb"`    // Other runtime allocations
+	TotalSysMB    float64 `json:"total_sys_mb"`    // Total memory from OS
+	NumGC         uint32  `json:"num_gc"`          // Completed GC cycles
+	NumGoroutine  int     `json:"num_goroutine"`   // Active goroutines
+	HeapObjects   uint64  `json:"heap_objects"`    // Live heap object count
 }
 
 type StatsResponse struct {

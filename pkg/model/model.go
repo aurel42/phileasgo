@@ -47,6 +47,7 @@ type POI struct {
 	Score               float64   `json:"score"`                // Intrinsic score (content-based, position-agnostic)
 	ScoreDetails        string    `json:"score_details"`        // Explainer for debug
 	IsVisible           bool      `json:"is_visible"`
+	IsHiddenFeature     bool      `json:"is_hidden_feature"`
 	IsDeferred          bool      `json:"is_deferred"` // Hard filter: don't pick this POI now
 	Visibility          float64   `json:"visibility"`  // Raw visibility score (0.0 - 1.0+)
 	Badges              []string  `json:"badges"`      // Ephemeral state (deferred, msfs, etc.)

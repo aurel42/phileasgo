@@ -226,6 +226,18 @@ func TestRegionalCategoriesJob_Pipeline(t *testing.T) {
 			expectedCats: map[string]string{"Q1": "Sights"},
 		},
 		{
+			name:              "Name-based Dedup (different QID, same concept)",
+			ontologicalResp:   `{"subclasses": [{"name": "racetrack", "category": "Sights", "size": "M"}]}`,
+			topographicalResp: `{"subclasses": []}`,
+			wikidataResps: map[string]string{
+				"racetrack": `{"search": [{"id": "Q1118667", "label": "racetrack"}]}`,
+				"Q1118667":  `{"entities": {"Q1118667": {"labels": {"en": {"value": "racetrack"}}} }}`,
+			},
+			// Q1118667 is a different QID than the static config's Q1777138 ("race track" under "Racetrack"),
+			// but the name "racetrack" matches the category name "Racetrack" after normalization.
+			expectedCats: map[string]string{},
+		},
+		{
 			name:              "Deep Redundancy Filtering (Subclass)",
 			ontologicalResp:   `{"subclasses": [{"name": "Alcázar", "category": "Sights", "size": "M"}]}`,
 			topographicalResp: `{"subclasses": []}`,
@@ -252,6 +264,7 @@ func TestRegionalCategoriesJob_Pipeline(t *testing.T) {
 					"Aerodrome": {Weight: 100, QIDs: map[string]string{"Q2": ""}},
 					"Sights":    {Weight: 50, QIDs: map[string]string{"Q_CASTLE": ""}},
 					"Shopping":  {Weight: 30},
+					"Racetrack": {Weight: 40, QIDs: map[string]string{"Q1777138": "race track"}},
 				},
 			}
 

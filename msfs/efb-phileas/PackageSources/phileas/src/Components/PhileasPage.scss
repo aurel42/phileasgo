@@ -22,23 +22,6 @@
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
         z-index: 100;
 
-        .brand {
-            font-size: 20px;
-            font-weight: bold;
-            color: #f39c12;
-            margin-right: 15px;
-            display: flex;
-            align-items: baseline;
-            gap: 8px;
-
-            .version {
-                font-size: 12px;
-                opacity: 0.6;
-                font-weight: normal;
-                color: #eee;
-            }
-        }
-
         .tt-button {
             background: #222;
             border: 1px solid #444;

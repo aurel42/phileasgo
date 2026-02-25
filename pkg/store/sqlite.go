@@ -840,6 +840,10 @@ func (s *SQLiteStore) GetState(ctx context.Context, key string) (string, bool) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false
 	}
+	if err != nil {
+		slog.Error("GetState: query failed", "key", key, "error", err)
+		return "", false
+	}
 	return val, true
 }
 

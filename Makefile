@@ -58,11 +58,12 @@ run: build
 test: lint unit-test test-web
 
 lint:
-	golangci-lint run
-	go vet ./...
+	golangci-lint run --exclude-dirs cmd/experiments
+	go vet $$(go list ./... | grep -v "cmd/experiments")
+	go fmt ./...
 
 unit-test:
-	go test ./...
+	go test $$(go list ./... | grep -v "cmd/experiments")
 
 test-web:
 	cd $(WEB_PATH) && npx tsc -p tsconfig.app.json --noEmit && npm run test

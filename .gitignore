@@ -27,6 +27,7 @@ data/admin1CodesASCII.txt
 data/Master.csv
 data/etopo1/
 data/rivers/
+data/physical/
 vendor/
 pkg/sim/simconnect/lib/
 pkg/geo/data/geodata.bin

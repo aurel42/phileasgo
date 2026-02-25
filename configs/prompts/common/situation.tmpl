@@ -11,12 +11,13 @@ The aircraft is {{if .IsOnGround -}}
 {{- end}}
 Its current position is {{printf "%.4f" .Lat}}, {{printf "%.4f" .Lon}} ({{if .City}}near {{.City}}, {{.Region}} in {{.Country}}{{else}}{{.TargetRegion}} in {{.TargetCountry}}{{end}}).
 
-{{if .POINameUser}}
+{{if and .POINameUser (not .IsOnGround)}}
 ### DIRECTION
 We are **{{.Movement}}** {{.POINameUser}}.
 - **Direction**: {{.ClockPos}} o'clock ({{.RelativeDir}})
 - **Distance**: {{if eq .UnitSystem "metric"}}{{.DistKm}} km{{else if eq .UnitSystem "hybrid"}}{{.DistKm}} km{{else}}{{.DistNm}} miles{{end}}
 - **Bearing**: {{printf "%.0f" .Bearing}}° ({{.CardinalDir}})
+{{end}}
 
 ### RESTRICTIONS
 {{if .IsOnGround}}- Since we are on the ground, do not describe the landscape as if we were flying overhead.{{end}}
@@ -24,7 +25,6 @@ We are **{{.Movement}}** {{.POINameUser}}.
 - Do not mention where we are going or what we are going to see next.
 - Do not predict where we will be landing.
 - Again: do not mention the aircraft's speed or altitude.
-{{end}}
 
 {{if .ActiveSecretWord}}
 ### ASSIGNED THEME

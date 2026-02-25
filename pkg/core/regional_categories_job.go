@@ -189,6 +189,14 @@ func (j *RegionalCategoriesJob) processCurrentTileCache(ctx context.Context, lat
 				delete(currentSubclasses, qid)
 				delete(currentLabels, qid)
 				pruned = true
+			} else if label := currentLabels[qid]; label != "" {
+				// Fallback: check label against static names (catches different QIDs for same concept)
+				if staticCat, nameCovered := j.isNameCoveredByStaticConfig(label); nameCovered {
+					slog.Info("RegionalCategoriesJob: Pruning redundant cached category (name match)", "qid", qid, "label", label, "regional_cat", catName, "covered_by", staticCat)
+					delete(currentSubclasses, qid)
+					delete(currentLabels, qid)
+					pruned = true
+				}
 			}
 		}
 	}
@@ -310,38 +318,7 @@ func (j *RegionalCategoriesJob) processSubclasses(ctx context.Context, latGrid, 
 
 	validated := j.validator.ValidateBatch(ctx, suggestions)
 
-	// Prepare final regional categories for classifier
-	regionalCategories := make(map[string]string)
-	for _, sub := range subclasses {
-		v, ok := validated[sub.Name]
-		if !ok {
-			continue
-		}
-
-		// Length check to prevent descriptions/papers from being accepted
-		if len(sub.Name) > 60 || len(sub.SpecificCategory) > 60 {
-			slog.Warn("RegionalCategoriesJob: Suggestion too long, rejecting", "name", sub.Name, "specific", sub.SpecificCategory)
-			continue
-		}
-
-		// Check if this category is already covered by our static configuration (hierarchy check)
-		if j.classifier != nil {
-			if staticCat, covered := j.classifier.IsCoveredByStaticConfig(ctx, v.QID); covered {
-				slog.Info("RegionalCategoriesJob: Skipping redundant suggestion, already covered by static config", "name", sub.Name, "qid", v.QID, "covered_by", staticCat)
-				continue
-			}
-		}
-
-		// When category is "Generic", use specific_category instead
-		effectiveCategory := sub.Category
-		if sub.Category == "Generic" && sub.SpecificCategory != "" {
-			effectiveCategory = sub.SpecificCategory
-			slog.Debug("RegionalCategoriesJob: Using specific_category for Generic", "name", sub.Name, "specific", sub.SpecificCategory)
-		}
-		// We map the validated QID to the effective category
-		regionalCategories[v.QID] = effectiveCategory
-		slog.Info("RegionalCategoriesJob: Added regional category", "name", sub.Name, "qid", v.QID, "category", effectiveCategory)
-	}
+	regionalCategories := j.filterValidSubclasses(ctx, subclasses, validated)
 
 	if len(regionalCategories) > 0 {
 		regionalLabels := make(map[string]string)
@@ -370,6 +347,42 @@ func (j *RegionalCategoriesJob) processSubclasses(ctx context.Context, latGrid, 
 	}
 }
 
+func (j *RegionalCategoriesJob) filterValidSubclasses(ctx context.Context, subclasses []subclass, validated map[string]wikidata.ValidatedQID) map[string]string {
+	regionalCategories := make(map[string]string)
+	for _, sub := range subclasses {
+		v, ok := validated[sub.Name]
+		if !ok {
+			continue
+		}
+
+		if len(sub.Name) > 60 || len(sub.SpecificCategory) > 60 {
+			slog.Warn("RegionalCategoriesJob: Suggestion too long, rejecting", "name", sub.Name, "specific", sub.SpecificCategory)
+			continue
+		}
+
+		if staticCat, covered := j.isNameCoveredByStaticConfig(sub.Name); covered {
+			slog.Info("RegionalCategoriesJob: Skipping redundant suggestion (name match)", "name", sub.Name, "qid", v.QID, "covered_by", staticCat)
+			continue
+		}
+
+		if j.classifier != nil {
+			if staticCat, covered := j.classifier.IsCoveredByStaticConfig(ctx, v.QID); covered {
+				slog.Info("RegionalCategoriesJob: Skipping redundant suggestion, already covered by static config", "name", sub.Name, "qid", v.QID, "covered_by", staticCat)
+				continue
+			}
+		}
+
+		effectiveCategory := sub.Category
+		if sub.Category == "Generic" && sub.SpecificCategory != "" {
+			effectiveCategory = sub.SpecificCategory
+			slog.Debug("RegionalCategoriesJob: Using specific_category for Generic", "name", sub.Name, "specific", sub.SpecificCategory)
+		}
+		regionalCategories[v.QID] = effectiveCategory
+		slog.Info("RegionalCategoriesJob: Added regional category", "name", sub.Name, "qid", v.QID, "category", effectiveCategory)
+	}
+	return regionalCategories
+}
+
 type subclass struct {
 	Name             string `json:"name"`
 	Category         string `json:"category"`
@@ -379,6 +392,33 @@ type subclass struct {
 
 type llmResponse struct {
 	Subclasses []subclass `json:"subclasses"`
+}
+
+// normalizeForComparison lowercases and strips spaces for fuzzy name matching.
+func normalizeForComparison(s string) string {
+	return strings.ToLower(strings.ReplaceAll(s, " ", ""))
+}
+
+// isNameCoveredByStaticConfig checks whether a suggestion name already matches
+// a static category by name or QID description. This catches cases where the
+// same concept exists under a different Wikidata QID that the hierarchy BFS
+// cannot reach (e.g. "racetrack" vs static "Racetrack" / "race track").
+func (j *RegionalCategoriesJob) isNameCoveredByStaticConfig(name string) (string, bool) {
+	if j.classifier == nil {
+		return "", false
+	}
+	norm := normalizeForComparison(name)
+	for catName, cat := range j.classifier.GetConfig().Categories {
+		if normalizeForComparison(catName) == norm {
+			return catName, true
+		}
+		for _, desc := range cat.QIDs {
+			if desc != "" && normalizeForComparison(desc) == norm {
+				return catName, true
+			}
+		}
+	}
+	return "", false
 }
 
 // ResetSession resets the job state for a new flight/teleport.

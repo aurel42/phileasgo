@@ -1,12 +1,13 @@
 // Script to strip unused properties from Natural Earth GeoJSON.
-// Keeps only: ISO_A2, ISO_A2_EH, NAME, and geometry.
-// This dramatically reduces file size for embedding.
+// Keeps only: NAME, QID, CATEGORY, and ISO codes.
+// Filters out features without a QID (or ISO code for countries).
 package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 )
 
 type FeatureCollection struct {
@@ -27,9 +28,10 @@ type SlimFeature struct {
 }
 
 type SlimProperties struct {
-	Name    string `json:"NAME"`
-	ISOA2   string `json:"ISO_A2"`
-	ISOA2EH string `json:"ISO_A2_EH"`
+	Name     string `json:"name"`
+	QID      string `json:"qid,omitempty"`
+	Category string `json:"category,omitempty"`
+	ISOA2    string `json:"iso_a2,omitempty"`
 }
 
 type SlimFeatureCollection struct {
@@ -46,7 +48,6 @@ func main() {
 	inputPath := os.Args[1]
 	outputPath := os.Args[2]
 
-	// Read input
 	data, err := os.ReadFile(inputPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to read input: %v\n", err)
@@ -61,25 +62,35 @@ func main() {
 
 	fmt.Printf("Input: %d features, %d bytes\n", len(fc.Features), len(data))
 
-	// Build slim version
-	slim := SlimFeatureCollection{
-		Type:     "FeatureCollection",
-		Features: make([]SlimFeature, len(fc.Features)),
-	}
+	var slimFeatures []SlimFeature
+	for _, f := range fc.Features {
+		name := getAny(f.Properties, "NAME", "name")
+		qid := getAny(f.Properties, "WIKIDATAID", "wikidataid", "QID", "qid")
+		category := getAny(f.Properties, "FEATURECLA", "featurecla")
+		iso := getAny(f.Properties, "ISO_A2", "iso_a2")
 
-	for i, f := range fc.Features {
-		slim.Features[i] = SlimFeature{
+		// Filter: Must have QID (or ISO code if it's a country)
+		if qid == "" && iso == "" {
+			continue
+		}
+
+		slimFeatures = append(slimFeatures, SlimFeature{
 			Type:     "Feature",
 			Geometry: f.Geometry,
 			Properties: SlimProperties{
-				Name:    getString(f.Properties, "NAME"),
-				ISOA2:   getString(f.Properties, "ISO_A2"),
-				ISOA2EH: getString(f.Properties, "ISO_A2_EH"),
+				Name:     name,
+				QID:      qid,
+				Category: category,
+				ISOA2:    iso,
 			},
-		}
+		})
 	}
 
-	// Write output (compact JSON)
+	slim := SlimFeatureCollection{
+		Type:     "FeatureCollection",
+		Features: slimFeatures,
+	}
+
 	outData, err := json.Marshal(slim)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to marshal: %v\n", err)
@@ -95,10 +106,15 @@ func main() {
 		len(slim.Features), len(outData), 100*(1-float64(len(outData))/float64(len(data))))
 }
 
-func getString(props map[string]interface{}, key string) string {
-	if val, ok := props[key]; ok {
-		if s, ok := val.(string); ok {
-			return s
+func getAny(props map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if val, ok := props[key]; ok {
+			if s, ok := val.(string); ok {
+				s = strings.TrimSpace(s)
+				if s != "" && s != "-99" {
+					return s
+				}
+			}
 		}
 	}
 	return ""

@@ -15,3 +15,21 @@
 .phileas-poi-layer {
     z-index: 100;
 }
+
+.phileas-airplane-layer {
+    z-index: 200;
+}
+
+.map-brand {
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    font-size: 24px;
+    font-weight: bold;
+    color: #f39c12;
+    opacity: 0.1;
+    z-index: 10;
+    pointer-events: none;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}

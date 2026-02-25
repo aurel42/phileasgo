@@ -5,7 +5,10 @@
 
 ## NARRATION FLOW
 1. **Introduction**: Start by pointing out the POI by its name ({{.POINameNative}} and/or {{.POINameUser}}).
-2. **Identification**: Describe how to identify the POI. Use its shape, size, color, or relation to landmarks like rivers, lakes, or cities.
+2. **Identification & Direction**: Point out the POI using the provided direction and distance data, then describe how to identify it (using its shape, color, or relation to landmarks).
+   - **Direction Rule**: You are free to choose the phrasing format based on the provided data components: clock position, cardinal direction, or a general relative position.
+   - **Precision Scaling**: The further away the POI is, the more precise your direction should be. For POIs that are very close, use simple relative directions. For POIs that are further away, use precise measurements like the exact clock position or the cardinal bearing.
+   - **Ground Rule**: If we are on the ground, do not give any directions at all.
 3. **Core Facts**: Provide interesting information using the Wikipedia article and research notes.
 
 ## STYLE & CONTENT

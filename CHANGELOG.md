@@ -1,5 +1,15 @@
 ﻿# Changelog
 
+## v0.3.219 (2026-02-25)
+- **Fix**: Resolved a race condition in the settings interface where persistent configuration was occasionally overwritten by stale defaults during initialization.
+- **Fix**: Improved error handling for persistent state lookups to prevent silent fallbacks to default values.
+- **Fix**: Regional discovery ignores configured categories now even if we look up the wrong Wikidata QID for them.
+- **Fix** (regression): Restored the narrator's spatial awareness to scale precision with distance—providing high-precision clock positions for distant POIs while maintaining conversational directions for close fly-bys.
+- **Fix** (regression): The narrator now correctly suppresses direction instructions while the aircraft is on the ground.
+- **Improvement**: Relocated "Phileas" branding from the EFB toolbar to a subtle map overlay to free up button space.
+- **Improvement**: Optimized EFB map layering: the aircraft icon now always renders on top of POI markers.
+- **Fix**: Resolved a latent case-sensitivity issue in GeoJSON property lookups for ISO country codes.
+
 ## v0.3.218 (2026-02-25)
 - **Fix**: **Nvidia Screenshot Refusals**. Removed the Nvidia vision model (`meta/llama-3.2-90b-vision-instruct`) from the screenshot profile due to aggressive false-positive content safety refusals on flight simulator imagery. Screenshots now fall through to Gemini.
 

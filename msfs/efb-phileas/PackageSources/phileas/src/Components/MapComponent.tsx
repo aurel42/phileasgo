@@ -565,7 +565,7 @@ class PhileasAirplaneLayer extends MapLayer<MapLayerProps<any>> {
 
     public render(): VNode {
         return (
-            <div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+            <div class="phileas-airplane-layer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
                 <div ref={this.iconRef}
                     style="position:absolute;pointer-events:none;display:none;" />
             </div>
@@ -776,6 +776,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         if (!this.mapSystem) return <div class="map-system-error">Map initialisation failed</div>;
         return (
             <div ref={this.containerRef} class="map-system-container" style="width:100%;height:100%;position:relative;">
+                <div class="map-brand">Phileas</div>
                 {this.mapSystem.map}
             </div>
         );
