@@ -25,8 +25,11 @@ type TripHandler struct {
 	store   store.Store
 }
 
-// NewTripHandler creates a new TripHandler.
+// NewTripHandler creates a new TripHandler. Returns nil if dependencies are missing.
 func NewTripHandler(session SessionProvider, st store.Store) *TripHandler {
+	if session == nil || st == nil {
+		return nil
+	}
 	return &TripHandler{session: session, store: st}
 }
 

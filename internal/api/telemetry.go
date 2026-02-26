@@ -55,6 +55,13 @@ func (h *TelemetryHandler) SetValleyAltitude(altMeters float64) {
 	h.valleyAltitude = altMeters
 }
 
+// GetTelemetry returns the current telemetry state.
+func (h *TelemetryHandler) GetTelemetry() (sim.Telemetry, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.telemetry, h.hasReceived
+}
+
 func (h *TelemetryHandler) handleTelemetry(w http.ResponseWriter, r *http.Request) {
 	h.mu.RLock()
 	resp := TelemetryResponse{

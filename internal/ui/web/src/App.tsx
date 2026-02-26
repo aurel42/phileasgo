@@ -3,10 +3,14 @@ import { InfoPanel } from './components/InfoPanel';
 import { POIInfoPanel } from './components/POIInfoPanel';
 import { PlaybackControls } from './components/PlaybackControls';
 import { RegionalCategoriesCard } from './components/RegionalCategoriesCard';
+import { SpatialFeaturesCard } from './components/SpatialFeaturesCard';
+import { DashboardTabs, type TabId } from './components/DashboardTabs';
 import { useTelemetry } from './hooks/useTelemetry';
 import { useTrackedPOIs } from './hooks/usePOIs';
 import type { POI } from './hooks/usePOIs';
 import { useNarrator } from './hooks/useNarrator';
+import { useBackendStats, useBackendVersion } from './hooks/useBackendInfo';
+import { DashboardFooter } from './components/DashboardFooter';
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { type AircraftType } from './components/AircraftIcon';
 
@@ -75,6 +79,8 @@ function App() {
 
   const pois = useTrackedPOIs();
   const { status: narratorStatus } = useNarrator();
+  const { data: backendStats } = useBackendStats();
+  const { data: backendVersion } = useBackendVersion();
 
   // Connection error latching
   const [hasConnectionError, setHasConnectionError] = useState(false);
@@ -89,96 +95,109 @@ function App() {
 
   // POI selection state (lifted from Map.tsx)
   const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
-  const [showGenericPanel, setShowGenericPanel] = useState(false);
-  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false); // [NEW] Lifted state
+  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+  const [previousTab, setPreviousTab] = useState<TabId>('dashboard');
   const autoOpenedRef = useRef(false);
-  const userDismissedRef = useRef<string | null>(null); // Track ID of user-dismissed POI
-  const lastAutoOpenedIdRef = useRef<string | null>(null); // Track ID of last auto-opened POI to prevent loops
+  const lastAutoOpenedIdRef = useRef<string | null>(null); // Track last auto-opened narration to prevent re-switch loops
 
   // POIs are already filtered by the backend
   const bluePOIs = pois.filter(p => p.last_played && p.last_played !== "0001-01-01T00:00:00Z");
   const nonBlueCount = pois.length - bluePOIs.length;
   const blueCount = bluePOIs.length;
 
-  // Auto-open panel when narrator starts playing (unless user dismissed it OR diagnostics is open)
+  // Auto-switch to POI tab when narrator has visual content worth showing.
+  // Only switches for: POI narrations (with current_poi) and screenshots (with thumbnail).
+  // Skips announcements (letsgo, border, debriefing, essay) that have no rich visual content.
   useEffect(() => {
-    if (narratorStatus?.playback_status === 'playing' && narratorStatus?.show_info_panel) {
-      // BLOCK AUTO-OPEN if Diagnostics is expanded
-      if (isDiagnosticsOpen) {
-        return;
+    const playbackStatus = narratorStatus?.playback_status;
+
+    // Phase 1: Preparing a POI — switch early if user is on a passive tab
+    if (playbackStatus === 'preparing' && narratorStatus?.preparing_poi) {
+      const poiId = narratorStatus.preparing_poi.wikidata_id;
+      if (lastAutoOpenedIdRef.current === poiId) return;
+      if (activeTab === 'diagnostics' || activeTab === 'poi') return;
+
+      const poi = pois.find(p => p.wikidata_id === poiId);
+      if (poi) {
+        setPreviousTab(activeTab);
+        setActiveTab('poi');
+        setSelectedPOI(poi);
+        autoOpenedRef.current = true;
+        lastAutoOpenedIdRef.current = poiId;
       }
-
-      if (narratorStatus.current_type === 'poi' && narratorStatus.current_poi) {
-        const poiId = narratorStatus.current_poi.wikidata_id;
-        // Don't auto-open if user manually closed the panel for THIS specific POI
-        if (userDismissedRef.current === poiId) {
-          return;
-        }
-
-        // Check if we already auto-opened this specific POI
-        if (lastAutoOpenedIdRef.current === poiId) {
-          return;
-        }
-
-        // DO NOT auto-open if the user has manually selected a POI
-        if (selectedPOI && !autoOpenedRef.current) {
-          return;
-        }
-
-        const poi = pois.find(p => p.wikidata_id === poiId);
-        if (poi && selectedPOI?.wikidata_id !== poiId) {
-          setSelectedPOI(poi);
-          autoOpenedRef.current = true;
-          lastAutoOpenedIdRef.current = poiId;
-        }
-      } else {
-        // Auto-open for non-POI narratives (managed by show_info_panel flag from backend)
-        const title = narratorStatus.display_title || narratorStatus.current_title || narratorStatus.current_type || 'Narration';
-        if (lastAutoOpenedIdRef.current !== title) {
-          lastAutoOpenedIdRef.current = title;
-          // Clear any previous POI selection to ensure the generic panel shows instead
-          setSelectedPOI(null);
-          setShowGenericPanel(true);
-          autoOpenedRef.current = true;
-        }
-      }
-    }
-  }, [narratorStatus?.playback_status, narratorStatus?.current_poi?.wikidata_id, narratorStatus?.current_type, narratorStatus?.current_title, narratorStatus?.show_info_panel, pois, isDiagnosticsOpen]);
-
-  // Auto-close panel when narrator stops or switches to content that shouldn't show the panel
-  useEffect(() => {
-    const isIdle = narratorStatus?.playback_status === 'idle';
-    const shouldShow = narratorStatus?.show_info_panel ?? false;
-
-    if ((isIdle || !shouldShow) && autoOpenedRef.current) {
-      setSelectedPOI(null);
-      setShowGenericPanel(false);
-      autoOpenedRef.current = false;
-      lastAutoOpenedIdRef.current = null;
-    }
-  }, [narratorStatus?.playback_status, narratorStatus?.show_info_panel]);
-
-  // Handler for manual POI selection (from map)
-  const handlePOISelect = useCallback((poi: POI) => {
-    // BLOCK MANUAL SELECTION if Diagnostics is expanded
-    if (isDiagnosticsOpen) {
       return;
     }
 
-    setSelectedPOI(poi);
-    autoOpenedRef.current = false; // User manually selected, don't auto-close
-    userDismissedRef.current = null; // New selection, reset dismissed suppression
-  }, [isDiagnosticsOpen]);
+    // Phase 2: Playing — only auto-switch for content-rich narration types
+    if (playbackStatus !== 'playing' || !narratorStatus?.show_info_panel) return;
+    if (activeTab === 'diagnostics') return;
 
-  // Handler for closing the panel
-  const handlePanelClose = useCallback(() => {
-    if (selectedPOI) {
-      userDismissedRef.current = selectedPOI.wikidata_id; // Suppress auto-open for this POI
+    if (narratorStatus.current_type === 'poi' && narratorStatus.current_poi) {
+      const poiId = narratorStatus.current_poi.wikidata_id;
+      if (lastAutoOpenedIdRef.current === poiId) return;
+
+      const poi = pois.find(p => p.wikidata_id === poiId);
+      if (poi) {
+        if (activeTab !== 'poi') {
+          setPreviousTab(activeTab);
+          setActiveTab('poi');
+          autoOpenedRef.current = true;
+        }
+        setSelectedPOI(poi);
+        lastAutoOpenedIdRef.current = poiId;
+      }
+      return;
     }
+
+    if (narratorStatus.current_type === 'screenshot' && narratorStatus.display_thumbnail) {
+      const key = 'screenshot-' + narratorStatus.current_title;
+      if (lastAutoOpenedIdRef.current === key) return;
+
+      if (activeTab !== 'poi') {
+        setPreviousTab(activeTab);
+        setActiveTab('poi');
+        autoOpenedRef.current = true;
+      }
+      setSelectedPOI(null); // Generic panel renders the screenshot
+      lastAutoOpenedIdRef.current = key;
+      return;
+    }
+
+    // Other types (essay, letsgo, border, debriefing, briefing): no auto-switch
+  }, [narratorStatus?.playback_status, narratorStatus?.preparing_poi,
+      narratorStatus?.current_poi, narratorStatus?.current_type,
+      narratorStatus?.current_title, narratorStatus?.show_info_panel,
+      narratorStatus?.display_thumbnail, activeTab, pois]);
+
+  // Revert tab when narration ends
+  useEffect(() => {
+    if (narratorStatus?.playback_status === 'idle' && autoOpenedRef.current && activeTab === 'poi' && previousTab !== 'poi') {
+      setActiveTab(previousTab);
+      autoOpenedRef.current = false;
+      lastAutoOpenedIdRef.current = null; // Allow same POI to auto-open again next time
+    }
+  }, [narratorStatus?.playback_status, activeTab, previousTab]);
+
+  // Handler for manual POI selection (from map marker click)
+  const handlePOISelect = useCallback((poi: POI) => {
+    if (activeTab === 'diagnostics') return;
+
+    setSelectedPOI(poi);
+    if (activeTab !== 'poi') {
+      setPreviousTab(activeTab);
+    }
+    setActiveTab('poi');
+    autoOpenedRef.current = false; // User manually selected — don't auto-revert
+  }, [activeTab]);
+
+  // Handler for closing the panel (e.g. from map click)
+  const handlePanelClose = useCallback(() => {
     setSelectedPOI(null);
-    setShowGenericPanel(false);
     autoOpenedRef.current = false;
-  }, [selectedPOI]);
+    if (activeTab === 'poi') {
+      setActiveTab(previousTab);
+    }
+  }, [activeTab, previousTab]);
 
   // Fetch config on mount and poll for updates (to handle multi-tab/GUI changes)
   const updateConfig = useCallback((key: string, value: string | number | boolean) => {
@@ -443,43 +462,59 @@ function App() {
       </div>
       <div className="dashboard-container">
         <PlaybackControls />
-        {(selectedPOI || showGenericPanel) ? (
+        <DashboardTabs activeTab={activeTab} onTabChange={setActiveTab} />
+
+        {activeTab === 'dashboard' && (
+          <InfoPanel
+            activeTab="dashboard"
+            telemetry={telemetry}
+            status={hasConnectionError ? 'error' : status}
+            isRetrying={status === 'pending' && hasConnectionError}
+            stats={backendStats}
+          />
+        )}
+
+        {activeTab === 'poi' && (
           <POIInfoPanel
             key={selectedPOI?.wikidata_id || (narratorStatus?.current_type + '-' + narratorStatus?.current_title)}
             poi={selectedPOI}
             pois={pois}
-            telemetry={telemetry ?? undefined}
-            aircraftHeading={telemetry?.Heading || 0}
             currentTitle={narratorStatus?.current_title}
             currentType={narratorStatus?.current_type}
-            onClose={handlePanelClose}
-            minPoiScore={minPoiScore}
-            targetCount={targetCount}
-            filterMode={filterMode}
-            narrationFrequency={narrationFrequency}
-            textLength={textLength}
-            onSettingsClick={() => navigate('/settings')}
+            onClose={() => { autoOpenedRef.current = false; setActiveTab(previousTab); }}
           />
-        ) : (
+        )}
+
+        {activeTab === 'regional' && (
           <>
-            <InfoPanel
-              telemetry={telemetry}
-              status={hasConnectionError ? 'error' : status}
-              isRetrying={status === 'pending' && hasConnectionError}
-              nonBlueCount={nonBlueCount}
-              blueCount={blueCount}
-              minPoiScore={minPoiScore}
-              targetCount={targetCount}
-              filterMode={filterMode}
-              narrationFrequency={narrationFrequency}
-              textLength={textLength}
-              onSettingsClick={() => navigate('/settings')}
-              isDiagnosticsOpen={isDiagnosticsOpen}
-              onDiagnosticsToggle={setIsDiagnosticsOpen}
-            />
             <RegionalCategoriesCard />
+            <SpatialFeaturesCard />
           </>
         )}
+
+        {activeTab === 'diagnostics' && (
+          <InfoPanel
+            activeTab="diagnostics"
+            telemetry={telemetry}
+            status={hasConnectionError ? 'error' : status}
+            isRetrying={status === 'pending' && hasConnectionError}
+            stats={backendStats}
+          />
+        )}
+
+        <DashboardFooter
+          telemetry={telemetry}
+          stats={backendStats}
+          version={backendVersion}
+          nonBlueCount={nonBlueCount}
+          blueCount={blueCount}
+          minPoiScore={minPoiScore}
+          targetCount={targetCount}
+          filterMode={filterMode}
+          narrationFrequency={narrationFrequency}
+          textLength={textLength}
+          onSettingsClick={() => navigate('/settings')}
+        />
       </div>
 
     </div >

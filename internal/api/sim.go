@@ -11,6 +11,9 @@ type SimCommandHandler struct {
 }
 
 func NewSimCommandHandler(simClient sim.Client) *SimCommandHandler {
+	if simClient == nil {
+		return nil
+	}
 	return &SimCommandHandler{simClient: simClient}
 }
 

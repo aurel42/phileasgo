@@ -12,6 +12,9 @@ type MapLabelsHandler struct {
 }
 
 func NewMapLabelsHandler(m *labels.Manager) *MapLabelsHandler {
+	if m == nil {
+		return nil
+	}
 	return &MapLabelsHandler{manager: m}
 }
 

@@ -262,6 +262,15 @@ func initCoreServices(st store.Store, cfg config.Provider, tr *tracker.Tracker, 
 	poiMgr.SetRiverSentinel(riverSentinel)
 	poiMgr.SetPOILoader(wikiSvc)
 
+	// Spatial Feature Service (New)
+	spatialSvc, err := geo.NewFeatureService(
+		"data/ne_10m_geography_marine_polys.geojson",
+		"data/ne_10m_geography_regions_polys.geojson",
+	)
+	if err != nil {
+		slog.Warn("SpatialFeatureService not available", "error", err)
+	}
+
 	return &CoreServices{
 		WikiSvc:         wikiSvc,
 		PoiMgr:          poiMgr,
@@ -269,6 +278,7 @@ func initCoreServices(st store.Store, cfg config.Provider, tr *tracker.Tracker, 
 		Classifier:      smartClassifier,
 		WikiClient:      wikiClient,
 		WikipediaClient: wpClient,
+		SpatialFeature:  spatialSvc,
 	}, densityMgr, nil
 }
 
@@ -427,6 +437,7 @@ func runServer(ctx context.Context, cfg config.Provider, svcs *CoreServices, ns 
 		labelH,
 		simH,
 		regionalH,
+		api.NewFeaturesHandler(svcs.SpatialFeature, telH),
 		shutdownFunc,
 	)
 
@@ -553,6 +564,7 @@ type CoreServices struct {
 	Classifier      *classifier.Classifier
 	WikiClient      *wikidata.Client
 	WikipediaClient *wikipedia.Client
+	SpatialFeature  *geo.FeatureService
 }
 
 func createAIService(cfg config.Provider, llmProv llm.Provider, ttsProv tts.Provider, promptMgr *prompts.Manager, poiMgr narrator.POIProvider, wikiSvc *wikidata.Service, simClient sim.Client, st store.Store, tr *tracker.Tracker, catCfg *config.CategoriesConfig, sessionMgr *session.Manager, densityMgr *wikidata.DensityManager) *narrator.AIService {

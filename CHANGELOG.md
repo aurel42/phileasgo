@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## v0.3.220 (2026-02-26)
+- **Feature**: **Spatial Features API**. New `/api/features` endpoint returns the geographic features (seas, oceans, named regions) covering the aircraft's current position, powered by Natural Earth datasets.
+- **Feature**: **Tabbed Dashboard**. Replaced the sidebar's toggle-based panels with a tabbed layout (Dashboard, POI, Regional, Diagnostics) for cleaner navigation.
+- **Feature**: **Spatial Features Card**. The Dashboard tab displays currently active geographic features as tagged chips.
+- **Feature**: **Dashboard Footer**. New persistent footer bar showing sim connection status, POI counts, narrator configuration, and version info at a glance.
+- **Improvement**: API handler constructors now gracefully return nil when dependencies are missing, preventing startup panics when optional services are unavailable.
+
 ## v0.3.219 (2026-02-25)
 - **Fix**: Resolved a race condition in the settings interface where persistent configuration was occasionally overwritten by stale defaults during initialization.
 - **Fix**: Improved error handling for persistent state lookups to prevent silent fallbacks to default values.

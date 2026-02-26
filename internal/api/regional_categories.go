@@ -15,8 +15,11 @@ type RegionalCategoriesHandler struct {
 	store      store.HierarchyStore
 }
 
-// NewRegionalCategoriesHandler creates a new handler.
+// NewRegionalCategoriesHandler creates a new handler. Returns nil if dependencies are missing.
 func NewRegionalCategoriesHandler(c *classifier.Classifier, s store.HierarchyStore) *RegionalCategoriesHandler {
+	if c == nil || s == nil {
+		return nil
+	}
 	return &RegionalCategoriesHandler{
 		classifier: c,
 		store:      s,

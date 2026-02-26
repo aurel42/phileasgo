@@ -35,7 +35,9 @@
       "Bash(find:*)",
       "Bash(while read hash msg)",
       "Bash(do echo \"=== $msg ===\")",
-      "Bash(PYTHONIOENCODING=utf-8 python:*)"
+      "Bash(PYTHONIOENCODING=utf-8 python:*)",
+      "Bash(head:*)",
+      "Bash(cd /c/Users/aurel/Projects/phileasgo/internal/ui/web && npx eslint src/App.tsx src/components/DashboardFooter.tsx 2>&1)"
     ]
   }
 }
