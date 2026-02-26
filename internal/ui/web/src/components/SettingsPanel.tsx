@@ -24,6 +24,44 @@ const VICTORIAN_PALETTE = [
     '#000000', '#1a1a1a', '#333333', '#4d4d4d', '#666666', '#808080', '#999999', '#cccccc',
 ];
 
+/** Convert seconds to a compact human-readable string (e.g. 86400 → "1d", 3600 → "1h"). */
+function secondsToHuman(secs: number): string {
+    if (secs <= 0) return '0s';
+    const d = Math.floor(secs / 86400);
+    const h = Math.floor((secs % 86400) / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    const parts: string[] = [];
+    if (d) parts.push(`${d}d`);
+    if (h) parts.push(`${h}h`);
+    if (m) parts.push(`${m}m`);
+    if (s || parts.length === 0) parts.push(`${s}s`);
+    return parts.join('');
+}
+
+/** Parse a human-readable duration string (e.g. "1d", "2h30m", "90s") to seconds. Returns null on failure. */
+function parseHumanToSeconds(input: string): number | null {
+    const s = input.trim();
+    if (!s) return null;
+    // Try plain number (interpret as seconds)
+    if (/^\d+$/.test(s)) return parseInt(s, 10);
+    const re = /(\d+(?:\.\d+)?)\s*(d|h|m|s)/gi;
+    let total = 0;
+    let matched = false;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(s)) !== null) {
+        matched = true;
+        const val = parseFloat(match[1]);
+        switch (match[2].toLowerCase()) {
+            case 'd': total += val * 86400; break;
+            case 'h': total += val * 3600; break;
+            case 'm': total += val * 60; break;
+            case 's': total += val; break;
+        }
+    }
+    return matched ? Math.round(total) : null;
+}
+
 interface SettingsPanelProps {
     isGui: boolean;
     onBack: () => void;
@@ -50,8 +88,8 @@ interface SettingsPanelProps {
     onAutoNarrateChange: (val: boolean) => void;
     pauseDuration: number;
     onPauseDurationChange: (val: number) => void;
-    repeatTTL: string;
-    onRepeatTTLChange: (val: string) => void;
+    repeatTTL: number;
+    onRepeatTTLChange: (val: number) => void;
     narrationLengthShort: number;
     narrationLengthLong: number;
     onNarrationLengthChange: (minValue: number, maxValue: number) => void;
@@ -134,7 +172,8 @@ interface DraftState {
     textLength: number;
     autoNarrate: boolean;
     pauseDuration: number;
-    repeatTTL: string;
+    repeatTTL: number;
+    repeatTTLInput: string; // human-readable display/edit string
     narrationLengthShort: number;
     narrationLengthLong: number;
     promptUnits: string; // imperial/hybrid/metric - affects prompt templates
@@ -153,9 +192,12 @@ interface DraftState {
     mockStartLon: number | null;
     mockStartAlt: number | null;
     mockStartHeading: number | null;
-    mockDurationParked: string;
-    mockDurationTaxi: string;
-    mockDurationHold: string;
+    mockDurationParked: number;
+    mockDurationParkedInput: string;
+    mockDurationTaxi: number;
+    mockDurationTaxiInput: string;
+    mockDurationHold: number;
+    mockDurationHoldInput: string;
     // Interface tab (local-only, no server sync needed)
     units: 'km' | 'nm';
     showCacheLayer: boolean;
@@ -272,7 +314,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     textLength: data.text_length ?? textLength,
                     autoNarrate: data.auto_narrate ?? autoNarrate,
                     pauseDuration: data.pause_between_narrations ?? pauseDuration,
-                    repeatTTL: data.repeat_ttl || repeatTTL,
+                    repeatTTL: data.repeat_ttl ?? repeatTTL,
+                    repeatTTLInput: secondsToHuman(data.repeat_ttl ?? repeatTTL),
                     narrationLengthShort: data.narration_length_short_words ?? narrationLengthShort,
                     narrationLengthLong: data.narration_length_long_words ?? narrationLengthLong,
                     promptUnits: data.units || 'hybrid',
@@ -290,9 +333,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     mockStartLon: data.mock_start_lon ?? null,
                     mockStartAlt: data.mock_start_alt ?? null,
                     mockStartHeading: data.mock_start_heading ?? null,
-                    mockDurationParked: data.mock_duration_parked || '',
-                    mockDurationTaxi: data.mock_duration_taxi || '',
-                    mockDurationHold: data.mock_duration_hold || '',
+                    mockDurationParked: data.mock_duration_parked ?? 0,
+                    mockDurationParkedInput: secondsToHuman(data.mock_duration_parked ?? 0),
+                    mockDurationTaxi: data.mock_duration_taxi ?? 0,
+                    mockDurationTaxiInput: secondsToHuman(data.mock_duration_taxi ?? 0),
+                    mockDurationHold: data.mock_duration_hold ?? 0,
+                    mockDurationHoldInput: secondsToHuman(data.mock_duration_hold ?? 0),
                     units: data.range_ring_units || units,
                     showCacheLayer: data.show_cache_layer ?? showCacheLayer,
                     showVisibilityLayer: data.show_visibility_layer ?? showVisibilityLayer,
@@ -358,9 +404,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.mockStartLon !== (serverConfig.mock_start_lon ?? null) ||
             draft.mockStartAlt !== (serverConfig.mock_start_alt ?? null) ||
             draft.mockStartHeading !== (serverConfig.mock_start_heading ?? null) ||
-            draft.mockDurationParked !== (serverConfig.mock_duration_parked || '') ||
-            draft.mockDurationTaxi !== (serverConfig.mock_duration_taxi || '') ||
-            draft.mockDurationHold !== (serverConfig.mock_duration_hold || '') ||
+            draft.mockDurationParked !== (serverConfig.mock_duration_parked ?? 0) ||
+            draft.mockDurationTaxi !== (serverConfig.mock_duration_taxi ?? 0) ||
+            draft.mockDurationHold !== (serverConfig.mock_duration_hold ?? 0) ||
             draft.units !== units ||
             draft.showCacheLayer !== showCacheLayer ||
             draft.showVisibilityLayer !== showVisibilityLayer ||
@@ -415,15 +461,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         if (draft.mockStartLon !== (serverConfig?.mock_start_lon ?? null)) payload.mock_start_lon = draft.mockStartLon;
         if (draft.mockStartAlt !== (serverConfig?.mock_start_alt ?? null)) payload.mock_start_alt = draft.mockStartAlt;
         if (draft.mockStartHeading !== (serverConfig?.mock_start_heading ?? null)) payload.mock_start_heading = draft.mockStartHeading;
-        if (draft.mockDurationParked !== (serverConfig?.mock_duration_parked || '')) payload.mock_duration_parked = draft.mockDurationParked;
-        if (draft.mockDurationTaxi !== (serverConfig?.mock_duration_taxi || '')) payload.mock_duration_taxi = draft.mockDurationTaxi;
-        if (draft.mockDurationHold !== (serverConfig?.mock_duration_hold || '')) payload.mock_duration_hold = draft.mockDurationHold;
+        if (draft.mockDurationParked !== (serverConfig?.mock_duration_parked ?? 0)) payload.mock_duration_parked = draft.mockDurationParked;
+        if (draft.mockDurationTaxi !== (serverConfig?.mock_duration_taxi ?? 0)) payload.mock_duration_taxi = draft.mockDurationTaxi;
+        if (draft.mockDurationHold !== (serverConfig?.mock_duration_hold ?? 0)) payload.mock_duration_hold = draft.mockDurationHold;
         if (draft.deferralThreshold !== (serverConfig?.deferral_threshold ?? 1.05)) payload.deferral_threshold = draft.deferralThreshold;
         if (draft.deferralProximityBoostPower !== (serverConfig?.deferral_proximity_boost_power ?? 1.0)) payload.deferral_proximity_boost_power = draft.deferralProximityBoostPower;
         if (draft.twoPassScriptGeneration !== (serverConfig?.two_pass_script_generation ?? false)) payload.two_pass_script_generation = draft.twoPassScriptGeneration;
         if (draft.autoNarrate !== (serverConfig?.auto_narrate ?? true)) payload.auto_narrate = draft.autoNarrate;
         if (draft.pauseDuration !== (serverConfig?.pause_between_narrations ?? 4)) payload.pause_between_narrations = draft.pauseDuration;
-        if (draft.repeatTTL !== (serverConfig?.repeat_ttl || '1h')) payload.repeat_ttl = draft.repeatTTL;
+        if (draft.repeatTTL !== (serverConfig?.repeat_ttl ?? 3600)) payload.repeat_ttl = draft.repeatTTL;
         if (draft.narrationLengthShort !== (serverConfig?.narration_length_short_words ?? 50)) payload.narration_length_short_words = draft.narrationLengthShort;
         if (draft.narrationLengthLong !== (serverConfig?.narration_length_long_words ?? 200)) payload.narration_length_long_words = draft.narrationLengthLong;
         if (draft.beaconEnabled !== (serverConfig?.beacon_enabled ?? true)) payload.beacon_enabled = draft.beaconEnabled;
@@ -631,8 +677,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                                 type="text"
                                                 className="settings-input"
                                                 placeholder="e.g. 30s, 1m"
-                                                value={draft.mockDurationParked}
-                                                onChange={e => updateDraft('mockDurationParked', e.target.value)}
+                                                value={draft.mockDurationParkedInput}
+                                                onChange={e => {
+                                                    const input = e.target.value;
+                                                    updateDraft('mockDurationParkedInput', input);
+                                                    const secs = parseHumanToSeconds(input);
+                                                    if (secs !== null) updateDraft('mockDurationParked', secs);
+                                                }}
                                             />
                                         ))}
                                         {renderField('Taxi Duration', (
@@ -640,8 +691,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                                 type="text"
                                                 className="settings-input"
                                                 placeholder="e.g. 2m"
-                                                value={draft.mockDurationTaxi}
-                                                onChange={e => updateDraft('mockDurationTaxi', e.target.value)}
+                                                value={draft.mockDurationTaxiInput}
+                                                onChange={e => {
+                                                    const input = e.target.value;
+                                                    updateDraft('mockDurationTaxiInput', input);
+                                                    const secs = parseHumanToSeconds(input);
+                                                    if (secs !== null) updateDraft('mockDurationTaxi', secs);
+                                                }}
                                             />
                                         ))}
                                         {renderField('Hold Duration', (
@@ -649,8 +705,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                                 type="text"
                                                 className="settings-input"
                                                 placeholder="e.g. 10s"
-                                                value={draft.mockDurationHold}
-                                                onChange={e => updateDraft('mockDurationHold', e.target.value)}
+                                                value={draft.mockDurationHoldInput}
+                                                onChange={e => {
+                                                    const input = e.target.value;
+                                                    updateDraft('mockDurationHoldInput', input);
+                                                    const secs = parseHumanToSeconds(input);
+                                                    if (secs !== null) updateDraft('mockDurationHold', secs);
+                                                }}
                                             />
                                         ))}
                                     </div>
@@ -699,8 +760,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                     type="text"
                                     className="settings-input"
                                     placeholder="e.g. 1h, 30m, 1d"
-                                    value={draft.repeatTTL}
-                                    onChange={e => updateDraft('repeatTTL', e.target.value)}
+                                    value={draft.repeatTTLInput}
+                                    onChange={e => {
+                                        const input = e.target.value;
+                                        updateDraft('repeatTTLInput', input);
+                                        const secs = parseHumanToSeconds(input);
+                                        if (secs !== null) updateDraft('repeatTTL', secs);
+                                    }}
                                 />
                             ))}
                             <div style={{ marginTop: '16px' }}></div>

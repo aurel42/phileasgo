@@ -53,7 +53,7 @@ function App() {
   const [textLength, setTextLength] = useState(3);
   const [autoNarrate, setAutoNarrate] = useState(true);
   const [pauseDuration, setPauseDuration] = useState(4);
-  const [repeatTTL, setRepeatTTL] = useState('1h');
+  const [repeatTTL, setRepeatTTL] = useState(3600);
   const [narrationLengthShort, setNarrationLengthShort] = useState(50);
   const [narrationLengthLong, setNarrationLengthLong] = useState(200);
   const [beaconMaxTargets, setBeaconMaxTargets] = useState(2);
@@ -212,7 +212,7 @@ function App() {
     if (key === 'text_length') setTextLength(value as number);
     if (key === 'auto_narrate') setAutoNarrate(value as boolean);
     if (key === 'pause_between_narrations') setPauseDuration(value as number);
-    if (key === 'repeat_ttl') setRepeatTTL(value as string);
+    if (key === 'repeat_ttl') setRepeatTTL(value as number);
     if (key === 'narration_length_short_words') setNarrationLengthShort(value as number);
     if (key === 'narration_length_long_words') setNarrationLengthLong(value as number);
     if (key === 'settlement_label_limit') setSettlementLabelLimit(value as number);
@@ -255,7 +255,7 @@ function App() {
           setTextLength(data.text_length ?? 3);
           setAutoNarrate(data.auto_narrate ?? true);
           setPauseDuration(data.pause_between_narrations ?? 4);
-          setRepeatTTL(data.repeat_ttl || '1h');
+          setRepeatTTL(data.repeat_ttl ?? 3600);
           setNarrationLengthShort(data.narration_length_short_words ?? 50);
           setNarrationLengthLong(data.narration_length_long_words ?? 200);
           setSettlementLabelLimit(data.settlement_label_limit ?? 5);

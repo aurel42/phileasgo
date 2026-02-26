@@ -365,6 +365,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
     }, [effectiveReplayMode, fontsLoaded, validEvents.length, frame.zoom]);
 
     const accumulatedSettlements = useRef<Map<string, LabelDTO>>(new Map());
+    const labelSessionId = useRef(crypto.randomUUID());
     const accumulatedPois = useRef<Map<string, POI>>(new Map());
     const labelAppearanceRef = useRef<Map<string, number>>(new Map());
     const preparingStartRef = useRef<Map<string, number>>(new Map());
@@ -702,7 +703,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     ac_lat: acState.lat,
                     ac_lon: acState.lon,
                     heading: acState.heading,
-                    zoom: lockedZoom
+                    zoom: lockedZoom,
+                    sid: labelSessionId.current
                 }).then(newLabels => {
                     newLabels.forEach(l => accumulatedSettlements.current.set(l.id, l));
                     setLastSyncLabels(newLabels);

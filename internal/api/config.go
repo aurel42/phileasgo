@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/store"
@@ -56,9 +57,9 @@ type ConfigResponse struct {
 	MockStartLon                float64  `json:"mock_start_lon"`
 	MockStartAlt                float64  `json:"mock_start_alt"`
 	MockStartHeading            *float64 `json:"mock_start_heading"`
-	MockDurationParked          string   `json:"mock_duration_parked"`
-	MockDurationTaxi            string   `json:"mock_duration_taxi"`
-	MockDurationHold            string   `json:"mock_duration_hold"`
+	MockDurationParked          int      `json:"mock_duration_parked"`
+	MockDurationTaxi            int      `json:"mock_duration_taxi"`
+	MockDurationHold            int      `json:"mock_duration_hold"`
 	StyleLibrary                []string `json:"style_library"`
 	ActiveStyle                 string   `json:"active_style"`
 	ActiveMapStyle              string   `json:"active_map_style"`
@@ -80,8 +81,8 @@ type ConfigResponse struct {
 	BeaconSinkDistanceClose float64  `json:"beacon_sink_distance_close"`
 	BeaconMaxTargets        int      `json:"beacon_max_targets"`
 	AutoNarrate             bool     `json:"auto_narrate"`
-	PauseBetweenNarrations  float64  `json:"pause_between_narrations"`
-	RepeatTTL               string   `json:"repeat_ttl"`
+	PauseBetweenNarrations  int      `json:"pause_between_narrations"`
+	RepeatTTL               int      `json:"repeat_ttl"`
 	NarrationLengthShort    int      `json:"narration_length_short_words"`
 	NarrationLengthLong     int      `json:"narration_length_long_words"`
 	SettlementCategories    []string `json:"settlement_categories"`
@@ -115,9 +116,9 @@ type ConfigRequest struct {
 	MockStartLon                *float64 `json:"mock_start_lon,omitempty"`
 	MockStartAlt                *float64 `json:"mock_start_alt,omitempty"`
 	MockStartHeading            *float64 `json:"mock_start_heading,omitempty"`
-	MockDurationParked          string   `json:"mock_duration_parked,omitempty"`
-	MockDurationTaxi            string   `json:"mock_duration_taxi,omitempty"`
-	MockDurationHold            string   `json:"mock_duration_hold,omitempty"`
+	MockDurationParked          *int     `json:"mock_duration_parked,omitempty"`
+	MockDurationTaxi            *int     `json:"mock_duration_taxi,omitempty"`
+	MockDurationHold            *int     `json:"mock_duration_hold,omitempty"`
 	StyleLibrary                []string `json:"style_library,omitempty"`
 	ActiveStyle                 *string  `json:"active_style,omitempty"` // Pointer to detect empty string vs missing
 	ActiveMapStyle              *string  `json:"active_map_style,omitempty"`
@@ -139,8 +140,8 @@ type ConfigRequest struct {
 	BeaconSinkDistanceClose *float64 `json:"beacon_sink_distance_close,omitempty"`
 	BeaconMaxTargets        *int     `json:"beacon_max_targets,omitempty"`
 	AutoNarrate             *bool    `json:"auto_narrate,omitempty"`
-	PauseBetweenNarrations  *float64 `json:"pause_between_narrations,omitempty"`
-	RepeatTTL               *string  `json:"repeat_ttl,omitempty"`
+	PauseBetweenNarrations  *int     `json:"pause_between_narrations,omitempty"`
+	RepeatTTL               *int     `json:"repeat_ttl,omitempty"`
 	NarrationLengthShort    *int     `json:"narration_length_short_words,omitempty"`
 	NarrationLengthLong     *int     `json:"narration_length_long_words,omitempty"`
 	// Aircraft
@@ -214,9 +215,9 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		MockStartLon:                h.cfgProv.MockStartLon(ctx),
 		MockStartAlt:                h.cfgProv.MockStartAlt(ctx),
 		MockStartHeading:            h.cfgProv.MockStartHeading(ctx),
-		MockDurationParked:          h.cfgProv.MockDurationParked(ctx).String(),
-		MockDurationTaxi:            h.cfgProv.MockDurationTaxi(ctx).String(),
-		MockDurationHold:            h.cfgProv.MockDurationHold(ctx).String(),
+		MockDurationParked:          int(h.cfgProv.MockDurationParked(ctx).Seconds()),
+		MockDurationTaxi:            int(h.cfgProv.MockDurationTaxi(ctx).Seconds()),
+		MockDurationHold:            int(h.cfgProv.MockDurationHold(ctx).Seconds()),
 		StyleLibrary:                h.cfgProv.StyleLibrary(ctx),
 		ActiveStyle:                 h.cfgProv.ActiveStyle(ctx),
 		ActiveMapStyle:              h.cfgProv.ActiveMapStyle(ctx),
@@ -237,8 +238,8 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		BeaconSinkDistanceClose:     float64(h.cfgProv.BeaconSinkDistanceClose(ctx)),
 		BeaconMaxTargets:            h.cfgProv.BeaconMaxTargets(ctx),
 		AutoNarrate:                 h.cfgProv.AutoNarrate(ctx),
-		PauseBetweenNarrations:      h.cfgProv.PauseDuration(ctx).Seconds(),
-		RepeatTTL:                   h.cfgProv.RepeatTTL(ctx).String(),
+		PauseBetweenNarrations:      int(h.cfgProv.PauseDuration(ctx).Seconds()),
+		RepeatTTL:                   int(h.cfgProv.RepeatTTL(ctx).Seconds()),
 		NarrationLengthShort:        h.cfgProv.NarrationLengthShort(ctx),
 		NarrationLengthLong:         h.cfgProv.NarrationLengthLong(ctx),
 		SettlementCategories:        h.settlementCategories(),
@@ -363,13 +364,10 @@ func (h *ConfigHandler) applyThresholdUpdates(ctx context.Context, req *ConfigRe
 		h.updateBoolState(ctx, config.KeyAutoNarrate, *req.AutoNarrate)
 	}
 	if req.PauseBetweenNarrations != nil {
-		strVal := fmt.Sprintf("%.0fs", *req.PauseBetweenNarrations)
-		_ = h.store.SetState(ctx, config.KeyPauseDuration, strVal)
-		slog.Debug("Config updated", config.KeyPauseDuration, strVal)
+		h.updateIntState(ctx, config.KeyPauseDuration, *req.PauseBetweenNarrations)
 	}
 	if req.RepeatTTL != nil {
-		_ = h.store.SetState(ctx, config.KeyRepeatTTL, *req.RepeatTTL)
-		slog.Debug("Config updated", config.KeyRepeatTTL, *req.RepeatTTL)
+		h.updateIntState(ctx, config.KeyRepeatTTL, *req.RepeatTTL)
 	}
 	if req.NarrationLengthShort != nil {
 		h.updateIntState(ctx, config.KeyNarrationLengthShort, *req.NarrationLengthShort)
@@ -429,14 +427,14 @@ func (h *ConfigHandler) applyMockUpdates(ctx context.Context, req *ConfigRequest
 		_ = h.store.DeleteState(ctx, config.KeyMockHeading)
 	}
 
-	if req.MockDurationParked != "" {
-		_ = h.store.SetState(ctx, config.KeyMockDurParked, req.MockDurationParked)
+	if req.MockDurationParked != nil {
+		_ = h.store.SetState(ctx, config.KeyMockDurParked, strconv.Itoa(*req.MockDurationParked))
 	}
-	if req.MockDurationTaxi != "" {
-		_ = h.store.SetState(ctx, config.KeyMockDurTaxi, req.MockDurationTaxi)
+	if req.MockDurationTaxi != nil {
+		_ = h.store.SetState(ctx, config.KeyMockDurTaxi, strconv.Itoa(*req.MockDurationTaxi))
 	}
-	if req.MockDurationHold != "" {
-		_ = h.store.SetState(ctx, config.KeyMockDurHold, req.MockDurationHold)
+	if req.MockDurationHold != nil {
+		_ = h.store.SetState(ctx, config.KeyMockDurHold, strconv.Itoa(*req.MockDurationHold))
 	}
 }
 

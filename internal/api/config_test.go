@@ -251,9 +251,9 @@ func TestHandleSetConfig(t *testing.T) {
 		},
 		{
 			name:    "Update Pause Between Narrations",
-			req:     ConfigRequest{PauseBetweenNarrations: ptrFloat(45.0)},
+			req:     ConfigRequest{PauseBetweenNarrations: ptrInt(45)},
 			wantKey: "narrator.pause_between_narrations",
-			wantVal: "45s",
+			wantVal: "45",
 		},
 	}
 

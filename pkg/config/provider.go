@@ -425,6 +425,11 @@ func (p *UnifiedProvider) getBool(ctx context.Context, key string, fallback bool
 func (p *UnifiedProvider) getDuration(ctx context.Context, key string, fallback time.Duration) time.Duration {
 	if p.store != nil {
 		if val, ok := p.store.GetState(ctx, key); ok && val != "" {
+			if secs, err := strconv.Atoi(val); err == nil {
+				return time.Duration(secs) * time.Second
+			}
+			// Fallback: try parsing as duration string for backward compat with
+			// existing DB values. On next write the value will be normalised to seconds.
 			if dur, err := ParseDuration(val); err == nil {
 				return dur
 			}

@@ -37,7 +37,8 @@
       "Bash(do echo \"=== $msg ===\")",
       "Bash(PYTHONIOENCODING=utf-8 python:*)",
       "Bash(head:*)",
-      "Bash(cd /c/Users/aurel/Projects/phileasgo/internal/ui/web && npx eslint src/App.tsx src/components/DashboardFooter.tsx 2>&1)"
+      "Bash(cd /c/Users/aurel/Projects/phileasgo/internal/ui/web && npx eslint src/App.tsx src/components/DashboardFooter.tsx 2>&1)",
+      "WebFetch(domain:127.0.0.1)"
     ]
   }
 }

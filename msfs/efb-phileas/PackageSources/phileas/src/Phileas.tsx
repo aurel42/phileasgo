@@ -121,7 +121,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
           const fetchPois = now - this.lastPoiFetch >= this.POI_INTERVAL;
 
           const promises: Promise<Response>[] = [
-            fetch("http://127.0.0.1:1920/api/map/labels/sync", {
+            fetch("http://127.0.0.1:1920/api/map/labels/sync?sid=efb", {
               signal,
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

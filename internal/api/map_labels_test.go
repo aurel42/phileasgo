@@ -22,7 +22,7 @@ func TestHandleSync(t *testing.T) {
 		Zoom:    10,
 	}
 	body, _ := json.Marshal(reqPayload)
-	req := httptest.NewRequest("POST", "/api/map/labels/sync", bytes.NewBuffer(body))
+	req := httptest.NewRequest("POST", "/api/map/labels/sync?sid=test", bytes.NewBuffer(body))
 	w := httptest.NewRecorder()
 
 	handler.HandleSync(w, req)

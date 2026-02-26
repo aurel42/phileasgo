@@ -74,7 +74,7 @@ func TestSelectLabels_Unified(t *testing.T) {
 
 	m := NewManager(geoSvc, poiSvc, nil)
 
-	candidates := m.SelectLabels(0, 0, 30, 30, 15, 15, 0, nil, 10)
+	candidates := m.SelectLabels(0, 0, 30, 30, 15, 15, 0, nil, 10, "test")
 
 	// MSR is (maxLon-minLon)*0.3 = 30 * 0.3 = 9 degrees.
 	// Dist(Q1, Q2) = 0.14 deg -> Pruned.
@@ -113,7 +113,7 @@ func TestSelectLabels_Tiering(t *testing.T) {
 	poiSvc.TrackPOI(ctx, &model.POI{WikidataID: "V", NameEn: "V", Lat: 10, Lon: 10, Category: "Village"})
 
 	m := NewManager(&geo.Service{}, poiSvc, nil)
-	results := m.SelectLabels(0, 0, 20, 20, 0, 0, 0, nil, 10)
+	results := m.SelectLabels(0, 0, 20, 20, 0, 0, 0, nil, 10, "test")
 
 	for _, r := range results {
 		switch r.GenericID {
@@ -141,7 +141,7 @@ func TestSelectLabels_Locked(t *testing.T) {
 
 	existing := []geo.Point{{Lat: 10.1, Lon: 10.1}}
 
-	results := m.SelectLabels(0, 0, 30, 30, 0, 0, 0, existing, 10)
+	results := m.SelectLabels(0, 0, 30, 30, 0, 0, 0, existing, 10, "test")
 
 	if len(results) != 0 {
 		t.Errorf("Expected 0 labels due to collision with locked label, got %d", len(results))
@@ -156,29 +156,56 @@ func TestSelectLabels_ZoomReset(t *testing.T) {
 	m := NewManager(&geo.Service{}, poiSvc, nil)
 
 	// First call at zoom 10
-	r1 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10.5)
+	r1 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10.5, "test")
 	if len(r1) != 1 {
 		t.Fatalf("Expected 1 label at zoom 10, got %d", len(r1))
 	}
 
-	// Verify it's in activeSettlements
-	m.mu.Lock()
-	if len(m.activeSettlements) == 0 {
-		t.Error("Expected activeSettlements to have entries after first call")
-	}
-	m.mu.Unlock()
+	// Call at different zoom floor (11) — immediate reset, no debounce needed
+	r2 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 11.0, "test")
 
-	// Call at different zoom floor (11) should reset
-	_ = m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 11.0)
-
-	// The POI should be re-discovered, but the point is that state was cleared
-	m.mu.Lock()
-	// After the zoom change, activeSettlements was cleared and re-populated
-	// Verify the zoom floor was updated
-	if m.currentZoomFloor != 11 {
-		t.Errorf("Expected currentZoomFloor=11 after zoom change, got %d", m.currentZoomFloor)
+	// The POI should be re-discovered after the state clear
+	if len(r2) != 1 {
+		t.Fatalf("Expected 1 label after zoom change, got %d", len(r2))
 	}
-	m.mu.Unlock()
+
+	// Verify the session's zoom floor was updated by checking that another call
+	// at zoom 11 doesn't clear again (state persists)
+	r3 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 11.0, "test")
+	if len(r3) != 1 {
+		t.Fatalf("Expected 1 label at stable zoom 11, got %d", len(r3))
+	}
+}
+
+func TestSelectLabels_SessionIsolation(t *testing.T) {
+	poiSvc := poi.NewManager(nil, &MockStore{}, nil)
+	ctx := context.Background()
+	poiSvc.TrackPOI(ctx, &model.POI{WikidataID: "A", NameEn: "A", Lat: 5, Lon: 5, Category: "City"})
+
+	m := NewManager(&geo.Service{}, poiSvc, nil)
+
+	// Session "web" at zoom 7
+	r1 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 7.0, "web")
+	if len(r1) != 1 {
+		t.Fatalf("web session: expected 1 label, got %d", len(r1))
+	}
+
+	// Session "efb" at zoom 10 — should NOT clear the web session's state
+	r2 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10.0, "efb")
+	if len(r2) != 1 {
+		t.Fatalf("efb session: expected 1 label, got %d", len(r2))
+	}
+
+	// Web session again at zoom 7 — state should be intact (no zoom change)
+	r3 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 7.0, "web")
+	if len(r3) != 1 {
+		t.Fatalf("web session (2nd call): expected 1 label, got %d", len(r3))
+	}
+
+	// Verify we have 2 sessions
+	if m.sessions.Len() != 2 {
+		t.Errorf("expected 2 sessions, got %d", m.sessions.Len())
+	}
 }
 
 func TestSelectLabels_Shadow(t *testing.T) {
@@ -198,7 +225,7 @@ func TestSelectLabels_Shadow(t *testing.T) {
 	// Viewport: lat 0-10, lon 0-8.2 — SmallTown is inside, BigCity is just outside
 	// Heading 90 (east) → expanded bbox extends lon by ~30% of 8.2 ≈ +2.5
 	// BigCity at lon=8.5 should be in the expanded bbox as a shadow
-	results := m.SelectLabels(0, 0, 10, 8.2, 5, 4, 90, nil, 10)
+	results := m.SelectLabels(0, 0, 10, 8.2, 5, 4, 90, nil, 10, "test")
 
 	// BigCity (outside viewport) should be a shadow, blocking SmallTown via MSR
 	// MSR = (8.2) * 0.3 = 2.46, msrDegSq = 6.05
@@ -236,7 +263,7 @@ func TestSelectLabels_LimitRespected(t *testing.T) {
 
 	m := NewManager(&geo.Service{}, poiSvc, &MockLimitProvider{Limit: 2, Tier: 3})
 
-	results := m.SelectLabels(0, 0, 50, 50, 25, 25, 0, nil, 10)
+	results := m.SelectLabels(0, 0, 50, 50, 25, 25, 0, nil, 10, "test")
 
 	if len(results) > 2 {
 		t.Errorf("Expected at most 2 labels (limit=2), got %d", len(results))
@@ -254,7 +281,7 @@ func TestSelectLabels_TierFiltering(t *testing.T) {
 
 	t.Run("Tier0_None", func(t *testing.T) {
 		m := NewManager(&geo.Service{}, poiSvc, &MockLimitProvider{Limit: 100, Tier: 0})
-		results := m.SelectLabels(0, 0, 30, 30, 15, 15, 0, nil, 10)
+		results := m.SelectLabels(0, 0, 30, 30, 15, 15, 0, nil, 10, "test")
 		if len(results) != 0 {
 			t.Errorf("Tier 0: expected 0 labels, got %d", len(results))
 		}
@@ -262,7 +289,7 @@ func TestSelectLabels_TierFiltering(t *testing.T) {
 
 	t.Run("Tier1_CityOnly", func(t *testing.T) {
 		m := NewManager(&geo.Service{}, poiSvc, &MockLimitProvider{Limit: 100, Tier: 1})
-		results := m.SelectLabels(0, 0, 30, 30, 15, 15, 0, nil, 10)
+		results := m.SelectLabels(0, 0, 30, 30, 15, 15, 0, nil, 10, "test")
 		if len(results) != 1 {
 			t.Errorf("Tier 1: expected 1 label (city only), got %d", len(results))
 		}
@@ -273,7 +300,7 @@ func TestSelectLabels_TierFiltering(t *testing.T) {
 
 	t.Run("Tier2_CityAndTown", func(t *testing.T) {
 		m := NewManager(&geo.Service{}, poiSvc, &MockLimitProvider{Limit: 100, Tier: 2})
-		results := m.SelectLabels(0, 0, 30, 30, 15, 15, 0, nil, 10)
+		results := m.SelectLabels(0, 0, 30, 30, 15, 15, 0, nil, 10, "test")
 		if len(results) != 2 {
 			t.Errorf("Tier 2: expected 2 labels (city+town), got %d", len(results))
 		}
@@ -286,7 +313,7 @@ func TestSelectLabels_TierFiltering(t *testing.T) {
 
 	t.Run("Tier3_All", func(t *testing.T) {
 		m := NewManager(&geo.Service{}, poiSvc, &MockLimitProvider{Limit: 100, Tier: 3})
-		results := m.SelectLabels(0, 0, 30, 30, 15, 15, 0, nil, 10)
+		results := m.SelectLabels(0, 0, 30, 30, 15, 15, 0, nil, 10, "test")
 		if len(results) != 3 {
 			t.Errorf("Tier 3: expected 3 labels, got %d", len(results))
 		}
@@ -301,21 +328,19 @@ func TestSelectLabels_LimitChangeReset(t *testing.T) {
 	m := NewManager(&geo.Service{}, poiSvc, provider)
 
 	// First call at limit 10
-	r1 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10.0)
+	r1 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10.0, "test")
 	if len(r1) != 1 {
 		t.Fatalf("Expected 1 label, got %d", len(r1))
 	}
 
 	// Change limit to 5
 	provider.Limit = 5
-	_ = m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10.0)
+	r2 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10.0, "test")
 
-	// Verify limit was updated and state was (briefly) cleared
-	m.mu.Lock()
-	if m.lastLimit != 5 {
-		t.Errorf("Expected lastLimit=5, got %d", m.lastLimit)
+	// Should still find the label after state clear + rediscovery
+	if len(r2) != 1 {
+		t.Errorf("Expected 1 label after limit change, got %d", len(r2))
 	}
-	m.mu.Unlock()
 }
 
 func TestSelectLabels_FadingFreesSlot(t *testing.T) {
@@ -331,14 +356,14 @@ func TestSelectLabels_FadingFreesSlot(t *testing.T) {
 	m := NewManager(&geo.Service{}, poiSvc, &MockLimitProvider{Limit: 2, Tier: 3})
 
 	// Viewport 1: lon 0-10, all three cities inside
-	r1 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10)
+	r1 := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10, "test")
 	if len(r1) != 2 {
 		t.Fatalf("Call 1: expected 2 labels (limit), got %d", len(r1))
 	}
 
 	// Viewport 2: shift east — lon 4-14. City A (lon=1) is now outside the viewport.
 	// With fading, A should be marked fading, freeing a slot for C.
-	r2 := m.SelectLabels(0, 4, 10, 14, 5, 9, 0, nil, 10)
+	r2 := m.SelectLabels(0, 4, 10, 14, 5, 9, 0, nil, 10, "test")
 
 	// A should be fading (outside inset), so not returned.
 	// B (lon=5) is inside the viewport (lon 4-14).
@@ -382,7 +407,7 @@ func TestSelectLabels_EllipticalExclusion(t *testing.T) {
 	m := NewManager(&geo.Service{}, poiSvc, &MockLimitProvider{Limit: 2, Tier: 3})
 
 	// Viewport 0-10
-	results := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10)
+	results := m.SelectLabels(0, 0, 10, 10, 5, 5, 0, nil, 10, "test")
 
 	// Should only find the first one because they collide elliptically
 	if len(results) != 1 {

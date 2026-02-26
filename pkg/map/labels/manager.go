@@ -4,11 +4,13 @@ import (
 	"context"
 	"log/slog"
 	"math"
+	"phileasgo/pkg/apisession"
 	"phileasgo/pkg/geo"
 	"phileasgo/pkg/poi"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // LabelLimitProvider is consumed by the Manager to read the user's settlement density and tier settings.
@@ -38,31 +40,81 @@ func (b bbox) contains(lat, lon float64) bool {
 	return lat >= b.minLat && lat <= b.maxLat && lon >= b.minLon && lon <= b.maxLon
 }
 
-// Manager coordinates the selection of map labels.
-// It is stateful: activeSettlements persists across calls to provide shadow blocking
-// and stable label sets during panning.
-type Manager struct {
-	geoSvc  *geo.Service
-	poiSvc  *poi.Manager
-	scorer  *Scorer
-	cfgProv LabelLimitProvider
-
+// labelSession holds per-client mutable state. Each unique session ID
+// (typically one per browser tab or EFB instance) gets its own session so that
+// different zoom levels or viewport sizes don't interfere with each other.
+type labelSession struct {
 	mu                sync.Mutex
 	activeSettlements map[string]*LabelCandidate
 	currentZoomFloor  int
 	lastLimit         int
 }
 
-// NewManager creates a new Label Manager.
-func NewManager(g *geo.Service, p *poi.Manager, cfgProv LabelLimitProvider) *Manager {
-	return &Manager{
-		geoSvc:            g,
-		poiSvc:            p,
-		scorer:            NewScorer(),
-		cfgProv:           cfgProv,
+func newLabelSession() *labelSession {
+	return &labelSession{
 		activeSettlements: make(map[string]*LabelCandidate),
 		currentZoomFloor:  -1,
 		lastLimit:         -1,
+	}
+}
+
+// pruneActive removes all shadows and normal settlements that drifted outside the expanded bbox.
+func (ls *labelSession) pruneActive(exp bbox, bufferLat, bufferLon float64) {
+	for id, s := range ls.activeSettlements {
+		if s.IsShadow {
+			delete(ls.activeSettlements, id)
+			continue
+		}
+		lat, lon := s.City.Lat, s.City.Lon
+		if lat < exp.minLat-bufferLat || lat > exp.maxLat+bufferLat ||
+			lon < exp.minLon-bufferLon || lon > exp.maxLon+bufferLon {
+			delete(ls.activeSettlements, id)
+		}
+	}
+}
+
+// normalCount returns the number of active, non-shadow, non-fading settlements.
+func (ls *labelSession) normalCount() int {
+	n := 0
+	for _, s := range ls.activeSettlements {
+		if !s.IsShadow && !s.Fading {
+			n++
+		}
+	}
+	return n
+}
+
+// visibleSettlements returns active settlements that are neither shadows nor fading.
+func (ls *labelSession) visibleSettlements() []*LabelCandidate {
+	var result []*LabelCandidate
+	for _, s := range ls.activeSettlements {
+		if !s.IsShadow && !s.Fading {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// Manager coordinates the selection of map labels.
+// It is stateful: each client session maintains its own set of active settlements
+// that persist across calls to provide shadow blocking and stable label sets during panning.
+type Manager struct {
+	geoSvc  *geo.Service
+	poiSvc  *poi.Manager
+	scorer  *Scorer
+	cfgProv LabelLimitProvider
+
+	sessions *apisession.Store[labelSession]
+}
+
+// NewManager creates a new Label Manager.
+func NewManager(g *geo.Service, p *poi.Manager, cfgProv LabelLimitProvider) *Manager {
+	return &Manager{
+		geoSvc:   g,
+		poiSvc:   p,
+		scorer:   NewScorer(),
+		cfgProv:  cfgProv,
+		sessions: apisession.New(5*time.Minute, newLabelSession),
 	}
 }
 
@@ -79,21 +131,6 @@ func expandBbox(vp bbox, heading float64) bbox {
 		maxLat: math.Max(vp.maxLat, vp.maxLat+expandLat),
 		minLon: math.Min(vp.minLon, vp.minLon+expandLon),
 		maxLon: math.Max(vp.maxLon, vp.maxLon+expandLon),
-	}
-}
-
-// pruneActive removes all shadows and normal settlements that drifted outside the expanded bbox.
-func (m *Manager) pruneActive(exp bbox, bufferLat, bufferLon float64) {
-	for id, s := range m.activeSettlements {
-		if s.IsShadow {
-			delete(m.activeSettlements, id)
-			continue
-		}
-		lat, lon := s.City.Lat, s.City.Lon
-		if lat < exp.minLat-bufferLat || lat > exp.maxLat+bufferLat ||
-			lon < exp.minLon-bufferLon || lon > exp.maxLon+bufferLon {
-			delete(m.activeSettlements, id)
-		}
 	}
 }
 
@@ -137,68 +174,43 @@ func filterByTier(candidates []LabelCandidate, tier int) []LabelCandidate {
 	return filtered
 }
 
-// normalCount returns the number of active, non-shadow, non-fading settlements.
-func (m *Manager) normalCount() int {
-	n := 0
-	for _, s := range m.activeSettlements {
-		if !s.IsShadow && !s.Fading {
-			n++
-		}
-	}
-	return n
-}
-
-// visibleSettlements returns active settlements that are neither shadows nor fading.
-func (m *Manager) visibleSettlements() []*LabelCandidate {
-	var result []*LabelCandidate
-	for _, s := range m.activeSettlements {
-		if !s.IsShadow && !s.Fading {
-			result = append(result, s)
-		}
-	}
-	return result
-}
-
 // SelectLabels picks the best labels for a given viewport and aircraft state.
-// It maintains state across calls: active settlements persist and shadow items
-// block future candidates from appearing in their exclusion zone.
+// Each sessionID gets its own isolated state so concurrent clients with different
+// zoom levels or viewports do not interfere with each other.
 func (m *Manager) SelectLabels(
 	minLat, minLon, maxLat, maxLon float64, // Viewport BBox
 	acLat, acLon, heading float64, // Aircraft State
 	existingLabels []geo.Point, // Locations of labels we MUST respect (already on screen)
 	zoom float64,
+	sessionID string,
 ) []*LabelCandidate {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	ls := m.sessions.Get(sessionID)
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
 
 	vp := bbox{minLat, minLon, maxLat, maxLon}
 	latSpan := maxLat - minLat
 	lonSpan := maxLon - minLon
 
-	activeBeforePrune := len(m.activeSettlements)
-	_ = activeBeforePrune
-
 	// 1. Zoom-level change: clear all state
 	zoomFloor := int(math.Floor(zoom))
-	if zoomFloor != m.currentZoomFloor {
-		slog.Debug("[labels] zoom change, clearing state", "old", m.currentZoomFloor, "new", zoomFloor)
-		m.activeSettlements = make(map[string]*LabelCandidate)
-		m.currentZoomFloor = zoomFloor
+	if zoomFloor != ls.currentZoomFloor {
+		slog.Debug("[labels] zoom change, clearing state", "session", sessionID, "old", ls.currentZoomFloor, "new", zoomFloor)
+		ls.activeSettlements = make(map[string]*LabelCandidate)
+		ls.currentZoomFloor = zoomFloor
 	}
 
 	// 1b. Limit change: clear all state
 	limit := m.getLimit()
-	if limit != m.lastLimit {
-		slog.Debug("[labels] limit change, clearing state", "old", m.lastLimit, "new", limit)
-		m.activeSettlements = make(map[string]*LabelCandidate)
-		m.lastLimit = limit
+	if limit != ls.lastLimit {
+		slog.Debug("[labels] limit change, clearing state", "session", sessionID, "old", ls.lastLimit, "new", limit)
+		ls.activeSettlements = make(map[string]*LabelCandidate)
+		ls.lastLimit = limit
 	}
 
 	// 2. Expanded bbox and pruning
 	exp := expandBbox(vp, heading)
-	m.pruneActive(exp, latSpan*0.2, lonSpan*0.2)
-	activeAfterPrune := len(m.activeSettlements)
-	_ = activeAfterPrune
+	ls.pruneActive(exp, latSpan*0.2, lonSpan*0.2)
 
 	// 3. Get candidates from the expanded bbox
 	var scored []LabelCandidate
@@ -209,8 +221,6 @@ func (m *Manager) SelectLabels(
 
 	// 3b. Filter by settlement tier
 	tier := m.getTier()
-	beforeTier := len(scored)
-	_ = beforeTier
 	scored = filterByTier(scored, tier)
 
 	sort.Slice(scored, func(i, j int) bool {
@@ -227,16 +237,16 @@ func (m *Manager) SelectLabels(
 	}
 	msrDegSq := math.Pow(shortSpan*msrRatio, 2)
 
-	// NEW: Track which settlements were "Inner" (visible and not fading/shadow) before the greedy selection
+	// Track which settlements were "Inner" (visible and not fading/shadow) before the greedy selection
 	// to implement directional/stateful fading.
 	wasInner := make(map[string]bool)
-	for id, s := range m.activeSettlements {
+	for id, s := range ls.activeSettlements {
 		if !s.IsShadow && !s.Fading {
 			wasInner[id] = true
 		}
 	}
 
-	_ = m.greedySelect(scored, vp, existingLabels, limit, msrDegSq)
+	_ = m.greedySelect(ls, scored, vp, existingLabels, limit, msrDegSq)
 
 	// 5. Mark fading: settlements leaving the viewport move to Margin and free up slots.
 	// To prevent newly entering labels from being dropped, we only toggle Fading if the label
@@ -247,23 +257,16 @@ func (m *Manager) SelectLabels(
 		maxLat: vp.maxLat - latSpan*0.05,
 		maxLon: vp.maxLon - lonSpan*0.05,
 	}
-	fadingCount := 0
-	for _, s := range m.activeSettlements {
+	for _, s := range ls.activeSettlements {
 		if !s.IsShadow {
 			inMargin := !insetVp.contains(s.City.Lat, s.City.Lon)
 			// Stateful Fade: Only fade if it was "Stable" and moved to Margin, or if it was already Fading.
 			// Labels entering from Shadow (IsEntering) remain non-fading even if they hit the margin first.
 			s.Fading = inMargin && (s.Fading || wasInner[s.GenericID])
-
-			if s.Fading {
-				fadingCount++
-			}
 		}
 	}
 
-	visible := m.visibleSettlements()
-
-	return visible
+	return ls.visibleSettlements()
 }
 
 func (m *Manager) collectGlobalCandidates(minLat, minLon, maxLat, maxLon, acLat, acLon, heading float64) []LabelCandidate {
@@ -379,17 +382,17 @@ type selectStats struct {
 	existing, msr, limit, visible, shadow int
 }
 
-// greedySelect runs the greedy label selection loop, adding candidates to activeSettlements.
-func (m *Manager) greedySelect(scored []LabelCandidate, vp bbox, existingLabels []geo.Point, limit int, msrDegSq float64) selectStats {
-	activeSlice := make([]*LabelCandidate, 0, len(m.activeSettlements))
-	for _, s := range m.activeSettlements {
+// greedySelect runs the greedy label selection loop, adding candidates to the session's activeSettlements.
+func (m *Manager) greedySelect(ls *labelSession, scored []LabelCandidate, vp bbox, existingLabels []geo.Point, limit int, msrDegSq float64) selectStats {
+	activeSlice := make([]*LabelCandidate, 0, len(ls.activeSettlements))
+	for _, s := range ls.activeSettlements {
 		activeSlice = append(activeSlice, s)
 	}
 
 	var s selectStats
 	for i := range scored {
 		cand := &scored[i]
-		if _, exists := m.activeSettlements[cand.GenericID]; exists {
+		if _, exists := ls.activeSettlements[cand.GenericID]; exists {
 			s.existing++
 			continue
 		}
@@ -399,7 +402,7 @@ func (m *Manager) greedySelect(scored []LabelCandidate, vp bbox, existingLabels 
 		}
 
 		if vp.contains(cand.City.Lat, cand.City.Lon) {
-			nc := m.normalCount()
+			nc := ls.normalCount()
 			if limit >= 0 && nc >= limit {
 				s.limit++
 				continue
@@ -412,7 +415,7 @@ func (m *Manager) greedySelect(scored []LabelCandidate, vp bbox, existingLabels 
 		}
 
 		stored := *cand
-		m.activeSettlements[cand.GenericID] = &stored
+		ls.activeSettlements[cand.GenericID] = &stored
 		activeSlice = append(activeSlice, &stored)
 	}
 	return s

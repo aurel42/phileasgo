@@ -2,7 +2,10 @@ import type { SyncRequest, SyncResponse, LabelDTO } from '../types/mapLabels';
 
 export const labelService = {
     async fetchLabels(req: SyncRequest): Promise<LabelDTO[]> {
-        const response = await fetch('/api/map/labels/sync', {
+        const url = req.sid
+            ? `/api/map/labels/sync?sid=${encodeURIComponent(req.sid)}`
+            : '/api/map/labels/sync';
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(req)

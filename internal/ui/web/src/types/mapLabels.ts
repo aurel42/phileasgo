@@ -13,6 +13,7 @@ export interface SyncRequest {
     ac_lon: number;
     heading: number;
     zoom: number;
+    sid?: string;
 }
 
 export interface SyncResponse {

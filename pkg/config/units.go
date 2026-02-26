@@ -73,6 +73,8 @@ func ParseDuration(s string) (time.Duration, error) {
 	return time.ParseDuration(s)
 }
 
+var extDurRe = regexp.MustCompile(`([0-9.]+)([a-zµ]+)`)
+
 var unitMap = map[string]time.Duration{
 	"ns": time.Nanosecond,
 	"us": time.Microsecond,
@@ -89,10 +91,7 @@ func parseExtendedDuration(s string) (time.Duration, error) {
 	// Simple scanner
 	var total time.Duration
 
-	// Regexp to match number + unit
-	// valid number: ints or floats
-	re := regexp.MustCompile(`([0-9.]+)([a-zµ]+)`)
-	matches := re.FindAllStringSubmatch(s, -1)
+	matches := extDurRe.FindAllStringSubmatch(s, -1)
 
 	if len(matches) == 0 {
 		return 0, fmt.Errorf("invalid duration format: %s", s)

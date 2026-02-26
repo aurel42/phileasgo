@@ -51,11 +51,14 @@ func (h *MapLabelsHandler) HandleSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionID := r.URL.Query().Get("sid")
+
 	candidates := h.manager.SelectLabels(
 		req.BBox[0], req.BBox[1], req.BBox[2], req.BBox[3],
 		req.ACLat, req.ACLon, req.Heading,
 		req.Existing,
 		req.Zoom,
+		sessionID,
 	)
 
 	resp := SyncResponse{
