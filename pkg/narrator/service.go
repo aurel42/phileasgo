@@ -27,6 +27,10 @@ type Service interface {
 	NarratedCount() int
 	// Stats returns narrator statistics.
 	Stats() map[string]any
+	// PlayCity triggers narration for a specific city by name.
+	PlayCity(ctx context.Context, name string)
+	// PlayFeature triggers narration for a specific Wikidata QID.
+	PlayFeature(ctx context.Context, qid string)
 	// IsPlaying returns true if narration audio is currently playing.
 	IsPlaying() bool
 	// PlayPOI triggers narration for a specific POI.
@@ -198,6 +202,13 @@ func (s *StubService) PlayPOI(ctx context.Context, poiID string, manual, enqueue
 		slog.Info("Narrator stub: automated play triggering", "poi_id", poiID)
 	}
 	s.narratedPOIs[poiID] = true
+}
+
+func (s *StubService) PlayCity(ctx context.Context, name string) {
+	slog.Info("Narrator stub: PlayCity", "name", name)
+}
+func (s *StubService) PlayFeature(ctx context.Context, qid string) {
+	slog.Info("Narrator stub: PlayFeature", "qid", qid)
 }
 
 // PrepareNextNarrative prepares a narrative (stub: just logs).

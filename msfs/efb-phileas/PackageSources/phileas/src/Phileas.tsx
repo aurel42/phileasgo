@@ -17,6 +17,7 @@ import "./Phileas.scss";
 declare const BASE_URL: string;
 declare const VERSION: string;
 declare const BUILD_TIMESTAMP: string;
+declare const PHILEAS_API_URL: string;
 
 class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
   protected defaultView = "MainPage";
@@ -107,7 +108,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
   private async loop(): Promise<void> {
     const signal = this.abortController?.signal;
     try {
-      const telResponse = await fetch("http://127.0.0.1:1920/api/telemetry", { signal });
+      const telResponse = await fetch(`${PHILEAS_API_URL}/api/telemetry`, { signal });
       if (signal?.aborted) return;
       if (telResponse.ok) {
         const telData = await telResponse.json();
@@ -121,7 +122,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
           const fetchPois = now - this.lastPoiFetch >= this.POI_INTERVAL;
 
           const promises: Promise<Response>[] = [
-            fetch("http://127.0.0.1:1920/api/map/labels/sync?sid=efb", {
+            fetch(`${PHILEAS_API_URL}/api/map/labels/sync?sid=efb`, {
               signal,
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -132,17 +133,17 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
                 Zoom: 10
               })
             }),
-            fetch("http://127.0.0.1:1920/api/stats", { signal }),
-            fetch("http://127.0.0.1:1920/api/version", { signal }),
-            fetch(`http://127.0.0.1:1920/api/geography?lat=${telemetry.Latitude}&lon=${telemetry.Longitude}`, { signal }),
-            fetch("http://127.0.0.1:1920/api/narrator/status", { signal }),
+            fetch(`${PHILEAS_API_URL}/api/stats`, { signal }),
+            fetch(`${PHILEAS_API_URL}/api/version`, { signal }),
+            fetch(`${PHILEAS_API_URL}/api/geography?lat=${telemetry.Latitude}&lon=${telemetry.Longitude}`, { signal }),
+            fetch(`${PHILEAS_API_URL}/api/narrator/status`, { signal }),
           ];
           if (fetchPois) {
-            promises.push(fetch("http://127.0.0.1:1920/api/pois/tracked", { signal }));
-            promises.push(fetch("http://127.0.0.1:1920/api/regional", { signal }));
+            promises.push(fetch(`${PHILEAS_API_URL}/api/pois/tracked`, { signal }));
+            promises.push(fetch(`${PHILEAS_API_URL}/api/regional`, { signal }));
           }
           if (fetchConfig) {
-            promises.push(fetch("http://127.0.0.1:1920/api/config", { signal }));
+            promises.push(fetch(`${PHILEAS_API_URL}/api/config`, { signal }));
           }
 
           const results = await Promise.all(promises);

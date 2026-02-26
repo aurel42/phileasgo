@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type TabId = 'dashboard' | 'poi' | 'regional' | 'diagnostics';
+export type TabId = 'dashboard' | 'detail' | 'pois' | 'cities' | 'regional' | 'diagnostics';
 
 interface DashboardTabsProps {
     activeTab: TabId;
@@ -17,10 +17,22 @@ export const DashboardTabs: React.FC<DashboardTabsProps> = ({ activeTab, onTabCh
                 Dashboard
             </button>
             <button
-                className={`dashboard-tab ${activeTab === 'poi' ? 'active' : ''}`}
-                onClick={() => onTabChange('poi')}
+                className={`dashboard-tab ${activeTab === 'detail' ? 'active' : ''}`}
+                onClick={() => onTabChange('detail')}
             >
-                POI
+                Detail
+            </button>
+            <button
+                className={`dashboard-tab ${activeTab === 'pois' ? 'active' : ''}`}
+                onClick={() => onTabChange('pois')}
+            >
+                POIs
+            </button>
+            <button
+                className={`dashboard-tab ${activeTab === 'cities' ? 'active' : ''}`}
+                onClick={() => onTabChange('cities')}
+            >
+                Cities
             </button>
             <button
                 className={`dashboard-tab ${activeTab === 'regional' ? 'active' : ''}`}

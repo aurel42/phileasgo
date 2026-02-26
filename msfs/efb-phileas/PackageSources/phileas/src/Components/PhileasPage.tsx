@@ -10,6 +10,7 @@ function isPoiOnCooldown(poi: any): boolean {
 
 declare const VERSION: string;
 declare const BUILD_TIMESTAMP: string;
+declare const PHILEAS_API_URL: string;
 
 interface PhileasPageProps extends RequiredProps<UiViewProps, "appViewService"> {
     bus: EventBus;
@@ -240,16 +241,22 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         this.activeTab.set(tab);
         if (tab === 'settings') {
             // Force immediate config refresh when opening settings
-            fetch("http://127.0.0.1:1920/api/config")
+            fetch(`${PHILEAS_API_URL}/api/config`)
                 .then(r => r.json())
                 .then(data => this.props.aircraftConfig.set(data))
                 .catch(() => { });
         }
     }
 
+    private handlePOISelect = (poi: any) => {
+        // Selection is currently just visual on the map + switching to map tab
+        this.setTab('map');
+        // Manual play is handled by the MapComponent's click handler for now to maximize feedback
+    }
+
     private async updateBackendConfig(key: string, value: any) {
         if (key === 'paused') {
-            fetch("http://127.0.0.1:1920/api/audio/control", {
+            fetch(`${PHILEAS_API_URL}/api/audio/control`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: value ? 'pause' : 'resume' })
@@ -257,17 +264,60 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             return;
         }
 
-        fetch("http://127.0.0.1:1920/api/config", {
+        fetch(`${PHILEAS_API_URL}/api/config`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ [key]: value })
         }).catch(e => console.error(`Failed to update config ${key}`, e));
     }
 
+    private async triggerNarration(type: 'poi' | 'city' | 'feature', idOrName: string, label: string) {
+        let endpoint = "";
+        let body: any = {};
+
+        if (type === 'poi') {
+            endpoint = "/api/narrator/play";
+            body = { poi_id: idOrName };
+        } else if (type === 'city') {
+            endpoint = "/api/narrator/play-city";
+            body = { name: idOrName };
+        } else if (type === 'feature') {
+            endpoint = "/api/narrator/play-feature";
+            body = { qid: idOrName };
+        }
+
+        try {
+            const res = await fetch(`${PHILEAS_API_URL}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (res.ok) {
+                // Flash the status overlay for feedback
+                const overlay = this.overlayStatusRef.instance;
+                if (overlay) {
+                    overlay.style.backgroundColor = 'rgba(46, 204, 113, 0.2)';
+                    setTimeout(() => { if (overlay) overlay.style.backgroundColor = ''; }, 1000);
+                }
+            }
+        } catch (e) {
+            console.error(`Phileas: Failed to trigger ${type} narration`, e);
+        }
+    }
+
     private renderPoiItem = (item: PoiItem): VNode => {
+        const fullItem = (this.props.pois.get() || []).find((p: any) => p.wikidata_id === (item as any).wikidata_id || p.name_en === item.name);
         return (
             <div class="list-row poi-row">
-                <div class={`col-name ${item.cooldown ? 'poi-cooldown' : 'poi-active'}`}>{item.name}</div>
+                <div
+                    class={`col-name ${item.cooldown ? 'poi-cooldown' : 'poi-active'}`}
+                    onmousedown={() => {
+                        if (fullItem) this.triggerNarration('poi', fullItem.wikidata_id, item.name);
+                    }}
+                    style="cursor: pointer; text-decoration: underline;"
+                >
+                    {item.name}
+                </div>
                 <div class="col-dist">{item.distance.toFixed(1)}nm</div>
                 <div class="col-score">{item.score.toFixed(1)}</div>
             </div>
@@ -277,7 +327,13 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     private renderSettlementItem = (item: SettlementItem): VNode => {
         return (
             <div class="list-row settlement-row">
-                <div class="col-name">{item.name}</div>
+                <div
+                    class="col-name"
+                    onmousedown={() => this.triggerNarration('city', item.name, item.name)}
+                    style="cursor: pointer; text-decoration: underline;"
+                >
+                    {item.name}
+                </div>
                 <div class="col-dist">{item.distance.toFixed(1)}nm</div>
                 <div class="col-pop">{item.pop.toLocaleString()}</div>
             </div>
@@ -614,6 +670,8 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             pill.style.border = '1px solid rgba(212, 175, 55, 0.3)';
             pill.style.borderRadius = '4px';
             pill.style.padding = '4px 8px';
+            pill.style.cursor = 'pointer';
+            (pill as any).onmousedown = () => this.triggerNarration('feature', cat.qid, cat.name);
 
             const catLabel = document.createElement('span');
             catLabel.style.color = '#d4af37';
@@ -730,6 +788,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                             isVisible={this.isMapVisible}
                             narratorStatus={this.props.narratorStatus}
                             aircraftConfig={this.props.aircraftConfig}
+                            onPOISelect={this.handlePOISelect}
                         />
 
                         {/* Status Overlay */}

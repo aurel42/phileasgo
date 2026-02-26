@@ -32,6 +32,8 @@ type NarratorController interface {
 	IsActive() bool
 	IsGenerating() bool
 	PlayPOI(ctx context.Context, id string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string)
+	PlayFeature(ctx context.Context, qid string)
+	PlayCity(ctx context.Context, name string)
 	CurrentPOI() *model.POI
 	GetPreparedPOI() *model.POI
 	CurrentTitle() string
@@ -70,6 +72,16 @@ type PlayRequest struct {
 	Strategy string `json:"strategy"` // Optional: uniform, min_skew, max_skew
 }
 
+// PlayCityRequest represents a manual city narration request by name.
+type PlayCityRequest struct {
+	Name string `json:"name"`
+}
+
+// PlayFeatureRequest represents a manual feature narration request by QID.
+type PlayFeatureRequest struct {
+	QID string `json:"qid"`
+}
+
 // NarratorStatusResponse represents the narrator status.
 type NarratorStatusResponse struct {
 	Active             bool           `json:"active"`
@@ -104,6 +116,11 @@ func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("API: HandlePlay received POI request", "poi_id", req.POIID, "strategy", req.Strategy)
 
+	if req.POIID == "" {
+		http.Error(w, "poi_id is required", http.StatusBadRequest)
+		return
+	}
+
 	// Reset pause state if user paused
 	if h.audio.IsUserPaused() {
 		h.audio.ResetUserPause()
@@ -121,6 +138,70 @@ func (h *NarratorHandler) HandlePlay(w http.ResponseWriter, r *http.Request) {
 		"message": "Queued " + req.POIID + " for narration",
 	}); err != nil {
 		slog.Error("Failed to encode response", "error", err)
+	}
+}
+
+// HandlePlayCity handles POST /api/narrator/play-city
+func (h *NarratorHandler) HandlePlayCity(w http.ResponseWriter, r *http.Request) {
+	var req PlayCityRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("API: HandlePlayCity decode error", "error", err)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	slog.Info("API: HandlePlayCity received request", "name", req.Name)
+
+	if req.Name == "" {
+		http.Error(w, "city name is required", http.StatusBadRequest)
+		return
+	}
+
+	if h.audio.IsUserPaused() {
+		h.audio.ResetUserPause()
+		h.audio.Resume()
+	}
+
+	go h.narrator.PlayCity(context.Background(), req.Name)
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{
+		"status":  "accepted",
+		"message": "Searching and queueing " + req.Name + " for narration",
+	}); err != nil {
+		slog.Error("API: HandlePlayCity encode error", "error", err)
+	}
+}
+
+// HandlePlayFeature handles POST /api/narrator/play-feature
+func (h *NarratorHandler) HandlePlayFeature(w http.ResponseWriter, r *http.Request) {
+	var req PlayFeatureRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("API: HandlePlayFeature decode error", "error", err)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	slog.Info("API: HandlePlayFeature received request", "qid", req.QID)
+
+	if req.QID == "" {
+		http.Error(w, "qid is required", http.StatusBadRequest)
+		return
+	}
+
+	if h.audio.IsUserPaused() {
+		h.audio.ResetUserPause()
+		h.audio.Resume()
+	}
+
+	go h.narrator.PlayFeature(context.Background(), req.QID)
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{
+		"status":  "accepted",
+		"message": "Enriching and queueing " + req.QID + " for narration",
+	}); err != nil {
+		slog.Error("API: HandlePlayFeature encode error", "error", err)
 	}
 }
 

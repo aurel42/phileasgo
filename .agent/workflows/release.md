@@ -25,16 +25,19 @@ This workflow guides the release process for PhileasGo, ensuring code quality, v
         - Always explicitly mention when a new feature or component is added. Never bury the lead of a new feature under a list of Improvements or refactors.
         - **Omit Internal Details**: Avoid mentioning CSS properties, alignment adjustments, specific font choices, or internal code refactors. No one cares about your padding.
         - **Omit "Homework"**: Never mention that tests passed, build succeeded, or mention test coverage. Stability and testing are expected defaults, not features.
+        - **No Headlines**: Do not use bold headlines within bullet points (e.g., avoid `- **Feature**: **Name**.`). Just state the change directly: `- **Feature**: Added X to Y.`.
         - **Be Concise**: Use single, punchy bullet points. Avoid "why" statements, editorializing, or justifying your design choices.
         - **Audience**: Write for a user who hasn't seen the code, not for a collaborator who sat through the dev session.
         - **Fix vs Feature vs Improvement**:
             - **Fix**: If it was broken, missing, or behaving unexpectedly, it is a **Fix**. Even if you rewrote the entire subsystem to fix it, it is still just a **Fix**.
+            - **Note**: Removing hardcoded strings (e.g. backend URLs) or internal constants is ALWAYS a **Fix**, never an Improvement.
             - **Feature**: Only for entirely new capabilities that did not exist before (e.g. valid user could not do X, now they can).
             - **Improvement**: Only for existing features that work *better* (e.g. faster, prettier, easier), not for features that were broken.
         - **Symptom-Based Description**:
             - Describe the **symptom** the user experienced, not the **solution** you implemented.
             - **Bad**: "Refactored the offset logic to use geodesic distance."
             - **Good**: "Fixed formation balloons appearing in the wrong location."
+            - **Omit Intermediary Steps**: Do not mention fixes for bugs or regressions that you introduced and fixed within the same development session. The user only cares about the final state relative to the *previous* version.
         - **No Selling**: 
             - Use a dry, factual, and direct tone.
             - Avoid hyperbolic or marketing language: "professional", "premium", "smart", "intelligent".

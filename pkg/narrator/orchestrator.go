@@ -145,6 +145,49 @@ func (o *Orchestrator) PlayPOI(ctx context.Context, poiID string, manual, enqueu
 	}
 }
 
+func (o *Orchestrator) PlayFeature(ctx context.Context, qid string) {
+	slog.Info("Orchestrator: Manual feature narration requested", "qid", qid)
+
+	var lat, lon float64
+	if tel, err := o.sim.GetTelemetry(ctx); err == nil {
+		lat, lon = tel.Latitude, tel.Longitude
+	}
+
+	if err := o.gen.EnsurePOILoaded(ctx, qid, lat, lon); err != nil {
+		slog.Error("Orchestrator: Failed to ensure feature loaded", "qid", qid, "error", err)
+		return
+	}
+
+	o.PlayPOI(ctx, qid, true, true, nil, "")
+}
+
+func (o *Orchestrator) PlayCity(ctx context.Context, name string) {
+	slog.Info("Orchestrator: Manual city narration requested", "name", name)
+
+	var lat, lon float64
+	if tel, err := o.sim.GetTelemetry(ctx); err == nil {
+		lat, lon = tel.Latitude, tel.Longitude
+	}
+
+	poiMgr := o.gen.POIManager()
+	if poiMgr == nil {
+		slog.Error("Orchestrator: POI manager not available for city search")
+		return
+	}
+
+	nearby := poiMgr.GetPOIsNear(lat, lon, 5000)
+	for _, p := range nearby {
+		// Categories: City, Town, Village
+		if p.Category == "City" || p.Category == "Town" || p.Category == "Village" {
+			slog.Info("Orchestrator: Found local settlement match", "qid", p.WikidataID, "name", p.NameEn)
+			o.PlayPOI(ctx, p.WikidataID, true, true, nil, "")
+			return
+		}
+	}
+
+	slog.Warn("Orchestrator: No local settlement match found for city narration", "name", name)
+}
+
 func (o *Orchestrator) PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error {
 	if ai, ok := o.gen.(interface {
 		PrepareNextNarrative(ctx context.Context, poiID, strategy string, tel *sim.Telemetry) error

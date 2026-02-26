@@ -61,6 +61,8 @@ func NewServer(addr string, tel *TelemetryHandler, cfg *ConfigHandler, stats *St
 	// 2i. Narrator Endpoints
 	if narratorH != nil {
 		mux.HandleFunc("POST /api/narrator/play", narratorH.HandlePlay)
+		mux.HandleFunc("POST /api/narrator/play-city", narratorH.HandlePlayCity)
+		mux.HandleFunc("POST /api/narrator/play-feature", narratorH.HandlePlayFeature)
 		mux.HandleFunc("GET /api/narrator/status", narratorH.HandleStatus)
 		mux.HandleFunc("POST /api/narrator/clear-image", narratorH.HandleClearImage)
 	}

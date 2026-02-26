@@ -692,6 +692,13 @@ body {
   box-shadow: 0 0 5px var(--accent);
 }
 
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+}
+
 /* --- Map Branding Overlay --- */
 .map-branding {
   position: absolute;

@@ -39,7 +39,10 @@ build-web:
 	cd $(WEB_PATH) && npm install && npm run build
 
 build-efb:
-	cd $(EFB_SRC_PATH) && npm install && npm run build
+	@ADDR=$$(grep "address:" configs/phileas.yaml | sed 's/.*address:\s*//' | tr -d '\r'); \
+		cd $(EFB_SRC_PATH); \
+		npm install; \
+		PHILEAS_API_URL=http://$$ADDR npm run build
 	powershell -NoProfile -Command "if (Test-Path 'msfs\\efb-phileas\\_PackageInt') { Remove-Item -Recurse -Force 'msfs\\efb-phileas\\_PackageInt' }"
 	powershell -NoProfile -Command "if (Test-Path 'msfs\\efb-phileas\\Packages') { Remove-Item -Recurse -Force 'msfs\\efb-phileas\\Packages' }"
 

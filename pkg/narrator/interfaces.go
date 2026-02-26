@@ -40,6 +40,11 @@ type LanguageResolver interface {
 	GetLanguageInfo(countryCode string) model.LanguageInfo
 }
 
+// POIEnricher defines the interface for on-demand POI hydration/enrichment.
+type POIEnricher interface {
+	EnsurePOIsLoaded(ctx context.Context, qids []string, lat, lon float64) error
+}
+
 // BeaconProvider defines the interface for beacon/marker management.
 type BeaconProvider interface {
 	SetTarget(ctx context.Context, lat, lon float64, title, livery string) error
@@ -53,6 +58,8 @@ type Generator interface {
 	HasPendingGeneration() bool
 	IsGenerating() bool
 	Stats() map[string]any
+	// EnsurePOILoaded ensures the POI is hydrated and ready for narration.
+	EnsurePOILoaded(ctx context.Context, qid string, lat, lon float64) error
 	// PlayEssay triggers a regional essay narration.
 	PlayEssay(ctx context.Context, tel *sim.Telemetry) bool
 	// IsPOIBusy returns true if the POI is currently generating or queued.

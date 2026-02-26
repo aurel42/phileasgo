@@ -28,6 +28,9 @@ func (m *mockPhase2NarratorService) PlayPOI(ctx context.Context, poiID string, m
 	m.playPOICalled = true
 }
 
+func (m *mockPhase2NarratorService) PlayCity(ctx context.Context, name string)   {}
+func (m *mockPhase2NarratorService) PlayFeature(ctx context.Context, qid string) {}
+
 func (m *mockPhase2NarratorService) ProcessPlaybackQueue(ctx context.Context) {}
 
 func (m *mockPhase2NarratorService) IsActive() bool {

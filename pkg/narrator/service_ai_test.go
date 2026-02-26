@@ -118,7 +118,7 @@ func TestAIService_PlayPOI(t *testing.T) {
 			mockStore := &MockStore{}
 			mockWiki := &MockWikipedia{Content: tt.wikiContent, Err: tt.wikiErr}
 
-			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 
 			// Setup callback to verify narration
 			var narrated bool
@@ -208,7 +208,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			_ = os.MkdirAll(filepath.Join(tmpDir, "common"), 0o755)
 			pm, _ := prompts.NewManager(tmpDir)
 
-			svc := NewAIService(config.NewProvider(&config.Config{}, nil), mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+			svc := NewAIService(config.NewProvider(&config.Config{}, nil), mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, false, &tt.telemetry, "uniform")
@@ -230,7 +230,7 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 func TestAIService_Lifecycle(t *testing.T) {
 	// Simple coverage for Start/Stop/Stats
 	pm, _ := prompts.NewManager(t.TempDir())
-	svc := NewAIService(config.NewProvider(&config.Config{}, nil), &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+	svc := NewAIService(config.NewProvider(&config.Config{}, nil), &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 
 	if svc.running {
 		t.Error("should not be running initially")
@@ -315,7 +315,7 @@ func TestAIService_NavUnits(t *testing.T) {
 
 			pm, _ := prompts.NewManager(tmpDir)
 
-			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 			svc.Start()
 
 			svc.PlayPOI(context.Background(), "Q8080", true, false, &tt.telemetry, "uniform")
@@ -349,7 +349,7 @@ func TestAIService_GeneratePlay(t *testing.T) {
 		&MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
 			return &model.POI{WikidataID: "QGen"}, nil
 		}},
-		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 
 	ctx := context.Background()
 
@@ -447,7 +447,7 @@ func TestAIService_LatencyTracking(t *testing.T) {
 		&MockPOIProvider{GetPOIFunc: func(_ context.Context, _ string) (*model.POI, error) {
 			return &model.POI{WikidataID: "QLatency"}, nil
 		}},
-		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+		&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 
 	// 2. GenerateNarrative (should take ~50ms)
 	req := GenerationRequest{
@@ -520,7 +520,7 @@ func TestAIService_PipelineFlow(t *testing.T) {
 				&MockTTS{Format: "mp3"},
 				pm,
 				mockPOI,
-				&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+				&MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 
 			var narratedCount int
 			svc.SetOnPlayback(func(n *model.Narrative, priority bool) {
@@ -571,7 +571,7 @@ func TestAIService_ScriptValidation(t *testing.T) {
 		},
 	}, nil)
 
-	svc := NewAIService(cfg, mockLLM, &MockTTS{Format: "mp3"}, pm, mockPOI, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+	svc := NewAIService(cfg, mockLLM, &MockTTS{Format: "mp3"}, pm, mockPOI, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 
 	req := GenerationRequest{
 		Type:     model.NarrativeTypePOI,
@@ -606,7 +606,7 @@ func TestAllProductionTemplatesExecuteSuccessfully(t *testing.T) {
 	}
 
 	cfg := config.NewProvider(config.DefaultConfig(), nil)
-	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, nil, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 
 	data := svc.promptAssembler.NewPromptData(svc.getSessionState())
 	data["Interests"] = []string{"Aviation"}

@@ -18,7 +18,7 @@ func TestScreenshotCoordinatesPersistence(t *testing.T) {
 
 	// Setup minimalist service (mocks only where needed)
 	cfg := config.NewProvider(&config.Config{}, nil) // Define cfg here
-	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+	svc := NewAIService(cfg, &MockLLM{}, &MockTTS{}, pm, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 
 	// User Aircraft Location
 	userLat := 45.0

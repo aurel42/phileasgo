@@ -600,5 +600,6 @@ func createAIService(cfg config.Provider, llmProv llm.Provider, ttsProv tts.Prov
 		tr,
 		sessionMgr,
 		densityMgr,
+		wikiSvc,
 	)
 }

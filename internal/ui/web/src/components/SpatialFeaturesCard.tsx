@@ -1,6 +1,10 @@
 import { useSpatialFeatures } from '../hooks/useSpatialFeatures';
 
-export const SpatialFeaturesCard = () => {
+interface SpatialFeaturesCardProps {
+    onPlayFeature: (qid: string, name: string) => void;
+}
+
+export const SpatialFeaturesCard = ({ onPlayFeature }: SpatialFeaturesCardProps) => {
     const { data: features, isLoading, error } = useSpatialFeatures();
 
     // Do not render anything if there are no features active
@@ -21,6 +25,7 @@ export const SpatialFeaturesCard = () => {
                     {features.map((feat) => (
                         <div
                             key={feat.qid}
+                            className="clickable"
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -28,7 +33,9 @@ export const SpatialFeaturesCard = () => {
                                 border: '1px solid rgba(212, 175, 55, 0.3)',
                                 borderRadius: '4px',
                                 padding: '4px 8px',
+                                cursor: 'pointer',
                             }}
+                            onClick={() => onPlayFeature(feat.qid, feat.name)}
                         >
                             <span className="role-label" style={{ color: 'var(--accent)', marginRight: '6px' }}>
                                 {feat.category}

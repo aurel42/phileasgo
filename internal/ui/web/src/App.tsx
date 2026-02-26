@@ -11,8 +11,11 @@ import type { POI } from './hooks/usePOIs';
 import { useNarrator } from './hooks/useNarrator';
 import { useBackendStats, useBackendVersion } from './hooks/useBackendInfo';
 import { DashboardFooter } from './components/DashboardFooter';
+import { POIsCard } from './components/POIsCard';
+import { CitiesCard } from './components/CitiesCard';
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { type AircraftType } from './components/AircraftIcon';
+import { useManualNarration } from './hooks/useManualNarration';
 
 // Lazy load heavy map components
 const Map = lazy(() => import('./components/Map').then(m => ({ default: m.Map })));
@@ -81,6 +84,7 @@ function App() {
   const { status: narratorStatus } = useNarrator();
   const { data: backendStats } = useBackendStats();
   const { data: backendVersion } = useBackendVersion();
+  const { playPOI, playCity, playFeature, statusMessage } = useManualNarration();
 
   // Connection error latching
   const [hasConnectionError, setHasConnectionError] = useState(false);
@@ -115,12 +119,12 @@ function App() {
     if (playbackStatus === 'preparing' && narratorStatus?.preparing_poi) {
       const poiId = narratorStatus.preparing_poi.wikidata_id;
       if (lastAutoOpenedIdRef.current === poiId) return;
-      if (activeTab === 'diagnostics' || activeTab === 'poi') return;
+      if (activeTab === 'diagnostics' || activeTab === 'detail') return;
 
       const poi = pois.find(p => p.wikidata_id === poiId);
       if (poi) {
         setPreviousTab(activeTab);
-        setActiveTab('poi');
+        setActiveTab('detail');
         setSelectedPOI(poi);
         autoOpenedRef.current = true;
         lastAutoOpenedIdRef.current = poiId;
@@ -138,9 +142,9 @@ function App() {
 
       const poi = pois.find(p => p.wikidata_id === poiId);
       if (poi) {
-        if (activeTab !== 'poi') {
+        if (activeTab !== 'detail') {
           setPreviousTab(activeTab);
-          setActiveTab('poi');
+          setActiveTab('detail');
           autoOpenedRef.current = true;
         }
         setSelectedPOI(poi);
@@ -153,9 +157,9 @@ function App() {
       const key = 'screenshot-' + narratorStatus.current_title;
       if (lastAutoOpenedIdRef.current === key) return;
 
-      if (activeTab !== 'poi') {
+      if (activeTab !== 'detail') {
         setPreviousTab(activeTab);
-        setActiveTab('poi');
+        setActiveTab('detail');
         autoOpenedRef.current = true;
       }
       setSelectedPOI(null); // Generic panel renders the screenshot
@@ -171,7 +175,7 @@ function App() {
 
   // Revert tab when narration ends
   useEffect(() => {
-    if (narratorStatus?.playback_status === 'idle' && autoOpenedRef.current && activeTab === 'poi' && previousTab !== 'poi') {
+    if (narratorStatus?.playback_status === 'idle' && autoOpenedRef.current && activeTab === 'detail' && previousTab !== 'detail') {
       setActiveTab(previousTab);
       autoOpenedRef.current = false;
       lastAutoOpenedIdRef.current = null; // Allow same POI to auto-open again next time
@@ -183,10 +187,10 @@ function App() {
     if (activeTab === 'diagnostics') return;
 
     setSelectedPOI(poi);
-    if (activeTab !== 'poi') {
+    if (activeTab !== 'detail') {
       setPreviousTab(activeTab);
     }
-    setActiveTab('poi');
+    setActiveTab('detail');
     autoOpenedRef.current = false; // User manually selected — don't auto-revert
   }, [activeTab]);
 
@@ -194,7 +198,7 @@ function App() {
   const handlePanelClose = useCallback(() => {
     setSelectedPOI(null);
     autoOpenedRef.current = false;
-    if (activeTab === 'poi') {
+    if (activeTab === 'detail') {
       setActiveTab(previousTab);
     }
   }, [activeTab, previousTab]);
@@ -474,7 +478,7 @@ function App() {
           />
         )}
 
-        {activeTab === 'poi' && (
+        {activeTab === 'detail' && (
           <POIInfoPanel
             key={selectedPOI?.wikidata_id || (narratorStatus?.current_type + '-' + narratorStatus?.current_title)}
             poi={selectedPOI}
@@ -485,10 +489,18 @@ function App() {
           />
         )}
 
+        {activeTab === 'pois' && (
+          <POIsCard telemetry={telemetry} onPlayPOI={playPOI} />
+        )}
+
+        {activeTab === 'cities' && (
+          <CitiesCard telemetry={telemetry} onPlayCity={playCity} />
+        )}
+
         {activeTab === 'regional' && (
           <>
-            <RegionalCategoriesCard />
-            <SpatialFeaturesCard />
+            <RegionalCategoriesCard onPlayFeature={playFeature} />
+            <SpatialFeaturesCard onPlayFeature={playFeature} />
           </>
         )}
 
@@ -515,8 +527,26 @@ function App() {
           textLength={textLength}
           onSettingsClick={() => navigate('/settings')}
         />
+        {statusMessage && (
+          <div style={{
+            position: 'fixed',
+            bottom: '80px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--accent)',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            fontSize: '14px',
+            fontWeight: '600',
+            animation: 'fadeInOut 3s ease-in-out'
+          }}>
+            {statusMessage}
+          </div>
+        )}
       </div>
-
     </div >
   );
 }

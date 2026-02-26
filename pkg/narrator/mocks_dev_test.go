@@ -544,4 +544,8 @@ func (m *MockAIService) GenerateNarrative(ctx context.Context, req *GenerationRe
 func (m *MockAIService) EnqueueAnnouncement(ctx context.Context, a announcement.Item, t *sim.Telemetry, onComplete func(*model.Narrative)) {
 }
 
+func (m *MockAIService) EnsurePOILoaded(ctx context.Context, qid string, lat, lon float64) error {
+	return nil
+}
+
 func (m *MockAIService) Reset(ctx context.Context) {}

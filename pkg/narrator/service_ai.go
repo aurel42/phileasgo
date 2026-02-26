@@ -109,6 +109,8 @@ type AIService struct {
 	fallbackTTS     tts.Provider
 	useFallbackTTS  bool
 	fallbackTracker *tracker.Tracker
+
+	enricher POIEnricher
 }
 
 // NewAIService creates a new AI-powered narrator generator.
@@ -130,6 +132,7 @@ func NewAIService(
 	tr *tracker.Tracker,
 	sessMgr *session.Manager,
 	density *wikidata.DensityManager,
+	enricher POIEnricher,
 ) *AIService {
 	s := &AIService{
 		cfg:             cfg,
@@ -152,6 +155,7 @@ func NewAIService(
 		sessionMgr:      sessMgr,
 		density:         density,
 		genQ:            generation.NewManager(),
+		enricher:        enricher,
 	}
 	// Initial default window
 	s.sim.SetPredictionWindow(60 * time.Second)

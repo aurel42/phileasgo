@@ -56,17 +56,19 @@ func (m *MockNarratorService) IsActive() bool     { return m.active }
 func (m *MockNarratorService) IsGenerating() bool { return m.generating }
 func (m *MockNarratorService) PlayPOI(ctx context.Context, id string, manual, enqueueIfBusy bool, tel *sim.Telemetry, strategy string) {
 }
-func (m *MockNarratorService) CurrentPOI() *model.POI           { return m.currentPOI }
-func (m *MockNarratorService) GetPreparedPOI() *model.POI       { return nil }
-func (m *MockNarratorService) CurrentTitle() string             { return m.currentTitle }
-func (m *MockNarratorService) CurrentThumbnailURL() string      { return "" }
-func (m *MockNarratorService) CurrentImagePath() string         { return "" }
-func (m *MockNarratorService) ClearCurrentImage()               {} // Added
-func (m *MockNarratorService) NarratedCount() int               { return m.narrated }
-func (m *MockNarratorService) Stats() map[string]any            { return m.stats }
-func (m *MockNarratorService) CurrentType() model.NarrativeType { return "" }
-func (m *MockNarratorService) CurrentDuration() time.Duration   { return 0 }
-func (m *MockNarratorService) CurrentShowInfoPanel() bool       { return m.showInfoPanel }
+func (m *MockNarratorService) CurrentPOI() *model.POI                      { return m.currentPOI }
+func (m *MockNarratorService) GetPreparedPOI() *model.POI                  { return nil }
+func (m *MockNarratorService) PlayCity(ctx context.Context, name string)   {}
+func (m *MockNarratorService) PlayFeature(ctx context.Context, qid string) {}
+func (m *MockNarratorService) CurrentTitle() string                        { return m.currentTitle }
+func (m *MockNarratorService) CurrentThumbnailURL() string                 { return "" }
+func (m *MockNarratorService) CurrentImagePath() string                    { return "" }
+func (m *MockNarratorService) ClearCurrentImage()                          {} // Added
+func (m *MockNarratorService) NarratedCount() int                          { return m.narrated }
+func (m *MockNarratorService) Stats() map[string]any                       { return m.stats }
+func (m *MockNarratorService) CurrentType() model.NarrativeType            { return "" }
+func (m *MockNarratorService) CurrentDuration() time.Duration              { return 0 }
+func (m *MockNarratorService) CurrentShowInfoPanel() bool                  { return m.showInfoPanel }
 
 func TestNarratorHandler_HandleStatus_Logging(t *testing.T) {
 	// Setup log capture

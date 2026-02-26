@@ -1,9 +1,12 @@
 ﻿# Changelog
+
+## v0.3.223 (2026-02-26)
+- **Feature**: Added dashboard cards for manually triggering narration of nearby POIs, cities, and geographic features.
+- **Fix**: The EFB application now derives its backend API URL dynamically from the server configuration, eliminating hardcoded local addresses.
  
 ## v0.3.222 (2026-02-26)
 - **Feature**: **Map Label Session Isolation**. Implemented a thread-safe session store for map labels, ensuring isolated state for multiple concurrent clients (Web UI and EFB).
-- **Improvement**: **Standardized Duration Units**. Unified all duration-based configurations to use seconds as the primary storage unit in the backend, with full backward compatibility for human-readable strings in the UI.
-
+- **Fix**: Resolved critical performance regression in duration handling by unifying all duration-based configurations to use seconds as the primary storage unit in the backend, with full backward compatibility for human-readable strings in the UI.
 
 ## v0.3.221 (2026-02-26)
 - **Improvement**: **SimConnect Efficiency**. Implemented intelligent throttling for the beacon system, reducing idle CPU usage by 50x when no markers are active while maintaining high responsiveness during spawning.

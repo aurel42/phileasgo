@@ -49,6 +49,7 @@ export default {
         replace({
             preventAssignment: true,
             delimiters: ['', ''],
+            PHILEAS_API_URL: JSON.stringify(process.env.PHILEAS_API_URL || 'http://localhost:1920'),
             BASE_URL: JSON.stringify('coui://html_ui/efb_ui/efb_apps/phileas'),
             VERSION: JSON.stringify(process.env.npm_package_version || '0.0.0'),
             BUILD_TIMESTAMP: JSON.stringify(new Date().toISOString()),

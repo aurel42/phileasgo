@@ -10,6 +10,7 @@ import { aircraftSvgPaths, AircraftType } from "./AircraftIcon";
 import "./MapComponent.scss";
 
 declare const BASE_URL: string;
+declare const PHILEAS_API_URL: string;
 
 const DISC_SIZE = 30;   // colored circle diameter (px)
 const ICON_SIZE = 24;   // icon inside disc, 20% larger than original 20px
@@ -130,6 +131,7 @@ interface MapComponentProps extends ComponentProps {
     isVisible: Subject<boolean>;
     narratorStatus: Subject<any>;
     aircraftConfig: Subject<any>;
+    onPOISelect: (poi: any) => void;
 }
 
 /** Cached DOM marker for a single POI. */
@@ -174,12 +176,16 @@ function createBeaconElement(color: string, size: number): HTMLDivElement {
     return wrapper;
 }
 
+interface PhileasPoiLayerProps extends MapLayerProps<any> {
+    onPOISelect: (poi: any) => void;
+}
+
 /**
  * Custom layer rendering Phileas POIs as colored disc + white SVG icon markers.
  * DOM elements are created/removed only when the POI list changes; projection
  * changes only update positions — eliminating per-second flicker.
  */
-class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
+class PhileasPoiLayer extends MapLayer<PhileasPoiLayerProps> {
     private readonly containerRef = FSComponent.createRef<HTMLDivElement>();
     private markers = new Map<string, PoiMarker>();
     private pois: any[] = [];
@@ -295,13 +301,23 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 const cooldown = isOnCooldown(poi);
                 wrapper.style.cssText =
                     `position:absolute;width:${DISC_SIZE}px;height:${DISC_SIZE}px;` +
-                    `transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;` +
+                    `transform:translate(-50%,-50%);border-radius:50%;pointer-events:auto;cursor:pointer;` +
                     `background:${poiDiscColor(poi, narratorStatus)};` +
                     `border:1.5px solid rgba(0,0,0,0.45);` +
                     `box-shadow:0 2px 6px rgba(0,0,0,0.55);` +
                     `display:flex;align-items:center;justify-content:center;` +
                     `z-index:${getPoiZIndex(poi, narratorStatus)};` +
                     `opacity:${getPoiOpacity(poi)};`;
+
+                wrapper.onclick = (e) => {
+                    e.stopPropagation();
+                    this.props.onPOISelect(poi);
+                    fetch(`${PHILEAS_API_URL}/api/narrator/play`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ poi_id: poi.wikidata_id })
+                    }).catch(err => console.error("Failed to trigger POI narration from map", err));
+                };
 
                 const img = document.createElement("img");
                 img.src = poiIconUrl(poi.icon);
@@ -335,6 +351,15 @@ class PhileasPoiLayer extends MapLayer<MapLayerProps<any>> {
                 marker.wrapper.style.zIndex = getPoiZIndex(poi, narratorStatus);
                 marker.wrapper.style.opacity = getPoiOpacity(poi);
                 marker.wrapper.style.transform = `translate(-50%,-50%) scale(${scale})`;
+                marker.wrapper.onclick = (e) => {
+                    e.stopPropagation();
+                    this.props.onPOISelect(poi);
+                    fetch(`${PHILEAS_API_URL}/api/narrator/play`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ poi_id: poi.wikidata_id })
+                    }).catch(err => console.error("Failed to trigger POI narration from map", err));
+                };
                 marker.scale = scale;
                 marker.lat = poi.lat;
                 marker.lon = poi.lon;
@@ -615,7 +640,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
                 aircraftConfig: this.props.aircraftConfig,
             }))
             .withLayer("PhileasPois", (context: any) =>
-                <PhileasPoiLayer model={context.model} mapProjection={context.projection} />, 100)
+                <PhileasPoiLayer model={context.model} mapProjection={context.projection} onPOISelect={this.props.onPOISelect} />, 100)
             .withLayer("PhileasAirplane", (context: any) =>
                 <PhileasAirplaneLayer model={context.model} mapProjection={context.projection} />, 200);
 

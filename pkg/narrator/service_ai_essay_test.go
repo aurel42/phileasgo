@@ -79,7 +79,7 @@ topics:
 			mockSim := &MockSim{Telemetry: sim.Telemetry{Latitude: 48.0, Longitude: 2.0}}
 
 			// Inject Essay Handler
-			svc := NewAIService(cfg, mockLLM, mockTTS, pm, &MockPOIProvider{}, mockGeo, mockSim, &MockStore{}, &MockWikipedia{}, nil, nil, eh, nil, nil, nil, session.NewManager(nil), nil)
+			svc := NewAIService(cfg, mockLLM, mockTTS, pm, &MockPOIProvider{}, mockGeo, mockSim, &MockStore{}, &MockWikipedia{}, nil, nil, eh, nil, nil, nil, session.NewManager(nil), nil, nil)
 			svc.Start()
 
 			// Action
@@ -104,7 +104,7 @@ topics:
 
 func TestAIService_PlayEssay_NoHandler(t *testing.T) {
 	// Setup minimalist service without essay handler
-	svc := NewAIService(config.NewProvider(&config.Config{}, nil), &MockLLM{}, &MockTTS{}, nil, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil)
+	svc := NewAIService(config.NewProvider(&config.Config{}, nil), &MockLLM{}, &MockTTS{}, nil, &MockPOIProvider{}, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{}, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
 
 	if svc.PlayEssay(context.Background(), &sim.Telemetry{}) {
 		t.Error("Expected PlayEssay to return false when handler is nil")

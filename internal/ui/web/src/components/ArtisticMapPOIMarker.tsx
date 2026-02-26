@@ -37,8 +37,8 @@ export const ArtisticMapPOIMarker: React.FC<ArtisticMapPOIMarkerProps> = ({
     const isPreparing = l.id === preparingId;
     const activeBoost = isActive ? 1.5 : (isPreparing ? 1.25 : (isSelected ? 1.4 : 1.0));
 
-    const isCapped = (zoomScale * activeBoost) > 4.0;
-    const renderScale = isCapped ? 4.0 : (zoomScale * activeBoost);
+    const isCapped = (zoomScale * activeBoost) > 2.0;
+    const renderScale = isCapped ? 2.0 : (zoomScale * activeBoost);
     const iconName = (poi?.icon_artistic || l.icon || 'attraction');
     const iconUrl = `/icons/${iconName}.svg`;
 
