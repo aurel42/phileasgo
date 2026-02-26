@@ -29,7 +29,9 @@ type ScoringInput struct {
 // Session represents a single scoring cycle context.
 type Session interface {
 	Calculate(poi *model.POI)
+	CalculateDeferral(poi *model.POI)
 	LowestElevation() float64
+	MaxRadiusNM() float64
 }
 
 // Scorer calculates dynamic scores for POIs.
@@ -104,6 +106,7 @@ func (s *Scorer) NewSession(input *ScoringInput) Session {
 		scorer:          s,
 		input:           input,
 		lowestElev:      float64(lowestElev),
+		maxRadiusNM:     radiusNM,
 		futurePositions: futurePositions,
 	}
 }
@@ -112,6 +115,7 @@ type DefaultSession struct {
 	scorer          *Scorer
 	input           *ScoringInput
 	lowestElev      float64
+	maxRadiusNM     float64
 	futurePositions []geo.Point // Pre-calculated positions at +1, +3, +5, +10, +15 min
 }
 
@@ -152,14 +156,14 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 	distNM := distMeters / 1852.0
 	bearing := geo.Bearing(predPoint, poiPoint)
 
-	var logs []string
+	logs := make([]string, 0, 8)
 
 	// 1. Calculate Visibility (position-based)
 	boost := input.BoostFactor
 	if boost < 1.0 {
 		boost = 1.0
 	}
-	visScore, visLogs, shouldReturn := s.calculateVisibilityScore(poi, &state, bearing, distNM, sess.lowestElev, boost)
+	_, visLogs, shouldReturn := s.calculateVisibilityScore(poi, &state, bearing, distNM, sess.lowestElev, boost)
 	if shouldReturn {
 		return // POI not visible
 	}
@@ -169,17 +173,12 @@ func (sess *DefaultSession) Calculate(poi *model.POI) {
 	intrinsicScore, intrinsicLogs := sess.calculateIntrinsicScore(poi)
 	logs = append(logs, intrinsicLogs...)
 
-	// 3. Determine Deferral (hard filter for selection)
+	// 3. Urgency metrics (cheap: just distance/bearing to future positions).
+	// Deferral is computed separately via CalculateDeferral() for top candidates only.
 	if len(sess.futurePositions) > 0 {
 		sess.calculateUrgencyMetrics(poi, poiPoint, state.Heading)
-		poi.IsDeferred = sess.determineDeferral(poi, state.Heading, visScore)
-		if poi.IsDeferred {
-			poi.Badges = append(poi.Badges, "deferred")
-			logs = append(logs, "Deferred: Better view coming")
-		}
-	} else {
-		poi.IsDeferred = false
 	}
+	poi.IsDeferred = false
 
 	// [BADGE] Urgent (display only - POI about to go behind)
 	if poi.TimeToBehind > 0 && poi.TimeToBehind < 120 {
@@ -214,6 +213,21 @@ func (sess *DefaultSession) calculateIntrinsicScore(poi *model.POI) (score float
 	}
 
 	return score, logs
+}
+
+// CalculateDeferral computes the expensive deferral decision for a single POI.
+// This is meant to be called only for the top N visible candidates after
+// the main Calculate() pass, to avoid running 9-position visibility checks
+// on every tracked POI.
+func (sess *DefaultSession) CalculateDeferral(poi *model.POI) {
+	if len(sess.futurePositions) == 0 || !poi.IsVisible || poi.Visibility <= 0 {
+		return
+	}
+	poi.IsDeferred = sess.determineDeferral(poi, sess.input.Telemetry.Heading, poi.Visibility)
+	if poi.IsDeferred {
+		poi.Badges = append(poi.Badges, "deferred")
+		poi.ScoreDetails += "\nDeferred: Better view coming"
+	}
 }
 
 // determineDeferral checks if we should defer this POI because we'll have a better view later.
@@ -320,6 +334,12 @@ func (sess *DefaultSession) calculateUrgencyMetrics(poi *model.POI, poiPoint geo
 // LowestElevation returns the calculated lowest elevation (valley floor) in meters for this session.
 func (sess *DefaultSession) LowestElevation() float64 {
 	return sess.lowestElev
+}
+
+// MaxRadiusNM returns the maximum visibility radius for this session.
+// POIs beyond this distance cannot be visible and can be skipped.
+func (sess *DefaultSession) MaxRadiusNM() float64 {
+	return sess.maxRadiusNM
 }
 
 // calculateVisibilityScore determines if a POI is visible and calculates its visibility score.
@@ -490,7 +510,8 @@ func (s *Scorer) calculateVarietyScore(poi *model.POI, history []string) (multip
 
 // applyBadges handles the stateless logic for assigning badges based on POI properties.
 func (sess *DefaultSession) applyBadges(poi *model.POI) {
-	poi.Badges = make([]string, 0)
+	// Reuse existing slice backing array to avoid allocation per POI per pass.
+	poi.Badges = poi.Badges[:0]
 	if poi.IsMSFSPOI {
 		poi.Badges = append(poi.Badges, "msfs")
 	}

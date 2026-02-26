@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## v0.3.221 (2026-02-26)
+- **Improvement**: **SimConnect Efficiency**. Implemented intelligent throttling for the beacon system, reducing idle CPU usage by 50x when no markers are active while maintaining high responsiveness during spawning.
+- **Improvement**: **Persistent State Caching**. Added an in-memory cache for application settings, eliminating redundant database queries for frequently accessed configuration.
+- **Improvement**: **Lazy Deferral Scoring**. Optimized POI scoring by deferring expensive future-visibility calculations until after initial candidates are filtered, significantly reducing CPU spikes in dense areas.
+- **Improvement**: **Reduced Memory Churn**. Optimized internal badge assignment to minimize allocations during high-frequency scoring passes.
+
 ## v0.3.220 (2026-02-26)
 - **Feature**: **Spatial Features API**. New `/api/features` endpoint returns the geographic features (seas, oceans, named regions) covering the aircraft's current position, powered by Natural Earth datasets.
 - **Feature**: **Tabbed Dashboard**. Replaced the sidebar's toggle-based panels with a tabbed layout (Dashboard, POI, Regional, Diagnostics) for cleaner navigation.

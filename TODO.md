@@ -75,8 +75,9 @@ X maps with overlays
 
 regressions:
 X starting app with sim state disconnected and no trip replay available: no world map, just water
-- Narrator sometimes picks POIs with unexpired LastPlayed
-- on collision, POI markers are placed far from their origin, in spite of the small steps in the radial search
+X Narrator sometimes picks POIs with unexpired LastPlayed
+- on collision, POI markers are sometimes placed far from their origin, in spite of the small steps in the radial search
 X zoom out on "pause" happens, but zooms in again immediately
 
 - random starting locations on the world map
+- make POI names, features, possibly City names, admin1 and country clickable

@@ -38,7 +38,14 @@ type Store interface {
 
 // SQLiteStore implements Store.
 type SQLiteStore struct {
-	db *db.DB // Changed from *data.DB
+	db         *db.DB // Changed from *data.DB
+	stateCache sync.Map
+}
+
+// cachedState holds a single persistent_state row in the in-memory cache.
+type cachedState struct {
+	value string
+	found bool
 }
 
 // NewSQLiteStore creates a new store.
@@ -835,24 +842,38 @@ func (s *SQLiteStore) SaveRegionalCategories(ctx context.Context, latGrid, lonGr
 // --- State ---
 
 func (s *SQLiteStore) GetState(ctx context.Context, key string) (string, bool) {
+	// Check in-memory cache first (populated on first read, invalidated on write/delete).
+	if cached, ok := s.stateCache.Load(key); ok {
+		cs := cached.(cachedState)
+		return cs.value, cs.found
+	}
+
 	var val string
 	err := s.db.QueryRowContext(ctx, "SELECT value FROM persistent_state WHERE key = ?", key).Scan(&val)
 	if errors.Is(err, sql.ErrNoRows) {
+		s.stateCache.Store(key, cachedState{value: "", found: false})
 		return "", false
 	}
 	if err != nil {
 		slog.Error("GetState: query failed", "key", key, "error", err)
 		return "", false
 	}
+	s.stateCache.Store(key, cachedState{value: val, found: true})
 	return val, true
 }
 
 func (s *SQLiteStore) SetState(ctx context.Context, key, val string) error {
 	query := `INSERT OR REPLACE INTO persistent_state (key, value, created_at) VALUES (?, ?, ?)`
 	_, err := s.db.ExecContext(ctx, query, key, val, time.Now())
+	if err == nil {
+		s.stateCache.Store(key, cachedState{value: val, found: true})
+	}
 	return err
 }
 func (s *SQLiteStore) DeleteState(ctx context.Context, key string) error {
 	_, err := s.db.ExecContext(ctx, "DELETE FROM persistent_state WHERE key = ?", key)
+	if err == nil {
+		s.stateCache.Store(key, cachedState{value: "", found: false})
+	}
 	return err
 }

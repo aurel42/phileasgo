@@ -383,6 +383,14 @@ func (s *Service) retryInterval() time.Duration {
 	return 60 * time.Second
 }
 
+// isIdle returns true when the beacon system has no active work.
+// Used to throttle the dispatch loop and save CPU.
+func (s *Service) isIdle() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return !s.active || len(s.spawnedBeacons) == 0
+}
+
 func (s *Service) runDispatchIteration() bool {
 	ppData, _, err := simconnect.GetNextDispatch(s.handle)
 	if err != nil {
@@ -390,9 +398,15 @@ func (s *Service) runDispatchIteration() bool {
 		return false
 	}
 	if ppData == nil {
-		// Match simtest responsiveness (2ms instead of 10ms)
-		// TESTED: Perfect smoothness at 2ms. DO NOT CHANGE.
-		time.Sleep(2 * time.Millisecond)
+		if s.isIdle() {
+			// No beacons active — throttle to ~10Hz to save CPU while
+			// still draining SimConnect messages and detecting QUIT.
+			time.Sleep(100 * time.Millisecond)
+		} else {
+			// Beacons active — 2ms for smooth position updates.
+			// TESTED: Perfect smoothness at 2ms. DO NOT CHANGE.
+			time.Sleep(2 * time.Millisecond)
+		}
 		return true
 	}
 

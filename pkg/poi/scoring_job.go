@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -30,6 +31,11 @@ type ScoringManager interface {
 	GetBoostFactor(ctx context.Context) float64
 }
 
+// minScoringDisplacementM is the minimum distance the aircraft must move before
+// a new scoring pass runs. Derived from 50 kts × 5 s ≈ 128 m. This avoids
+// re-scoring all POIs when the aircraft is parked or taxiing slowly.
+const minScoringDisplacementM = 128.0
+
 // ScoringJob manages the periodic scoring of POIs.
 type ScoringJob struct {
 	name    string
@@ -41,6 +47,11 @@ type ScoringJob struct {
 	cfg     config.Provider
 	busyFn  func(qid string) bool
 	lastRun time.Time
+
+	// State from the last full scoring pass, used to skip redundant passes.
+	lastScoredPos   geo.Point
+	lastScoredCount int
+	hasScoredOnce   bool
 }
 
 // NewScoringJob creates a new ScoringJob.
@@ -115,9 +126,22 @@ func (j *ScoringJob) performScoringPass(ctx context.Context) {
 		return
 	}
 
+	// Get tracked POIs once (used for both the skip-check and the scoring loop).
+	pois := j.manager.GetTrackedPOIs()
+
+	// Skip scoring if nothing meaningful changed since the last pass:
+	// the aircraft hasn't moved enough AND the POI set hasn't changed.
+	currentPos := geo.Point{Lat: telemetry.Latitude, Lon: telemetry.Longitude}
+	if j.hasScoredOnce {
+		displacement := geo.Distance(j.lastScoredPos, currentPos)
+		countChanged := len(pois) != j.lastScoredCount
+		if displacement < minScoringDisplacementM && !countChanged {
+			return
+		}
+	}
+
 	// Instrumentation: Log prediction offset distance
 	if telemetry.PredictedLatitude != 0 || telemetry.PredictedLongitude != 0 {
-		currentPos := geo.Point{Lat: telemetry.Latitude, Lon: telemetry.Longitude}
 		predictedPos := geo.Point{Lat: telemetry.PredictedLatitude, Lon: telemetry.PredictedLongitude}
 		predDistMeters := geo.Distance(currentPos, predictedPos)
 		predDistNM := predDistMeters / 1852.0
@@ -137,19 +161,6 @@ func (j *ScoringJob) performScoringPass(ctx context.Context) {
 	// 3. Fetch Boost Factor
 	boostFactor := j.manager.GetBoostFactor(ctx)
 
-	// 4. Lock & Score
-	// Note: We get a COPY/Slice of pointers. The Manager lock is inside GetTrackedPOIs.
-	// HOWEVER, modifying the POI pointers (p.Score = ...) is thread-safe only if no one else writes to them concurrenty.
-	// The Manager holds the implementation.
-	// In the original code, Manager locked the WHOLE loop.
-	// Now we are iterating over pointers. Thread safety depends on POI struct usage.
-	// Readers (UI) use RLock in Manager.
-	// Writers (Ingestion) use Lock in Manager.
-	// Here we are modifying fields (Score).
-	// Ideally we should lock the POI itself or having a "BatchUpdate" on manager.
-	// BUT, for now, we follow the pattern: The manager gave us the pointers.
-	pois := j.manager.GetTrackedPOIs()
-
 	input := scorer.ScoringInput{
 		Telemetry:       telemetry,
 		CategoryHistory: history,
@@ -161,18 +172,83 @@ func (j *ScoringJob) performScoringPass(ctx context.Context) {
 	// Create Scoring Session (Pre-calculates terrain/context once)
 	session := j.scorer.NewSession(&input)
 
+	// Distance pre-filter: skip POIs clearly beyond max visibility range.
+	// Use predicted position (same reference the scorer uses internally).
+	const distancePaddingNM = 5.0
+	maxDistNM := session.MaxRadiusNM() + distancePaddingNM
+	predPos := geo.Point{Lat: telemetry.PredictedLatitude, Lon: telemetry.PredictedLongitude}
+	if predPos.Lat == 0 && predPos.Lon == 0 {
+		predPos = currentPos
+	}
+
+	// Phase 1: Score all POIs (visibility + intrinsic, no deferral).
 	for _, p := range pois {
-		// DANGER: We are modifying P here without Manager lock!
-		// If ingestion happens parallel, it might race.
-		// However, ingestion (upsert) replaces the pointer in the map or updates fields.
-		// This is a known trade-off in Go concurrent maps without fine-grained locking.
-		// Given single-threaded writer assumption in main loop usually holds well enough or we need RWMutex on POI.
+		poiDistNM := geo.Distance(predPos, geo.Point{Lat: p.Lat, Lon: p.Lon}) / 1852.0
+		if poiDistNM > maxDistNM {
+			p.IsVisible = false
+			p.Score = 0
+			p.Visibility = 0
+			continue
+		}
 		session.Calculate(p)
 	}
 
-	// 5. Update Last Scored Location
+	// Phase 2: Lazy deferral — only compute for POIs that would be visible
+	// on the map. Deferral involves 9 future-position visibility checks per
+	// POI, so restricting it to actual candidates saves significant CPU.
+	j.applyLazyDeferral(ctx, session, pois)
+
+	// 5. Update Last Scored State
+	j.lastScoredPos = currentPos
+	j.lastScoredCount = len(pois)
+	j.hasScoredOnce = true
 	j.manager.UpdateScoringState(telemetry.Latitude, telemetry.Longitude)
 
 	// 6. Trigger Callback
 	j.manager.NotifyScoringComplete(ctx, &telemetry, session.LowestElevation())
+}
+
+// applyLazyDeferral computes deferral only for POIs that would actually appear
+// on the map, respecting the current visibility settings (fixed score threshold
+// or adaptive top-N count).
+func (j *ScoringJob) applyLazyDeferral(ctx context.Context, session scorer.Session, pois []*model.POI) {
+	// Collect visible candidates with positive scores.
+	visible := make([]*model.POI, 0, 64)
+	for _, p := range pois {
+		if p.IsVisible && p.Score > 0 {
+			visible = append(visible, p)
+		}
+	}
+	if len(visible) == 0 {
+		return
+	}
+
+	// Sort by combined score descending (same ranking the UI/narrator uses).
+	combinedScore := func(p *model.POI) float64 { return p.Score * p.Visibility }
+	sort.Slice(visible, func(i, k int) bool {
+		return combinedScore(visible[i]) > combinedScore(visible[k])
+	})
+
+	// Determine candidate count based on the current filter mode.
+	limit := len(visible)
+	filterMode := j.cfg.FilterMode(ctx)
+	if filterMode == "adaptive" {
+		target := j.cfg.TargetPOICount(ctx)
+		if target > 0 && target < limit {
+			limit = target
+		}
+	} else {
+		// Fixed mode: only POIs above the minimum score threshold.
+		minScore := j.cfg.MinScoreThreshold(ctx)
+		for i, p := range visible {
+			if combinedScore(p) < minScore {
+				limit = i
+				break
+			}
+		}
+	}
+
+	for _, p := range visible[:limit] {
+		session.CalculateDeferral(p)
+	}
 }
