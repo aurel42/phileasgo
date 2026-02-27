@@ -11,6 +11,10 @@ import {
 } from "@efb/efb-api";
 import { FSComponent, VNode, Subject } from "@microsoft/msfs-sdk";
 import { PhileasPage } from "./Components/PhileasPage";
+import {
+  Telemetry, POI, SettlementData, NarratorStatus,
+  AircraftConfig, RegionalCategory, Geography, ApiStats
+} from "./Models";
 
 import "./Phileas.scss";
 
@@ -23,28 +27,28 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
   protected defaultView = "MainPage";
 
   // Equality functions prevent downstream subscriber cascades when poll data is unchanged
-  private telemetry = Subject.create<any>(null, (a: any, b: any) =>
+  private telemetry = Subject.create<Telemetry | null>(null, (a, b) =>
     a === b || (a && b && a.Latitude === b.Latitude && a.Longitude === b.Longitude
       && a.Heading === b.Heading && a.Altitude === b.Altitude && a.AltitudeAGL === b.AltitudeAGL
       && a.GroundSpeed === b.GroundSpeed && a.OnGround === b.OnGround));
-  private pois = Subject.create<any[]>([], (a: any[], b: any[]) =>
+  private pois = Subject.create<POI[]>([], (a, b) =>
     a === b || (a.length === b.length && a.every((p, i) =>
       p.wikidata_id === b[i].wikidata_id && p.score === b[i].score
       && p.is_on_cooldown === b[i].is_on_cooldown && p.beacon_color === b[i].beacon_color)));
-  private settlements = Subject.create<any[]>([]);
+  private settlements = Subject.create<SettlementData | null>(null);
   private apiVersion = Subject.create<string>("v0.0.0");
-  private apiStats = Subject.create<any>(null);
-  private geography = Subject.create<any>(null, (a: any, b: any) =>
+  private apiStats = Subject.create<ApiStats | null>(null);
+  private geography = Subject.create<Geography | null>(null, (a, b) =>
     a === b || (a && b && a.city === b.city && a.country === b.country
       && a.region === b.region && a.country_code === b.country_code
       && a.city_country_code === b.city_country_code));
-  private narratorStatus = Subject.create<any>(null, (a: any, b: any) =>
+  private narratorStatus = Subject.create<NarratorStatus | null>(null, (a, b) =>
     a === b || (a && b && a.current_poi?.wikidata_id === b.current_poi?.wikidata_id
       && a.preparing_poi?.wikidata_id === b.preparing_poi?.wikidata_id
       && a.narration_frequency === b.narration_frequency && a.text_length === b.text_length));
 
-  private aircraftConfig = Subject.create<any>(null);
-  private regionalCategories = Subject.create<any[]>([], (a: any[], b: any[]) =>
+  private aircraftConfig = Subject.create<AircraftConfig | null>(null);
+  private regionalCategories = Subject.create<RegionalCategory[]>([], (a, b) =>
     a === b || (a.length === b.length && a.every((cat, i) => cat.qid === b[i].qid)));
   private updateTimer: any = null;
   private abortController: AbortController | null = null;

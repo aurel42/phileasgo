@@ -1,10 +1,14 @@
 import { TTButton, GamepadUiView, RequiredProps, TVNode, UiViewProps, List, Switch, Slider, Incremental } from "@efb/efb-api";
 import { FSComponent, Subject, VNode, ArraySubject, EventBus } from "@microsoft/msfs-sdk";
 import { MapComponent } from "./MapComponent";
+import {
+    Telemetry, POI, SettlementData, NarratorStatus,
+    AircraftConfig, RegionalCategory, ApiStats
+} from "../Models";
 
 import "./PhileasPage.scss";
 
-function isPoiOnCooldown(poi: any): boolean {
+function isPoiOnCooldown(poi: POI): boolean {
     return !!poi.is_on_cooldown;
 }
 
@@ -14,15 +18,15 @@ declare const PHILEAS_API_URL: string;
 
 interface PhileasPageProps extends RequiredProps<UiViewProps, "appViewService"> {
     bus: EventBus;
-    telemetry: Subject<any>;
-    pois: Subject<any[]>;
-    settlements: Subject<any>;
+    telemetry: Subject<Telemetry | null>;
+    pois: Subject<POI[]>;
+    settlements: Subject<SettlementData | null>;
     apiVersion: Subject<string>;
-    apiStats: Subject<any>;
+    apiStats: Subject<ApiStats | null>;
     geography: Subject<any>;
-    narratorStatus: Subject<any>;
-    aircraftConfig: Subject<any>;
-    regionalCategories: Subject<any[]>;
+    narratorStatus: Subject<NarratorStatus | null>;
+    aircraftConfig: Subject<AircraftConfig | null>;
+    regionalCategories: Subject<RegionalCategory[]>;
 }
 
 interface PoiItem {
@@ -30,6 +34,7 @@ interface PoiItem {
     score: number;
     distance: number;
     cooldown: boolean;
+    wikidata_id: string;
 }
 
 interface SettlementItem {
@@ -191,24 +196,25 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
             // Update POIs (Calculate distance on frontend)
             const rawPois = this.props.pois.get() || [];
-            const sortedPois = [...rawPois].map((p: any) => {
+            const sortedPois = [...rawPois].map((p) => {
                 let dist = 0;
                 if (t && p.lat !== undefined && p.lon !== undefined) {
                     dist = this.calculateDistance(t.Latitude, t.Longitude, p.lat, p.lon);
                 }
                 return {
                     name: p.name_user || p.name_en || p.name_local || p.wikidata_id || "Unknown POI",
-                    score: p.score ?? p.Score ?? 0,
+                    score: p.score ?? 0,
                     distance: dist,
                     cooldown: isPoiOnCooldown(p),
+                    wikidata_id: p.wikidata_id
                 };
             }).sort((a, b) => a.distance - b.distance).slice(0, 50);
             this.uiPois.set(sortedPois);
 
             // Update Settlements (Calculate distance & Sort)
-            const rawSettlements = this.props.settlements.get() || {};
-            const settleList = (rawSettlements as any).labels || [];
-            const mappedSettlements = settleList.map((s: any) => {
+            const rawSettlements = this.props.settlements.get();
+            const settleList = rawSettlements?.labels || [];
+            const mappedSettlements = settleList.map((s) => {
                 let dist = 0;
                 if (t && s.lat !== undefined && s.lon !== undefined) {
                     dist = this.calculateDistance(t.Latitude, t.Longitude, s.lat, s.lon);
@@ -218,7 +224,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                     pop: s.pop ?? s.population ?? 0,
                     distance: dist
                 };
-            }).sort((a: any, b: any) => a.distance - b.distance).slice(0, 50);
+            }).sort((a, b) => a.distance - b.distance).slice(0, 50);
             this.uiSettlements.set(mappedSettlements);
         }
     }
@@ -306,7 +312,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
     }
 
     private renderPoiItem = (item: PoiItem): VNode => {
-        const fullItem = (this.props.pois.get() || []).find((p: any) => p.wikidata_id === (item as any).wikidata_id || p.name_en === item.name);
+        const fullItem = (this.props.pois.get() || []).find((p) => p.wikidata_id === item.wikidata_id || p.name_en === item.name);
         return (
             <div class="list-row poi-row">
                 <div
@@ -671,7 +677,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             pill.style.borderRadius = '4px';
             pill.style.padding = '4px 8px';
             pill.style.cursor = 'pointer';
-            (pill as any).onmousedown = () => this.triggerNarration('feature', cat.qid, cat.name);
+            pill.onmousedown = () => this.triggerNarration('feature', cat.qid, cat.name);
 
             const catLabel = document.createElement('span');
             catLabel.style.color = '#d4af37';

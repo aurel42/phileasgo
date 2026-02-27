@@ -227,8 +227,8 @@ export const SmartMarkerLayer = ({ pois, selectedPOI, currentNarratedId, prepari
         moveend: () => setMapVersion(v => v + 1), // Trigger recalc after pan
     });
 
-    // Use all POIs returned by API (API is source of truth)
-    const visiblePOIs = pois;
+    // Use all POIs returned by API (API is source of truth), but filter out hidden ones
+    const visiblePOIs = pois.filter(p => !p.is_hidden_feature);
 
     // Compute layout SYNCHRONOUSLY using D3 force simulation (no animation)
     const nodes = useMemo(() => {

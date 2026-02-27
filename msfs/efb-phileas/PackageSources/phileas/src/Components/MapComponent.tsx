@@ -5,6 +5,11 @@ import {
     MapSystemKeys
 } from "@microsoft/msfs-sdk";
 
+import {
+    Telemetry, POI, NarratorStatus,
+    AircraftConfig, SettlementData
+} from "../Models";
+
 import { aircraftSvgPaths, AircraftType } from "./AircraftIcon";
 
 import "./MapComponent.scss";
@@ -78,7 +83,7 @@ function lerpInt(a: number, b: number, t: number): number {
 }
 
 /** Returns true if POI was played recently and is still within the cooldown. */
-function isOnCooldown(poi: any): boolean {
+function isOnCooldown(poi: POI): boolean {
     return !!poi.is_on_cooldown;
 }
 
@@ -89,7 +94,7 @@ function isOnCooldown(poi: any): boolean {
  *   cooldown  → blue
  *   otherwise → yellow (#E9C46A, score=0) → red (#e63946, score≥20)
  */
-function poiDiscColor(poi: any, narratorStatus: any): string {
+function poiDiscColor(poi: POI, narratorStatus: NarratorStatus | null): string {
     if (narratorStatus) {
         if (poi.wikidata_id === narratorStatus.current_poi?.wikidata_id) return '#2ecc71';
         if (poi.wikidata_id === narratorStatus.preparing_poi?.wikidata_id) return '#2a9d8f';
@@ -102,7 +107,7 @@ function poiDiscColor(poi: any, narratorStatus: any): string {
         `${lerpInt(0x6a, 0x46, t).toString(16).padStart(2, '0')}`;
 }
 
-function poiScaleFactor(poi: any, narratorStatus: any): number {
+function poiScaleFactor(poi: POI, narratorStatus: NarratorStatus | null): number {
     if (narratorStatus) {
         if (poi.wikidata_id === narratorStatus.current_poi?.wikidata_id) return 1.5;
         if (poi.wikidata_id === narratorStatus.preparing_poi?.wikidata_id) return 1.25;
@@ -110,7 +115,7 @@ function poiScaleFactor(poi: any, narratorStatus: any): number {
     return 1.0;
 }
 
-function getPoiZIndex(poi: any, narratorStatus: any): string {
+function getPoiZIndex(poi: POI, narratorStatus: NarratorStatus | null): string {
     if (narratorStatus) {
         if (poi.wikidata_id === narratorStatus.current_poi?.wikidata_id ||
             poi.wikidata_id === narratorStatus.preparing_poi?.wikidata_id) return '3';
@@ -118,20 +123,20 @@ function getPoiZIndex(poi: any, narratorStatus: any): string {
     return isOnCooldown(poi) ? '1' : '2';
 }
 
-function getPoiOpacity(poi: any): string {
+function getPoiOpacity(poi: POI): string {
     return isOnCooldown(poi) ? '0.7' : '1';
 }
 
 
 interface MapComponentProps extends ComponentProps {
     bus: EventBus;
-    telemetry: Subject<any>;
-    pois: Subject<any[]>;
-    settlements: Subject<any>;
+    telemetry: Subject<Telemetry | null>;
+    pois: Subject<POI[]>;
+    settlements: Subject<SettlementData | null>;
     isVisible: Subject<boolean>;
-    narratorStatus: Subject<any>;
-    aircraftConfig: Subject<any>;
-    onPOISelect: (poi: any) => void;
+    narratorStatus: Subject<NarratorStatus | null>;
+    aircraftConfig: Subject<AircraftConfig | null>;
+    onPOISelect: (poi: POI) => void;
 }
 
 /** Cached DOM marker for a single POI. */
@@ -215,7 +220,7 @@ class PhileasPoiLayer extends MapLayer<PhileasPoiLayerProps> {
         this.repositionMarkers();
     }
 
-    private updateMarkerBadges(marker: PoiMarker, poi: any): void {
+    private updateMarkerBadges(marker: PoiMarker, poi: POI): void {
         const hasMsfs = !!poi.is_msfs_poi || (poi.badges && poi.badges.includes('msfs'));
         const isDeferred = poi.badges && poi.badges.includes('deferred');
         const isNoLos = poi.los_status === 2;
@@ -277,7 +282,7 @@ class PhileasPoiLayer extends MapLayer<PhileasPoiLayerProps> {
         // Determine which POI IDs are still present
         const currentIds = new Set<string>();
         for (const poi of this.pois) {
-            if (poi.wikidata_id) currentIds.add(poi.wikidata_id);
+            if (poi.wikidata_id && !poi.is_hidden_feature) currentIds.add(poi.wikidata_id);
         }
 
         // Remove markers for POIs no longer in the list
@@ -292,7 +297,7 @@ class PhileasPoiLayer extends MapLayer<PhileasPoiLayerProps> {
         // Add or update markers
         for (const poi of this.pois) {
             const id = poi.wikidata_id;
-            if (!id) continue;
+            if (!id || poi.is_hidden_feature) continue;
 
             let marker = this.markers.get(id);
             if (!marker) {
@@ -722,7 +727,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         let hasSelection = false;
 
         for (const p of pois) {
-            if (p.lat === undefined || p.lon === undefined) continue;
+            if (p.lat === undefined || p.lon === undefined || p.is_hidden_feature) continue;
             const isCooldown = isOnCooldown(p);
             const isPlaying = playingId && (p.id === playingId || p.wikidata_id === playingId);
             const isPreparing = preparingId && (p.id === preparingId || p.wikidata_id === preparingId);
@@ -735,7 +740,7 @@ export class MapComponent extends DisplayComponent<MapComponentProps> {
         // Selection B Fallback: if A yielded nothing, expand over ALL POIs
         if (!hasSelection) {
             for (const p of pois) {
-                if (p.lat === undefined || p.lon === undefined) continue;
+                if (p.lat === undefined || p.lon === undefined || p.is_hidden_feature) continue;
                 maxLatDiff = Math.max(maxLatDiff, Math.abs(p.lat - acLat));
                 maxLonDiff = Math.max(maxLonDiff, Math.abs(p.lon - acLon));
             }

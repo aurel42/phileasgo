@@ -855,6 +855,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     let champion: POI | null = null;
 
                     currentPois.forEach(p => {
+                        if (p.is_hidden_feature) return;
                         if (settlementCatSet.has(p.category?.toLowerCase())) return;
 
                         const normalizedName = p.name_en.split('(')[0].split(',')[0].split('/')[0].trim();
@@ -921,7 +922,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     } else {
                         // Live flight: use accumulated POIs from /api/pois/tracked
                         currentPois.forEach(p => {
-                            if (!p.lat || !p.lon) return;
+                            if (!p.lat || !p.lon || p.is_hidden_feature) return;
                             const existing = accumulatedPois.current.get(p.wikidata_id);
                             if (existing?.has_balloon) p.has_balloon = true;
                             accumulatedPois.current.set(p.wikidata_id, p);

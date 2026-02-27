@@ -29,6 +29,7 @@ export interface POI {
     size?: string; // S, M, L, XL
     beacon_color?: string;
     last_time?: string; // User-requested sorting field, maps to last_played or similar
+    is_hidden_feature?: boolean;
 }
 
 export function useTrackedPOIs() {

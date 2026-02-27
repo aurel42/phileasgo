@@ -367,6 +367,11 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 	var playableVisible []*model.POI
 
 	for _, p := range m.trackedPOIs {
+		// Geographical "Hidden" features are never shown in the POI lists
+		if p.IsHiddenFeature {
+			continue
+		}
+
 		// Only show played items if they are still within the "Recent History" window (TTL).
 		// Once expired, they drop off the "Played" list and must compete by score again.
 		if !m.isPlayable(p) {
@@ -439,6 +444,10 @@ func (m *Manager) GetNarrationCandidates(limit int, minScore *float64) []*model.
 	candidates := make([]*model.POI, 0, len(m.trackedPOIs))
 
 	for _, p := range m.trackedPOIs {
+		// 1. Geographical "Hidden" features are never auto-narrated
+		if p.IsHiddenFeature {
+			continue
+		}
 
 		// 2. Playability (Cooldown)
 		if !m.isPlayable(p) {

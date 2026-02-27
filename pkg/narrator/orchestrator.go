@@ -158,6 +158,13 @@ func (o *Orchestrator) PlayFeature(ctx context.Context, qid string) {
 		return
 	}
 
+	// Tag the POI as a hidden feature to prevent beacon/marker display
+	if pm := o.gen.POIManager(); pm != nil {
+		if p, err := pm.GetPOI(ctx, qid); err == nil && p != nil {
+			p.IsHiddenFeature = true
+		}
+	}
+
 	o.PlayPOI(ctx, qid, true, true, nil, "")
 }
 
@@ -608,6 +615,9 @@ func (o *Orchestrator) AssembleGeneric(ctx context.Context, t *sim.Telemetry) pr
 }
 
 func (o *Orchestrator) assignBeaconColor(p *model.POI) {
+	if p.IsHiddenFeature {
+		return
+	}
 	if p.BeaconColor != "" {
 		return // Already assigned
 	}

@@ -315,6 +315,7 @@ export const Map = ({ units, showCacheLayer, showVisibilityLayer, pois, selected
 
         // 1. Identify "non-blue" POIs (active interest)
         const nonBluePois = displayPois.filter(p => {
+            if (p.is_hidden_feature) return false;
             const isPlaying = p.wikidata_id === currentNarratedId;
             const isPreparing = p.wikidata_id === preparingId;
             const isPlayed = p.last_played && p.last_played !== "0001-01-01T00:00:00Z";

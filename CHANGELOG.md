@@ -1,8 +1,10 @@
 ﻿# Changelog
 
+## v0.3.227 (2026-02-27)
+- **Improvement**: Implemented a unified type-safe model system for the MSFS EFB, replacing `any` types with structured interfaces for POIs, aircraft telemetry, and narrator status.
+- **Improvement**: Added automatic filtering of non-point geographical features from map displays and POI lists.
+
 ## v0.3.226 (2026-02-27)
-- **Improvement**: Refined narrator script generation with a more robust rescue mechanism to ensure consistent narration length.
-- **Fix**: Enhanced automated garbage detection to prevent the narrator from reading meta-commentary or nonsensical output from LLM providers.
 - **Fix**: Resolved potential stalls in the narration queue by implementing proactive generation slot cleanup and queue draining.
 
 ## v0.3.225 (2026-02-27)
