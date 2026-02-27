@@ -340,6 +340,11 @@ func (s *SQLiteStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64
 	return false, nil
 }
 
+func (s *SQLiteStore) ClearMSFSPOIs(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM msfs_poi")
+	return err
+}
+
 // --- Hierarchy ---
 
 func (s *SQLiteStore) GetHierarchy(ctx context.Context, qid string) (*model.WikidataHierarchy, error) {

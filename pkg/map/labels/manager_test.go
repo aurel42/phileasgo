@@ -36,6 +36,7 @@ func (s *MockStore) GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, e
 func (s *MockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) (bool, error) {
 	return false, nil
 }
+func (s *MockStore) ClearMSFSPOIs(ctx context.Context) error                 { return nil }
 func (s *MockStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
 func (s *MockStore) SetState(ctx context.Context, key, val string) error     { return nil }
 func (s *MockStore) DeleteState(ctx context.Context, key string) error       { return nil }

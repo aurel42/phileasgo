@@ -84,7 +84,8 @@ func (s *MockStore) DeleteSeenEntities(ctx context.Context, qids []string) error
 func (s *MockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) (bool, error) {
 	return false, nil
 }
-func (s *MockStore) Close() error { return nil }
+func (s *MockStore) ClearMSFSPOIs(ctx context.Context) error { return nil }
+func (s *MockStore) Close() error                            { return nil }
 
 // Mocks for River Detection
 type MockRiverSentinel struct {

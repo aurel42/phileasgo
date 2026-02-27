@@ -589,7 +589,8 @@ func (m *MockStore) SaveMSFSPOI(ctx context.Context, poi *model.MSFSPOI) error {
 func (m *MockStore) CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) (bool, error) {
 	return false, nil
 }
-func (m *MockStore) Close() error { return nil }
+func (m *MockStore) ClearMSFSPOIs(ctx context.Context) error { return nil }
+func (m *MockStore) Close() error                            { return nil }
 
 // --- New Tests for Adaptive/Dynamic Logic ---
 

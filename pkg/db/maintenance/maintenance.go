@@ -91,6 +91,12 @@ func importMSFS(ctx context.Context, s store.Store, csvPath string) error {
 	}
 	slog.Debug("CSV Header Map", "idxMap", idxMap)
 
+	// Clear existing rows before re-import to prevent duplicates.
+	// The table is fully derived from the CSV, so a full replace is safe.
+	if err := s.ClearMSFSPOIs(ctx); err != nil {
+		return fmt.Errorf("failed to clear msfs_poi: %w", err)
+	}
+
 	count, err := processMSFSRows(ctx, s, reader, idxMap)
 	if err != nil {
 		return err

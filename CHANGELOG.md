@@ -1,4 +1,7 @@
 ﻿# Changelog
+ 
+## v0.3.224 (2026-02-27)
+- **Fix**: **MSFS POI Duplication**. The `msfspoi` table is now cleared before re-importing `Master.csv`, preventing duplicate landmarks from accumulating when the data file is updated.
 
 ## v0.3.223 (2026-02-26)
 - **Feature**: Added dashboard cards for manually triggering narration of nearby POIs, cities, and geographic features.

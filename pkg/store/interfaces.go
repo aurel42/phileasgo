@@ -67,6 +67,7 @@ type MSFSPOIStore interface {
 	GetMSFSPOI(ctx context.Context, id int64) (*model.MSFSPOI, error)
 	SaveMSFSPOI(ctx context.Context, poi *model.MSFSPOI) error
 	CheckMSFSPOI(ctx context.Context, lat, lon, radius float64) (bool, error)
+	ClearMSFSPOIs(ctx context.Context) error
 }
 
 // RegionalCategoriesStore handles spatial caching of regional subclasses.
