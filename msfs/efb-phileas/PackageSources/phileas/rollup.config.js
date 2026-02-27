@@ -21,7 +21,11 @@ export default {
         postcss({
             extract: 'phileas.css',
             minimize: true,
-            use: ['sass'],
+            use: [
+                ['sass', {
+                    silenceDeprecations: ['legacy-js-api'],
+                }]
+            ],
             plugins: [
                 prefixer({
                     prefix: '.efb-view.phileas',

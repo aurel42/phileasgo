@@ -28,7 +28,7 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
 
   // Equality functions prevent downstream subscriber cascades when poll data is unchanged
   private telemetry = Subject.create<Telemetry | null>(null, (a, b) =>
-    a === b || (a && b && a.Latitude === b.Latitude && a.Longitude === b.Longitude
+    a === b || (!!a && !!b && a.Latitude === b.Latitude && a.Longitude === b.Longitude
       && a.Heading === b.Heading && a.Altitude === b.Altitude && a.AltitudeAGL === b.AltitudeAGL
       && a.GroundSpeed === b.GroundSpeed && a.OnGround === b.OnGround));
   private pois = Subject.create<POI[]>([], (a, b) =>
@@ -39,11 +39,11 @@ class PhileasAppView extends AppView<RequiredProps<AppViewProps, "bus">> {
   private apiVersion = Subject.create<string>("v0.0.0");
   private apiStats = Subject.create<ApiStats | null>(null);
   private geography = Subject.create<Geography | null>(null, (a, b) =>
-    a === b || (a && b && a.city === b.city && a.country === b.country
+    a === b || (!!a && !!b && a.city === b.city && a.country === b.country
       && a.region === b.region && a.country_code === b.country_code
       && a.city_country_code === b.city_country_code));
   private narratorStatus = Subject.create<NarratorStatus | null>(null, (a, b) =>
-    a === b || (a && b && a.current_poi?.wikidata_id === b.current_poi?.wikidata_id
+    a === b || (!!a && !!b && a.current_poi?.wikidata_id === b.current_poi?.wikidata_id
       && a.preparing_poi?.wikidata_id === b.preparing_poi?.wikidata_id
       && a.narration_frequency === b.narration_frequency && a.text_length === b.text_length));
 

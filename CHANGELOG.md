@@ -1,4 +1,7 @@
 ﻿# Changelog
+ 
+## v0.3.228 (2026-02-27)
+- **Fix**: Resolved build errors that prevented the EFB application from compiling.
 
 ## v0.3.227 (2026-02-27)
 - **Improvement**: Implemented a unified type-safe model system for the MSFS EFB, replacing `any` types with structured interfaces for POIs, aircraft telemetry, and narrator status.
