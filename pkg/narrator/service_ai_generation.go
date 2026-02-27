@@ -9,6 +9,7 @@ import (
 
 	"phileasgo/pkg/audio"
 	"phileasgo/pkg/model"
+	"phileasgo/pkg/request"
 )
 
 // GenerateNarrative creates a narrative from a standardized request.
@@ -143,22 +144,36 @@ func (s *AIService) performRescueIfNeeded(ctx context.Context, req *GenerationRe
 	}
 
 	slog.Warn("Narrator: Script exceeded limit, attempting rescue", "requested", req.MaxWords, "actual", wordCount)
+
+	// Attempt 1
 	rescued, err := s.rescueScript(ctx, script, req.MaxWords)
-	if err != nil {
-		slog.Error("Narrator: Script rescue failed, using original", "error", err)
-		return script
+	if err == nil && !s.isGarbage(req, script, rescued) {
+		slog.Info("Narrator: Script rescue successful", "original", wordCount, "rescued", len(strings.Fields(rescued)))
+		return s.finalizeRescuedScript(req, rescued)
 	}
 
-	// Re-extract TITLE from rescued script if needed
+	// Retry once with excluded provider
+	if provider, ok := ctx.Value(request.CtxProviderLabel).(string); ok && provider != "" {
+		slog.Warn("Narrator: Rescue failed or produced garbage, retrying with next provider", "excluded", provider)
+		retryCtx := context.WithValue(ctx, request.CtxExcludedProviders, []string{provider})
+		rescued, err = s.rescueScript(retryCtx, script, req.MaxWords)
+		if err == nil && !s.isGarbage(req, script, rescued) {
+			slog.Info("Narrator: Script rescue successful (retry)", "original", wordCount, "rescued", len(strings.Fields(rescued)))
+			return s.finalizeRescuedScript(req, rescued)
+		}
+	}
+
+	slog.Error("Narrator: Script rescue failed consistently, using original", "error", err)
+	return script
+}
+
+func (s *AIService) finalizeRescuedScript(req *GenerationRequest, rescued string) string {
 	resTitle, resScript := s.extractTitleFromScript(rescued)
 	if resTitle != "" {
 		req.Title = resTitle
-		script = resScript
-	} else {
-		script = rescued
+		return resScript
 	}
-	slog.Info("Narrator: Script rescue successful", "original", wordCount, "rescued", len(strings.Fields(script)))
-	return script
+	return rescued
 }
 
 func (s *AIService) constructNarrative(req *GenerationRequest, script, extractedTitle, audioPath, format string, startTime time.Time, predicted, duration time.Duration) *model.Narrative {
@@ -293,19 +308,62 @@ func (s *AIService) performSecondPass(ctx context.Context, req *GenerationReques
 		return script
 	}
 
-	// Use script_rescue profile (efficient model for cleaning)
+	// Attempt 1
 	refined, err := s.llm.GenerateText(ctx, "script_rescue", promptStr)
-	if err != nil {
-		slog.Error("Narrator: Second-pass LLM call failed", "error", err)
-		return script
+	if err == nil && !s.isGarbage(req, script, refined) {
+		slog.Info("Narrator: Second-pass refinement successful")
+		return strings.TrimSpace(refined)
 	}
 
-	// Check for explicit failure signal
-	if strings.TrimSpace(refined) == "RESCUE_FAILED" {
-		slog.Warn("Narrator: Second-pass refinement failed, using original script")
-		return script
+	// Retry once with excluded provider
+	if provider, ok := ctx.Value(request.CtxProviderLabel).(string); ok && provider != "" {
+		slog.Warn("Narrator: Second-pass failed or produced garbage, retrying with next provider", "excluded", provider)
+		retryCtx := context.WithValue(ctx, request.CtxExcludedProviders, []string{provider})
+		refined, err = s.llm.GenerateText(retryCtx, "script_rescue", promptStr)
+		if err == nil && !s.isGarbage(req, script, refined) {
+			slog.Info("Narrator: Second-pass refinement successful (retry)")
+			return strings.TrimSpace(refined)
+		}
 	}
 
-	slog.Info("Narrator: Second-pass refinement successful")
-	return strings.TrimSpace(refined)
+	slog.Warn("Narrator: Second-pass refinement failed consistently, using original script")
+	return script
+}
+
+func (s *AIService) isGarbage(req *GenerationRequest, input, output string) bool {
+	if output == "" {
+		return true
+	}
+	if strings.TrimSpace(output) == "RESCUE_FAILED" {
+		return true
+	}
+
+	outWords := len(strings.Fields(output))
+	inWords := len(strings.Fields(input))
+	targetWords := req.MaxWords
+
+	// Garbage detection threshold:
+	// We use two signals: the requested target and the actual input size.
+	// Output should not exceed target * 2 AND not exceed input * 1.5.
+	// We take the MINIMUM/STRICTER of these two if target is specified.
+	threshold := float64(inWords) * 1.5
+
+	if targetWords > 0 {
+		targetThreshold := float64(targetWords) * 2.0
+		if targetThreshold < threshold {
+			threshold = targetThreshold
+		}
+	}
+
+	if float64(outWords) > threshold {
+		slog.Warn("Narrator: LLM produced probable garbage output",
+			"words", outWords,
+			"threshold", int(threshold),
+			"target", targetWords,
+			"input_words", inWords,
+		)
+		return true
+	}
+
+	return false
 }

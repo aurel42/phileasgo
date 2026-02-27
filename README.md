@@ -37,7 +37,7 @@ PhileasGo narrates points of interest as you fly, providing contextual informati
 ## LLM Providers
 
 PhileasGo supports multiple LLM providers. 
-You only need **one** of the following: Groq, Gemini, DeepSeek, Nvidia (free for development), or any OpenAI-compatible API (needs testing).
+You only need **one** of the following: Groq, Gemini, DeepSeek, Nvidia, or any OpenAI-compatible API (needs testing).
 Phileas can optionally make use of the Perplexity API for grounding.
 
 If you have access to a paid tier from one provider, and a free tier from another provider, configure a fallback chain in configs/phileas.yaml (e.g., `llm.fallback: ["groq", "gemini"]`). Should you hit the quotas for the free tier, PhileasGo will use the next provider in the chain. This is particularly useful for Groq, which has a generous free tier but can be rate-limited during peak hours. 

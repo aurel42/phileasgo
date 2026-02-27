@@ -149,37 +149,7 @@ func (f *Provider) ValidateModels(ctx context.Context) error {
 
 // execute runs the given function against the provider chain.
 func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func(context.Context, llm.Provider) (any, error)) (any, error) {
-	f.mu.RLock()
-	providers := f.providers
-	names := f.names
-	f.mu.RUnlock()
-
-	// Filter providers that actually support the requested profile
-	// This implicitly handles the "Sparse Profile" requirement.
-	type candidate struct {
-		index int
-		p     llm.Provider
-		name  string
-	}
-	var candidates []candidate
-
-	for i, p := range providers {
-		// 1. Check Circuit Breaker
-		f.mu.RLock()
-		isDisabled := f.disabled[i]
-		f.mu.RUnlock()
-		if isDisabled {
-			continue
-		}
-
-		// 2. Check Profile Support (Dynamic Routing)
-		if !p.HasProfile(callName) {
-			continue
-		}
-
-		candidates = append(candidates, candidate{i, p, names[i]})
-	}
-
+	candidates := f.getCandidates(ctx, callName)
 	if len(candidates) == 0 {
 		return nil, fmt.Errorf("no active provider supports profile %q", callName)
 	}
@@ -187,21 +157,9 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 	for idx, c := range candidates {
 		// 3. Check Smart Backoff
 		backoffKey := c.name + ":" + callName
-		f.mu.Lock()
-		bs, exists := f.backoffs[backoffKey]
-		if exists && bs.skippedRequests < bs.targetSkips {
-			bs.skippedRequests++
-			slog.Info("LLM Provider in backoff, skipping",
-				"provider", c.name,
-				"profile", callName,
-				"skipped", bs.skippedRequests,
-				"target", bs.targetSkips,
-				"failures", bs.subsequentFailures,
-			)
-			f.mu.Unlock()
+		if f.shouldBackoff(backoffKey, c.name, callName) {
 			continue
 		}
-		f.mu.Unlock()
 
 		// 4. Execute with Timeout
 		timeout := f.timeouts[c.index]
@@ -248,25 +206,13 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		}
 
 		// Retryable error: apply backoff increment
-		f.mu.Lock()
-		bs, exists = f.backoffs[backoffKey]
-		if !exists {
-			bs = &backoffState{}
-			f.backoffs[backoffKey] = bs
-		}
-		bs.subsequentFailures++
-		bs.skippedRequests = 0
-		// Exponential skip: 2^(N-1)
-		bs.targetSkips = int(1 << (uint(bs.subsequentFailures) - 1))
-		f.mu.Unlock()
+		f.incrementBackoff(backoffKey)
 
 		if !isLast {
 			slog.Info("LLM Provider failed (retryable), falling back",
 				"provider", c.name,
 				"next", candidates[idx+1].name,
 				"error", err,
-				"failures", bs.subsequentFailures,
-				"next_skips", bs.targetSkips,
 			)
 			continue // Try next immediately
 		}
@@ -286,6 +232,87 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 	}
 
 	return nil, fmt.Errorf("all LLM providers exhausted for profile %q", callName)
+}
+
+type candidate struct {
+	index int
+	p     llm.Provider
+	name  string
+}
+
+func (f *Provider) getCandidates(ctx context.Context, callName string) []candidate {
+	f.mu.RLock()
+	providers := f.providers
+	names := f.names
+	f.mu.RUnlock()
+
+	var candidates []candidate
+	for i, p := range providers {
+		// 1. Check Circuit Breaker
+		f.mu.RLock()
+		isDisabled := f.disabled[i]
+		f.mu.RUnlock()
+		if isDisabled {
+			continue
+		}
+
+		// 2. Check Profile Support (Dynamic Routing)
+		if !p.HasProfile(callName) {
+			continue
+		}
+
+		// 2b. Check Excluded Providers (Manual Failover Control)
+		if excluded, ok := ctx.Value(request.CtxExcludedProviders).([]string); ok {
+			skip := false
+			for _, ex := range excluded {
+				if ex == names[i] {
+					skip = true
+					break
+				}
+			}
+			if skip {
+				slog.Debug("Skipping excluded provider", "provider", names[i], "profile", callName)
+				continue
+			}
+		}
+
+		candidates = append(candidates, candidate{i, p, names[i]})
+	}
+	return candidates
+}
+
+func (f *Provider) shouldBackoff(backoffKey, providerName, callName string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	bs, exists := f.backoffs[backoffKey]
+	if exists && bs.skippedRequests < bs.targetSkips {
+		bs.skippedRequests++
+		slog.Info("LLM Provider in backoff, skipping",
+			"provider", providerName,
+			"profile", callName,
+			"skipped", bs.skippedRequests,
+			"target", bs.targetSkips,
+			"failures", bs.subsequentFailures,
+		)
+		return true
+	}
+	return false
+}
+
+func (f *Provider) incrementBackoff(backoffKey string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	bs, exists := f.backoffs[backoffKey]
+	if !exists {
+		bs = &backoffState{}
+		f.backoffs[backoffKey] = bs
+	}
+	bs.subsequentFailures++
+	bs.skippedRequests = 0
+	// Exponential skip: 2^(N-1)
+	bs.targetSkips = int(1 << (uint(bs.subsequentFailures) - 1))
 }
 
 func (f *Provider) retryLast(ctx context.Context, p llm.Provider, name string, timeout time.Duration, fn func(context.Context, llm.Provider) (any, error)) (any, error) {

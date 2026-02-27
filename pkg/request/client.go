@@ -33,6 +33,10 @@ const CtxMaxAttempts CtxKey = "max_attempts"
 // This overrides the hostname-based normalization.
 const CtxProviderLabel CtxKey = "provider_label"
 
+// CtxExcludedProviders is the context key for a list of providers to skip during failover.
+// Value should be a []string of provider names.
+const CtxExcludedProviders CtxKey = "excluded_providers"
+
 // Client handles HTTP requests with queuing, caching, and tracking.
 type Client struct {
 	httpClient *http.Client

@@ -46,7 +46,7 @@ llm:
                 debriefing: groq/compound-mini
                 essay: openai/gpt-oss-120b
                 narration: meta-llama/llama-4-scout-17b-16e-instruct
-                script_rescue: moonshotai/kimi-k2-instruct
+                script_rescue: llama-3.3-70b-versatile
                 summary: llama-3.1-8b-instant
                 thumbnails: groq/compound-mini
             free_tier: true

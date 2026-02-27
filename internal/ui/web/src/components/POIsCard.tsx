@@ -1,6 +1,7 @@
 import React from 'react';
-import { useTrackedPOIs, type POI } from '../hooks/usePOIs';
+import { useTrackedPOIs } from '../hooks/usePOIs';
 import type { Telemetry } from '../types/telemetry';
+import { calculateDistance } from '../utils/geoUtils';
 
 interface POIsCardProps {
     telemetry: Telemetry | null | undefined;
@@ -10,25 +11,12 @@ interface POIsCardProps {
 export const POIsCard: React.FC<POIsCardProps> = ({ telemetry, onPlayPOI }) => {
     const pois = useTrackedPOIs();
 
-    const calculateDistance = (p: POI) => {
-        if (!telemetry || !telemetry.Valid) return 0;
-        const lat1 = telemetry.Latitude;
-        const lon1 = telemetry.Longitude;
-        const lat2 = p.lat;
-        const lon2 = p.lon;
-
-        const p_rad = 0.017453292519943295; // Math.PI / 180
-        const c = Math.cos;
-        const a = 0.5 - c((lat2 - lat1) * p_rad) / 2 +
-            c(lat1 * p_rad) * c(lat2 * p_rad) *
-            (1 - c((lon2 - lon1) * p_rad)) / 2;
-        return 12742 * Math.asin(Math.sqrt(a)) / 1.852; // NM
-    };
-
-    const sortedPois = [...pois].map(p => ({
-        ...p,
-        distance: calculateDistance(p)
-    })).sort((a, b) => a.distance - b.distance);
+    const sortedPois = [...pois].map(p => {
+        const distance = (telemetry && telemetry.Valid)
+            ? calculateDistance(telemetry.Latitude, telemetry.Longitude, p.lat, p.lon)
+            : 0;
+        return { ...p, distance };
+    }).sort((a, b) => a.distance - b.distance);
 
     return (
         <div className="flex-card" style={{ marginTop: '12px', padding: '12px 16px' }}>

@@ -53,8 +53,8 @@ export function useSettlements(telemetry: Telemetry | null | undefined) {
             fetchSettlements();
         }
 
-        // Poll every 10 seconds
-        const interval = setInterval(fetchSettlements, 10000);
+        // Poll every 5 seconds
+        const interval = setInterval(fetchSettlements, 5000);
         return () => clearInterval(interval);
     }, [telemetry?.Latitude, telemetry?.Longitude, telemetry?.Valid]); // Re-run if position changes significantly or telemetry becomes valid
 

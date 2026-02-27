@@ -82,35 +82,138 @@ func TestAIService_ExtractTitleFromScript(t *testing.T) {
 }
 
 func TestAIService_PerformRescueIfNeeded(t *testing.T) {
-	s := &AIService{}
+	// Setup Prompts
+	tmpDir := t.TempDir()
+	promptsDir := filepath.Join(tmpDir, "context")
+	_ = os.MkdirAll(promptsDir, 0o755)
+	_ = os.WriteFile(filepath.Join(promptsDir, "rescue_script.tmpl"), []byte("Rescue: {{.Script}}"), 0o644)
+	pm, _ := prompts.NewManager(tmpDir)
+
+	mockLLM := &MockLLM{}
+
+	s := &AIService{
+		prompts:    pm,
+		llm:        mockLLM,
+		cfg:        config.NewProvider(config.DefaultConfig(), nil),
+		sessionMgr: session.NewManager(nil),
+	}
+	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil, nil, nil, nil)
 
 	tests := []struct {
-		name     string
-		maxWords int
-		script   string
-		wantLen  int // approx
+		name       string
+		maxWords   int
+		script     string
+		llmResp    string
+		wantResult string
 	}{
 		{
-			name:     "No Rescue Needed",
-			maxWords: 100,
-			script:   "Short script.",
-			wantLen:  2,
+			name:       "No Rescue Needed",
+			maxWords:   100,
+			script:     "Short script.",
+			wantResult: "Short script.",
 		},
 		{
-			name:     "Rescue Not Possible (No limit)",
-			maxWords: 0,
-			script:   "Long script that won't be rescued because maxWords is 0.",
-			wantLen:  10,
+			name:       "Rescue Not Possible (No limit)",
+			maxWords:   0,
+			script:     "Long script that won't be rescued because maxWords is 0.",
+			wantResult: "Long script that won't be rescued because maxWords is 0.",
+		},
+		{
+			name:       "Rescue Successful",
+			maxWords:   10,
+			script:     "This is a very long script that definitely needs to be rescued because it is far too long for the target of ten words.",
+			llmResp:    "Clean rescued script.",
+			wantResult: "Clean rescued script.",
+		},
+		{
+			name:       "Rescue Produces Garbage - Fallback to Original",
+			maxWords:   10,
+			script:     "This script is too long.",
+			llmResp:    strings.Repeat("garbage ", 100),
+			wantResult: "This script is too long.",
+		},
+		{
+			name:       "Rescue Returns RESCUE_FAILED - Fallback to Original",
+			maxWords:   10,
+			script:     "Over the limit script.",
+			llmResp:    "RESCUE_FAILED",
+			wantResult: "Over the limit script.",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockLLM.Response = tt.llmResp
 			req := &GenerationRequest{MaxWords: tt.maxWords}
 			got := s.performRescueIfNeeded(context.Background(), req, tt.script)
-			gotLen := len(strings.Fields(got))
-			if tt.wantLen > 0 && gotLen != tt.wantLen {
-				t.Errorf("performRescueIfNeeded() got len = %d, want %d", gotLen, tt.wantLen)
+			if got != tt.wantResult {
+				t.Errorf("performRescueIfNeeded() = %v, want %v", got, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestAIService_IsGarbage(t *testing.T) {
+	s := &AIService{
+		sessionMgr: session.NewManager(nil),
+	}
+
+	tests := []struct {
+		name   string
+		max    int
+		input  string
+		output string
+		want   bool
+	}{
+		{
+			name:   "Empty Output is Garbage",
+			max:    100,
+			input:  "Some input",
+			output: "",
+			want:   true,
+		},
+		{
+			name:   "RESCUE_FAILED is Garbage",
+			max:    100,
+			input:  "Some input",
+			output: "RESCUE_FAILED",
+			want:   true,
+		},
+		{
+			name:   "Clean Output is NOT Garbage",
+			max:    50,
+			input:  "Input with fifty words...",
+			output: "Clean output with five words.",
+			want:   false,
+		},
+		{
+			name:   "Output Exceeding Threshold is Garbage",
+			max:    10,
+			input:  "Ten words input.",
+			output: strings.Repeat("word ", 25), // 25 > 10 * 2.0
+			want:   true,
+		},
+		{
+			name:   "Output Exceeding Input Threshold is Garbage",
+			max:    100, // Large target, but input is small
+			input:  "Five words input here now.",
+			output: strings.Repeat("word ", 30), // 30 > 5 * 1.5 = 7.5
+			want:   true,
+		},
+		{
+			name:   "Output Within Reasonable Limits is NOT Garbage",
+			max:    10,
+			input:  strings.Repeat("word ", 10),
+			output: strings.Repeat("word ", 15), // 15 < max(10*2, 10*1.5) = 20
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &GenerationRequest{MaxWords: tt.max}
+			if got := s.isGarbage(req, tt.input, tt.output); got != tt.want {
+				t.Errorf("isGarbage() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -173,7 +276,8 @@ func TestAIService_PerformSecondPass(t *testing.T) {
 	}
 
 	// 1. Success case
-	got := s.performSecondPass(context.Background(), req, "Original")
+	input := "This is a long original script with many words." // 9 words
+	got := s.performSecondPass(context.Background(), req, input)
 	if !strings.Contains(got, "Refined script") {
 		t.Errorf("expected refined script, got %q", got)
 	}
@@ -185,13 +289,16 @@ func TestAIService_PerformSecondPass(t *testing.T) {
 		}
 		return "Refined with multiplier", nil
 	}
-	s.performSecondPass(context.Background(), req, "Original")
+	mockos := s.performSecondPass(context.Background(), req, input)
+	if !strings.Contains(mockos, "Refined with multiplier") {
+		t.Errorf("expected refined with multiplier, got %q", mockos)
+	}
 
 	// 3. Rescue Failed case
 	mockLLM.GenerateTextFunc = nil
 	mockLLM.Response = "RESCUE_FAILED"
-	got = s.performSecondPass(context.Background(), req, "Original")
-	if got != "Original" {
+	got = s.performSecondPass(context.Background(), req, input)
+	if got != input {
 		t.Errorf("expected original script on rescue failed, got %q", got)
 	}
 }
