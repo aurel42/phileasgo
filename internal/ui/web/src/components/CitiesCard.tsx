@@ -47,7 +47,6 @@ export const CitiesCard: React.FC<CitiesCardProps> = ({ telemetry, onPlayCity })
                                         padding: '6px 0',
                                         color: 'var(--accent)',
                                         cursor: 'pointer',
-                                        textDecoration: 'underline'
                                     }}
                                     onClick={() => onPlayCity(s.id, s.name)}
                                 >

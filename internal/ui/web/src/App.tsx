@@ -485,7 +485,6 @@ function App() {
             pois={pois}
             currentTitle={narratorStatus?.current_title}
             currentType={narratorStatus?.current_type}
-            onClose={() => { autoOpenedRef.current = false; setActiveTab(previousTab); }}
           />
         )}
 

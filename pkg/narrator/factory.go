@@ -68,7 +68,7 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 }
 
 // buildProvider constructs a single LLM provider from its configuration.
-func buildProvider(pCfg config.ProviderConfig, name string, rc *request.Client, t *tracker.Tracker) (llm.Provider, error) {
+func buildProvider(pCfg config.ProviderConfig, _ string, rc *request.Client, t *tracker.Tracker) (llm.Provider, error) {
 	switch pCfg.Type {
 	case "gemini":
 		return gemini.NewClient(pCfg, rc, t)

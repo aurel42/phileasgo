@@ -150,6 +150,92 @@ func TestAIService_PlayPOI(t *testing.T) {
 	}
 }
 
+func TestAIService_PlayPOI_Automated(t *testing.T) {
+	// Tests the non-manual (automated) flow of PlayPOI, exercising playPOIAutomated.
+	tempDir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(tempDir, "narrator"), 0o755)
+	_ = os.WriteFile(filepath.Join(tempDir, "narrator", "script.tmpl"), []byte("Automated narration script"), 0o644)
+	_ = os.MkdirAll(filepath.Join(tempDir, "common"), 0o755)
+
+	pm, err := prompts.NewManager(tempDir)
+	if err != nil {
+		t.Fatalf("failed to create prompt manager: %v", err)
+	}
+
+	tests := []struct {
+		name            string
+		poi             *model.POI
+		llmErr          error
+		expectNarration bool
+	}{
+		{
+			name:            "Happy Path - Automated",
+			poi:             &model.POI{WikidataID: "QAuto1", NameUser: "Auto POI"},
+			expectNarration: true,
+		},
+		{
+			name:            "LLM Failure - Automated",
+			poi:             &model.POI{WikidataID: "QAuto2", NameUser: "Failing POI"},
+			llmErr:          errors.New("llm timeout"),
+			expectNarration: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.NewProvider(&config.Config{
+				Narrator: config.NarratorConfig{
+					ActiveTargetLanguage:  "en",
+					TargetLanguageLibrary: []string{"en"},
+				},
+			}, nil)
+			mockLLM := &MockLLM{Response: "TITLE: Auto Title\nGenerated auto script.", Err: tt.llmErr}
+			mockTTS := &MockTTS{Format: "mp3"}
+			mockPOI := &MockPOIProvider{
+				GetPOIFunc: func(ctx context.Context, qid string) (*model.POI, error) {
+					return tt.poi, nil
+				},
+			}
+			mockGeo := &MockGeo{Country: "DE"}
+			mockSim := &MockSim{Telemetry: sim.Telemetry{Latitude: 48.0, Longitude: 11.0}}
+			mockStore := &MockStore{}
+			mockWiki := &MockWikipedia{}
+
+			svc := NewAIService(cfg, mockLLM, mockTTS, pm, mockPOI, mockGeo, mockSim, mockStore, mockWiki, nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
+
+			var narrated bool
+			svc.SetOnPlayback(func(n *model.Narrative, priority bool) {
+				narrated = true
+			})
+			svc.Start()
+
+			// Call PlayPOI with manual=false to exercise the automated path
+			svc.PlayPOI(context.Background(), tt.poi.WikidataID, false, false, &sim.Telemetry{Latitude: 48.0, Longitude: 11.0}, "uniform")
+
+			// Wait for the async goroutine to complete
+			deadline := time.Now().Add(2 * time.Second)
+			for time.Now().Before(deadline) {
+				if !svc.IsGenerating() {
+					break
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+
+			if tt.expectNarration && !narrated {
+				t.Errorf("Expected narration for automated PlayPOI")
+			}
+			if !tt.expectNarration && narrated {
+				t.Errorf("Expected no narration for automated PlayPOI (error case)")
+			}
+
+			// Verify generation slot was released
+			if svc.IsGenerating() {
+				t.Error("Expected generation slot to be released after completion")
+			}
+		})
+	}
+}
+
 func TestAIService_ContextAndNav_V2(t *testing.T) {
 	tests := []struct {
 		name           string

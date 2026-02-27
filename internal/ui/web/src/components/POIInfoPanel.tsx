@@ -11,7 +11,6 @@ interface POIInfoPanelProps {
     pois: POI[];  // Fresh POI list from polling
     currentTitle?: string;
     currentType?: string;
-    onClose: () => void;
 }
 
 const getColor = (score: number) => {
@@ -45,7 +44,7 @@ const formatTimeAgo = (dateStr: string) => {
 };
 
 export const POIInfoPanel = ({
-    poi, pois, currentTitle, currentType, onClose
+    poi, pois, currentTitle, currentType,
 }: POIInfoPanelProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
     const [strategy, setStrategy] = useState<'min_skew' | 'uniform' | 'max_skew'>('min_skew');
@@ -102,9 +101,8 @@ export const POIInfoPanel = ({
         return (
             <div className="poi-info-panel generic-narration" style={{ display: 'flex', gap: '12px' }}>
                 <div style={{ flex: screenshotUrl ? '1' : '1 1 auto', minWidth: 0 }}>
-                    <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="panel-header">
                         <div className="role-label">{currentType}</div>
-                        <button className="close-btn role-btn" onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#666', fontSize: '20px', cursor: 'pointer' }}>×</button>
                     </div>
                     <div className="poi-details">
                         <h1 className="role-title" style={{ margin: '8px 0' }}>{currentTitle}</h1>
@@ -172,26 +170,6 @@ export const POIInfoPanel = ({
 
     return (
         <div className="hud-container poi-info-panel" style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            {/* Close button (absolute top-right) */}
-            <button
-                onClick={onClose}
-                style={{
-                    position: 'absolute',
-                    top: '8px',
-                    right: '8px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#666',
-                    fontSize: '20px',
-                    cursor: 'pointer',
-                    padding: '0 4px',
-                    lineHeight: 1,
-                    zIndex: 10,
-                }}
-            >
-                &times;
-            </button>
-
             {/* Main layout: Text on left, Thumbnail on right */}
             <div style={{ display: 'flex', gap: '12px', flex: 1, minHeight: 0 }}>
                 {/* Left column: Text content (40%) */}

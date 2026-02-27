@@ -108,9 +108,10 @@ func (s *AIService) logWikipediaContext(req *GenerationRequest) {
 
 func (s *AIService) generateInitialScript(ctx context.Context, req *GenerationRequest) (string, error) {
 	profile := string(req.Type)
-	if req.Type == model.NarrativeTypePOI {
+	switch req.Type {
+	case model.NarrativeTypePOI:
 		profile = "narration"
-	} else if req.Type == model.NarrativeTypeLetsgo || req.Type == model.NarrativeTypeBriefing {
+	case model.NarrativeTypeLetsgo, model.NarrativeTypeBriefing:
 		// New Announcements: check for specific profile, then fallback to shared 'announcements'
 		if !s.llm.HasProfile(profile) {
 			profile = "announcements"

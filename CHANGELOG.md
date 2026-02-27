@@ -1,10 +1,14 @@
 ﻿# Changelog
 
+## v0.3.226 (2026-02-27)
+- **Improvement**: Refined narrator script generation with a more robust rescue mechanism to ensure consistent narration length.
+- **Fix**: Enhanced automated garbage detection to prevent the narrator from reading meta-commentary or nonsensical output from LLM providers.
+- **Fix**: Resolved potential stalls in the narration queue by implementing proactive generation slot cleanup and queue draining.
+
 ## v0.3.225 (2026-02-27)
 - **Feature**: Added distance information and sorting to the nearby settlements list.
 - **Fix**: Fixed the narrator occasionally producing repetitive or truncated content when long narrations were requested.
 - **Improvement**: Optimized performance by reducing the background polling frequency of the nearby settlements list.
-- **Improvement**: Enhanced the quality and accuracy of automatic script shortening for long-form narrations.
  
 ## v0.3.224 (2026-02-27)
 - **Fix**: **MSFS POI Duplication**. The `msfspoi` table is now cleared before re-importing `Master.csv`, preventing duplicate landmarks from accumulating when the data file is updated.

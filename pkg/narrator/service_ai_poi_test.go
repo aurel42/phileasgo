@@ -2,6 +2,8 @@ package narrator
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
@@ -76,5 +78,43 @@ func TestAIService_PlayPOI_Constraints(t *testing.T) {
 	svc.PlayPOI(context.Background(), "Q789", true, false, &sim.Telemetry{}, "")
 	if svc.genQ.Count() != 2 {
 		t.Errorf("Expected manual PlayPOI to ignore busy generating state, but queue count is: %d", svc.genQ.Count())
+	}
+}
+
+func TestAIService_PrepareNextNarrative(t *testing.T) {
+	tmpDir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(tmpDir, "narrator"), 0o755)
+	_ = os.WriteFile(filepath.Join(tmpDir, "narrator", "script.tmpl"), []byte("Msg"), 0o644)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "common"), 0o755)
+	pm, _ := prompts.NewManager(tmpDir)
+
+	mockPOI := &model.POI{WikidataID: "QPrep", NameEn: "Prep POI"}
+	mockPOIProv := &MockPOIProvider{
+		GetPOIFunc: func(ctx context.Context, qid string) (*model.POI, error) {
+			if qid == "QPrep" {
+				return mockPOI, nil
+			}
+			return nil, nil
+		},
+	}
+	mockLLM := &MockLLM{Response: "TITLE: OK\nScript"}
+	mockTTS := &MockTTS{Format: "mp3"}
+
+	svc := NewAIService(config.NewProvider(&config.Config{}, nil),
+		mockLLM, mockTTS, pm, mockPOIProv, &MockGeo{}, &MockSim{}, &MockStore{}, &MockWikipedia{},
+		nil, nil, nil, nil, nil, nil, session.NewManager(nil), nil, nil)
+
+	ctx := context.Background()
+
+	// 1. Happy Path
+	err := svc.PrepareNextNarrative(ctx, "QPrep", "uniform", &sim.Telemetry{})
+	if err != nil {
+		t.Fatalf("PrepareNextNarrative failed: %v", err)
+	}
+
+	// 2. Missing POI
+	err = svc.PrepareNextNarrative(ctx, "QMISSING", "uniform", &sim.Telemetry{})
+	if err == nil {
+		t.Error("Expected error for missing POI, got nil")
 	}
 }

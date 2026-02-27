@@ -49,7 +49,7 @@ func (s *AIService) playPOIManual(poiID, strategy string, tel *sim.Telemetry) {
 	go s.ProcessGenerationQueue(context.Background())
 }
 
-func (s *AIService) playPOIAutomated(ctx context.Context, p *model.POI, tel *sim.Telemetry, strategy string) {
+func (s *AIService) playPOIAutomated(_ context.Context, p *model.POI, tel *sim.Telemetry, strategy string) {
 	// Synchronously claim the generation slot
 	if !s.claimGeneration(p) {
 		return
@@ -63,6 +63,9 @@ func (s *AIService) playPOIAutomated(ctx context.Context, p *model.POI, tel *sim
 			if !done {
 				s.releaseGeneration()
 			}
+			// Drain the generation queue in case jobs (e.g. debriefing) were enqueued
+			// while this automated generation held the s.generating slot.
+			s.ProcessGenerationQueue(genCtx)
 		}()
 
 		promptData := s.promptAssembler.ForPOI(genCtx, p, tel, strategy, s.getSessionState())
@@ -128,6 +131,10 @@ func (s *AIService) PrepareNextNarrative(ctx context.Context, poiID, strategy st
 	}
 
 	narrative, err := s.GenerateNarrative(ctx, &req)
+
+	// Drain the generation queue in case jobs were enqueued while this held the slot.
+	defer s.ProcessGenerationQueue(context.Background())
+
 	if err != nil {
 		return err
 	}

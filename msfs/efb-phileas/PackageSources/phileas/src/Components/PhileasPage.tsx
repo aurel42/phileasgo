@@ -314,7 +314,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                     onmousedown={() => {
                         if (fullItem) this.triggerNarration('poi', fullItem.wikidata_id, item.name);
                     }}
-                    style="cursor: pointer; text-decoration: underline;"
+                    style="cursor: pointer;"
                 >
                     {item.name}
                 </div>
@@ -330,7 +330,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                 <div
                     class="col-name"
                     onmousedown={() => this.triggerNarration('city', item.name, item.name)}
-                    style="cursor: pointer; text-decoration: underline;"
+                    style="cursor: pointer;"
                 >
                     {item.name}
                 </div>

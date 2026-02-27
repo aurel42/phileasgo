@@ -39,14 +39,12 @@ export const POIsCard: React.FC<POIsCardProps> = ({ telemetry, onPlayPOI }) => {
                                     className="role-label clickable"
                                     style={{
                                         padding: '6px 0',
-                                        color: 'var(--accent)',
+                                        color: p.is_on_cooldown ? '#356285' : 'var(--accent)',
                                         cursor: 'pointer',
-                                        textDecoration: 'underline'
                                     }}
                                     onClick={() => onPlayPOI(p.wikidata_id, p.name_user || p.name_en || p.name_local)}
                                 >
                                     {p.name_user || p.name_en || p.name_local}
-                                    {p.is_on_cooldown && <span style={{ marginLeft: '8px', opacity: 0.5, fontSize: '0.8em' }}>(cooldown)</span>}
                                 </td>
                                 <td className="role-num-sm" style={{ padding: '6px 0', textAlign: 'right' }}>{p.distance.toFixed(1)}nm</td>
                                 <td className="role-num-sm" style={{ padding: '6px 0', textAlign: 'right' }}>{p.score.toFixed(1)}</td>

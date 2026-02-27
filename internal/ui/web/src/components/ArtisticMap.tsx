@@ -266,7 +266,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         labels: [],
         maskPath: '',
         center: [center[1], center[0]],
-        zoom: zoom,
+        zoom: parseFloat(sessionStorage.getItem('artisticMapZoom') ?? '') || zoom,
         offset: [0, 0],
         heading: 0,
         bearingLine: null,
@@ -394,7 +394,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
             container: mapContainer.current,
             style: getMapStyle(),
             center: [center[1], center[0]],
-            zoom: zoom,
+            zoom: parseFloat(sessionStorage.getItem('artisticMapZoom') ?? '') || zoom,
             minZoom: 0, // Lowered from 5 to allow world map view
             maxZoom: 12,
             attributionControl: false,
@@ -475,7 +475,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
         // Dead-zone panning: map stays locked until aircraft exits this circle
         let lockedCenter: [number, number] | null = null; // [lng, lat]
         let lockedOffset: [number, number] = [0, 0];
-        let lockedZoom = -1;
+        let lockedZoom = parseFloat(sessionStorage.getItem('artisticMapZoom') ?? '') || -1;
         let lastLabels: LabelCandidate[] = [];
         let lastMask: string = '';
 
@@ -677,6 +677,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     }
                     // COMPUTE REAL ZOOM (Discrete 0.5 Step Snap)
                     lockedZoom = Math.round(newZoom * 2) / 2;
+                    sessionStorage.setItem('artisticMapZoom', String(lockedZoom));
                 }
 
                 if (effectiveReplayMode) {
@@ -689,6 +690,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                     const c = m.getCenter();
                     lockedCenter = [c.lng, c.lat];
                     lockedZoom = m.getZoom();
+                    sessionStorage.setItem('artisticMapZoom', String(lockedZoom));
                     lockedOffset = [0, 0];
                     console.log('[Replay] tick: passive camera', { center: lockedCenter, zoom: lockedZoom });
                 } else if (needsRecenter) {

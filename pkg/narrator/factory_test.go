@@ -51,6 +51,33 @@ func TestNewLLMProvider(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "OpenAI-Compatible (Groq) Provider",
+			cfg: config.LLMConfig{
+				Providers: map[string]config.ProviderConfig{
+					"groq": {
+						Type:    "groq",
+						Key:     "dummy",
+						BaseURL: "http://dummy",
+					},
+				},
+				Fallback: []string{"groq"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Perplexity Provider",
+			cfg: config.LLMConfig{
+				Providers: map[string]config.ProviderConfig{
+					"perplexity": {
+						Type: "perplexity",
+						Key:  "dummy",
+					},
+				},
+				Fallback: []string{"perplexity"},
+			},
+			wantErr: false,
+		},
+		{
 			name: "Unknown Provider",
 			cfg: config.LLMConfig{
 				Providers: map[string]config.ProviderConfig{

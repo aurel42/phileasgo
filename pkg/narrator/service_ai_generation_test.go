@@ -2,12 +2,14 @@ package narrator
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/llm/prompts"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/prompt"
+	"phileasgo/pkg/request"
 	"phileasgo/pkg/session"
 	"phileasgo/pkg/tts"
 	"strings"
@@ -148,6 +150,95 @@ func TestAIService_PerformRescueIfNeeded(t *testing.T) {
 			got := s.performRescueIfNeeded(context.Background(), req, tt.script)
 			if got != tt.wantResult {
 				t.Errorf("performRescueIfNeeded() = %v, want %v", got, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider(t *testing.T) {
+	tmpDir := t.TempDir()
+	promptsDir := filepath.Join(tmpDir, "context")
+	_ = os.MkdirAll(promptsDir, 0o755)
+	_ = os.WriteFile(filepath.Join(promptsDir, "rescue_script.tmpl"), []byte("Rescue: {{.Script}}"), 0o644)
+	pm, _ := prompts.NewManager(tmpDir)
+
+	tests := []struct {
+		name        string
+		ctx         context.Context
+		llmFunc     func(ctx context.Context, name, prompt string) (string, error)
+		wantResult  string
+		wantContain string
+	}{
+		{
+			name: "First attempt garbage, retry succeeds",
+			ctx:  context.WithValue(context.Background(), request.CtxProviderLabel, "provider1"),
+			llmFunc: func() func(ctx context.Context, name, prompt string) (string, error) {
+				calls := 0
+				return func(ctx context.Context, name, prompt string) (string, error) {
+					calls++
+					if calls == 1 {
+						// First rescue attempt returns garbage
+						return strings.Repeat("garbage ", 200), nil
+					}
+					// Retry with excluded provider succeeds
+					return "Clean rescued script.", nil
+				}
+			}(),
+			wantResult: "Clean rescued script.",
+		},
+		{
+			name: "First attempt error, retry succeeds",
+			ctx:  context.WithValue(context.Background(), request.CtxProviderLabel, "provider1"),
+			llmFunc: func() func(ctx context.Context, name, prompt string) (string, error) {
+				calls := 0
+				return func(ctx context.Context, name, prompt string) (string, error) {
+					calls++
+					if calls == 1 {
+						return "", errors.New("LLM error")
+					}
+					return "Rescued after error.", nil
+				}
+			}(),
+			wantResult: "Rescued after error.",
+		},
+		{
+			name: "Both attempts fail, falls back to original",
+			ctx:  context.WithValue(context.Background(), request.CtxProviderLabel, "provider1"),
+			llmFunc: func(ctx context.Context, name, prompt string) (string, error) {
+				return strings.Repeat("garbage ", 200), nil
+			},
+			wantContain: "script that needs rescue", // original script
+		},
+		{
+			name: "No provider label in context, skips retry",
+			ctx:  context.Background(), // No provider label
+			llmFunc: func(ctx context.Context, name, prompt string) (string, error) {
+				return strings.Repeat("garbage ", 200), nil
+			},
+			wantContain: "script that needs rescue",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockLLM := &MockLLM{GenerateTextFunc: tt.llmFunc}
+			s := &AIService{
+				prompts:    pm,
+				llm:        mockLLM,
+				cfg:        config.NewProvider(config.DefaultConfig(), nil),
+				sessionMgr: session.NewManager(nil),
+			}
+			s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil, nil, nil, nil)
+
+			origScript := "This is a long script that needs rescue because it exceeds the word limit by a significant margin and must be shortened."
+			req := &GenerationRequest{MaxWords: 5}
+			got := s.performRescueIfNeeded(tt.ctx, req, origScript)
+
+			if tt.wantResult != "" && got != tt.wantResult {
+				t.Errorf("performRescueIfNeeded() = %q, want %q", got, tt.wantResult)
+			}
+			if tt.wantContain != "" && !strings.Contains(got, tt.wantContain) {
+				t.Errorf("performRescueIfNeeded() = %q, want containing %q", got, tt.wantContain)
 			}
 		})
 	}
@@ -300,6 +391,32 @@ func TestAIService_PerformSecondPass(t *testing.T) {
 	got = s.performSecondPass(context.Background(), req, input)
 	if got != input {
 		t.Errorf("expected original script on rescue failed, got %q", got)
+	}
+
+	// 4. LLM error with no provider context — should fall back to original
+	mockLLM.GenerateTextFunc = nil
+	mockLLM.Err = errors.New("LLM unavailable")
+	got = s.performSecondPass(context.Background(), req, input)
+	if got != input {
+		t.Errorf("expected original script on LLM error, got %q", got)
+	}
+	mockLLM.Err = nil
+
+	// 5. LLM error with provider context — retry succeeds
+	mockLLM.GenerateTextFunc = func() func(ctx context.Context, name, prompt string) (string, error) {
+		calls := 0
+		return func(ctx context.Context, name, prompt string) (string, error) {
+			calls++
+			if calls == 1 {
+				return "", errors.New("first attempt fails")
+			}
+			return "Refined on retry", nil
+		}
+	}()
+	ctxWithProvider := context.WithValue(context.Background(), request.CtxProviderLabel, "p1")
+	got = s.performSecondPass(ctxWithProvider, req, input)
+	if !strings.Contains(got, "Refined on retry") {
+		t.Errorf("expected retry result, got %q", got)
 	}
 }
 
