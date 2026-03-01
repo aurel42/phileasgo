@@ -210,7 +210,7 @@ categories:
     weight: 0.3
     icon: "village"
     icon_artistic: "home"
-    sitelinks_min: 5
+    sitelinks_min: 6
     size: "M"
     preground: true
   Volcano:

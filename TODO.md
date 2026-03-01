@@ -80,4 +80,7 @@ X Narrator sometimes picks POIs with unexpired LastPlayed
 X zoom out on "pause" happens, but zooms in again immediately
 
 - random starting locations on the world map
-- make POI names, features, possibly City names, admin1 and country clickable
+X make POI names, features, possibly clickable
+- make City names, admin1 and country clickable
+X keep beacon formation for some time, even if close to POI
+X filter settlements from regional discovery

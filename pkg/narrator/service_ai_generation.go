@@ -357,6 +357,19 @@ func (s *AIService) isGarbage(req *GenerationRequest, input, output string) bool
 	}
 
 	if float64(outWords) > threshold {
+		// Resilience: If refinement significantly reduced word count (e.g. by >50%),
+		// and the input was already way over target, we accept it as a successful step
+		// towards the goal, even if it's still over the absolute threshold.
+		// This prevents catastrophic fallbacks to contaminated originals.
+		if targetWords > 0 && float64(inWords) > float64(targetWords)*2.0 && outWords < inWords/2 {
+			slog.Debug("Narrator: Accepting verbose output due to significant reduction",
+				"in", inWords,
+				"out", outWords,
+				"target", targetWords,
+			)
+			return false
+		}
+
 		slog.Warn("Narrator: LLM produced probable garbage output",
 			"words", outWords,
 			"threshold", int(threshold),

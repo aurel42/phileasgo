@@ -95,6 +95,7 @@ type BeaconConfig struct {
 	FormationEnabled        bool           `yaml:"formation_enabled"`
 	FormationDistance       Distance       `yaml:"formation_distance"`
 	FormationCount          int            `yaml:"formation_count"`
+	FormationMinDuration    Duration       `yaml:"formation_min_duration"`
 	MinSpawnAltitude        Distance       `yaml:"min_spawn_altitude"`
 	AltitudeFloor           Distance       `yaml:"altitude_floor"`
 	TargetSinkDistanceFar   Distance       `yaml:"target_sink_distance_far"`
@@ -518,6 +519,7 @@ func DefaultConfig() *Config {
 			FormationEnabled:        true,
 			FormationDistance:       Distance(2000), // 2km
 			FormationCount:          3,
+			FormationMinDuration:    Duration(20 * time.Second),
 			MinSpawnAltitude:        Distance(304.8), // 1000ft
 			AltitudeFloor:           Distance(609.6), // 2000ft
 			TargetSinkDistanceFar:   Distance(5000),  // 5km

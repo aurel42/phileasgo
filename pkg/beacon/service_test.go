@@ -165,6 +165,7 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 		TargetSinkDistanceClose: config.Distance(2000),
 		TargetFloorAGL:          config.Distance(30.48),
 		MaxTargets:              2,
+		FormationMinDuration:    config.Duration(20 * time.Second),
 	}
 	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
 
@@ -202,9 +203,58 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 	svc.updateStep(context.Background(), mockTel)
 
 	// Check Removes
-	// Should remove 3 formation balloons
+	// Should NOT remove because min duration (20s) hasn't passed
+	if len(mock.Removes) != 0 {
+		t.Errorf("Expected 0 removes (min duration not met), got %d", len(mock.Removes))
+	}
+
+	// Fast-forward time (mocking it by setting formationSpawnTime back)
+	svc.mu.Lock()
+	svc.formationSpawnTime = time.Now().Add(-21 * time.Second)
+	svc.mu.Unlock()
+
+	svc.updateStep(context.Background(), mockTel)
+
+	// Should remove 3 formation balloons now
 	if len(mock.Removes) != 3 {
 		t.Errorf("Expected 3 removes (formation), got %d", len(mock.Removes))
+	}
+}
+
+func TestUpdateLoop_FormationMinDurationZero(t *testing.T) {
+	mock := &MockClient{
+		Tel: sim.Telemetry{
+			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 3000, AltitudeAGL: 3000, Heading: 90,
+		},
+	}
+	cfg := &config.BeaconConfig{
+		Enabled:                 true,
+		FormationEnabled:        true,
+		FormationDistance:       config.Distance(2000),
+		FormationCount:          3,
+		FormationMinDuration:    0,
+		TargetSinkDistanceFar:   config.Distance(5000),
+		TargetSinkDistanceClose: config.Distance(2000),
+		MaxTargets:              2,
+	}
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
+
+	if err := svc.SetTarget(context.Background(), 45.0, -72.0, "Title", "Livery"); err != nil {
+		t.Fatalf("SetTarget failed: %v", err)
+	}
+
+	mockTel := &simconnect.TelemetryData{
+		Latitude:    45.0,
+		Longitude:   -72.03, // Close
+		AltitudeMSL: 1000,
+		Heading:     90,
+	}
+
+	svc.updateStep(context.Background(), mockTel)
+
+	// Should remove immediately because duration is 0
+	if len(mock.Removes) != 3 {
+		t.Errorf("Expected 3 removes with 0 duration, got %d", len(mock.Removes))
 	}
 }
 

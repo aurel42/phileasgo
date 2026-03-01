@@ -71,21 +71,22 @@ type ConfigResponse struct {
 	DeferralProximityBoostPower float64  `json:"deferral_proximity_boost_power"`
 	TwoPassScriptGeneration     bool     `json:"two_pass_script_generation"`
 	// Beacon
-	BeaconEnabled           bool     `json:"beacon_enabled"`
-	BeaconFormationEnabled  bool     `json:"beacon_formation_enabled"`
-	BeaconFormationDistance float64  `json:"beacon_formation_distance"`
-	BeaconFormationCount    int      `json:"beacon_formation_count"`
-	BeaconMinSpawnAltitude  float64  `json:"beacon_min_spawn_altitude"`
-	BeaconAltitudeFloor     float64  `json:"beacon_altitude_floor"`
-	BeaconSinkDistanceFar   float64  `json:"beacon_sink_distance_far"`
-	BeaconSinkDistanceClose float64  `json:"beacon_sink_distance_close"`
-	BeaconMaxTargets        int      `json:"beacon_max_targets"`
-	AutoNarrate             bool     `json:"auto_narrate"`
-	PauseBetweenNarrations  int      `json:"pause_between_narrations"`
-	RepeatTTL               int      `json:"repeat_ttl"`
-	NarrationLengthShort    int      `json:"narration_length_short_words"`
-	NarrationLengthLong     int      `json:"narration_length_long_words"`
-	SettlementCategories    []string `json:"settlement_categories"`
+	BeaconEnabled              bool     `json:"beacon_enabled"`
+	BeaconFormationEnabled     bool     `json:"beacon_formation_enabled"`
+	BeaconFormationDistance    float64  `json:"beacon_formation_distance"`
+	BeaconFormationCount       int      `json:"beacon_formation_count"`
+	BeaconFormationMinDuration int      `json:"beacon_formation_min_duration"`
+	BeaconMinSpawnAltitude     float64  `json:"beacon_min_spawn_altitude"`
+	BeaconAltitudeFloor        float64  `json:"beacon_altitude_floor"`
+	BeaconSinkDistanceFar      float64  `json:"beacon_sink_distance_far"`
+	BeaconSinkDistanceClose    float64  `json:"beacon_sink_distance_close"`
+	BeaconMaxTargets           int      `json:"beacon_max_targets"`
+	AutoNarrate                bool     `json:"auto_narrate"`
+	PauseBetweenNarrations     int      `json:"pause_between_narrations"`
+	RepeatTTL                  int      `json:"repeat_ttl"`
+	NarrationLengthShort       int      `json:"narration_length_short_words"`
+	NarrationLengthLong        int      `json:"narration_length_long_words"`
+	SettlementCategories       []string `json:"settlement_categories"`
 	// Aircraft
 	AircraftIcon        string `json:"aircraft_icon"`
 	AircraftSize        int    `json:"aircraft_size"`
@@ -130,20 +131,21 @@ type ConfigRequest struct {
 	DeferralProximityBoostPower *float64 `json:"deferral_proximity_boost_power,omitempty"`
 	TwoPassScriptGeneration     *bool    `json:"two_pass_script_generation,omitempty"`
 	// Beacon
-	BeaconEnabled           *bool    `json:"beacon_enabled,omitempty"`
-	BeaconFormationEnabled  *bool    `json:"beacon_formation_enabled,omitempty"`
-	BeaconFormationDistance *float64 `json:"beacon_formation_distance,omitempty"`
-	BeaconFormationCount    *int     `json:"beacon_formation_count,omitempty"`
-	BeaconMinSpawnAltitude  *float64 `json:"beacon_min_spawn_altitude,omitempty"`
-	BeaconAltitudeFloor     *float64 `json:"beacon_altitude_floor,omitempty"`
-	BeaconSinkDistanceFar   *float64 `json:"beacon_sink_distance_far,omitempty"`
-	BeaconSinkDistanceClose *float64 `json:"beacon_sink_distance_close,omitempty"`
-	BeaconMaxTargets        *int     `json:"beacon_max_targets,omitempty"`
-	AutoNarrate             *bool    `json:"auto_narrate,omitempty"`
-	PauseBetweenNarrations  *int     `json:"pause_between_narrations,omitempty"`
-	RepeatTTL               *int     `json:"repeat_ttl,omitempty"`
-	NarrationLengthShort    *int     `json:"narration_length_short_words,omitempty"`
-	NarrationLengthLong     *int     `json:"narration_length_long_words,omitempty"`
+	BeaconEnabled              *bool    `json:"beacon_enabled,omitempty"`
+	BeaconFormationEnabled     *bool    `json:"beacon_formation_enabled,omitempty"`
+	BeaconFormationDistance    *float64 `json:"beacon_formation_distance,omitempty"`
+	BeaconFormationCount       *int     `json:"beacon_formation_count,omitempty"`
+	BeaconFormationMinDuration *int     `json:"beacon_formation_min_duration,omitempty"`
+	BeaconMinSpawnAltitude     *float64 `json:"beacon_min_spawn_altitude,omitempty"`
+	BeaconAltitudeFloor        *float64 `json:"beacon_altitude_floor,omitempty"`
+	BeaconSinkDistanceFar      *float64 `json:"beacon_sink_distance_far,omitempty"`
+	BeaconSinkDistanceClose    *float64 `json:"beacon_sink_distance_close,omitempty"`
+	BeaconMaxTargets           *int     `json:"beacon_max_targets,omitempty"`
+	AutoNarrate                *bool    `json:"auto_narrate,omitempty"`
+	PauseBetweenNarrations     *int     `json:"pause_between_narrations,omitempty"`
+	RepeatTTL                  *int     `json:"repeat_ttl,omitempty"`
+	NarrationLengthShort       *int     `json:"narration_length_short_words,omitempty"`
+	NarrationLengthLong        *int     `json:"narration_length_long_words,omitempty"`
 	// Aircraft
 	AircraftIcon        *string `json:"aircraft_icon,omitempty"`
 	AircraftSize        *int    `json:"aircraft_size,omitempty"`
@@ -232,6 +234,7 @@ func (h *ConfigHandler) getConfigResponse(ctx context.Context) ConfigResponse {
 		BeaconFormationEnabled:      h.cfgProv.BeaconFormationEnabled(ctx),
 		BeaconFormationDistance:     float64(h.cfgProv.BeaconFormationDistance(ctx)),
 		BeaconFormationCount:        h.cfgProv.BeaconFormationCount(ctx),
+		BeaconFormationMinDuration:  int(h.cfgProv.BeaconFormationMinDuration(ctx).Seconds()),
 		BeaconMinSpawnAltitude:      float64(h.cfgProv.BeaconMinSpawnAltitude(ctx)),
 		BeaconAltitudeFloor:         float64(h.cfgProv.BeaconAltitudeFloor(ctx)),
 		BeaconSinkDistanceFar:       float64(h.cfgProv.BeaconSinkDistanceFar(ctx)),
@@ -493,6 +496,9 @@ func (h *ConfigHandler) applyBeaconUpdates(ctx context.Context, req *ConfigReque
 	}
 	if req.BeaconFormationCount != nil {
 		h.updateIntState(ctx, config.KeyBeaconFormationCount, *req.BeaconFormationCount)
+	}
+	if req.BeaconFormationMinDuration != nil {
+		h.updateIntState(ctx, config.KeyBeaconFormationMinDuration, *req.BeaconFormationMinDuration)
 	}
 	if req.BeaconMinSpawnAltitude != nil {
 		h.updateFloatState(ctx, config.KeyBeaconMinSpawnAltitude, *req.BeaconMinSpawnAltitude)

@@ -219,6 +219,8 @@ interface DraftState {
     beaconSinkDistanceFar: number;
     beaconSinkDistanceClose: number;
     beaconTargetFloorAGL: number;
+    beaconFormationMinDuration: number;
+    beaconFormationMinDurationInput: string;
 
     beaconMaxTargets: number;
     settlementLabelLimit: number;
@@ -356,6 +358,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     beaconSinkDistanceFar: data.beacon_sink_distance_far ?? 5000,
                     beaconSinkDistanceClose: data.beacon_sink_distance_close ?? 2000,
                     beaconTargetFloorAGL: data.beacon_target_floor_agl ?? 30.48,
+                    beaconFormationMinDuration: data.beacon_formation_min_duration ?? 20,
+                    beaconFormationMinDurationInput: secondsToHuman(data.beacon_formation_min_duration ?? 20),
 
                     beaconMaxTargets: data.beacon_max_targets ?? 2,
                     settlementLabelLimit: data.settlement_label_limit ?? settlementLabelLimit,
@@ -423,6 +427,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             draft.beaconSinkDistanceFar !== (serverConfig.beacon_sink_distance_far ?? 5000) ||
             draft.beaconSinkDistanceClose !== (serverConfig.beacon_sink_distance_close ?? 2000) ||
             draft.beaconTargetFloorAGL !== (serverConfig.beacon_target_floor_agl ?? 30.48) ||
+            draft.beaconFormationMinDuration !== (serverConfig.beacon_formation_min_duration ?? 20) ||
             draft.beaconMaxTargets !== (serverConfig.beacon_max_targets ?? 2) ||
             draft.settlementLabelLimit !== settlementLabelLimit ||
             draft.settlementTier !== _settlementTier ||
@@ -481,6 +486,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         if (draft.beaconSinkDistanceFar !== (serverConfig?.beacon_sink_distance_far ?? 5000)) payload.beacon_sink_distance_far = draft.beaconSinkDistanceFar;
         if (draft.beaconSinkDistanceClose !== (serverConfig?.beacon_sink_distance_close ?? 2000)) payload.beacon_sink_distance_close = draft.beaconSinkDistanceClose;
         if (draft.beaconTargetFloorAGL !== (serverConfig?.beacon_target_floor_agl ?? 30.48)) payload.beacon_target_floor_agl = draft.beaconTargetFloorAGL;
+        if (draft.beaconFormationMinDuration !== (serverConfig?.beacon_formation_min_duration ?? 20)) payload.beacon_formation_min_duration = draft.beaconFormationMinDuration;
         if (draft.beaconMaxTargets !== (serverConfig?.beacon_max_targets ?? 2)) payload.beacon_max_targets = draft.beaconMaxTargets;
         // Aircraft
         if (draft.aircraftIcon !== (serverConfig?.aircraft_icon || 'balloon')) payload.aircraft_icon = draft.aircraftIcon;
@@ -1230,6 +1236,20 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                                         onChange={e => updateDraft('beaconFormationCount', parseInt(e.target.value))}
                                     />
                                 </div>
+                            ))}
+                            {renderField('Companion Min Duration', (
+                                <input
+                                    type="text"
+                                    className="settings-input"
+                                    placeholder="e.g. 20s, 1m"
+                                    value={draft.beaconFormationMinDurationInput}
+                                    onChange={e => {
+                                        const input = e.target.value;
+                                        updateDraft('beaconFormationMinDurationInput', input);
+                                        const secs = parseHumanToSeconds(input);
+                                        if (secs !== null) updateDraft('beaconFormationMinDuration', secs);
+                                    }}
+                                />
                             ))}
 
                             <div className="role-header" style={{ marginTop: '24px' }}>Altitude & Sinking</div>

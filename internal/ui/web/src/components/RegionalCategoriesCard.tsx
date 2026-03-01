@@ -1,10 +1,9 @@
 import { useRegionalCategories } from '../hooks/useRegionalCategories';
 
 interface RegionalCategoriesCardProps {
-    onPlayFeature: (qid: string, name: string) => void;
 }
 
-export const RegionalCategoriesCard = ({ onPlayFeature }: RegionalCategoriesCardProps) => {
+export const RegionalCategoriesCard = ({ }: RegionalCategoriesCardProps) => {
     const { data: categories, isLoading, error } = useRegionalCategories();
 
     // Do not render anything if there are no regional categories active
@@ -25,7 +24,6 @@ export const RegionalCategoriesCard = ({ onPlayFeature }: RegionalCategoriesCard
                     {categories.map((cat) => (
                         <div
                             key={cat.qid}
-                            className="clickable"
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -33,9 +31,7 @@ export const RegionalCategoriesCard = ({ onPlayFeature }: RegionalCategoriesCard
                                 border: '1px solid rgba(212, 175, 55, 0.3)',
                                 borderRadius: '4px',
                                 padding: '4px 8px',
-                                cursor: 'pointer',
                             }}
-                            onClick={() => onPlayFeature(cat.qid, cat.name)}
                         >
                             <span className="role-label" style={{ color: 'var(--accent)', marginRight: '6px' }}>
                                 {cat.category}

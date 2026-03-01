@@ -1,19 +1,21 @@
 ﻿# Changelog
  
+## v0.3.229 (2026-03-01)
+- **Fix**: Fixed leaked reasoning appearing in narration scripts when two-pass refinement was rejected for its length.
+ 
 ## v0.3.228 (2026-02-27)
 - **Fix**: Resolved build errors that prevented the EFB application from compiling.
 
 ## v0.3.227 (2026-02-27)
-- **Improvement**: Implemented a unified type-safe model system for the MSFS EFB, replacing `any` types with structured interfaces for POIs, aircraft telemetry, and narrator status.
-- **Improvement**: Added automatic filtering of non-point geographical features from map displays and POI lists.
+- **Fix**: Replaced `any` types with structured interfaces for POIs, aircraft telemetry, and narrator status.
+- **Fix**: Added automatic filtering of non-point geographical features from map displays and POI lists.
 
 ## v0.3.226 (2026-02-27)
 - **Fix**: Resolved potential stalls in the narration queue by implementing proactive generation slot cleanup and queue draining.
 
 ## v0.3.225 (2026-02-27)
-- **Feature**: Added distance information and sorting to the nearby settlements list.
+- **Fix**: Added missing distance information and sorting to the nearby settlements list.
 - **Fix**: Fixed the narrator occasionally producing repetitive or truncated content when long narrations were requested.
-- **Improvement**: Optimized performance by reducing the background polling frequency of the nearby settlements list.
  
 ## v0.3.224 (2026-02-27)
 - **Fix**: **MSFS POI Duplication**. The `msfspoi` table is now cleared before re-importing `Master.csv`, preventing duplicate landmarks from accumulating when the data file is updated.

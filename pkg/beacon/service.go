@@ -46,12 +46,13 @@ type Service struct {
 	dllPath string
 	handle  uintptr // Independent SimConnect handle
 
-	mu           sync.Mutex
-	active       bool
-	targetLat    float64
-	targetLon    float64
-	targetAlt    float64
-	isHoldingAlt bool
+	mu                 sync.Mutex
+	active             bool
+	targetLat          float64
+	targetLon          float64
+	targetAlt          float64
+	isHoldingAlt       bool
+	formationSpawnTime time.Time
 
 	spawnedBeacons  []SpawnedBeacon
 	formationActive bool
@@ -146,6 +147,7 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64, title, livery
 	s.enforceTargetQuota(ctx)
 
 	if spawnFormation {
+		s.formationSpawnTime = time.Now()
 		s.spawnFormationBalloons(ctx, title, livery, &tel)
 	} else {
 		s.formationActive = false
@@ -453,9 +455,15 @@ func (s *Service) updateStep(ctx context.Context, tel *simconnect.TelemetryData)
 }
 
 func (s *Service) checkFormationCleanup(ctx context.Context, distKm float64) {
+	if !s.formationActive {
+		return
+	}
+
 	triggerDistKm := (float64(s.prov.BeaconFormationDistance(ctx)) / 1000.0) * 1.5
-	if s.formationActive && distKm < triggerDistKm {
-		s.logger.Info("Target Distance < Trigger Distance. Despawning formation.", "dist_km", distKm, "trigger_km", triggerDistKm)
+	minDuration := s.prov.BeaconFormationMinDuration(ctx)
+
+	if distKm < triggerDistKm && time.Since(s.formationSpawnTime) >= minDuration {
+		s.logger.Info("Target Distance < Trigger Distance AND min duration elapsed. Despawning formation.", "dist_km", distKm, "trigger_km", triggerDistKm, "min_duration", minDuration)
 		var kept []SpawnedBeacon
 		for _, b := range s.spawnedBeacons {
 			if !b.IsTarget {

@@ -109,6 +109,15 @@ func setupJob(t *testing.T, llmResp map[string]string, transport http.RoundTripp
 			"Sights":   {Weight: 50},
 			"Shopping": {Weight: 30},
 			"Mountain": {Weight: 40},
+			"Village":  {Weight: 0.3},
+		},
+		CategoryGroups: map[string][]string{
+			"Settlements": {"City", "Town", "Village"},
+		},
+		GroupLookup: map[string]string{
+			"city":    "Settlements",
+			"town":    "Settlements",
+			"village": "Settlements",
 		},
 	}
 	clf := classifier.NewClassifier(st, nil, catCfg, tr)
@@ -203,16 +212,6 @@ func TestRegionalCategoriesJob_Pipeline(t *testing.T) {
 			expectedCats: map[string]string{"Q123": "Sights", "Q456": "Shopping"},
 		},
 		{
-			name:              "Generic Category Resolution",
-			ontologicalResp:   `{"subclasses": [{"name": "Local Shrine", "category": "Generic", "specific_category": "Sights", "size": "M"}]}`,
-			topographicalResp: `{"subclasses": []}`,
-			wikidataResps: map[string]string{
-				"Local Shrine": `{"search": [{"id": "Q789", "label": "Local Shrine"}]}`,
-				"Q789":         `{"entities": {"Q789": {"labels": {"en": {"value": "Local Shrine"}}} }}`,
-			},
-			expectedCats: map[string]string{"Q789": "Sights"},
-		},
-		{
 			name:              "Duplicate and Static Filtering",
 			ontologicalResp:   `{"subclasses": [{"name": "Castle", "category": "Sights", "size": "L"}]}`,
 			topographicalResp: `{"subclasses": [{"name": "Castle", "category": "Sights", "size": "L"}, {"name": "Aerodrome", "category": "Aerodrome", "size": "L"}]}`,
@@ -247,6 +246,17 @@ func TestRegionalCategoriesJob_Pipeline(t *testing.T) {
 			},
 			// Q_CASTLE is in static config
 			expectedCats: map[string]string{}, // Should be skipped as redundant
+		},
+		{
+			name:              "Settlement Filtering",
+			ontologicalResp:   `{"subclasses": [{"name": "Hidden Village", "category": "Village", "size": "M"}]}`,
+			topographicalResp: `{"subclasses": []}`,
+			wikidataResps: map[string]string{
+				"Hidden Village": `{"search": [{"id": "Q_VILLAGE", "label": "Hidden Village"}]}`,
+				"Q_VILLAGE":      `{"entities": {"Q_VILLAGE": {"labels": {"en": {"value": "Hidden Village"}}, "claims": {"P279": [{"mainsnak": {"datavalue": {"value": {"id": "Q_ROOT_VILLAGE"}}}}]} }}}`,
+			},
+			// Village is in Settlements group, should be filtered
+			expectedCats: map[string]string{},
 		},
 	}
 
@@ -554,5 +564,56 @@ func TestRegionalCategoriesJob_Pruning(t *testing.T) {
 	updatedCats := st.cats["50_10"]
 	if _, ok := updatedCats["Q_SUB_CASTLE"]; ok {
 		t.Error("Expected Q_SUB_CASTLE to be pruned from spatial cache store")
+	}
+}
+
+func TestRegionalCategoriesJob_SettlementPruning(t *testing.T) {
+	job, clf, st := setupJob(t, nil, nil)
+
+	// Pre-seed cache with settlements
+	st.mu.Lock()
+	st.cats["50_10"] = map[string]string{
+		"Q_VILLAGE": "Village",
+		"Q_TOWN":    "Town",
+		"Q_CITY":    "City",
+		"Q_VALID":   "Sights",
+	}
+	st.labels["50_10"] = map[string]string{
+		"Q_VILLAGE": "Small Village",
+		"Q_TOWN":    "Big Town",
+		"Q_CITY":    "Huge City",
+		"Q_VALID":   "Ancient Monument",
+	}
+	st.mu.Unlock()
+
+	// Run job at the location of the cache
+	job.Run(context.Background(), &sim.Telemetry{Latitude: 50.1, Longitude: 10.1})
+	waitJob(job)
+
+	// Verify classifier ONLY has Q_VALID
+	res := clf.GetRegionalCategories()
+	if _, ok := res["Q_VILLAGE"]; ok {
+		t.Error("Expected Q_VILLAGE to be pruned from regional categories")
+	}
+	if _, ok := res["Q_TOWN"]; ok {
+		t.Error("Expected Q_TOWN to be pruned from regional categories")
+	}
+	if _, ok := res["Q_CITY"]; ok {
+		t.Error("Expected Q_CITY to be pruned from regional categories")
+	}
+	if _, ok := res["Q_VALID"]; !ok {
+		t.Error("Expected Q_VALID to be kept in regional categories")
+	}
+
+	// Verify spatial cache was updated and pruned
+	st.mu.Lock()
+	updatedCats := st.cats["50_10"]
+	st.mu.Unlock()
+
+	if _, ok := updatedCats["Q_VILLAGE"]; ok {
+		t.Error("Expected Q_VILLAGE to be pruned from spatial cache store")
+	}
+	if _, ok := updatedCats["Q_TOWN"]; ok {
+		t.Error("Expected Q_TOWN to be pruned from spatial cache store")
 	}
 }

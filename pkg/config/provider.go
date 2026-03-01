@@ -73,6 +73,7 @@ type Provider interface {
 	BeaconFormationEnabled(ctx context.Context) bool
 	BeaconFormationDistance(ctx context.Context) Distance
 	BeaconFormationCount(ctx context.Context) int
+	BeaconFormationMinDuration(ctx context.Context) time.Duration
 	BeaconMinSpawnAltitude(ctx context.Context) Distance
 	BeaconAltitudeFloor(ctx context.Context) Distance
 	BeaconSinkDistanceFar(ctx context.Context) Distance
@@ -312,6 +313,10 @@ func (p *UnifiedProvider) BeaconFormationDistance(ctx context.Context) Distance 
 
 func (p *UnifiedProvider) BeaconFormationCount(ctx context.Context) int {
 	return p.getInt(ctx, KeyBeaconFormationCount, p.base.Beacon.FormationCount)
+}
+
+func (p *UnifiedProvider) BeaconFormationMinDuration(ctx context.Context) time.Duration {
+	return p.getDuration(ctx, KeyBeaconFormationMinDuration, time.Duration(p.base.Beacon.FormationMinDuration))
 }
 
 func (p *UnifiedProvider) BeaconMinSpawnAltitude(ctx context.Context) Distance {

@@ -165,6 +165,10 @@ func (j *RegionalCategoriesJob) getNeighboringCategories(ctx context.Context, la
 				continue
 			}
 			for qid, cat := range cats {
+				// Skip settlements even when loading from cache
+				if j.isSettlement(cat) {
+					continue
+				}
 				subclasses[qid] = cat
 			}
 			for qid, l := range lbls {
@@ -186,6 +190,11 @@ func (j *RegionalCategoriesJob) processCurrentTileCache(ctx context.Context, lat
 		for qid, catName := range currentSubclasses {
 			if staticCat, covered := j.classifier.IsCoveredByStaticConfig(ctx, qid); covered {
 				slog.Info("RegionalCategoriesJob: Pruning redundant cached category from current tile", "qid", qid, "label", currentLabels[qid], "regional_cat", catName, "covered_by", staticCat)
+				delete(currentSubclasses, qid)
+				delete(currentLabels, qid)
+				pruned = true
+			} else if j.isSettlement(catName) {
+				slog.Info("RegionalCategoriesJob: Pruning settlement from cache", "qid", qid, "label", currentLabels[qid], "regional_cat", catName)
 				delete(currentSubclasses, qid)
 				delete(currentLabels, qid)
 				pruned = true
@@ -372,15 +381,24 @@ func (j *RegionalCategoriesJob) filterValidSubclasses(ctx context.Context, subcl
 			}
 		}
 
-		effectiveCategory := sub.Category
-		if sub.Category == "Generic" && sub.SpecificCategory != "" {
-			effectiveCategory = sub.SpecificCategory
-			slog.Debug("RegionalCategoriesJob: Using specific_category for Generic", "name", sub.Name, "specific", sub.SpecificCategory)
+		// Skip categories that belong to the "Settlements" group (City, Town, Village)
+		// as they clutter the map.
+		if j.isSettlement(sub.Category) {
+			slog.Info("RegionalCategoriesJob: Skipping settlement category", "name", sub.Name, "category", sub.Category)
+			continue
 		}
-		regionalCategories[v.QID] = effectiveCategory
-		slog.Info("RegionalCategoriesJob: Added regional category", "name", sub.Name, "qid", v.QID, "category", effectiveCategory)
+
+		regionalCategories[v.QID] = sub.Category
+		slog.Info("RegionalCategoriesJob: Added regional category", "name", sub.Name, "qid", v.QID, "category", sub.Category)
 	}
 	return regionalCategories
+}
+
+func (j *RegionalCategoriesJob) isSettlement(category string) bool {
+	if j.classifier == nil {
+		return false
+	}
+	return j.classifier.GetConfig().GetGroup(category) == "Settlements"
 }
 
 type subclass struct {

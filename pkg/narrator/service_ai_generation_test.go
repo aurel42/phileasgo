@@ -298,6 +298,13 @@ func TestAIService_IsGarbage(t *testing.T) {
 			output: strings.Repeat("word ", 15), // 15 < max(10*2, 10*1.5) = 20
 			want:   false,
 		},
+		{
+			name:   "Refinement with Significant Reduction is NOT Garbage",
+			max:    75,
+			input:  strings.Repeat("word ", 550), // Over target
+			output: strings.Repeat("word ", 160), // Still over target (160 > 150), but < 550/2
+			want:   false,
+		},
 	}
 
 	for _, tt := range tests {

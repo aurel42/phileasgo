@@ -169,9 +169,9 @@ function App() {
 
     // Other types (essay, letsgo, border, debriefing, briefing): no auto-switch
   }, [narratorStatus?.playback_status, narratorStatus?.preparing_poi,
-      narratorStatus?.current_poi, narratorStatus?.current_type,
-      narratorStatus?.current_title, narratorStatus?.show_info_panel,
-      narratorStatus?.display_thumbnail, activeTab, pois]);
+  narratorStatus?.current_poi, narratorStatus?.current_type,
+  narratorStatus?.current_title, narratorStatus?.show_info_panel,
+  narratorStatus?.display_thumbnail, activeTab, pois]);
 
   // Revert tab when narration ends
   useEffect(() => {
@@ -498,7 +498,7 @@ function App() {
 
         {activeTab === 'regional' && (
           <>
-            <RegionalCategoriesCard onPlayFeature={playFeature} />
+            <RegionalCategoriesCard />
             <SpatialFeaturesCard onPlayFeature={playFeature} />
           </>
         )}
