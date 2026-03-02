@@ -17,6 +17,7 @@ export interface POI {
     thumbnail_url?: string;
     is_visible: boolean;
     is_msfs_poi?: boolean;
+    is_hidden_feature?: boolean;
 }
 
 export interface NarratorStatusResponse {

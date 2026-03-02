@@ -1,4 +1,8 @@
 ﻿# Changelog
+
+## v0.3.230 (2026-03-02)
+- **Fix**: Fixed the map viewport occasionally snapping to include hidden geographic features during narration.
+- **Improvement**: Significantly increased test coverage and reliability for core POI management and beacon signaling.
  
 ## v0.3.229 (2026-03-01)
 - **Fix**: Fixed leaked reasoning appearing in narration scripts when two-pass refinement was rejected for its length.

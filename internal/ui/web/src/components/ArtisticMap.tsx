@@ -577,7 +577,7 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                     // Trigger snap if playing POI is outside viewport
                     const playingPoi = currentPoiRef.current;
-                    if (playingPoi && !bounds.contains([playingPoi.lon, playingPoi.lat])) {
+                    if (playingPoi && !playingPoi.is_hidden_feature && !bounds.contains([playingPoi.lon, playingPoi.lat])) {
                         needsRecenter = true;
                     }
                 }
@@ -622,8 +622,8 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
                         if (lastMaskData?.geometry) features.push({ type: 'Feature', geometry: lastMaskData.geometry, properties: {} });
                         const playingPoi = currentPoiRef.current;
                         const preparingPoi = preparingPoiRef.current;
-                        if (playingPoi) features.push(turf.point([playingPoi.lon, playingPoi.lat]));
-                        if (preparingPoi) features.push(turf.point([preparingPoi.lon, preparingPoi.lat]));
+                        if (playingPoi && !playingPoi.is_hidden_feature) features.push(turf.point([playingPoi.lon, playingPoi.lat]));
+                        if (preparingPoi && !preparingPoi.is_hidden_feature) features.push(turf.point([preparingPoi.lon, preparingPoi.lat]));
 
                         if (features.length > 0) {
                             const collection = turf.featureCollection(features);
@@ -659,10 +659,10 @@ export const ArtisticMap: React.FC<ArtisticMapProps> = ({
 
                         const playingPoi = currentPoiRef.current;
                         const preparingPoi = preparingPoiRef.current;
-                        if (playingPoi) {
+                        if (playingPoi && !playingPoi.is_hidden_feature) {
                             features.push(turf.point([playingPoi.lon, playingPoi.lat]));
                         }
-                        if (preparingPoi) {
+                        if (preparingPoi && !preparingPoi.is_hidden_feature) {
                             features.push(turf.point([preparingPoi.lon, preparingPoi.lat]));
                         }
 

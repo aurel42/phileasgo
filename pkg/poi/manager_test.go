@@ -14,10 +14,14 @@ import (
 // MockStore for testing
 type MockStore struct {
 	savedPOIs map[string]*model.POI
+	state     map[string]string
 }
 
 func NewMockStore() *MockStore {
-	return &MockStore{savedPOIs: make(map[string]*model.POI)}
+	return &MockStore{
+		savedPOIs: make(map[string]*model.POI),
+		state:     make(map[string]string),
+	}
 }
 
 func (s *MockStore) SavePOI(ctx context.Context, p *model.POI) error {
@@ -26,10 +30,28 @@ func (s *MockStore) SavePOI(ctx context.Context, p *model.POI) error {
 }
 
 func (s *MockStore) GetRecentlyPlayedPOIs(ctx context.Context, since time.Time) ([]*model.POI, error) {
-	return nil, nil
+	var result []*model.POI
+	for _, p := range s.savedPOIs {
+		if !p.LastPlayed.IsZero() && p.LastPlayed.After(since) {
+			result = append(result, p)
+		}
+	}
+	return result, nil
 }
-func (s *MockStore) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) error { return nil }
-func (s *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error { return nil }
+
+func (s *MockStore) SaveLastPlayed(ctx context.Context, poiID string, t time.Time) error {
+	if poi, ok := s.savedPOIs[poiID]; ok {
+		poi.LastPlayed = t
+	}
+	return nil
+}
+
+func (s *MockStore) ResetLastPlayed(ctx context.Context, lat, lon, radius float64) error {
+	for _, p := range s.savedPOIs {
+		p.LastPlayed = time.Time{}
+	}
+	return nil
+}
 
 // Stubs for other interface methods...
 func (s *MockStore) GetPOI(ctx context.Context, id string) (*model.POI, error) {
@@ -62,9 +84,20 @@ func (s *MockStore) GetGeodataCache(ctx context.Context, key string) ([]byte, in
 func (s *MockStore) SetGeodataCache(ctx context.Context, key string, val []byte, radius int) error {
 	return nil
 }
-func (s *MockStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
-func (s *MockStore) SetState(ctx context.Context, key, val string) error     { return nil }
-func (s *MockStore) DeleteState(ctx context.Context, key string) error       { return nil }
+func (s *MockStore) GetState(ctx context.Context, key string) (string, bool) {
+	val, ok := s.state[key]
+	return val, ok
+}
+
+func (s *MockStore) SetState(ctx context.Context, key, val string) error {
+	s.state[key] = val
+	return nil
+}
+
+func (s *MockStore) DeleteState(ctx context.Context, key string) error {
+	delete(s.state, key)
+	return nil
+}
 func (s *MockStore) GetClassification(ctx context.Context, qid string) (category string, found bool, err error) {
 	return "", false, nil
 }

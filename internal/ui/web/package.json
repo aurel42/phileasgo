@@ -1,7 +1,7 @@
 {
   "name": "phileas-web",
   "private": true,
-  "version": "0.3.229",
+  "version": "0.3.230",
   "type": "module",
   "scripts": {
     "dev": "vite",
