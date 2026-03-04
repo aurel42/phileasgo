@@ -2,6 +2,7 @@ package articleproc
 
 import (
 	"io"
+	"regexp"
 	"strings"
 
 	"phileasgo/pkg/llm"
@@ -109,10 +110,14 @@ func findBody(n *html.Node) *html.Node {
 	return nil
 }
 
+var geoRegex = regexp.MustCompile(`(?i)\d+°\d+['′](?:\d+(?:\.\d+)?[″\"]?)?[NS]\s+\d+°\d+['′](?:\d+(?:\.\d+)?[″\"]?)?[EW](?:\s*/\s*[-\d.°; NSEW]+)*`)
+
 func cleanParagraph(p *html.Node) string {
 	var b strings.Builder
 	traverseParagraph(p, &b)
-	return strings.TrimSpace(b.String())
+	s := b.String()
+	s = geoRegex.ReplaceAllString(s, "")
+	return strings.TrimSpace(s)
 }
 
 func traverseParagraph(n *html.Node, b *strings.Builder) {
