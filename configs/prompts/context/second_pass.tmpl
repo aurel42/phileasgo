@@ -16,7 +16,8 @@ Your task is to filter and refine the script.
 ## TECHNICAL CLEANUP
 - Remove planning notes (e.g., "Key points to include:", "I'll craft the script...")
 - Remove meta-commentary about word counts, instructions, or formatting
-- Remove first-person statements about the writing process (e.g., "I have reviewed...", "Let me think...")
+- Remove first-person statements about the writing process (e.g., "I have reviewed...", "Let me think...", "Okay, let's...", "I will now...")
+- Remove internal reasoning or brain-dumping tags (e.g., `<think>...</think>` and everything inside them)
 - Remove stage directions, sound effects, or emotional cues (e.g., `[pauses]`, `(laughs)`, `*sighs*`)
 - Remove bullet points or outlines
 - Remove markdown formatting
@@ -39,8 +40,8 @@ Your task is to filter and refine the script.
 
 {{if .PregroundContext}}
 ## ADDITIONAL RESEARCH NOTES
-- The following additional context was gathered from current sources.
-- You can use these facts to pad and enrich your narration with timely, local flavor not found in the Wikipedia article:
+- You can use these facts to pad and enrich your narration with timely, local flavor not found in the Wikipedia article.
+- **IMPORTANT**: Ignore any citations or source markers (e.g., [1], [Source: ...]) found in these notes. Do NOT include them in your output.
 
 --- START OF ADDITIONAL RESEARCH NOTES ---
 {{.PregroundContext}}
@@ -51,10 +52,6 @@ Your task is to filter and refine the script.
 {{.Script}}
 --- END OF INPUT SCRIPT ---
 
-## OUTPUT
-- Provide ONLY the extracted clean script in this language: {{.Language_name}} ({{.Language_code}}). Translate, if the input is in a different language.
-- Do NOT add any commentary or explanation
-- If the input is completely unusable, respond with: RESCUE_FAILED
 
 ### SCRIPT LENGTH
 - **TARGET**: maximum of approx. {{.MaxWords}} words.
@@ -62,4 +59,15 @@ Your task is to filter and refine the script.
 - If the original script is too long, condense it without losing the most important facts.
 - If the original script is too short, you may expand it with relevant details from the additional research notes.
 
-{{.TTSInstructions}}
+{{ .TTSInstructions }}
+
+## OUTPUT FORMAT
+Respond ONLY with a JSON object containing the following fields:
+- `title`: A short, catchy title for this narration (max 10 words).
+- `script`: The full, clean narration text ready for TTS. Use the language: {{.Language_name}} ({{.Language_code}}). Translate if necessary. If the input is completely unusable, set this field to exactly: RESCUE_FAILED
+
+### EXAMPLE
+{
+  "title": "The Majesty of the Alps",
+  "script": "If you look to your right, you will see the stunning peaks of..."
+}

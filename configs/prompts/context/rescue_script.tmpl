@@ -6,7 +6,8 @@ The following text was supposed to be an actual tour guide narration script.
 Extract ONLY the clean, final tour guide narration script. Remove any:
 - Planning notes (e.g., "Key points to include:", "I'll craft the script...")
 - Meta-commentary about word counts, instructions, or formatting
-- First-person statements about the writing process (e.g., "I have reviewed...", "Let me think...")
+- First-person statements about the writing process (e.g., "I have reviewed...", "Let me think...", "Okay, let's...", "I will now...")
+- Internal reasoning or brain-dumping tags (e.g., `<think>...</think>` and everything inside them)
 - Stage directions, sound effects, or emotional cues (e.g., `[pauses]`, `(laughs)`, `*sighs*`)
 - Bullet points or outlines
 
@@ -18,11 +19,7 @@ The clean script should:
 **INPUT TEXT**:
 {{.Script}}
 
-**OUTPUT**:
-- Provide ONLY the extracted clean script
-- Do NOT add any commentary or explanation
-- If no valid tour guide script can be extracted, respond with exactly: RESCUE_FAILED
-**NARRATION LENGTH**:
+**SCRIPT LENGTH**:
 - **TARGET**: maximum of approx. {{.MaxWords}} words.
 - This is a strict upper limit, not a target.
 - **DO NOT INVENT DETAILS** or use filler to reach the word limit.
@@ -30,4 +27,15 @@ The clean script should:
 - **EXTREME BREVITY**: The word limit is very low. Provide only the most important fact in 1-2 sentences.
 {{end}}
 
-{{.TTSInstructions}}
+{{ .TTSInstructions }}
+
+## OUTPUT FORMAT
+Respond ONLY with a JSON object containing the following fields:
+- `title`: A short, catchy title for this narration (max 10 words).
+- `script`: The full, clean narration text ready for TTS. If no valid tour guide script can be extracted from the input, set this field to exactly: RESCUE_FAILED
+
+### EXAMPLE
+{
+  "title": "The Majesty of the Alps",
+  "script": "If you look to your right, you will see the stunning peaks of..."
+}

@@ -17,72 +17,6 @@ import (
 	"time"
 )
 
-func TestAIService_ExtractTitleFromScript(t *testing.T) {
-	s := &AIService{}
-
-	tests := []struct {
-		name       string
-		script     string
-		wantTitle  string
-		wantScript string
-	}{
-		{
-			name:       "Standard Title",
-			script:     "TITLE: The Great Land\nThis is the content.",
-			wantTitle:  "The Great Land",
-			wantScript: "This is the content.",
-		},
-		{
-			name:       "Markdown Bold Title",
-			script:     "**TITLE:** Mount McKinley\n**The mountains are high.**",
-			wantTitle:  "Mount McKinley",
-			wantScript: "**The mountains are high.**",
-		},
-		{
-			name:       "Case Insensitive Title",
-			script:     "Title : Flying over Alaska\nLow clouds today.",
-			wantTitle:  "Flying over Alaska",
-			wantScript: "Low clouds today.",
-		},
-		{
-			name:       "No Title",
-			script:     "Just some narration\nwithout a title.",
-			wantTitle:  "",
-			wantScript: "Just some narration\nwithout a title.",
-		},
-		{
-			name:       "Title Only",
-			script:     "TITLE: Only Title",
-			wantTitle:  "Only Title",
-			wantScript: "",
-		},
-		{
-			name:       "Indented Title",
-			script:     "  **TITLE: ** Indented\nNext line",
-			wantTitle:  "Indented",
-			wantScript: "Next line",
-		},
-		{
-			name:       "Title with asterisk suffix",
-			script:     "**TITLE: Bold Title**\nStory starts here",
-			wantTitle:  "Bold Title",
-			wantScript: "Story starts here",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotTitle, gotScript := s.extractTitleFromScript(tt.script)
-			if gotTitle != tt.wantTitle {
-				t.Errorf("extractTitleFromScript() gotTitle = %v, want %v", gotTitle, tt.wantTitle)
-			}
-			if strings.TrimSpace(gotScript) != strings.TrimSpace(tt.wantScript) {
-				t.Errorf("extractTitleFromScript() gotScript = %v, want %v", gotScript, tt.wantScript)
-			}
-		})
-	}
-}
-
 func TestAIService_PerformRescueIfNeeded(t *testing.T) {
 	// Setup Prompts
 	tmpDir := t.TempDir()
@@ -165,23 +99,24 @@ func TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider(t *testing.T)
 	tests := []struct {
 		name        string
 		ctx         context.Context
-		llmFunc     func(ctx context.Context, name, prompt string) (string, error)
+		llmFunc     func(ctx context.Context, name, prompt string, target any) error
 		wantResult  string
 		wantContain string
 	}{
 		{
 			name: "First attempt garbage, retry succeeds",
 			ctx:  context.WithValue(context.Background(), request.CtxProviderLabel, "provider1"),
-			llmFunc: func() func(ctx context.Context, name, prompt string) (string, error) {
+			llmFunc: func() func(ctx context.Context, name, prompt string, target any) error {
 				calls := 0
-				return func(ctx context.Context, name, prompt string) (string, error) {
+				return func(ctx context.Context, name, prompt string, target any) error {
 					calls++
+					res := target.(*model.GenerationResponse)
 					if calls == 1 {
-						// First rescue attempt returns garbage
-						return strings.Repeat("garbage ", 200), nil
+						res.Script = strings.Repeat("garbage ", 200)
+						return nil
 					}
-					// Retry with excluded provider succeeds
-					return "Clean rescued script.", nil
+					res.Script = "Clean rescued script."
+					return nil
 				}
 			}(),
 			wantResult: "Clean rescued script.",
@@ -189,14 +124,16 @@ func TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider(t *testing.T)
 		{
 			name: "First attempt error, retry succeeds",
 			ctx:  context.WithValue(context.Background(), request.CtxProviderLabel, "provider1"),
-			llmFunc: func() func(ctx context.Context, name, prompt string) (string, error) {
+			llmFunc: func() func(ctx context.Context, name, prompt string, target any) error {
 				calls := 0
-				return func(ctx context.Context, name, prompt string) (string, error) {
+				return func(ctx context.Context, name, prompt string, target any) error {
 					calls++
 					if calls == 1 {
-						return "", errors.New("LLM error")
+						return errors.New("LLM error")
 					}
-					return "Rescued after error.", nil
+					res := target.(*model.GenerationResponse)
+					res.Script = "Rescued after error."
+					return nil
 				}
 			}(),
 			wantResult: "Rescued after error.",
@@ -204,16 +141,20 @@ func TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider(t *testing.T)
 		{
 			name: "Both attempts fail, falls back to original",
 			ctx:  context.WithValue(context.Background(), request.CtxProviderLabel, "provider1"),
-			llmFunc: func(ctx context.Context, name, prompt string) (string, error) {
-				return strings.Repeat("garbage ", 200), nil
+			llmFunc: func(ctx context.Context, name, prompt string, target any) error {
+				res := target.(*model.GenerationResponse)
+				res.Script = strings.Repeat("garbage ", 200)
+				return nil
 			},
 			wantContain: "script that needs rescue", // original script
 		},
 		{
 			name: "No provider label in context, skips retry",
 			ctx:  context.Background(), // No provider label
-			llmFunc: func(ctx context.Context, name, prompt string) (string, error) {
-				return strings.Repeat("garbage ", 200), nil
+			llmFunc: func(ctx context.Context, name, prompt string, target any) error {
+				res := target.(*model.GenerationResponse)
+				res.Script = strings.Repeat("garbage ", 200)
+				return nil
 			},
 			wantContain: "script that needs rescue",
 		},
@@ -221,7 +162,7 @@ func TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider(t *testing.T)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockLLM := &MockLLM{GenerateTextFunc: tt.llmFunc}
+			mockLLM := &MockLLM{GenerateJSONFunc: tt.llmFunc}
 			s := &AIService{
 				prompts:    pm,
 				llm:        mockLLM,
@@ -375,17 +316,20 @@ func TestAIService_PerformSecondPass(t *testing.T) {
 
 	// 1. Success case
 	input := "This is a long original script with many words." // 9 words
+	mockLLM.GenerateJSONFunc = nil
 	got := s.performSecondPass(context.Background(), req, input)
 	if !strings.Contains(got, "Refined script") {
 		t.Errorf("expected refined script, got %q", got)
 	}
 
 	// 2. Multiplier check
-	mockLLM.GenerateTextFunc = func(ctx context.Context, name, promptBody string) (string, error) {
+	mockLLM.GenerateJSONFunc = func(ctx context.Context, name, promptBody string, target any) error {
 		if !strings.Contains(promptBody, "(120)") { // 100 * 1.2
 			t.Errorf("expected MaxWords 120 in prompt, got %s", promptBody)
 		}
-		return "Refined with multiplier", nil
+		res := target.(*model.GenerationResponse)
+		res.Script = "Refined with multiplier"
+		return nil
 	}
 	mockos := s.performSecondPass(context.Background(), req, input)
 	if !strings.Contains(mockos, "Refined with multiplier") {
@@ -393,7 +337,7 @@ func TestAIService_PerformSecondPass(t *testing.T) {
 	}
 
 	// 3. Rescue Failed case
-	mockLLM.GenerateTextFunc = nil
+	mockLLM.GenerateJSONFunc = nil
 	mockLLM.Response = "RESCUE_FAILED"
 	got = s.performSecondPass(context.Background(), req, input)
 	if got != input {
@@ -401,7 +345,7 @@ func TestAIService_PerformSecondPass(t *testing.T) {
 	}
 
 	// 4. LLM error with no provider context — should fall back to original
-	mockLLM.GenerateTextFunc = nil
+	mockLLM.GenerateJSONFunc = nil
 	mockLLM.Err = errors.New("LLM unavailable")
 	got = s.performSecondPass(context.Background(), req, input)
 	if got != input {
@@ -410,14 +354,16 @@ func TestAIService_PerformSecondPass(t *testing.T) {
 	mockLLM.Err = nil
 
 	// 5. LLM error with provider context — retry succeeds
-	mockLLM.GenerateTextFunc = func() func(ctx context.Context, name, prompt string) (string, error) {
+	mockLLM.GenerateJSONFunc = func() func(ctx context.Context, name, prompt string, target any) error {
 		calls := 0
-		return func(ctx context.Context, name, prompt string) (string, error) {
+		return func(ctx context.Context, name, prompt string, target any) error {
 			calls++
 			if calls == 1 {
-				return "", errors.New("first attempt fails")
+				return errors.New("first attempt fails")
 			}
-			return "Refined on retry", nil
+			res := target.(*model.GenerationResponse)
+			res.Script = "Refined on retry"
+			return nil
 		}
 	}()
 	ctxWithProvider := context.WithValue(context.Background(), request.CtxProviderLabel, "p1")

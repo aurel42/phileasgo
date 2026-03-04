@@ -14,8 +14,16 @@ We have just crossed from **{{.From}}** into **{{.To}}**.
 
 ### TASK
 Announce this border crossing in a pithy, interesting way.
-- Keep the announcement to two or three sentences.
-- Mention something we've seen on the way, or a border we crossed earlier, if it fits the pithy style.
-- Mention a tiny fact or characteristic about the new area ({{.To}}) if it fits the pithy style.
+
+### OUTPUT FORMAT
+Respond ONLY with a JSON object containing the following fields:
+- `title`: A short, descriptive title for this announcement (e.g. "Crossing into {{.To}}").
+- `script`: The pithy narration text (2-3 sentences). Use the language: {{.Language_name}} ({{.Language_code}}).
+
+### EXAMPLE
+{
+  "title": "Crossing into France",
+  "script": "Au revoir, Italy! We have just crossed the border and are now soaring over the beautiful landscape of France."
+}
 
 {{.TTSInstructions}}

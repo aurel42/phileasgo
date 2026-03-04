@@ -1,0 +1,487 @@
+=== RUN   TestEssayHandler_SelectTopic
+2026/03/04 12:53:48 INFO EssayHandler: Topic pool exhausted. Starting new rotation cycle. topics=3
+2026/03/04 12:53:48 INFO EssayHandler: Topic pool exhausted. Starting new rotation cycle. topics=3
+--- PASS: TestEssayHandler_SelectTopic (0.00s)
+=== RUN   TestEssayHandler_BuildPrompt
+--- PASS: TestEssayHandler_BuildPrompt (0.00s)
+=== RUN   TestEssayHandler_BuildPrompt_CoordinatesPassthrough
+--- PASS: TestEssayHandler_BuildPrompt_CoordinatesPassthrough (0.00s)
+=== RUN   TestNewEssayHandler_NotFound
+--- PASS: TestNewEssayHandler_NotFound (0.00s)
+=== RUN   TestSelectTopic_EmptyConfig
+--- PASS: TestSelectTopic_EmptyConfig (0.00s)
+=== RUN   TestNewLLMProvider
+=== RUN   TestNewLLMProvider/Gemini_Provider
+2026/03/04 12:53:48 WARN Skipping Gemini model validation (TEST_MODE=true)
+=== RUN   TestNewLLMProvider/OpenAI-Compatible_(Groq)_Provider
+=== RUN   TestNewLLMProvider/Perplexity_Provider
+=== RUN   TestNewLLMProvider/Unknown_Provider
+--- PASS: TestNewLLMProvider (0.00s)
+    --- PASS: TestNewLLMProvider/Gemini_Provider (0.00s)
+    --- PASS: TestNewLLMProvider/OpenAI-Compatible_(Groq)_Provider (0.00s)
+    --- PASS: TestNewLLMProvider/Perplexity_Provider (0.00s)
+    --- PASS: TestNewLLMProvider/Unknown_Provider (0.00s)
+=== RUN   TestNewTTSProvider
+=== RUN   TestNewTTSProvider/SAPI_Provider
+=== RUN   TestNewTTSProvider/Edge_TTS_Provider
+=== RUN   TestNewTTSProvider/Fish_Audio_Provider
+=== RUN   TestNewTTSProvider/Azure_Speech_Provider
+=== RUN   TestNewTTSProvider/Unknown_Provider
+--- PASS: TestNewTTSProvider (0.00s)
+    --- PASS: TestNewTTSProvider/SAPI_Provider (0.00s)
+    --- PASS: TestNewTTSProvider/Edge_TTS_Provider (0.00s)
+    --- PASS: TestNewTTSProvider/Fish_Audio_Provider (0.00s)
+    --- PASS: TestNewTTSProvider/Azure_Speech_Provider (0.00s)
+    --- PASS: TestNewTTSProvider/Unknown_Provider (0.00s)
+=== RUN   TestOrchestratorHiddenPOIs
+=== RUN   TestOrchestratorHiddenPOIs/assignBeaconColor_should_return_early_for_hidden_POI
+=== RUN   TestOrchestratorHiddenPOIs/assignBeaconColor_should_assign_color_for_normal_POI
+2026/03/04 12:53:48 INFO Orchestrator: Assigned beacon color to POI poi=Q2 color=yellow hex=#E9C46A
+--- PASS: TestOrchestratorHiddenPOIs (0.00s)
+    --- PASS: TestOrchestratorHiddenPOIs/assignBeaconColor_should_return_early_for_hidden_POI (0.00s)
+    --- PASS: TestOrchestratorHiddenPOIs/assignBeaconColor_should_assign_color_for_normal_POI (0.00s)
+=== RUN   TestOrchestratorPlayFeature
+--- PASS: TestOrchestratorPlayFeature (0.00s)
+=== RUN   TestLatencyTracking
+--- PASS: TestLatencyTracking (0.00s)
+=== RUN   TestOrchestrator_CurrentDuration
+=== RUN   TestOrchestrator_CurrentDuration/POI_Narrative_with_duration
+=== RUN   TestOrchestrator_CurrentDuration/Debriefing_Narrative_with_duration
+--- PASS: TestOrchestrator_CurrentDuration (0.10s)
+    --- PASS: TestOrchestrator_CurrentDuration/POI_Narrative_with_duration (0.05s)
+    --- PASS: TestOrchestrator_CurrentDuration/Debriefing_Narrative_with_duration (0.05s)
+=== RUN   TestOrchestrator_SetPlaybackState_Defensive
+=== RUN   TestOrchestrator_SetPlaybackState_Defensive/No_extension
+=== RUN   TestOrchestrator_SetPlaybackState_Defensive/Existing_extension
+=== RUN   TestOrchestrator_SetPlaybackState_Defensive/Different_extension
+=== RUN   TestOrchestrator_SetPlaybackState_Defensive/Uppercase_extension
+--- PASS: TestOrchestrator_SetPlaybackState_Defensive (0.00s)
+    --- PASS: TestOrchestrator_SetPlaybackState_Defensive/No_extension (0.00s)
+    --- PASS: TestOrchestrator_SetPlaybackState_Defensive/Existing_extension (0.00s)
+    --- PASS: TestOrchestrator_SetPlaybackState_Defensive/Different_extension (0.00s)
+    --- PASS: TestOrchestrator_SetPlaybackState_Defensive/Uppercase_extension (0.00s)
+=== RUN   TestBeaconNotClearedOnPlayback
+--- PASS: TestBeaconNotClearedOnPlayback (6.00s)
+=== RUN   TestOrchestrator_Pause
+--- PASS: TestOrchestrator_Pause (0.00s)
+=== RUN   TestOrchestrator_ReplayLast
+=== RUN   TestOrchestrator_ReplayLast/Replay_last_POI_success
+=== RUN   TestOrchestrator_ReplayLast/Audio_replay_fails
+=== RUN   TestOrchestrator_ReplayLast/Replay_with_no_state_(fallback)
+--- PASS: TestOrchestrator_ReplayLast (0.00s)
+    --- PASS: TestOrchestrator_ReplayLast/Replay_last_POI_success (0.00s)
+    --- PASS: TestOrchestrator_ReplayLast/Audio_replay_fails (0.00s)
+    --- PASS: TestOrchestrator_ReplayLast/Replay_with_no_state_(fallback) (0.00s)
+=== RUN   TestAIService_HandleTTSError
+2026/03/04 12:53:54 ERROR Narrator: TTS synthesis failed error="rate limited"
+2026/03/04 12:53:54 WARN Narrator: Activating edge-tts fallback for this session
+2026/03/04 12:53:54 WARN Narrator: Skipping current POI (script incompatible with fallback TTS). Will retry with next POI.
+--- PASS: TestAIService_HandleTTSError (0.00s)
+=== RUN   TestAIService_PlayEssay
+=== RUN   TestAIService_PlayEssay/Happy_Path
+2026/03/04 12:53:54 INFO AI Narrator service started
+2026/03/04 12:53:54 INFO Narrator: Triggering Essay
+2026/03/04 12:53:54 INFO EssayHandler: Topic pool exhausted. Starting new rotation cycle. topics=1
+2026/03/04 12:53:54 INFO Narrator: Narrating Essay topic="History of Flight"
+2026/03/04 12:53:54 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:54 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:54 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_essay_t1_1772625234894473100.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_PlayEssay/LLM_Error
+2026/03/04 12:53:54 INFO AI Narrator service started
+2026/03/04 12:53:54 INFO Narrator: Triggering Essay
+2026/03/04 12:53:54 INFO EssayHandler: Topic pool exhausted. Starting new rotation cycle. topics=1
+2026/03/04 12:53:54 INFO Narrator: Narrating Essay topic="History of Flight"
+2026/03/04 12:53:54 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:54 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:54 ERROR Narrator: Essay generation failed error="LLM generation failed: llm fail"
+--- PASS: TestAIService_PlayEssay (0.21s)
+    --- PASS: TestAIService_PlayEssay/Happy_Path (0.10s)
+    --- PASS: TestAIService_PlayEssay/LLM_Error (0.10s)
+=== RUN   TestAIService_PlayEssay_NoHandler
+--- PASS: TestAIService_PlayEssay_NoHandler (0.00s)
+=== RUN   TestAIService_AnnouncementFallback
+=== RUN   TestAIService_AnnouncementFallback/Letsgo_uses_specific_profile_if_available
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235095971100.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_AnnouncementFallback/Letsgo_falls_back_to_announcements
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235099042000.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_AnnouncementFallback/Briefing_falls_back_to_announcements
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235101100800.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_AnnouncementFallback/Debrief_is_NOT_an_announcement_(no_fallback)
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235103152600.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_AnnouncementFallback/Screenshot_is_NOT_an_announcement_(no_fallback)
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235105205600.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_AnnouncementFallback/Border_is_NOT_an_announcement_(no_fallback)
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235107268200.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_AnnouncementFallback (0.01s)
+    --- PASS: TestAIService_AnnouncementFallback/Letsgo_uses_specific_profile_if_available (0.00s)
+    --- PASS: TestAIService_AnnouncementFallback/Letsgo_falls_back_to_announcements (0.00s)
+    --- PASS: TestAIService_AnnouncementFallback/Briefing_falls_back_to_announcements (0.00s)
+    --- PASS: TestAIService_AnnouncementFallback/Debrief_is_NOT_an_announcement_(no_fallback) (0.00s)
+    --- PASS: TestAIService_AnnouncementFallback/Screenshot_is_NOT_an_announcement_(no_fallback) (0.00s)
+    --- PASS: TestAIService_AnnouncementFallback/Border_is_NOT_an_announcement_(no_fallback) (0.00s)
+=== RUN   TestScreenshotCoordinatesPersistence
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235109827200.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestScreenshotCoordinatesPersistence (0.00s)
+=== RUN   TestAIService_GenerateNarrative_ProfileAndWords
+=== RUN   TestAIService_GenerateNarrative_ProfileAndWords/POI_Narration_-_Uses_narration_profile
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235112413400.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_GenerateNarrative_ProfileAndWords/Screenshot_Analysis_-_Uses_screenshot_profile_and_image
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235114492000.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_GenerateNarrative_ProfileAndWords/Regional_Essay_-_Uses_essay_profile
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235116547700.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_GenerateNarrative_ProfileAndWords/Flight_Debrief_-_Uses_debrief_profile
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235118607600.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_GenerateNarrative_ProfileAndWords (0.01s)
+    --- PASS: TestAIService_GenerateNarrative_ProfileAndWords/POI_Narration_-_Uses_narration_profile (0.00s)
+    --- PASS: TestAIService_GenerateNarrative_ProfileAndWords/Screenshot_Analysis_-_Uses_screenshot_profile_and_image (0.00s)
+    --- PASS: TestAIService_GenerateNarrative_ProfileAndWords/Regional_Essay_-_Uses_essay_profile (0.00s)
+    --- PASS: TestAIService_GenerateNarrative_ProfileAndWords/Flight_Debrief_-_Uses_debrief_profile (0.00s)
+=== RUN   TestAIService_GenerateNarrative_RescueAvoidance
+=== RUN   TestAIService_GenerateNarrative_RescueAvoidance/No_Rescue_when_within_buffer
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235122210300.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_GenerateNarrative_RescueAvoidance/Rescue_triggered_when_significantly_over
+2026/03/04 12:53:55 WARN Narrator: Script exceeded limit, attempting rescue requested=10 actual=21
+2026/03/04 12:53:55 INFO Narrator: Script rescue successful original=21 rescued=2
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235124773100.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_GenerateNarrative_RescueAvoidance/TwoPass_Excludes_Rescue
+2026/03/04 12:53:55 INFO Narrator: Second-pass refinement successful
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235126833000.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_GenerateNarrative_RescueAvoidance (0.01s)
+    --- PASS: TestAIService_GenerateNarrative_RescueAvoidance/No_Rescue_when_within_buffer (0.00s)
+    --- PASS: TestAIService_GenerateNarrative_RescueAvoidance/Rescue_triggered_when_significantly_over (0.00s)
+    --- PASS: TestAIService_GenerateNarrative_RescueAvoidance/TwoPass_Excludes_Rescue (0.00s)
+=== RUN   TestAIService_GenerateNarrative_GarbageRetry
+2026/03/04 12:53:55 WARN Narrator: LLM produced probable garbage output words=1000 threshold=20 target=10 input_words=500
+2026/03/04 12:53:55 WARN Narrator: Second-pass failed or produced garbage, retrying with next provider excluded=p1
+2026/03/04 12:53:55 INFO Narrator: Second-pass refinement successful (retry)
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235130433400.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_GenerateNarrative_GarbageRetry (0.00s)
+=== RUN   TestAIService_ExtractTitleFromScript
+=== RUN   TestAIService_ExtractTitleFromScript/Standard_Title
+=== RUN   TestAIService_ExtractTitleFromScript/Markdown_Bold_Title
+=== RUN   TestAIService_ExtractTitleFromScript/Case_Insensitive_Title
+=== RUN   TestAIService_ExtractTitleFromScript/No_Title
+=== RUN   TestAIService_ExtractTitleFromScript/Title_Only
+=== RUN   TestAIService_ExtractTitleFromScript/Indented_Title
+=== RUN   TestAIService_ExtractTitleFromScript/Title_with_asterisk_suffix
+--- PASS: TestAIService_ExtractTitleFromScript (0.00s)
+    --- PASS: TestAIService_ExtractTitleFromScript/Standard_Title (0.00s)
+    --- PASS: TestAIService_ExtractTitleFromScript/Markdown_Bold_Title (0.00s)
+    --- PASS: TestAIService_ExtractTitleFromScript/Case_Insensitive_Title (0.00s)
+    --- PASS: TestAIService_ExtractTitleFromScript/No_Title (0.00s)
+    --- PASS: TestAIService_ExtractTitleFromScript/Title_Only (0.00s)
+    --- PASS: TestAIService_ExtractTitleFromScript/Indented_Title (0.00s)
+    --- PASS: TestAIService_ExtractTitleFromScript/Title_with_asterisk_suffix (0.00s)
+=== RUN   TestAIService_PerformRescueIfNeeded
+=== RUN   TestAIService_PerformRescueIfNeeded/No_Rescue_Needed
+=== RUN   TestAIService_PerformRescueIfNeeded/Rescue_Not_Possible_(No_limit)
+=== RUN   TestAIService_PerformRescueIfNeeded/Rescue_Successful
+2026/03/04 12:53:55 WARN Narrator: Script exceeded limit, attempting rescue requested=10 actual=24
+2026/03/04 12:53:55 INFO Narrator: Script rescue successful original=24 rescued=3
+=== RUN   TestAIService_PerformRescueIfNeeded/Rescue_Produces_Garbage_-_Fallback_to_Original
+=== RUN   TestAIService_PerformRescueIfNeeded/Rescue_Returns_RESCUE_FAILED_-_Fallback_to_Original
+--- PASS: TestAIService_PerformRescueIfNeeded (0.00s)
+    --- PASS: TestAIService_PerformRescueIfNeeded/No_Rescue_Needed (0.00s)
+    --- PASS: TestAIService_PerformRescueIfNeeded/Rescue_Not_Possible_(No_limit) (0.00s)
+    --- PASS: TestAIService_PerformRescueIfNeeded/Rescue_Successful (0.00s)
+    --- PASS: TestAIService_PerformRescueIfNeeded/Rescue_Produces_Garbage_-_Fallback_to_Original (0.00s)
+    --- PASS: TestAIService_PerformRescueIfNeeded/Rescue_Returns_RESCUE_FAILED_-_Fallback_to_Original (0.00s)
+=== RUN   TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider
+=== RUN   TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider/First_attempt_garbage,_retry_succeeds
+2026/03/04 12:53:55 WARN Narrator: Script exceeded limit, attempting rescue requested=5 actual=22
+2026/03/04 12:53:55 WARN Narrator: LLM produced probable garbage output words=200 threshold=10 target=5 input_words=22
+2026/03/04 12:53:55 WARN Narrator: Rescue failed or produced garbage, retrying with next provider excluded=provider1
+2026/03/04 12:53:55 INFO Narrator: Script rescue successful (retry) original=22 rescued=3
+=== RUN   TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider/First_attempt_error,_retry_succeeds
+2026/03/04 12:53:55 WARN Narrator: Script exceeded limit, attempting rescue requested=5 actual=22
+2026/03/04 12:53:55 WARN Narrator: Rescue failed or produced garbage, retrying with next provider excluded=provider1
+2026/03/04 12:53:55 INFO Narrator: Script rescue successful (retry) original=22 rescued=3
+=== RUN   TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider/Both_attempts_fail,_falls_back_to_original
+2026/03/04 12:53:55 WARN Narrator: Script exceeded limit, attempting rescue requested=5 actual=22
+2026/03/04 12:53:55 WARN Narrator: LLM produced probable garbage output words=200 threshold=10 target=5 input_words=22
+2026/03/04 12:53:55 WARN Narrator: Rescue failed or produced garbage, retrying with next provider excluded=provider1
+2026/03/04 12:53:55 WARN Narrator: LLM produced probable garbage output words=200 threshold=10 target=5 input_words=22
+2026/03/04 12:53:55 ERROR Narrator: Script rescue failed consistently, using original error=<nil>
+=== RUN   TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider/No_provider_label_in_context,_skips_retry
+2026/03/04 12:53:55 WARN Narrator: Script exceeded limit, attempting rescue requested=5 actual=22
+2026/03/04 12:53:55 WARN Narrator: LLM produced probable garbage output words=200 threshold=10 target=5 input_words=22
+2026/03/04 12:53:55 ERROR Narrator: Script rescue failed consistently, using original error=<nil>
+--- PASS: TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider (0.00s)
+    --- PASS: TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider/First_attempt_garbage,_retry_succeeds (0.00s)
+    --- PASS: TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider/First_attempt_error,_retry_succeeds (0.00s)
+    --- PASS: TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider/Both_attempts_fail,_falls_back_to_original (0.00s)
+    --- PASS: TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider/No_provider_label_in_context,_skips_retry (0.00s)
+=== RUN   TestAIService_IsGarbage
+=== RUN   TestAIService_IsGarbage/Empty_Output_is_Garbage
+=== RUN   TestAIService_IsGarbage/RESCUE_FAILED_is_Garbage
+=== RUN   TestAIService_IsGarbage/Clean_Output_is_NOT_Garbage
+=== RUN   TestAIService_IsGarbage/Output_Exceeding_Threshold_is_Garbage
+2026/03/04 12:53:55 WARN Narrator: LLM produced probable garbage output words=25 threshold=4 target=10 input_words=3
+=== RUN   TestAIService_IsGarbage/Output_Exceeding_Input_Threshold_is_Garbage
+2026/03/04 12:53:55 WARN Narrator: LLM produced probable garbage output words=30 threshold=7 target=100 input_words=5
+=== RUN   TestAIService_IsGarbage/Output_Within_Reasonable_Limits_is_NOT_Garbage
+=== RUN   TestAIService_IsGarbage/Refinement_with_Significant_Reduction_is_NOT_Garbage
+--- PASS: TestAIService_IsGarbage (0.00s)
+    --- PASS: TestAIService_IsGarbage/Empty_Output_is_Garbage (0.00s)
+    --- PASS: TestAIService_IsGarbage/RESCUE_FAILED_is_Garbage (0.00s)
+    --- PASS: TestAIService_IsGarbage/Clean_Output_is_NOT_Garbage (0.00s)
+    --- PASS: TestAIService_IsGarbage/Output_Exceeding_Threshold_is_Garbage (0.00s)
+    --- PASS: TestAIService_IsGarbage/Output_Exceeding_Input_Threshold_is_Garbage (0.00s)
+    --- PASS: TestAIService_IsGarbage/Output_Within_Reasonable_Limits_is_NOT_Garbage (0.00s)
+    --- PASS: TestAIService_IsGarbage/Refinement_with_Significant_Reduction_is_NOT_Garbage (0.00s)
+=== RUN   TestAIService_ConstructNarrative
+--- PASS: TestAIService_ConstructNarrative (0.00s)
+=== RUN   TestAIService_PerformSecondPass
+2026/03/04 12:53:55 INFO Narrator: Second-pass refinement successful
+2026/03/04 12:53:55 INFO Narrator: Second-pass refinement successful
+2026/03/04 12:53:55 WARN Narrator: Second-pass refinement failed consistently, using original script
+2026/03/04 12:53:55 WARN Narrator: Second-pass refinement failed consistently, using original script
+2026/03/04 12:53:55 WARN Narrator: Second-pass failed or produced garbage, retrying with next provider excluded=p1
+2026/03/04 12:53:55 INFO Narrator: Second-pass refinement successful (retry)
+--- PASS: TestAIService_PerformSecondPass (0.00s)
+=== RUN   TestAIService_SynthesizeRetry
+2026/03/04 12:53:55 WARN Narrator: TTS synthesis attempt failed attempt=1 error="transient error" poi=""
+2026/03/04 12:53:55 WARN Narrator: TTS synthesis attempt failed attempt=2 error="transient error" poi=""
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125355_1772625235538910600.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+2026/03/04 12:53:55 WARN Narrator: TTS synthesis attempt failed attempt=1 error="permanent error" poi=""
+2026/03/04 12:53:55 WARN Narrator: TTS synthesis attempt failed attempt=2 error="permanent error" poi=""
+2026/03/04 12:53:55 WARN Narrator: TTS synthesis attempt failed attempt=3 error="permanent error" poi=""
+2026/03/04 12:53:55 ERROR Narrator: TTS synthesis failed error="permanent error"
+2026/03/04 12:53:55 WARN Narrator: Activating edge-tts fallback for this session
+2026/03/04 12:53:55 WARN Narrator: Skipping current POI (script incompatible with fallback TTS). Will retry with next POI.
+--- PASS: TestAIService_SynthesizeRetry (0.80s)
+=== RUN   TestAIService_RescueScript
+--- PASS: TestAIService_RescueScript (0.00s)
+=== RUN   TestAIService_PlayPOI_Constraints
+2026/03/04 12:53:55 INFO Narrator: Manual generation requested poi_id=Q123
+2026/03/04 12:53:55 INFO Narrator: Manual generation requested poi_id=Q789
+--- PASS: TestAIService_PlayPOI_Constraints (0.00s)
+=== RUN   TestAIService_PrepareNextNarrative
+2026/03/04 12:53:55 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:55 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QPrep_1772625235945100700.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_PrepareNextNarrative (0.00s)
+=== RUN   TestOrchestrator_QueueManagement
+--- PASS: TestOrchestrator_QueueManagement (0.00s)
+=== RUN   TestAIService_QueueCallback
+--- PASS: TestAIService_QueueCallback (0.00s)
+=== RUN   TestAIService_ManualOverrides
+--- PASS: TestAIService_ManualOverrides (0.00s)
+=== RUN   TestAIService_RecordNarration
+--- PASS: TestAIService_RecordNarration (0.00s)
+=== RUN   TestAIService_HandleAnnouncementJob
+2026/03/04 12:53:55 ERROR Narrator: Failed to render announcement prompt error="template: no template \"announcement/letsgo.tmpl\" associated with template \"root\"" tmpl=announcement/letsgo.tmpl
+--- PASS: TestAIService_HandleAnnouncementJob (0.00s)
+=== RUN   TestOrchestrator_StateGetters
+--- PASS: TestOrchestrator_StateGetters (0.00s)
+=== RUN   TestAIService_StateChecks
+--- PASS: TestAIService_StateChecks (0.00s)
+=== RUN   TestAIService_POIBusy
+--- PASS: TestAIService_POIBusy (0.00s)
+=== RUN   TestAIService_StatsAndLatency
+--- PASS: TestAIService_StatsAndLatency (0.00s)
+=== RUN   TestAIService_NarratedCount
+--- PASS: TestAIService_NarratedCount (0.00s)
+=== RUN   TestAIService_PlayPOI
+=== RUN   TestAIService_PlayPOI/Happy_Path
+2026/03/04 12:53:55 INFO AI Narrator service started
+2026/03/04 12:53:55 INFO Narrator: Manual generation requested poi_id=Q1
+2026/03/04 12:53:55 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:55 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:55 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_Q1_1772625235951304400.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_PlayPOI/POI_Not_Found
+2026/03/04 12:53:56 INFO AI Narrator service started
+2026/03/04 12:53:56 INFO Narrator: Manual generation requested poi_id=QMISSING
+2026/03/04 12:53:56 ERROR Narrator: Priority job failed - POI not found poi_id=QMISSING
+=== RUN   TestAIService_PlayPOI/LLM_Failure
+2026/03/04 12:53:56 INFO AI Narrator service started
+2026/03/04 12:53:56 INFO Narrator: Manual generation requested poi_id=Q2
+2026/03/04 12:53:56 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:56 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:56 ERROR Narrator: Priority generation failed type=poi error="LLM generation failed: llm fail"
+=== RUN   TestAIService_PlayPOI/TTS_Failure
+2026/03/04 12:53:56 INFO AI Narrator service started
+2026/03/04 12:53:56 INFO Narrator: Manual generation requested poi_id=Q3
+2026/03/04 12:53:56 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:56 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:56 WARN Narrator: TTS synthesis attempt failed attempt=1 error="tts fail" poi=P3
+=== RUN   TestAIService_PlayPOI/Wikipedia_Fetch
+2026/03/04 12:53:56 WARN Narrator: TTS synthesis attempt failed attempt=2 error="tts fail" poi=P3
+2026/03/04 12:53:56 INFO AI Narrator service started
+2026/03/04 12:53:56 INFO Narrator: Manual generation requested poi_id=QWiki
+2026/03/04 12:53:56 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:56 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:56 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QWiki_1772625236752656800.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+2026/03/04 12:53:56 WARN Narrator: TTS synthesis attempt failed attempt=3 error="tts fail" poi=P3
+2026/03/04 12:53:56 ERROR Narrator: TTS synthesis failed error="tts fail"
+2026/03/04 12:53:56 ERROR Narrator: Priority generation failed type=poi error="TTS synthesis failed after retries: tts fail"
+--- PASS: TestAIService_PlayPOI (1.00s)
+    --- PASS: TestAIService_PlayPOI/Happy_Path (0.20s)
+    --- PASS: TestAIService_PlayPOI/POI_Not_Found (0.20s)
+    --- PASS: TestAIService_PlayPOI/LLM_Failure (0.20s)
+    --- PASS: TestAIService_PlayPOI/TTS_Failure (0.20s)
+    --- PASS: TestAIService_PlayPOI/Wikipedia_Fetch (0.20s)
+=== RUN   TestAIService_PlayPOI_Automated
+=== RUN   TestAIService_PlayPOI_Automated/Happy_Path_-_Automated
+2026/03/04 12:53:56 INFO AI Narrator service started
+2026/03/04 12:53:56 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:56 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:56 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QAuto1_1772625236955208400.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_PlayPOI_Automated/LLM_Failure_-_Automated
+2026/03/04 12:53:57 INFO AI Narrator service started
+2026/03/04 12:53:57 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Narrator: Generation failed poi_id=QAuto2 error="LLM generation failed: llm timeout"
+--- PASS: TestAIService_PlayPOI_Automated (0.10s)
+    --- PASS: TestAIService_PlayPOI_Automated/Happy_Path_-_Automated (0.05s)
+    --- PASS: TestAIService_PlayPOI_Automated/LLM_Failure_-_Automated (0.05s)
+=== RUN   TestAIService_ContextAndNav_V2
+=== RUN   TestAIService_ContextAndNav_V2/With_Nav_Instruction
+2026/03/04 12:53:57 INFO AI Narrator service started
+2026/03/04 12:53:57 INFO Narrator: Manual generation requested poi_id=QNav
+2026/03/04 12:53:57 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QNav_1772625237057913600.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_ContextAndNav_V2/With_Recent_POIs
+2026/03/04 12:53:57 INFO AI Narrator service started
+2026/03/04 12:53:57 INFO Narrator: Manual generation requested poi_id=QCurrent
+2026/03/04 12:53:57 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QCurrent_1772625237160614900.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_ContextAndNav_V2 (0.20s)
+    --- PASS: TestAIService_ContextAndNav_V2/With_Nav_Instruction (0.10s)
+    --- PASS: TestAIService_ContextAndNav_V2/With_Recent_POIs (0.10s)
+=== RUN   TestAIService_Lifecycle
+2026/03/04 12:53:57 INFO AI Narrator service started
+2026/03/04 12:53:57 INFO AI Narrator service stopped
+--- PASS: TestAIService_Lifecycle (0.00s)
+=== RUN   TestAIService_NavUnits
+=== RUN   TestAIService_NavUnits/Imperial_Default_(>1_mile)
+2026/03/04 12:53:57 INFO AI Narrator service started
+2026/03/04 12:53:57 INFO Narrator: Manual generation requested poi_id=Q8080
+2026/03/04 12:53:57 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125357_1772625237264596100.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_NavUnits/Metric_(>1_km)
+2026/03/04 12:53:57 INFO AI Narrator service started
+2026/03/04 12:53:57 INFO Narrator: Manual generation requested poi_id=Q8080
+2026/03/04 12:53:57 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_gen_125357_1772625237368381800.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_NavUnits (0.21s)
+    --- PASS: TestAIService_NavUnits/Imperial_Default_(>1_mile) (0.10s)
+    --- PASS: TestAIService_NavUnits/Metric_(>1_km) (0.10s)
+=== RUN   TestAIService_GeneratePlay
+2026/03/04 12:53:57 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QGen_1772625237470612000.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_GeneratePlay (0.00s)
+=== RUN   TestAIService_SummarizeAndLogEvent
+--- PASS: TestAIService_SummarizeAndLogEvent (0.00s)
+=== RUN   TestAIService_LatencyTracking
+2026/03/04 12:53:57 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QLatency_1772625237527306000.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_LatencyTracking (0.05s)
+=== RUN   TestAIService_PipelineFlow
+=== RUN   TestAIService_PipelineFlow/Happy_Path:_Consumes_Staged
+2026/03/04 12:53:57 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QStaged_1772625237530979800.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+2026/03/04 12:53:57 INFO Narrator: Manual generation requested poi_id=QStaged
+2026/03/04 12:53:57 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QStaged_1772625237533065200.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+=== RUN   TestAIService_PipelineFlow/No_Staged_Data_->_Generates_Fresh
+2026/03/04 12:53:57 INFO Narrator: Manual generation requested poi_id=QFresh
+2026/03/04 12:53:57 ERROR Failed to render units template template=units/imperial.tmpl error="template: no template \"units/imperial.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to render TTS template template=tts/edge-tts.tmpl error="template: no template \"tts/edge-tts.tmpl\" associated with template \"root\""
+2026/03/04 12:53:57 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QFresh_1772625237633590300.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_PipelineFlow (0.20s)
+    --- PASS: TestAIService_PipelineFlow/Happy_Path:_Consumes_Staged (0.10s)
+    --- PASS: TestAIService_PipelineFlow/No_Staged_Data_->_Generates_Fresh (0.10s)
+=== RUN   TestAIService_ScriptValidation
+2026/03/04 12:53:57 WARN Narrator: Script exceeded limit, attempting rescue requested=200 actual=1000
+2026/03/04 12:53:57 WARN Narrator: LLM produced probable garbage output words=1000 threshold=400 target=200 input_words=1000
+2026/03/04 12:53:57 ERROR Narrator: Script rescue failed consistently, using original error=<nil>
+2026/03/04 12:53:57 ERROR Failed to decode audio file path=C:\Users\aurel\AppData\Local\Temp\phileas_narration_QLong_1772625237736170300.mp3 error="wav: missing RIFF at the beginning > \x00\x00\x00\x00"
+--- PASS: TestAIService_ScriptValidation (0.00s)
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/announcement/border.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/announcement/briefing.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/announcement/debriefing.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/announcement/letsgo.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/announcement/screenshot.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/category/aerodrome.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/category/city.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/category/nature.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/context/accent.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/context/ontological.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/context/pregrounding.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/context/rescue_script.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/context/second_pass.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/context/thumbnail_selector.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/context/topographical.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/narrator/essay.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/narrator/event_summary.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/narrator/readout.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/narrator/script.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/narrator/script_full.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/narrator/script_stub.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/tts/azure.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/tts/edge-tts.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/tts/fish-audio.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/units/hybrid.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/units/imperial.tmpl
+=== RUN   TestAllProductionTemplatesExecuteSuccessfully/units/metric.tmpl
+--- PASS: TestAllProductionTemplatesExecuteSuccessfully (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/announcement/border.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/announcement/briefing.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/announcement/debriefing.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/announcement/letsgo.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/announcement/screenshot.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/category/aerodrome.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/category/city.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/category/nature.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/context/accent.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/context/ontological.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/context/pregrounding.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/context/rescue_script.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/context/second_pass.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/context/thumbnail_selector.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/context/topographical.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/narrator/essay.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/narrator/event_summary.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/narrator/readout.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/narrator/script.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/narrator/script_full.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/narrator/script_stub.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/tts/azure.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/tts/edge-tts.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/tts/fish-audio.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/units/hybrid.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/units/imperial.tmpl (0.00s)
+    --- PASS: TestAllProductionTemplatesExecuteSuccessfully/units/metric.tmpl (0.00s)
+=== RUN   TestAIService_TTSFallback
+2026/03/04 12:53:57 WARN Narrator: Activating edge-tts fallback for this session
+--- PASS: TestAIService_TTSFallback (0.00s)
+=== RUN   TestAIService_SkipCooldown
+--- PASS: TestAIService_SkipCooldown (0.00s)
+=== RUN   TestStubService_Lifecycle
+2026/03/04 12:53:57 INFO Narrator stub service started
+2026/03/04 12:53:57 INFO Narrator stub service stopped
+--- PASS: TestStubService_Lifecycle (0.00s)
+=== RUN   TestStubService_PlayPOI
+2026/03/04 12:53:57 INFO Narrator stub: manual play requested poi_id=Q1
+--- PASS: TestStubService_PlayPOI (0.00s)
+=== RUN   TestStubService_PlayEssay
+2026/03/04 12:53:57 INFO Narrator stub: essay play requested
+--- PASS: TestStubService_PlayEssay (0.00s)
+=== RUN   TestStubService_Cooldown
+--- PASS: TestStubService_Cooldown (0.00s)
+=== RUN   TestStubService_Stats
+--- PASS: TestStubService_Stats (0.00s)
+=== RUN   TestStubService_Getters
+--- PASS: TestStubService_Getters (0.00s)
+=== RUN   TestNarrator_Integration
+    integration_test.go:102: Successfully rendered template. Preview:
+        
+        ## IDENTITY
+        You are a tour guide named Phileas that tells passengers in a small aircraft about po...
+--- PASS: TestNarrator_Integration (0.00s)
+PASS
+ok  	phileasgo/pkg/narrator	9.008s

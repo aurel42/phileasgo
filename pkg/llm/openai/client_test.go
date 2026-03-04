@@ -246,3 +246,63 @@ func TestOpenAI_NoChoices(t *testing.T) {
 		t.Errorf("expected no choices error, got %v", err)
 	}
 }
+
+func TestOpenAI_ReasonerConstraints(t *testing.T) {
+	var capturedFmt string
+	var capturedTemp float32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req Request
+		json.NewDecoder(r.Body).Decode(&req)
+		if req.ResponseFormat != nil {
+			capturedFmt = req.ResponseFormat.Type
+		} else {
+			capturedFmt = "none"
+		}
+		capturedTemp = req.Temperature
+
+		w.Write([]byte(`{"choices":[{"message":{"content":"{\"result\": \"ok\"}"}}]}`))
+	}))
+	defer server.Close()
+
+	rc := request.New(nil, tracker.New(), request.ClientConfig{})
+	cfg := config.ProviderConfig{
+		Key: "key",
+		Profiles: map[string]string{
+			"std":      "gpt-4o",
+			"reasoner": "o1-mini",
+		},
+	}
+	c, _ := NewClient(cfg, server.URL, rc)
+
+	// Case 1: Standard model
+	var target struct{ Result string }
+	_ = c.GenerateJSON(context.Background(), "std", "prompt", &target)
+	if capturedFmt != "json_object" {
+		t.Errorf("expected json_object format for std model, got %s", capturedFmt)
+	}
+
+	// Case 2: Reasoner model in GenerateJSON
+	_ = c.GenerateJSON(context.Background(), "reasoner", "prompt", &target)
+	if capturedFmt != "none" {
+		t.Errorf("expected no response format for reasoner, got %s", capturedFmt)
+	}
+	if capturedTemp != 1.0 {
+		t.Errorf("expected temperature 1.0 for reasoner, got %f", capturedTemp)
+	}
+
+	// Create a valid PNG image for vision tests
+	tmpFile, _ := os.CreateTemp("", "test_img_reasoner_*.png")
+	defer os.Remove(tmpFile.Name())
+	_ = png.Encode(tmpFile, image.NewRGBA(image.Rect(0, 0, 10, 10)))
+	tmpFile.Close()
+
+	// Case 3: Reasoner model in GenerateImageJSON
+	_ = c.GenerateImageJSON(context.Background(), "reasoner", "prompt", tmpFile.Name(), &target)
+	if capturedFmt != "none" {
+		t.Errorf("expected no response format for vision reasoner, got %s", capturedFmt)
+	}
+	if capturedTemp != 1.0 {
+		t.Errorf("expected temperature 1.0 for vision reasoner, got %f", capturedTemp)
+	}
+}

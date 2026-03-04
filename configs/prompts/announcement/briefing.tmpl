@@ -12,7 +12,8 @@
 --- WIKIPEDIA ARTICLE END ---
 {{if .PregroundContext}}
 ### ADDITIONAL RESEARCH NOTES
-The following additional context was gathered from current sources. Use these facts to enrich your narration with timely, local flavor not found in the Wikipedia article:
+The following additional context was gathered from current sources. Use these facts to enrich your narration with timely, local flavor not found in the Wikipedia article.
+**IMPORTANT**: Ignore any citations or source markers (e.g., [1], [Source: ...]) found in these notes. Do NOT include them in your output.
 {{.PregroundContext}}
 {{end}}
 
@@ -23,3 +24,14 @@ The following additional context was gathered from current sources. Use these fa
 4. **Length**: Stick to approximately {{ .MaxWords }} words.
 
 {{ .TTSInstructions }}
+
+## OUTPUT FORMAT
+Respond ONLY with a JSON object containing the following fields:
+- `title`: A short, catchy title for this briefing (max 10 words).
+- `script`: The full, clean narration text ready for TTS.
+
+### EXAMPLE
+{
+  "title": "Welcome to London Heathrow",
+  "script": "Good afternoon, everyone. This is Phileas, your tour guide..."
+}

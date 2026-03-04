@@ -134,6 +134,11 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 	return "", fmt.Errorf("perplexity sonar does not support image input")
 }
 
+// GenerateImageJSON is not supported by Perplexity Sonar.
+func (c *Client) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
+	return fmt.Errorf("perplexity sonar does not support image input")
+}
+
 func (c *Client) HasProfile(name string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

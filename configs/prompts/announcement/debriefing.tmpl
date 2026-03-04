@@ -10,11 +10,18 @@ We have just landed. Please provide a warm, reflective summary of our journey.
 {{.TripSummary}}
 -------------------
 
-## INSTRUCTIONS
-1. **Reflect**: Acknowledge our safe arrival at our destination.
-2. **Review**: Reflect on the key places we visited and the themes we discovered. Use the summary to provide a cohesive narrative.
-3. **Tone**: Be satisfying and conclusive, like the end of a great travel documentary.
-4. **Conclusion**: End with a friendly sign-off, inviting the traveler to fly with Phileas again.
-5. **Length**: Stick to approximately {{.MaxWords}} words.
+### TASK
+Provide a satisfying, conclusive summary of the journey (approx. {{.MaxWords}} words). End with a friendly sign-off.
+
+### OUTPUT FORMAT
+Respond ONLY with a JSON object containing the following fields:
+- `title`: A conclusive title for this journey.
+- `script`: The reflective narration text. Use the language: {{.Language_name}} ({{.Language_code}}).
+
+### EXAMPLE
+{
+  "title": "A Journey Over the Italian Alps",
+  "script": "What a magnificent journey it has been. From the peaks of the Alps to the coast of Sicily, we've seen it all. Thank you for flying with us."
+}
 
 {{.TTSInstructions}}

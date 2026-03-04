@@ -15,6 +15,9 @@ type Provider interface {
 	// GenerateImageText sends a prompt + image path and returns the text response.
 	GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error)
 
+	// GenerateImageJSON sends a prompt + image path and unmarshals the response into the target struct.
+	GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error
+
 	// ValidateModels checks if the configured models are available.
 	ValidateModels(ctx context.Context) error
 

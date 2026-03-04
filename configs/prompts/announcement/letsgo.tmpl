@@ -3,9 +3,17 @@
 
 ## TAKE-OFF REACTION
 You are aboard an aircraft that has just lifted off the ground.
-React to the take-off with a very short, enthusiastic exclamation suitable for your persona.
-Limit the response to 10 words or less.
-- **Examples**: "Let's go!", "Woohoo!", "Up we go!"
-- **Target**: Under 10 words.
+React to the take-off with a very short (under 10 words), enthusiastic exclamation suitable for your persona.
+
+### OUTPUT FORMAT
+Respond ONLY with a JSON object containing the following fields:
+- `title`: "Take-off Reaction".
+- `script`: The enthusiastic exclamation. Use the language: {{.Language_name}} ({{.Language_code}}).
+
+### EXAMPLE
+{
+  "title": "Take-off Reaction",
+  "script": "And we are off! Adventure awaits us in the skies!"
+}
 
 {{.TTSInstructions}}

@@ -79,14 +79,24 @@ func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var capturedProfile string
 			mockLLM := &MockLLM{
-				Response: "TITLE: Mock Title\nMock narration content.",
-				GenerateTextFunc: func(ctx context.Context, name, prompt string) (string, error) {
+				Response: `{"title": "Mock Title", "script": "Mock narration content."}`,
+				GenerateJSONFunc: func(ctx context.Context, name, prompt string, target any) error {
 					capturedProfile = name
-					return "TITLE: Mock Title\nMock narration content.", nil
+					res := target.(*model.GenerationResponse)
+					res.Title = "Mock Title"
+					res.Script = "Mock narration content."
+					return nil
+				},
+				GenerateImageJSONFunc: func(ctx context.Context, name, prompt, imagePath string, target any) error {
+					capturedProfile = name
+					res := target.(*model.GenerationResponse)
+					res.Title = "Mock Title"
+					res.Script = "Mock narration content."
+					return nil
 				},
 				GenerateImageTextFunc: func(ctx context.Context, name, prompt, imagePath string) (string, error) {
 					capturedProfile = name
-					return "TITLE: Mock Title\nMock narration content.", nil
+					return "Mock narration content.", nil
 				},
 			}
 
@@ -140,7 +150,7 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 		// Target 50, response 60 (well within +30% buffer)
 		longResponse := "This is a response that has exactly twelve words in it now." // 12 words
 		mockLLM := &MockLLM{
-			Response: "TITLE: Title\n" + longResponse,
+			Response: `{"title": "Title", "script": "` + longResponse + `"}`,
 		}
 		svc := &AIService{
 			cfg:        cfg,
@@ -174,12 +184,17 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 		// Target 10, response 20 (+100% over)
 		veryLongResponse := "This is a much longer response that definitely exceeds the ten word limit plus the thirty percent buffer that we have." // 22 words
 		mockLLM := &MockLLM{
-			Response: "TITLE: Title\n" + veryLongResponse,
-			GenerateTextFunc: func(ctx context.Context, name, prompt string) (string, error) {
+			Response: `{"title": "Title", "script": "` + veryLongResponse + `"}`,
+			GenerateJSONFunc: func(ctx context.Context, name, prompt string, target any) error {
+				res := target.(*model.GenerationResponse)
 				if name == "script_rescue" {
-					return "TITLE: Title\nShortened response.", nil
+					res.Title = "Title"
+					res.Script = "Shortened response."
+					return nil
 				}
-				return "TITLE: Title\n" + veryLongResponse, nil
+				res.Title = "Title"
+				res.Script = veryLongResponse
+				return nil
 			},
 		}
 		svc := &AIService{
@@ -222,26 +237,31 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 		veryLongResponse := "This is a much longer response that definitely exceeds the ten word limit plus the thirty percent buffer that we have." // 22 words
 
 		mockLLM := &MockLLM{
-			GenerateTextFunc: func(ctx context.Context, name, prompt string) (string, error) {
+			GenerateJSONFunc: func(ctx context.Context, name, prompt string, target any) error {
+				res := target.(*model.GenerationResponse)
 				// 1. Initial Generation (narration)
 				if name == "narration" {
-					return "TITLE: Title\n" + veryLongResponse, nil
+					res.Title = "Title"
+					res.Script = veryLongResponse
+					return nil
 				}
 
 				// 2. Second Pass or Rescue?
 				// Rescue template has "Rescue this:"
 				if strings.Contains(prompt, "Rescue this:") {
 					if name != "script_rescue" {
-						return "", fmt.Errorf("expected script_rescue profile for rescue")
+						return fmt.Errorf("expected script_rescue profile for rescue")
 					}
-					return "", context.DeadlineExceeded // Should NOT happen
+					return context.DeadlineExceeded // Should NOT happen
 				}
 
 				// Second Pass (must also use script_rescue)
 				if name != "script_rescue" {
-					return "", fmt.Errorf("expected script_rescue profile for second pass, got %s", name)
+					return fmt.Errorf("expected script_rescue profile for second pass, got %s", name)
 				}
-				return "Refined script result", nil
+				res.Title = "Title"
+				res.Script = "Refined script result"
+				return nil
 			},
 		}
 
@@ -289,27 +309,31 @@ func TestAIService_GenerateNarrative_GarbageRetry(t *testing.T) {
 
 	var providersCalled []string
 	mockLLM := &MockLLM{
-		GenerateTextFunc: func(ctx context.Context, name, prompt string) (string, error) {
+		GenerateJSONFunc: func(ctx context.Context, name, prompt string, target any) error {
 			// Record "current" provider (simulated by label or absence of skip)
 			pLabel, _ := ctx.Value(request.CtxProviderLabel).(string)
 			providersCalled = append(providersCalled, pLabel)
 
+			res := target.(*model.GenerationResponse)
 			if name == "narration" {
-				return garbageResponse, nil
+				res.Script = garbageResponse
+				return nil
 			}
 
 			if name != "script_rescue" {
-				return "", fmt.Errorf("expected script_rescue profile, got %s", name)
+				return fmt.Errorf("expected script_rescue profile, got %s", name)
 			}
 
 			// For second_pass (using script_rescue profile)
 			if excluded, ok := ctx.Value(request.CtxExcludedProviders).([]string); ok && len(excluded) > 0 {
 				// This is the retry call
-				return "Clean refined script", nil
+				res.Script = "Clean refined script"
+				return nil
 			}
 
 			// First attempt at second pass returns EVEN MOAR garbage
-			return strings.Repeat("garbage ", 1000), nil
+			res.Script = strings.Repeat("garbage ", 1000)
+			return nil
 		},
 	}
 

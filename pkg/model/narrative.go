@@ -17,6 +17,12 @@ const (
 	NarrativeTypeBriefing   NarrativeType = "briefing"
 )
 
+// GenerationResponse is the structured format expected from the LLM.
+type GenerationResponse struct {
+	Title  string `json:"title"`
+	Script string `json:"script"`
+}
+
 // Narrative represents a prepared narration ready for playback.
 type Narrative struct {
 	ID                string        `json:"id"`

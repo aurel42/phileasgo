@@ -298,6 +298,62 @@ func (c *Client) Execute(ctx context.Context, oreq Request) (string, error) {
 	return oresp.Choices[0].Message.Content, nil
 }
 
+func (c *Client) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
+	model, err := c.ResolveModel(name)
+	if err != nil {
+		return err
+	}
+
+	data, mimeType, err := imageutil.PrepareForLLM(imagePath)
+	if err != nil {
+		return fmt.Errorf("failed to prepare image: %w", err)
+	}
+
+	b64Data := base64.StdEncoding.EncodeToString(data)
+	dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, b64Data)
+
+	// OpenAI-compatible providers require "json" in the prompt for json_object mode.
+	if !strings.Contains(strings.ToLower(prompt), "json") {
+		prompt += " Respond in JSON."
+	}
+
+	var temp float32 = 0.1
+	var respFmt *ResponseFormat = &ResponseFormat{Type: "json_object"}
+
+	if isReasoner(model) {
+		temp = 1.0
+		respFmt = nil // Reasoners don't support json_object mode well
+	}
+
+	req := Request{
+		Model: model,
+		Messages: []Message{
+			{
+				Role: "user",
+				Content: []ContentPart{
+					{Type: "text", Text: prompt},
+					{Type: "image_url", ImageURL: &ImageURLContent{URL: dataURL}},
+				},
+			},
+		},
+		ResponseFormat: respFmt,
+		Temperature:    temp,
+	}
+
+	respText, err := c.Execute(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	respText = llm.CleanJSONBlock(respText)
+
+	if err := json.Unmarshal([]byte(respText), target); err != nil {
+		return fmt.Errorf("failed to unmarshal openai vision json: %w (raw: %s)", err, respText)
+	}
+
+	return nil
+}
+
 func (c *Client) HasProfile(name string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -317,5 +373,7 @@ func (c *Client) ResolveModel(intent string) (string, error) {
 
 func isReasoner(model string) bool {
 	m := strings.ToLower(model)
-	return strings.Contains(m, "reasoner") || strings.Contains(m, "r1")
+	return strings.Contains(m, "reasoner") || strings.Contains(m, "r1") ||
+		strings.HasPrefix(m, "o1-") || strings.HasPrefix(m, "o3-") ||
+		m == "o1" || m == "o3"
 }

@@ -1,8 +1,11 @@
 ﻿# Changelog
 
+## v0.3.231 (2026-03-04)
+- **Fix**: Prevented AI meta-commentary from bleeding into spoken audio recordings.
+- **Fix**: Fixed overly strict length validation that caused narrations to incorrectly revert to their unrefined, fallback scripts.
+
 ## v0.3.230 (2026-03-02)
 - **Fix**: Fixed the map viewport occasionally snapping to include hidden geographic features during narration.
-- **Improvement**: Significantly increased test coverage and reliability for core POI management and beacon signaling.
  
 ## v0.3.229 (2026-03-01)
 - **Fix**: Fixed leaked reasoning appearing in narration scripts when two-pass refinement was rejected for its length.

@@ -12,16 +12,6 @@ import (
 	"phileasgo/pkg/tts"
 )
 
-func (s *AIService) generateScript(ctx context.Context, profile, prompt string) (string, error) {
-	script, err := s.llm.GenerateText(ctx, profile, prompt)
-	if err != nil {
-		return "", err
-	}
-	// Filter markdown artifacts that don't sound good in TTS
-	script = strings.ReplaceAll(script, "*", "")
-	return script, nil
-}
-
 func (s *AIService) synthesizeAudio(ctx context.Context, script, safeID string) (audioPath, format string, err error) {
 	// Use system temp directory instead of persistent cache
 	cacheDir := os.TempDir()

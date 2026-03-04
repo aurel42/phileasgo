@@ -22,8 +22,20 @@
 --- WIKIPEDIA ARTICLE END ---
 {{if .PregroundContext}}
 ### ADDITIONAL RESEARCH NOTES
-The following additional context was gathered from current sources. Use these facts to enrich your narration with timely, local flavor not found in the Wikipedia article:
+The following additional context was gathered from current sources. Use these facts to enrich your narration with timely, local flavor not found in the Wikipedia article.
+**IMPORTANT**: Ignore any citations or source markers (e.g., [1], [Source: ...]) found in these notes. Do NOT include them in your output.
 {{.PregroundContext}}
 {{end}}
 
-{{.TTSInstructions}}
+{{ .TTSInstructions }}
+
+## OUTPUT FORMAT
+Respond ONLY with a JSON object containing the following fields:
+- `title`: A short, catchy title for this narration (max 10 words).
+- `script`: The full, clean narration text ready for TTS.
+
+### EXAMPLE
+{
+  "title": "The Majesty of the Alps",
+  "script": "If you look to your right, you will see the stunning peaks of..."
+}

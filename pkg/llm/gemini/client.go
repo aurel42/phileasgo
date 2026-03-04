@@ -279,6 +279,74 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 	return text, nil
 }
 
+// GenerateImageJSON sends a prompt + image and unmarshals the response into the target struct.
+func (c *Client) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
+	c.mu.RLock()
+	client := c.genaiClient
+	c.mu.RUnlock()
+
+	if client == nil {
+		return fmt.Errorf("gemini client not configured")
+	}
+
+	// Prepare image: crop center 60%, scale to 1080p, convert to JPEG
+	imgData, mimeType, err := imageutil.PrepareForLLM(imagePath)
+	if err != nil {
+		return fmt.Errorf("failed to prepare image: %w", err)
+	}
+
+	// Determine model based on intent/profile
+	modelName, config, err := c.resolveModel(name)
+	if err != nil {
+		return err
+	}
+	config.ResponseMIMEType = "application/json"
+
+	parts := []*genai.Part{
+		{Text: prompt},
+		{InlineData: &genai.Blob{
+			MIMEType: mimeType,
+			Data:     imgData,
+		}},
+	}
+
+	contents := []*genai.Content{
+		{Parts: parts},
+	}
+
+	resp, err := client.Models.GenerateContent(ctx, modelName, contents, config)
+	if err != nil {
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure(c.getLabel())
+		}
+		return fmt.Errorf("generate image json error: %w", err)
+	}
+
+	text, err := getResponseText(resp)
+	if err != nil {
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure(c.getLabel())
+		}
+		return err
+	}
+
+	// Sanitize Markdown JSON blocks if present
+	cleaned := llm.CleanJSONBlock(text)
+
+	if err := json.Unmarshal([]byte(cleaned), target); err != nil {
+		if c.tracker != nil {
+			c.tracker.TrackAPIFailure(c.getLabel())
+		}
+		return fmt.Errorf("failed to unmarshal JSON response (vision): %w. Response: %s", err, cleaned)
+	}
+
+	if c.tracker != nil {
+		c.tracker.TrackAPISuccess(c.getLabel())
+	}
+
+	return nil
+}
+
 func getResponseText(resp *genai.GenerateContentResponse) (string, error) {
 	if len(resp.Candidates) == 0 {
 		return "", fmt.Errorf("no candidates returned")

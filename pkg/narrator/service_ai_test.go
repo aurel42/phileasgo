@@ -277,9 +277,12 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 			mockStore := &MockStore{RecentPOIs: tt.recentPOIs}
 
 			var capturedPrompt string
-			mockLLM.GenerateTextFunc = func(ctx context.Context, name, prompt string) (string, error) {
+			mockLLM.GenerateJSONFunc = func(ctx context.Context, name, prompt string, target any) error {
 				capturedPrompt = prompt
-				return "Script", nil
+				if res, ok := target.(*model.GenerationResponse); ok {
+					res.Script = "Script"
+				}
+				return nil
 			}
 
 			// Need basic required mocks
@@ -299,10 +302,10 @@ func TestAIService_ContextAndNav_V2(t *testing.T) {
 
 			svc.PlayPOI(context.Background(), tt.poi.WikidataID, true, false, &tt.telemetry, "uniform")
 			svc.ProcessGenerationQueue(context.Background())
-			time.Sleep(50 * time.Millisecond) // Wait for go routine
+			time.Sleep(100 * time.Millisecond) // Wait for go routine
 
 			if capturedPrompt == "" {
-				t.Fatalf("GenerateText was not called, capturedPrompt is empty")
+				t.Fatalf("GenerateJSON was not called, capturedPrompt is empty")
 			}
 			for _, expect := range tt.expectInPrompt {
 				if !strings.Contains(capturedPrompt, expect) {
@@ -379,9 +382,12 @@ func TestAIService_NavUnits(t *testing.T) {
 			mockSim := &MockSim{Telemetry: tt.telemetry}
 
 			var capturedPrompt string
-			mockLLM.GenerateTextFunc = func(ctx context.Context, name, prompt string) (string, error) {
+			mockLLM.GenerateJSONFunc = func(ctx context.Context, name, prompt string, target any) error {
 				capturedPrompt = prompt
-				return "Script", nil
+				if res, ok := target.(*model.GenerationResponse); ok {
+					res.Script = "Script"
+				}
+				return nil
 			}
 
 			// Required mocks
@@ -406,10 +412,10 @@ func TestAIService_NavUnits(t *testing.T) {
 
 			svc.PlayPOI(context.Background(), "Q8080", true, false, &tt.telemetry, "uniform")
 			svc.ProcessGenerationQueue(context.Background())
-			time.Sleep(50 * time.Millisecond) // Wait for goroutine
+			time.Sleep(100 * time.Millisecond) // Wait for goroutine
 
 			if capturedPrompt == "" {
-				t.Fatal("Prompt not captured")
+				t.Fatal("Prompt not captured (GenerateJSON)")
 			}
 			for _, expect := range tt.expectInPrompt {
 				if !strings.Contains(capturedPrompt, expect) {
@@ -521,9 +527,11 @@ func TestAIService_LatencyTracking(t *testing.T) {
 	pm, _ := prompts.NewManager(tempDir)
 
 	mockLLM := &MockLLM{Response: "Script"}
-	mockLLM.GenerateTextFunc = func(ctx context.Context, name, prompt string) (string, error) {
+	mockLLM.GenerateJSONFunc = func(ctx context.Context, name, prompt string, target any) error {
 		time.Sleep(50 * time.Millisecond)
-		return "Script", nil
+		res := target.(*model.GenerationResponse)
+		res.Script = "Script"
+		return nil
 	}
 
 	svc := NewAIService(config.NewProvider(&config.Config{}, nil),

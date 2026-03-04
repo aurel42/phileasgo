@@ -47,6 +47,10 @@ func (m *mockLLM) GenerateImageText(ctx context.Context, name, prompt, imagePath
 	return "", nil
 }
 
+func (m *mockLLM) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
+	return m.GenerateJSON(ctx, name, prompt, target)
+}
+
 func (m *mockLLM) HasProfile(profile string) bool {
 	return profile == "regional_categories_ontological" || profile == "regional_categories_topographical"
 }

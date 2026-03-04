@@ -43,13 +43,13 @@ func (s *AIService) GenerateNarrative(ctx context.Context, req *GenerationReques
 	s.logWikipediaContext(req)
 
 	// 3. Generate Script (LLM)
-	script, err := s.generateInitialScript(ctx, req)
+	resp, err := s.generateInitialScript(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	// 3a. Extract Metadata (Title) - BEFORE Rescue/TTS
-	extractedTitle, script := s.extractTitleFromScript(script)
+	script := resp.Script
+	extractedTitle := resp.Title
 
 	// 4. Second Pass Refinement (if enabled)
 	if req.TwoPass {
@@ -106,7 +106,7 @@ func (s *AIService) logWikipediaContext(req *GenerationRequest) {
 	}
 }
 
-func (s *AIService) generateInitialScript(ctx context.Context, req *GenerationRequest) (string, error) {
+func (s *AIService) generateInitialScript(ctx context.Context, req *GenerationRequest) (model.GenerationResponse, error) {
 	profile := string(req.Type)
 	switch req.Type {
 	case model.NarrativeTypePOI:
@@ -119,18 +119,25 @@ func (s *AIService) generateInitialScript(ctx context.Context, req *GenerationRe
 	}
 
 	if req.ImagePath != "" {
-		script, err := s.llm.GenerateImageText(ctx, profile, req.Prompt, req.ImagePath)
+		var res model.GenerationResponse
+		err := s.llm.GenerateImageJSON(ctx, profile, req.Prompt, req.ImagePath, &res)
 		if err != nil {
-			return "", fmt.Errorf("LLM image generation failed: %w", err)
+			slog.Warn("Narrator: LLM image generation (JSON) failed, falling back to text-only", "error", err)
+			script, err := s.llm.GenerateImageText(ctx, profile, req.Prompt, req.ImagePath)
+			if err != nil {
+				return model.GenerationResponse{}, fmt.Errorf("LLM image generation (text) failed: %w", err)
+			}
+			return model.GenerationResponse{Script: strings.ReplaceAll(script, "*", "")}, nil
 		}
-		return strings.ReplaceAll(script, "*", ""), nil
+		return res, nil
 	}
 
-	script, err := s.generateScript(ctx, profile, req.Prompt)
+	var resp model.GenerationResponse
+	err := s.llm.GenerateJSON(ctx, profile, req.Prompt, &resp)
 	if err != nil {
-		return "", fmt.Errorf("LLM generation failed: %w", err)
+		return model.GenerationResponse{}, fmt.Errorf("LLM generation failed: %w", err)
 	}
-	return script, nil
+	return resp, nil
 }
 
 func (s *AIService) performRescueIfNeeded(ctx context.Context, req *GenerationRequest, script string) string {
@@ -148,8 +155,8 @@ func (s *AIService) performRescueIfNeeded(ctx context.Context, req *GenerationRe
 
 	// Attempt 1
 	rescued, err := s.rescueScript(ctx, script, req.MaxWords)
-	if err == nil && !s.isGarbage(req, script, rescued) {
-		slog.Info("Narrator: Script rescue successful", "original", wordCount, "rescued", len(strings.Fields(rescued)))
+	if err == nil && !s.isGarbage(req, script, rescued.Script) {
+		slog.Info("Narrator: Script rescue successful", "original", wordCount, "rescued", len(strings.Fields(rescued.Script)))
 		return s.finalizeRescuedScript(req, rescued)
 	}
 
@@ -158,8 +165,8 @@ func (s *AIService) performRescueIfNeeded(ctx context.Context, req *GenerationRe
 		slog.Warn("Narrator: Rescue failed or produced garbage, retrying with next provider", "excluded", provider)
 		retryCtx := context.WithValue(ctx, request.CtxExcludedProviders, []string{provider})
 		rescued, err = s.rescueScript(retryCtx, script, req.MaxWords)
-		if err == nil && !s.isGarbage(req, script, rescued) {
-			slog.Info("Narrator: Script rescue successful (retry)", "original", wordCount, "rescued", len(strings.Fields(rescued)))
+		if err == nil && !s.isGarbage(req, script, rescued.Script) {
+			slog.Info("Narrator: Script rescue successful (retry)", "original", wordCount, "rescued", len(strings.Fields(rescued.Script)))
 			return s.finalizeRescuedScript(req, rescued)
 		}
 	}
@@ -168,13 +175,11 @@ func (s *AIService) performRescueIfNeeded(ctx context.Context, req *GenerationRe
 	return script
 }
 
-func (s *AIService) finalizeRescuedScript(req *GenerationRequest, rescued string) string {
-	resTitle, resScript := s.extractTitleFromScript(rescued)
-	if resTitle != "" {
-		req.Title = resTitle
-		return resScript
+func (s *AIService) finalizeRescuedScript(req *GenerationRequest, rescued model.GenerationResponse) string {
+	if rescued.Title != "" {
+		req.Title = rescued.Title
 	}
-	return rescued
+	return rescued.Script
 }
 
 func (s *AIService) constructNarrative(req *GenerationRequest, script, extractedTitle, audioPath, format string, startTime time.Time, predicted, duration time.Duration) *model.Narrative {
@@ -220,47 +225,8 @@ func (s *AIService) constructNarrative(req *GenerationRequest, script, extracted
 	return n
 }
 
-// extractTitleFromScript parses the "TITLE:" line from the script if present.
-// Returns the extracted title and the cleaned script (without the title line).
-func (s *AIService) extractTitleFromScript(script string) (title, cleanScript string) {
-	var extractedTitle string
-	lines := strings.Split(script, "\n")
-	if len(lines) > 0 {
-		first := strings.TrimSpace(lines[0])
-
-		// Regex to match "TITLE:" with optional markdown asterisks and flexible spacing
-		// ^[\*]*TITLE\s*:\s*(.*)
-		// We process manually to avoid heavy regex compilation every time if desired,
-		// but regex is cleaner for this complexity.
-		// Let's use simple string manipulation for performance/safety without new imports if possible,
-		// or just strip specific prefixes.
-
-		upper := strings.ToUpper(first)
-		// Remove markdown bold/italic markers from start
-		cleanFirst := strings.TrimLeft(upper, "*_")
-
-		if strings.HasPrefix(cleanFirst, "TITLE") {
-			// Find the colon
-			idx := strings.Index(first, ":")
-			if idx != -1 && idx < 10 { // Colon must be near start
-				extractedTitle = strings.TrimSpace(first[idx+1:])
-				extractedTitle = strings.Trim(extractedTitle, "*_") // Remove trailing markdown
-				extractedTitle = strings.TrimSpace(extractedTitle)  // Remove any spaces that were inside markers
-
-				// Remove the title line
-				if len(lines) > 1 {
-					script = strings.Join(lines[1:], "\n")
-				} else {
-					script = ""
-				}
-			}
-		}
-	}
-	return extractedTitle, strings.TrimSpace(script)
-}
-
 // rescueScript attempts to extract a clean script from contaminated LLM output.
-func (s *AIService) rescueScript(ctx context.Context, script string, maxWords int) (string, error) {
+func (s *AIService) rescueScript(ctx context.Context, script string, maxWords int) (model.GenerationResponse, error) {
 	s.initAssembler()
 	// Fetch TTS instructions for consistent formatting during rescue
 	pd := s.promptAssembler.NewPromptData(s.getSessionState())
@@ -272,21 +238,17 @@ func (s *AIService) rescueScript(ctx context.Context, script string, maxWords in
 		"TTSInstructions": ttsInstr,
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to render rescue prompt: %w", err)
+		return model.GenerationResponse{}, fmt.Errorf("failed to render rescue prompt: %w", err)
 	}
 
 	// Use script_rescue profile (cheap model)
-	rescued, err := s.llm.GenerateText(ctx, "script_rescue", prompt)
+	var resp model.GenerationResponse
+	err = s.llm.GenerateJSON(ctx, "script_rescue", prompt, &resp)
 	if err != nil {
-		return "", fmt.Errorf("rescue LLM call failed: %w", err)
+		return model.GenerationResponse{}, fmt.Errorf("rescue LLM call failed: %w", err)
 	}
 
-	// Check for explicit failure signal
-	if strings.TrimSpace(rescued) == "RESCUE_FAILED" {
-		return "", fmt.Errorf("LLM could not extract valid script")
-	}
-
-	return strings.TrimSpace(rescued), nil
+	return resp, nil
 }
 
 func (s *AIService) performSecondPass(ctx context.Context, req *GenerationRequest, script string) string {
@@ -310,20 +272,21 @@ func (s *AIService) performSecondPass(ctx context.Context, req *GenerationReques
 	}
 
 	// Attempt 1
-	refined, err := s.llm.GenerateText(ctx, "script_rescue", promptStr)
-	if err == nil && !s.isGarbage(req, script, refined) {
+	var resp model.GenerationResponse
+	err = s.llm.GenerateJSON(ctx, "script_rescue", promptStr, &resp)
+	if err == nil && !s.isGarbage(req, script, resp.Script) {
 		slog.Info("Narrator: Second-pass refinement successful")
-		return strings.TrimSpace(refined)
+		return strings.TrimSpace(resp.Script)
 	}
 
 	// Retry once with excluded provider
 	if provider, ok := ctx.Value(request.CtxProviderLabel).(string); ok && provider != "" {
 		slog.Warn("Narrator: Second-pass failed or produced garbage, retrying with next provider", "excluded", provider)
 		retryCtx := context.WithValue(ctx, request.CtxExcludedProviders, []string{provider})
-		refined, err = s.llm.GenerateText(retryCtx, "script_rescue", promptStr)
-		if err == nil && !s.isGarbage(req, script, refined) {
+		err = s.llm.GenerateJSON(retryCtx, "script_rescue", promptStr, &resp)
+		if err == nil && !s.isGarbage(req, script, resp.Script) {
 			slog.Info("Narrator: Second-pass refinement successful (retry)")
-			return strings.TrimSpace(refined)
+			return strings.TrimSpace(resp.Script)
 		}
 	}
 

@@ -2,6 +2,7 @@ package narrator
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"strings"
 	"sync"
@@ -25,7 +26,9 @@ type MockLLM struct {
 	Response              string
 	Err                   error
 	GenerateTextFunc      func(ctx context.Context, name, prompt string) (string, error)
+	GenerateJSONFunc      func(ctx context.Context, name, prompt string, target any) error
 	GenerateImageTextFunc func(ctx context.Context, name, prompt, imagePath string) (string, error)
+	GenerateImageJSONFunc func(ctx context.Context, name, prompt, imagePath string, target any) error
 	HasProfileVal         bool                   // Controls HasProfile return value (defaults to false)
 	HasProfileFunc        func(name string) bool // Function to control HasProfile return value
 
@@ -49,7 +52,58 @@ func (m *MockLLM) GenerateText(ctx context.Context, name, prompt string) (string
 	return resp, err
 }
 func (m *MockLLM) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
+	m.mu.Lock()
+	m.GenerateTextCalls++ // Count JSON calls as well
+	fn := m.GenerateJSONFunc
+	resp := m.Response
+	err := m.Err
+	m.mu.Unlock()
+
+	if fn != nil {
+		return fn(ctx, name, prompt, target)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	// Default: unmarshal the Response string into target
+	if resp != "" {
+		if err := json.Unmarshal([]byte(resp), target); err == nil {
+			return nil
+		}
+
+		// Fallback for legacy tests: extract title manually
+		if res, ok := target.(*model.GenerationResponse); ok {
+			title, clean := mockExtractTitle(resp)
+			res.Title = title
+			res.Script = clean
+			return nil
+		}
+	}
 	return nil
+}
+
+func mockExtractTitle(script string) (string, string) {
+	lines := strings.Split(script, "\n")
+	if len(lines) > 0 {
+		first := strings.TrimSpace(lines[0])
+		upper := strings.ToUpper(first)
+		cleanFirst := strings.TrimLeft(upper, "*_")
+
+		if strings.HasPrefix(cleanFirst, "TITLE") {
+			idx := strings.Index(first, ":")
+			if idx != -1 {
+				title := strings.TrimSpace(first[idx+1:])
+				title = strings.Trim(title, "*_")
+				if len(lines) > 1 {
+					return title, strings.TrimSpace(strings.Join(lines[1:], "\n"))
+				}
+				return title, ""
+			}
+		}
+	}
+	return "", strings.TrimSpace(script)
 }
 func (m *MockLLM) HealthCheck(ctx context.Context) error    { return nil }
 func (m *MockLLM) ValidateModels(ctx context.Context) error { return m.Err }
@@ -71,6 +125,30 @@ func (m *MockLLM) GenerateImageText(ctx context.Context, name, prompt, imagePath
 		return fn(ctx, name, prompt, imagePath)
 	}
 	return resp, err
+}
+
+func (m *MockLLM) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
+	m.mu.Lock()
+	m.GenerateImageTextCalls++ // reuse or add GenerateImageJSONCalls
+	fn := m.GenerateImageJSONFunc
+	err := m.Err
+	resp := m.Response
+	m.mu.Unlock()
+
+	if fn != nil {
+		return fn(ctx, name, prompt, imagePath, target)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if resp != "" {
+		if err := json.Unmarshal([]byte(resp), target); err == nil {
+			return nil
+		}
+	}
+	return nil
 }
 
 type MockTTS struct {

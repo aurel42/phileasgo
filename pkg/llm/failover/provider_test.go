@@ -36,6 +36,10 @@ func (m *mockProvider) GenerateImageText(ctx context.Context, name, prompt, imag
 	return m.GenerateText(ctx, name, prompt)
 }
 
+func (m *mockProvider) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
+	return m.GenerateJSON(ctx, name, prompt, target)
+}
+
 func (m *mockProvider) ValidateModels(ctx context.Context) error {
 	if len(m.errors) > 0 {
 		return m.errors[0]

@@ -108,6 +108,18 @@ func (f *Provider) GenerateImageText(ctx context.Context, name, prompt, imagePat
 	return res.(string), nil
 }
 
+// GenerateImageJSON implements llm.Provider.
+func (f *Provider) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
+	_, err := f.execute(ctx, name, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
+		err := p.GenerateImageJSON(pCtx, name, prompt, imagePath, target)
+		if err != nil {
+			return nil, err
+		}
+		return target, nil
+	})
+	return err
+}
+
 // HasProfile implements llm.Provider.
 func (f *Provider) HasProfile(name string) bool {
 	f.mu.RLock()

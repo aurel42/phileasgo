@@ -27,13 +27,17 @@ The essay should be about the general region ({{.TargetRegion}}, {{.TargetCountr
 ## NARRATION CONSTRAINTS
 - **The Hook**: Start with a compelling fact or question within the first 10 words. Hook the listener immediately before diving into the details.
 - **Narrative Flow**: Maintain the persona but shift into a "storyteller" mode. Use bridge phrases to connect the facts into a cohesive regional portrait.
-- **No Thematic Summaries**: Do NOT wrap up. Avoid hollow phrases or forced satisfying endings.
+- **No Summaries**: Do NOT wrap up. Avoid hollow phrases or forced satisfying endings.
 
-## OUTPUT FORMAT
-1. **First Line**: MUST be the Essay Title, prefixed with "TITLE: ".
-   - Example: "TITLE: Architecture: The Adobe Influence of the Southwest"
-2. **Body**: The narration script only.
+### OUTPUT FORMAT
+Respond ONLY with a JSON object containing the following fields:
+- `title`: The descriptive Essay Title.
+- `script`: The in-depth regional narration text. Use the language: {{.Language_name}} ({{.Language_code}}).
+
+### EXAMPLE
+{
+  "title": "The Silent History of the Po Valley",
+  "script": "Did you know that the fertile plains beneath us were once a vast, prehistoric sea? Today, this region forms the agricultural heart of Italy..."
+}
 
 {{.TTSInstructions}}
-
-Generate the essay title and script:

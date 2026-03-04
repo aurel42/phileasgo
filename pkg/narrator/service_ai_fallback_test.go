@@ -73,9 +73,11 @@ func TestAIService_AnnouncementFallback(t *testing.T) {
 					}
 					return false
 				},
-				GenerateTextFunc: func(ctx context.Context, profile, prompt string) (string, error) {
+				GenerateJSONFunc: func(ctx context.Context, profile, prompt string, target any) error {
 					capturedProfile = profile
-					return "Script", nil
+					res := target.(*model.GenerationResponse)
+					res.Script = "Script"
+					return nil
 				},
 			}
 
