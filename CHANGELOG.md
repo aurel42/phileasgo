@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## v0.4.1 (2026-03-05)
+- **Fix**: added missing MSFS EFB app to the release archive
+
 ## v0.4.0 (2026-03-05)
 - prepared binary release v0.4.0
 

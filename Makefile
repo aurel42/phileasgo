@@ -51,8 +51,7 @@ build-efb:
 		cd $(EFB_SRC_PATH); \
 		npm install; \
 		PHILEAS_API_URL=http://$$ADDR npm run build
-	powershell -NoProfile -Command "if (Test-Path 'msfs\\efb-phileas\\_PackageInt') { Remove-Item -Recurse -Force 'msfs\\efb-phileas\\_PackageInt' }"
-	powershell -NoProfile -Command "if (Test-Path 'msfs\\efb-phileas\\Packages') { Remove-Item -Recurse -Force 'msfs\\efb-phileas\\Packages' }"
+
 
 
 build-efb-full: build-efb
@@ -89,6 +88,8 @@ clean:
 	powershell -NoProfile -Command "if (Test-Path $(APP_NAME).exe) { Remove-Item -Force $(APP_NAME).exe }"
 	powershell -NoProfile -Command "if (Test-Path $(GUI_NAME).exe) { Remove-Item -Force $(GUI_NAME).exe }"
 	powershell -NoProfile -Command "Get-ChildItem -Path cmd\\phileasgui -Filter *.syso | Remove-Item -Force"
+	powershell -NoProfile -Command "if (Test-Path 'msfs\\efb-phileas\\_PackageInt') { Remove-Item -Recurse -Force 'msfs\\efb-phileas\\_PackageInt' }"
+	powershell -NoProfile -Command "if (Test-Path 'msfs\\efb-phileas\\Packages') { Remove-Item -Recurse -Force 'msfs\\efb-phileas\\Packages' }"
 
 clean-db:
 	powershell -NoProfile -Command "if (Test-Path data\\phileas.db) { Remove-Item -Force data\\phileas.db }"
@@ -105,8 +106,8 @@ clean-root-junk:
 	powershell -NoProfile -Command "if (Test-Path merge_msfspoi.exe) { Remove-Item -Force merge_msfspoi.exe }"
 	powershell -NoProfile -Command "if (Test-Path data\\phileas.db.old) { Remove-Item -Force data\\phileas.db.old }"
 
-release-binary: clean clean-root-junk build
+release-binary: clean clean-root-junk build build-efb-full
 	powershell -NoProfile -Command "if (Test-Path release) { Remove-Item -Recurse -Force release }"
 	powershell -NoProfile -Command "New-Item -ItemType Directory -Path release | Out-Null"
-	powershell -NoProfile -Command "Compress-Archive -Path $(APP_NAME).exe, $(GUI_NAME).exe, README.md, CHANGELOG.md, .env.template, install.ps1, configs -DestinationPath release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip -Force"
+	powershell -NoProfile -Command "Compress-Archive -Path $(APP_NAME).exe, $(GUI_NAME).exe, README.md, CHANGELOG.md, .env.template, install.ps1, configs, msfs/efb-phileas/Packages/$(EFB_PACKAGE_NAME) -DestinationPath release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip -Force"
 	@echo Release created: release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip
