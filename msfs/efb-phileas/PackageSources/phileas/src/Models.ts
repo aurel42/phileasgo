@@ -69,6 +69,7 @@ export interface AircraftConfig {
     filter_mode?: string;
     min_poi_score?: number;
     target_poi_count?: number;
+    beacon_enabled?: boolean;
 }
 
 export interface RegionalCategory {

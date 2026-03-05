@@ -532,7 +532,7 @@ func DefaultConfig() *Config {
 		},
 		Transponder: TransponderConfig{
 			Enabled:     true,
-			IdentAction: "skip",
+			IdentAction: "toggle_pause",
 		},
 		Overlay: OverlayConfig{
 			MapBox:               true,
@@ -664,7 +664,7 @@ func Save(path string, cfg *Config) error {
 
 	// IdentAction Options
 	reIdent := regexp.MustCompile(`(?m)^(\s+)ident_action:`)
-	data = reIdent.ReplaceAll(data, []byte("${1}# Options: pause_toggle, stop, skip\n${1}ident_action:"))
+	data = reIdent.ReplaceAll(data, []byte("${1}# Options: toggle_pause, stop, skip, toggle_beacon\n${1}ident_action:"))
 
 	// Aircraft Icon Options
 	reAircraftIcon := regexp.MustCompile(`(?m)^(\s+)aircraft_icon:`)

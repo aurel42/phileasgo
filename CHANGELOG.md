@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## v0.3.233 (2026-03-05)
+- **Feature**: Added a beacon visibility toggle to the EFB settings page.
+- **Feature**: Configured the transponder IDENT button to support toggling map beacons.
+- **Fix**: Fixed MSFS guidance beacons failing to despawn immediately when the setting is disabled mid-flight or upon narrating a new POI.
+
 ## v0.3.232 (2026-03-05)
 - **Fix**: Fixed the narrator occasionally reading raw GPS coordinates aloud from Wikipedia summaries.
 - Made automatic exponential backoff for LLM providers more aggressive.

@@ -115,6 +115,11 @@ func (s *Service) SetTarget(ctx context.Context, lat, lon float64, title, livery
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if !s.prov.BeaconEnabled(ctx) {
+		s.clearLocked()
+		return nil
+	}
+
 	// 1. Check for redundant calls
 	if s.active {
 		const threshold = 0.0001
@@ -432,6 +437,11 @@ func (s *Service) runDispatchIteration() bool {
 func (s *Service) updateStep(ctx context.Context, tel *simconnect.TelemetryData) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if !s.prov.BeaconEnabled(ctx) {
+		s.clearLocked()
+		return
+	}
 
 	if !s.active || len(s.spawnedBeacons) == 0 {
 		return

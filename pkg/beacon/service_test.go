@@ -13,11 +13,36 @@ import (
 	"phileasgo/pkg/sim/simconnect"
 )
 
-type mockStateStore struct{}
+type mockStateStore struct {
+	state map[string]string
+}
 
-func (m *mockStateStore) GetState(ctx context.Context, key string) (string, bool) { return "", false }
-func (m *mockStateStore) SetState(ctx context.Context, key, val string) error     { return nil }
-func (m *mockStateStore) DeleteState(ctx context.Context, key string) error       { return nil }
+func newMockStateStore() *mockStateStore {
+	return &mockStateStore{state: make(map[string]string)}
+}
+
+func (m *mockStateStore) GetState(ctx context.Context, key string) (string, bool) {
+	if m.state == nil {
+		return "", false
+	}
+	v, ok := m.state[key]
+	return v, ok
+}
+
+func (m *mockStateStore) SetState(ctx context.Context, key, val string) error {
+	if m.state == nil {
+		m.state = make(map[string]string)
+	}
+	m.state[key] = val
+	return nil
+}
+
+func (m *mockStateStore) DeleteState(ctx context.Context, key string) error {
+	if m.state != nil {
+		delete(m.state, key)
+	}
+	return nil
+}
 
 // Helper to create a provider for tests
 func testProv(cfg *config.BeaconConfig) config.Provider {
@@ -25,7 +50,7 @@ func testProv(cfg *config.BeaconConfig) config.Provider {
 	if cfg != nil {
 		full.Beacon = *cfg
 	}
-	return config.NewProvider(full, &mockStateStore{})
+	return config.NewProvider(full, newMockStateStore())
 }
 
 // MockClient implements ObjectClient for testing
@@ -148,6 +173,31 @@ func TestSetTarget_SpawnsBeacons(t *testing.T) {
 	}
 }
 
+func TestSetTarget_Disabled(t *testing.T) {
+	mock := &MockClient{
+		Tel: sim.Telemetry{
+			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 3000, AltitudeAGL: 3000, Heading: 90,
+		},
+	}
+	cfg := &config.BeaconConfig{
+		Enabled: false,
+	}
+
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), testProv(cfg))
+
+	// Set Target
+	err := svc.SetTarget(context.Background(), 45.0, -72.0, "Title", "Livery")
+	if err != nil {
+		t.Fatalf("SetTarget failed: %v", err)
+	}
+
+	// Check Spawns
+	// Expect 0 spawns since it's disabled
+	if len(mock.Spawns) != 0 {
+		t.Errorf("Expected 0 spawns, got %d", len(mock.Spawns))
+	}
+}
+
 func TestUpdateLoop_FormationLogic(t *testing.T) {
 	mock := &MockClient{
 		Tel: sim.Telemetry{
@@ -218,6 +268,61 @@ func TestUpdateLoop_FormationLogic(t *testing.T) {
 	// Should remove 3 formation balloons now
 	if len(mock.Removes) != 3 {
 		t.Errorf("Expected 3 removes (formation), got %d", len(mock.Removes))
+	}
+}
+
+func TestUpdateStep_DisabledMidFlight(t *testing.T) {
+	mock := &MockClient{
+		Tel: sim.Telemetry{
+			Latitude: 45.0, Longitude: -73.0, AltitudeMSL: 3000, AltitudeAGL: 3000, Heading: 90,
+		},
+	}
+	cfg := &config.BeaconConfig{
+		Enabled:          true,
+		FormationEnabled: false,
+		MinSpawnAltitude: config.Distance(304.8),
+		AltitudeFloor:    config.Distance(609.6),
+		MaxTargets:       2,
+	}
+	// Initial setup with enabled = true
+	fullCfg := config.DefaultConfig()
+	fullCfg.Beacon = *cfg
+
+	// Create a state store that we can use to toggle the state mid-flight
+	mockStore := newMockStateStore()
+	prov := config.NewProvider(fullCfg, mockStore)
+
+	svc := NewService(mock, slog.New(slog.NewTextHandler(io.Discard, nil)), prov)
+
+	if err := svc.SetTarget(context.Background(), 45.0, -72.0, "Title", "Livery"); err != nil {
+		t.Fatalf("SetTarget failed: %v", err)
+	}
+
+	if len(mock.Spawns) != 1 {
+		t.Fatalf("Expected 1 spawn, got %d", len(mock.Spawns))
+	}
+
+	// Now simulate user turning off beacons in settings
+	_ = mockStore.SetState(context.Background(), config.KeyBeaconEnabled, "false")
+
+	mockTel := &simconnect.TelemetryData{
+		Latitude:    45.0,
+		Longitude:   -72.5,
+		AltitudeMSL: 1000,
+		Heading:     90,
+	}
+
+	// Run update step
+	svc.updateStep(context.Background(), mockTel)
+
+	// Should remove the existing beacon
+	if len(mock.Removes) != 1 {
+		t.Errorf("Expected 1 remove, got %d", len(mock.Removes))
+	}
+
+	// Service should be inactive
+	if svc.active {
+		t.Error("Expected service to be inactive after clear due to disabled setting")
 	}
 }
 

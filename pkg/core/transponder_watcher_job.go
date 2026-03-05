@@ -118,7 +118,7 @@ func (j *TransponderWatcherJob) handleIdentTrigger() {
 	slog.Info("Transponder: IDENT triggered (rising edge)", "action", action)
 
 	switch action {
-	case "pause_toggle":
+	case "toggle_pause":
 		if j.narrator.IsPaused() {
 			j.narrator.Resume()
 		} else {
@@ -128,6 +128,11 @@ func (j *TransponderWatcherJob) handleIdentTrigger() {
 		j.narrator.Stop()
 	case "skip":
 		j.narrator.Skip()
+	case "toggle_beacon":
+		if j.st != nil {
+			currentState := j.cfg.BeaconEnabled(context.Background())
+			_ = j.st.SetState(context.Background(), config.KeyBeaconEnabled, strconv.FormatBool(!currentState))
+		}
 	default:
 		slog.Warn("Transponder: unknown ident action", "action", action)
 	}

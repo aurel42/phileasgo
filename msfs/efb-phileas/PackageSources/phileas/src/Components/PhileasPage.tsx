@@ -57,6 +57,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
 
     // Internal state for Settings Tab
     private readonly settingPaused = Subject.create<boolean>(false);
+    private readonly settingBeacon = Subject.create<boolean>(true);
     private readonly settingFreq = Subject.create<number>(3);
     private readonly settingLength = Subject.create<number>(3);
     private readonly settingFilterMode = Subject.create<string>("fixed");
@@ -144,6 +145,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
             this.settingFilterMode.set(cfg.filter_mode || 'fixed');
             this.settingMinScore.set(cfg.min_poi_score ?? 0.5);
             this.settingTargetCount.set(cfg.target_poi_count ?? 20);
+            this.settingBeacon.set(cfg.beacon_enabled ?? true);
             this.settingsSyncing = false;
         }));
         this.subscriptions.push(this.props.narratorStatus.sub(status => {
@@ -160,6 +162,7 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
         // initialNotify: false — suppress the immediate fire with placeholder defaults;
         // only send to backend when the user actually changes a value.
         this.subscriptions.push(this.settingPaused.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('paused', val); }, false));
+        this.subscriptions.push(this.settingBeacon.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('beacon_enabled', val); }, false));
         this.subscriptions.push(this.settingFreq.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('narration_frequency', val); }, false));
         this.subscriptions.push(this.settingLength.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('text_length', val); }, false));
         this.subscriptions.push(this.settingFilterMode.sub(val => { if (!this.settingsSyncing) this.updateBackendConfig('filter_mode', val); }, false));
@@ -713,6 +716,13 @@ export class PhileasPage extends GamepadUiView<HTMLDivElement, PhileasPageProps>
                     <div class="settings-label">Pause Narration</div>
                     <div class="settings-control">
                         <Switch checked={this.settingPaused} />
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label">Show Beacons</div>
+                    <div class="settings-control">
+                        <Switch checked={this.settingBeacon} />
                     </div>
                 </div>
 

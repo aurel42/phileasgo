@@ -168,16 +168,17 @@ func TestTransponderWatcherJob_handleIdentTrigger(t *testing.T) {
 		wantPaused   bool // check paused state after toggle
 		wantSkipped  bool
 		wantStopped  bool
+		wantBeacon   bool // true if we expect beacon to be flipped
 	}{
 		{
 			name:         "Pause Toggle (Resume)",
-			action:       "pause_toggle",
+			action:       "toggle_pause",
 			initialPause: true,
 			wantPaused:   false,
 		},
 		{
 			name:         "Pause Toggle (Pause)",
-			action:       "pause_toggle",
+			action:       "toggle_pause",
 			initialPause: false,
 			wantPaused:   true,
 		},
@@ -191,25 +192,37 @@ func TestTransponderWatcherJob_handleIdentTrigger(t *testing.T) {
 			action:      "stop",
 			wantStopped: true,
 		},
+		{
+			name:       "Toggle Beacon",
+			action:     "toggle_beacon",
+			wantBeacon: true, // expect state to be updated
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.DefaultConfig()
 			cfg.Transponder.IdentAction = tt.action
+			// Start with arbitrary beacon state
+			cfg.Beacon.Enabled = true
 
 			mn := &MockNarrator{StubService: narrator.NewStubService()}
 			mn.paused = tt.initialPause
 
-			prov := config.NewProvider(cfg, nil)
-			job := NewTransponderWatcherJob(prov, mn, nil, nil)
+			// Create a mock db and store to test toggle_beacon
+			database, _ := db.Init(":memory:")
+			defer database.Close()
+			st := store.NewSQLiteStore(database)
+
+			prov := config.NewProvider(cfg, st)
+			job := NewTransponderWatcherJob(prov, mn, st, nil)
 
 			// Simulate trigger
 			tel := &sim.Telemetry{Ident: true}
 			job.lastIdent = false // Ensure rising edge
 			job.Run(context.Background(), tel)
 
-			if tt.action == "pause_toggle" {
+			if tt.action == "toggle_pause" {
 				if mn.paused != tt.wantPaused {
 					t.Errorf("paused = %v, want %v", mn.paused, tt.wantPaused)
 				}
@@ -219,6 +232,13 @@ func TestTransponderWatcherJob_handleIdentTrigger(t *testing.T) {
 			}
 			if tt.wantStopped && !mn.stopped {
 				t.Error("expected Stop() to be called")
+			}
+			if tt.wantBeacon {
+				val, _ := st.GetState(context.Background(), config.KeyBeaconEnabled)
+				// Expecting the inverse of initial true -> "false"
+				if val != "false" {
+					t.Errorf("beacon enabled = %v, want false", val)
+				}
 			}
 		})
 	}

@@ -194,7 +194,7 @@ PhileasGo can be controlled directly from your aircraft's transponder, allowing 
     - **Digit 2 (Narrative Length)**: `1-5` (Scale text length from Shortest to Longest).
     - **Digit 3 (Visibility Boost)**: `1-5` (Scale visibility range from 1.0x to 2.0x).
     - *Example*: Squawking `7231` sets normal frequency, normal length, and no boost. `7055` pauses narration but sets max length and boost for when you resume.
-- **IDENT Button**: Pressing the transponder's **IDENT** button triggers a configurable action. Use `IdentAction` in `configs/phileas.yaml` to set this to `skip` (default), `pause_toggle`, or `stop`.
+- **IDENT Button**: Pressing the transponder's **IDENT** button triggers a configurable action. Use `IdentAction` in `configs/phileas.yaml` to set this to `skip`, `stop`, `toggle_pause`, or `toggle_beacon`.
     - *Note*: The IDENT trigger works regardless of your squawk code, as long as the feature is enabled.
     - *Note*: The IDENT button sends the IDENT signal for about twenty seconds. You shouldn't press it more than once every twenty seconds, until I have a clever idea how to handle this better.
 

@@ -201,6 +201,16 @@ func (m *MockClient) ExecuteCommand(ctx context.Context, cmd string, args map[st
 			return nil
 		}
 		return fmt.Errorf("cannot land: not airborne (state: %s)", m.state)
+	case "ident":
+		m.tel.Ident = true
+		// Automatically clear the ident flag after a short delay to simulate a button press
+		go func() {
+			time.Sleep(5 * time.Second) // Match real-world IDENT duration somewhat
+			m.mu.Lock()
+			m.tel.Ident = false
+			m.mu.Unlock()
+		}()
+		return nil
 	default:
 		return fmt.Errorf("unknown command: %s", cmd)
 	}
