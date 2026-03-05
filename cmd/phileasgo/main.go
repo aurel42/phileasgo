@@ -258,14 +258,14 @@ func initCoreServices(st store.Store, cfg config.Provider, tr *tracker.Tracker, 
 	wikiSvc := wikidata.NewService(st, simClient, tr, smartClassifier, reqClient, geoSvc, poiMgr, densityMgr, cfg)
 
 	// River Sentinel Wiring (Phase 3)
-	riverSentinel := rivers.NewSentinel(slog.With("component", "river_sentinel"), "data/ne_50m_rivers_lake_centerlines.geojson")
+	riverSentinel := rivers.NewSentinelEmbedded(slog.With("component", "river_sentinel"))
 	poiMgr.SetRiverSentinel(riverSentinel)
 	poiMgr.SetPOILoader(wikiSvc)
 
 	// Spatial Feature Service (New)
-	spatialSvc, err := geo.NewFeatureService(
-		"data/ne_10m_geography_marine_polys.geojson",
-		"data/ne_10m_geography_regions_polys.geojson",
+	spatialSvc, err := geo.NewFeatureServiceEmbedded(
+		geodata.MarineGeoJSON,
+		geodata.RegionsGeoJSON,
 	)
 	if err != nil {
 		slog.Warn("SpatialFeatureService not available", "error", err)

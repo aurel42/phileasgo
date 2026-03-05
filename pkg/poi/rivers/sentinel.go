@@ -29,7 +29,7 @@ type Sentinel struct {
 	mu     sync.RWMutex
 }
 
-// NewSentinel loads river data and initializes the sentinel.
+// NewSentinel loads river data from a path and initializes the sentinel.
 func NewSentinel(logger *slog.Logger, geojsonPath string) *Sentinel {
 	s := &Sentinel{
 		logger: logger,
@@ -41,12 +41,19 @@ func NewSentinel(logger *slog.Logger, geojsonPath string) *Sentinel {
 	return s
 }
 
-func (s *Sentinel) loadData(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
+// NewSentinelEmbedded loads river data from embedded bytes and initializes the sentinel.
+func NewSentinelEmbedded(logger *slog.Logger) *Sentinel {
+	s := &Sentinel{
+		logger: logger,
+		rivers: make([]River, 0),
 	}
+	if err := s.loadDataFromBytes(RiversGeoJSON); err != nil {
+		logger.Error("Failed to load embedded river data", "err", err)
+	}
+	return s
+}
 
+func (s *Sentinel) loadDataFromBytes(data []byte) error {
 	fc, err := geojson.UnmarshalFeatureCollection(data)
 	if err != nil {
 		return err
@@ -62,8 +69,16 @@ func (s *Sentinel) loadData(path string) error {
 		s.rivers = append(s.rivers, s.createRiverFromGroup(name, group))
 	}
 
-	s.logger.Info("Loaded and merged rivers", "count", len(s.rivers))
+	s.logger.Info("Loaded and merged rivers (embedded)", "count", len(s.rivers))
 	return nil
+}
+
+func (s *Sentinel) loadData(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return s.loadDataFromBytes(data)
 }
 
 type riverGroup struct {

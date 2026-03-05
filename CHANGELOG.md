@@ -1,6 +1,10 @@
 ﻿# Changelog
 
+## v0.4.0 (2026-03-05)
+- prepared binary release v0.4.0
+
 ## v0.3.233 (2026-03-05)
+- **Feature**: Added a toggle to the EFB settings to enable or disable MSFS guidance beacons mid-flight.
 - **Feature**: Added a beacon visibility toggle to the EFB settings page.
 - **Feature**: Configured the transponder IDENT button to support toggling map beacons.
 - **Fix**: Fixed MSFS guidance beacons failing to despawn immediately when the setting is disabled mid-flight or upon narrating a new POI.

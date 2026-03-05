@@ -16,7 +16,7 @@ all: build-web test build build-gui
 
 build: build-web build-app build-gui build-efb
 
-build-app: pkg/geo/countries.geojson pkg/geo/data/geodata.bin
+build-app: pkg/geo/countries.geojson pkg/geo/data/geodata.bin pkg/geo/data/marine.geojson pkg/geo/data/regions.geojson pkg/poi/rivers/data/rivers.geojson
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/copy_simconnect.ps1
 	go build -o $(APP_NAME).exe $(CMD_PATH)
 
@@ -34,6 +34,14 @@ pkg/geo/countries.geojson:
 pkg/geo/data/geodata.bin: data/cities1000.txt data/admin1CodesASCII.txt cmd/slim_cities/main.go
 	go run cmd/slim_cities/main.go
 
+pkg/geo/data/marine.geojson: data/ne_10m_geography_marine_polys.geojson
+	cp $< $@
+
+pkg/geo/data/regions.geojson: data/ne_10m_geography_regions_polys.geojson
+	cp $< $@
+
+pkg/poi/rivers/data/rivers.geojson: data/ne_50m_rivers_lake_centerlines.geojson
+	cp $< $@
 
 build-web:
 	cd $(WEB_PATH) && npm install && npm run build
@@ -92,7 +100,12 @@ clean-logs:
 VERSION=$(shell grep "const Version =" pkg/version/version.go | sed 's/.*"\(.*\)".*/\1/')
 PLATFORM=windows-x64
 
-release-binary: clean build
+clean-root-junk:
+	powershell -NoProfile -Command "Get-ChildItem -Path . -Filter *.exe~ | Remove-Item -Force"
+	powershell -NoProfile -Command "if (Test-Path merge_msfspoi.exe) { Remove-Item -Force merge_msfspoi.exe }"
+	powershell -NoProfile -Command "if (Test-Path data\\phileas.db.old) { Remove-Item -Force data\\phileas.db.old }"
+
+release-binary: clean clean-root-junk build
 	powershell -NoProfile -Command "if (Test-Path release) { Remove-Item -Recurse -Force release }"
 	powershell -NoProfile -Command "New-Item -ItemType Directory -Path release | Out-Null"
 	powershell -NoProfile -Command "Compress-Archive -Path $(APP_NAME).exe, $(GUI_NAME).exe, README.md, CHANGELOG.md, .env.template, install.ps1, configs -DestinationPath release/$(APP_NAME)-$(VERSION)-$(PLATFORM).zip -Force"

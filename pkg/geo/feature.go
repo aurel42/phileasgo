@@ -23,7 +23,7 @@ type FeatureService struct {
 	features []*geojson.Feature
 }
 
-// NewFeatureService creates a new service and loads the specified GeoJSON files.
+// NewFeatureService creates a new service and loads the specified GeoJSON files from disk.
 func NewFeatureService(paths ...string) (*FeatureService, error) {
 	s := &FeatureService{}
 	for _, path := range paths {
@@ -34,21 +34,35 @@ func NewFeatureService(paths ...string) (*FeatureService, error) {
 	return s, nil
 }
 
-func (s *FeatureService) load(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read geojson %s: %w", path, err)
+// NewFeatureServiceEmbedded creates a new service and loads the specified GeoJSON data from memory.
+func NewFeatureServiceEmbedded(dataSets ...[]byte) (*FeatureService, error) {
+	s := &FeatureService{}
+	for _, data := range dataSets {
+		if err := s.loadFromBytes(data); err != nil {
+			return nil, err
+		}
 	}
+	return s, nil
+}
 
+func (s *FeatureService) loadFromBytes(data []byte) error {
 	fc, err := geojson.UnmarshalFeatureCollection(data)
 	if err != nil {
-		return fmt.Errorf("failed to parse geojson %s: %w", path, err)
+		return fmt.Errorf("failed to parse geojson data: %w", err)
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.features = append(s.features, fc.Features...)
 	return nil
+}
+
+func (s *FeatureService) load(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read geojson %s: %w", path, err)
+	}
+	return s.loadFromBytes(data)
 }
 
 // GetFeaturesAtPoint returns all features covering the given coordinates.

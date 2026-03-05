@@ -31,6 +31,9 @@ data/physical/
 vendor/
 pkg/sim/simconnect/lib/
 pkg/geo/data/geodata.bin
+pkg/geo/data/marine.geojson
+pkg/geo/data/regions.geojson
+pkg/poi/rivers/data/rivers.geojson
 cmd/experiments/
 tmp/
 
