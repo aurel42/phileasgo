@@ -61,7 +61,7 @@ type sonarResponse struct {
 }
 
 // NewClient creates a new Perplexity Sonar client.
-func NewClient(cfg config.ProviderConfig, rc *request.Client) (*Client, error) {
+func NewClient(cfg *config.ProviderConfig, rc *request.Client) (*Client, error) {
 	if cfg.Key == "" {
 		return nil, fmt.Errorf("perplexity api key is required")
 	}

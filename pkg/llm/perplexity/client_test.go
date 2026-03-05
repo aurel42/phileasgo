@@ -12,7 +12,7 @@ func TestNewClient(t *testing.T) {
 		cfg := config.ProviderConfig{
 			Profiles: map[string]string{"narration": "sonar"},
 		}
-		_, err := NewClient(cfg, nil)
+		_, err := NewClient(&cfg, nil)
 		if err == nil {
 			t.Error("expected error for missing api key")
 		}
@@ -23,7 +23,7 @@ func TestNewClient(t *testing.T) {
 			Key:      "test-key",
 			Profiles: map[string]string{"narration": "sonar"},
 		}
-		c, err := NewClient(cfg, nil)
+		c, err := NewClient(&cfg, nil)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -41,7 +41,7 @@ func TestHasProfile(t *testing.T) {
 			"essay":     "sonar-pro",
 		},
 	}
-	c, _ := NewClient(cfg, nil)
+	c, _ := NewClient(&cfg, nil)
 
 	if !c.HasProfile("narration") {
 		t.Error("expected HasProfile to return true for narration")
@@ -59,7 +59,7 @@ func TestGenerateImageTextNotSupported(t *testing.T) {
 		Key:      "test-key",
 		Profiles: map[string]string{"narration": "sonar"},
 	}
-	c, _ := NewClient(cfg, nil)
+	c, _ := NewClient(&cfg, nil)
 
 	_, err := c.GenerateImageText(context.Background(), "narration", "test", "/path/to/image.jpg")
 	if err == nil {

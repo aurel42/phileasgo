@@ -72,7 +72,7 @@ type Response struct {
 }
 
 // NewClient creates a new OpenAI client.
-func NewClient(cfg config.ProviderConfig, defaultBaseURL string, rc *request.Client) (*Client, error) {
+func NewClient(cfg *config.ProviderConfig, defaultBaseURL string, rc *request.Client) (*Client, error) {
 	baseURL := cfg.BaseURL
 	if baseURL == "" {
 		baseURL = defaultBaseURL

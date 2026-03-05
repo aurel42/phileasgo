@@ -115,12 +115,13 @@ type LLMConfig struct {
 
 // ProviderConfig holds configuration for a single LLM provider.
 type ProviderConfig struct {
-	Type     string            `yaml:"type"`      // "gemini", "groq", "openai"
-	Key      string            `yaml:"-"`         // API Key (Loaded from Env)
-	BaseURL  string            `yaml:"base_url"`  // Root URL for the API
-	Profiles map[string]string `yaml:"profiles"`  // Map of intent -> model
-	FreeTier bool              `yaml:"free_tier"` // Whether this is a free tier (usually shared)
-	Timeout  Duration          `yaml:"timeout"`   // Request timeout
+	Type            string            `yaml:"type"`             // "gemini", "groq", "openai"
+	Key             string            `yaml:"-"`                // API Key (Loaded from Env)
+	BaseURL         string            `yaml:"base_url"`         // Root URL for the API
+	Profiles        map[string]string `yaml:"profiles"`         // Map of intent -> model
+	FreeTier        bool              `yaml:"free_tier"`        // Whether this is a free tier (usually shared)
+	Timeout         Duration          `yaml:"timeout"`          // Request timeout
+	ProviderBackoff bool              `yaml:"provider_backoff"` // Whether to backoff the whole provider on error
 }
 
 // EdgeTTSConfig holds settings for Edge TTS.

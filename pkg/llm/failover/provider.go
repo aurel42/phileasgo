@@ -17,15 +17,16 @@ import (
 
 // Provider wraps multiple LLM providers and handles fallbacks.
 type Provider struct {
-	providers []llm.Provider
-	names     []string
-	timeouts  []time.Duration
-	disabled  map[int]bool
-	backoffs  map[string]*backoffState // key: providerName:profileName
-	logPath   string
-	enabled   bool
-	tracker   *tracker.Tracker
-	mu        sync.RWMutex
+	providers        []llm.Provider
+	names            []string
+	timeouts         []time.Duration
+	disabled         map[int]bool
+	backoffs         map[string]*backoffState // key: providerName[:profileName]
+	providerBackoffs []bool                   // Whether to use provider-wide backoff
+	logPath          string
+	enabled          bool
+	tracker          *tracker.Tracker
+	mu               sync.RWMutex
 }
 
 type backoffState struct {
@@ -37,7 +38,7 @@ type backoffState struct {
 // New creates a new Provider with failover and unified logging.
 // providers: ordered list of all initialized providers (global fallback chain).
 // names: names corresponding to the provider list.
-func New(providers []llm.Provider, names []string, timeouts []time.Duration, logPath string, enabled bool, t *tracker.Tracker) (*Provider, error) {
+func New(providers []llm.Provider, names []string, timeouts []time.Duration, providerBackoffs []bool, logPath string, enabled bool, t *tracker.Tracker) (*Provider, error) {
 	if len(providers) == 0 {
 		return nil, fmt.Errorf("at least one provider required for failover")
 	}
@@ -47,16 +48,20 @@ func New(providers []llm.Provider, names []string, timeouts []time.Duration, log
 	if len(providers) != len(timeouts) {
 		return nil, fmt.Errorf("provider count (%d) does not match timeout count (%d)", len(providers), len(timeouts))
 	}
+	if len(providers) != len(providerBackoffs) {
+		return nil, fmt.Errorf("provider count (%d) does not match backoff flag count (%d)", len(providers), len(providerBackoffs))
+	}
 
 	return &Provider{
-		providers: providers,
-		names:     names,
-		timeouts:  timeouts,
-		disabled:  make(map[int]bool),
-		backoffs:  make(map[string]*backoffState),
-		logPath:   logPath,
-		enabled:   enabled,
-		tracker:   t,
+		providers:        providers,
+		names:            names,
+		timeouts:         timeouts,
+		disabled:         make(map[int]bool),
+		backoffs:         make(map[string]*backoffState),
+		providerBackoffs: providerBackoffs,
+		logPath:          logPath,
+		enabled:          enabled,
+		tracker:          t,
 	}, nil
 }
 
@@ -169,6 +174,10 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 	for idx, c := range candidates {
 		// 3. Check Smart Backoff
 		backoffKey := c.name + ":" + callName
+		if f.providerBackoffs[c.index] {
+			backoffKey = c.name
+		}
+
 		if f.shouldBackoff(backoffKey, c.name, callName) {
 			continue
 		}
@@ -323,8 +332,8 @@ func (f *Provider) incrementBackoff(backoffKey string) {
 	}
 	bs.subsequentFailures++
 	bs.skippedRequests = 0
-	// Exponential skip: 2^(N-1)
-	bs.targetSkips = int(1 << (uint(bs.subsequentFailures) - 1))
+	// Exponential skip: 2^N
+	bs.targetSkips = int(1 << uint(bs.subsequentFailures))
 }
 
 func (f *Provider) retryLast(ctx context.Context, p llm.Provider, name string, timeout time.Duration, fn func(context.Context, llm.Provider) (any, error)) (any, error) {

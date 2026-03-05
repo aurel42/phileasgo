@@ -55,7 +55,8 @@ llm:
             type: openai
             base_url: https://integrate.api.nvidia.com/v1
             free_tier: true
-            timeout: 2m0s
+            timeout: 3m0s
+            provider_backoff: true
             profiles:
                 # Core Profiles
                 narration: "nvidia/llama-3.3-nemotron-super-49b-v1.5"

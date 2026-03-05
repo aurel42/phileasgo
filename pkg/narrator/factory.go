@@ -32,6 +32,7 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 	var providers []llm.Provider
 	var names []string
 	var timeouts []time.Duration
+	var providerBackoffs []bool
 
 	for _, name := range cfg.Fallback {
 		pCfg, ok := cfg.Providers[name]
@@ -39,7 +40,7 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 			return nil, fmt.Errorf("provider %q not found in config", name)
 		}
 
-		sub, err := buildProvider(pCfg, name, rc, t)
+		sub, err := buildProvider(&pCfg, name, rc, t)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize provider %q: %w", name, err)
 		}
@@ -51,6 +52,7 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 
 		providers = append(providers, sub)
 		names = append(names, name)
+		providerBackoffs = append(providerBackoffs, pCfg.ProviderBackoff)
 
 		timeout := time.Duration(pCfg.Timeout)
 		if timeout == 0 {
@@ -64,11 +66,11 @@ func NewLLMProvider(cfg config.LLMConfig, hCfg config.HistorySettings, rc *reque
 	}
 
 	// Wrap in Failover Provider with unified logging and names
-	return failover.New(providers, names, timeouts, hCfg.Path, hCfg.Enabled, t)
+	return failover.New(providers, names, timeouts, providerBackoffs, hCfg.Path, hCfg.Enabled, t)
 }
 
 // buildProvider constructs a single LLM provider from its configuration.
-func buildProvider(pCfg config.ProviderConfig, _ string, rc *request.Client, t *tracker.Tracker) (llm.Provider, error) {
+func buildProvider(pCfg *config.ProviderConfig, _ string, rc *request.Client, t *tracker.Tracker) (llm.Provider, error) {
 	switch pCfg.Type {
 	case "gemini":
 		return gemini.NewClient(pCfg, rc, t)

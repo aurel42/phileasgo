@@ -58,7 +58,7 @@ func TestFailover_SuccessFirst(t *testing.T) {
 	p1 := &mockProvider{responses: []string{"resp1"}, errors: []error{nil}}
 	p2 := &mockProvider{responses: []string{"resp2"}, errors: []error{nil}}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, []bool{false, false}, "", true, nil)
 	res, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if err != nil {
@@ -76,7 +76,7 @@ func TestFailover_FailoverOnRetryable(t *testing.T) {
 	p1 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("429 too many requests")}}
 	p2 := &mockProvider{responses: []string{"resp2"}, errors: []error{nil}}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, []bool{false, false}, "", true, nil)
 	res, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if err != nil {
@@ -96,7 +96,7 @@ func TestFailover_FailoverOnEmptyResponse(t *testing.T) {
 	p1 := &mockProvider{responses: []string{""}, errors: []error{nil}}
 	p2 := &mockProvider{responses: []string{"resp2"}, errors: []error{nil}}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, []bool{false, false}, "", true, nil)
 	res, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if err != nil {
@@ -117,7 +117,7 @@ func TestFailover_CircuitBreakerOnFatal(t *testing.T) {
 	p1 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("401 unauthorized")}}
 	p2 := &mockProvider{responses: []string{"resp2"}, errors: []error{nil}}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, []bool{false, false}, "", true, nil)
 
 	// First call triggers circuit break
 	_, err := f.GenerateText(context.Background(), "test", "prompt")
@@ -153,7 +153,7 @@ func TestFailover_CircuitBreakerOnFatal(t *testing.T) {
 func TestFailover_NoDisableLastProvider(t *testing.T) {
 	p1 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("401 unauthorized")}}
 
-	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, []bool{false}, "", true, nil)
 	_, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if err == nil {
@@ -178,7 +178,7 @@ func TestFailover_RetryLast(t *testing.T) {
 		errors:    []error{fmt.Errorf("429"), fmt.Errorf("429"), nil},
 	}
 
-	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, []bool{false}, "", true, nil)
 	res, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if err != nil {
@@ -196,7 +196,7 @@ func TestFailover_ExhaustAll(t *testing.T) {
 	p1 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("429")}}
 	p2 := &mockProvider{responses: []string{"", "", "", ""}, errors: []error{fmt.Errorf("429"), fmt.Errorf("429"), fmt.Errorf("429"), fmt.Errorf("429")}}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, []bool{false, false}, "", true, nil)
 	_, err := f.GenerateText(context.Background(), "test", "prompt")
 
 	if !strings.Contains(err.Error(), "exhausted after 3 retries") {
@@ -206,7 +206,7 @@ func TestFailover_ExhaustAll(t *testing.T) {
 
 func TestFailover_JSON_Success(t *testing.T) {
 	p1 := &mockProvider{responses: []string{"{}"}, errors: []error{nil}}
-	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, []bool{false}, "", true, nil)
 	err := f.GenerateJSON(context.Background(), "test", "prompt", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -218,7 +218,7 @@ func TestFailover_JSON_Success(t *testing.T) {
 
 func TestFailover_ImageText_Success(t *testing.T) {
 	p1 := &mockProvider{responses: []string{"image desc"}, errors: []error{nil}}
-	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, []bool{false}, "", true, nil)
 	res, err := f.GenerateImageText(context.Background(), "test", "prompt", "path/to/img")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -229,12 +229,12 @@ func TestFailover_ImageText_Success(t *testing.T) {
 }
 
 func TestFailover_New_Errors(t *testing.T) {
-	_, err := New(nil, nil, nil, "", true, nil)
+	_, err := New(nil, nil, nil, nil, "", true, nil)
 	if err == nil {
 		t.Error("expected error for nil providers")
 	}
 
-	_, err = New([]llm.Provider{&mockProvider{}}, []string{"p1", "p2"}, []time.Duration{time.Second}, "", true, nil)
+	_, err = New([]llm.Provider{&mockProvider{}}, []string{"p1", "p2"}, []time.Duration{time.Second}, []bool{false}, "", true, nil)
 	if err == nil {
 		t.Error("expected error for mismatched counts")
 	}
@@ -269,7 +269,7 @@ func TestFailover_Logging(t *testing.T) {
 	logPath := filepath.Join(tmpDir, "llm.log")
 
 	p1 := &mockProvider{responses: []string{"success_resp"}, errors: []error{nil}}
-	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, logPath, true, nil)
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, []bool{false}, logPath, true, nil)
 
 	// Test Successful Log
 	_, _ = f.GenerateText(context.Background(), "SuccessCall", "Prompt text")
@@ -287,7 +287,7 @@ func TestFailover_Logging(t *testing.T) {
 
 	// Test Error Log
 	p2 := &mockProvider{responses: []string{""}, errors: []error{fmt.Errorf("fatal 401")}}
-	f2, _ := New([]llm.Provider{p2}, []string{"p2"}, []time.Duration{time.Second}, logPath, true, nil)
+	f2, _ := New([]llm.Provider{p2}, []string{"p2"}, []time.Duration{time.Second}, []bool{false}, logPath, true, nil)
 	_, _ = f2.GenerateText(context.Background(), "FailCall", "Fail Prompt")
 
 	content, _ = os.ReadFile(logPath)
@@ -320,7 +320,7 @@ func TestFailover_ProfileSparse(t *testing.T) {
 	}
 
 	// Global chain: P1 -> P2
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, []bool{false, false}, "", true, nil)
 
 	// Call narration (supported by P1)
 	res, err := f.GenerateText(context.Background(), "narration", "text prompt")
@@ -361,69 +361,105 @@ func TestFailover_SmartBackoff(t *testing.T) {
 	// 4. [Skipped]
 	// 5. [Skipped]
 	// 6. Success -> Reset
+	// sequence: F1 -> Skip 2 -> F2 -> Skip 4 -> Success
 	p1 := &mockProvider{
 		responses: []string{"", "", "p1_success"},
 		errors:    []error{fmt.Errorf("429"), fmt.Errorf("429"), nil},
 	}
-	// P2 will always succeed
 	p2 := &mockProvider{
-		responses: []string{"p2_1", "p2_2", "p2_3", "p2_4", "p2_5", "p2_6"},
-		errors:    []error{nil, nil, nil, nil, nil, nil},
+		responses: []string{"p2_1", "p2_2", "p2_3", "p2_4", "p2_5", "p2_6", "p2_7", "p2_8", "p2_9"},
+		errors:    []error{nil, nil, nil, nil, nil, nil, nil, nil, nil},
 	}
 
-	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, "", true, nil)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, []bool{false, false}, "", true, nil)
 
-	// Call 1: P1 tried, fails. P2 called. (P1 calls: 1, P2 calls: 1)
-	res, _ := f.GenerateText(context.Background(), "narration", "p")
-	if res != "p2_1" {
-		t.Errorf("Call 1: expected p2_1, got %s", res)
-	}
-
-	// Call 2: P1 skipped (sr:0 < sf:1). P2 called. (P1 calls: 1, P2 calls: 2)
-	res, _ = f.GenerateText(context.Background(), "narration", "p")
-	if res != "p2_2" {
-		t.Errorf("Call 2: expected p2_2, got %s", res)
-	}
+	// Call 1: Fails (sf=1) -> Next targetSkips = 2^1 = 2
+	f.GenerateText(context.Background(), "p", "q")
 	if p1.callCount != 1 {
-		t.Errorf("Call 2: expected p1 count 1 (skipped), got %d", p1.callCount)
+		t.Errorf("expected 1 call, got %d", p1.callCount)
 	}
 
-	// Call 3: P1 tried (sr:1 < sf:1 is false), fails. P2 called. (P1 calls: 2, P2 calls: 3)
-	// sf becomes 2, sr reset to 0.
-	res, _ = f.GenerateText(context.Background(), "narration", "p")
-	if res != "p2_3" {
-		t.Errorf("Call 3: expected p2_3, got %s", res)
+	// Call 2 & 3: Skipped (sr: 1, 2)
+	f.GenerateText(context.Background(), "p", "q")
+	f.GenerateText(context.Background(), "p", "q")
+	if p1.callCount != 1 {
+		t.Errorf("expected still 1 call after skips, got %d", p1.callCount)
+	}
+
+	// Call 4: Tried & Fails (sf=2) -> Next targetSkips = 2^2 = 4
+	f.GenerateText(context.Background(), "p", "q")
+	if p1.callCount != 2 {
+		t.Errorf("expected 2 calls, got %d", p1.callCount)
+	}
+
+	// Call 5, 6, 7, 8: Skipped (sr: 1, 2, 3, 4)
+	for i := 0; i < 4; i++ {
+		f.GenerateText(context.Background(), "p", "q")
 	}
 	if p1.callCount != 2 {
-		t.Errorf("Call 3: expected p1 count 2, got %d", p1.callCount)
+		t.Errorf("expected still 2 calls after 4 skips, got %d", p1.callCount)
 	}
 
-	// Call 4: P1 skipped (sr:0 < sf:2). P2 called. (P1 calls: 2, P2 calls: 4)
-	res, _ = f.GenerateText(context.Background(), "narration", "p")
-	if res != "p2_4" {
-		t.Errorf("Call 4: expected p2_4, got %s", res)
-	}
-
-	// Call 5: P1 skipped (sr:1 < sf:2). P2 called. (P1 calls: 2, P2 calls: 5)
-	res, _ = f.GenerateText(context.Background(), "narration", "p")
-	if res != "p2_5" {
-		t.Errorf("Call 5: expected p2_5, got %s", res)
-	}
-
-	// Call 6: P1 tried (sr:2 < sf:2 false), succeeds. (P1 calls: 3, P2 calls: 5)
-	res, _ = f.GenerateText(context.Background(), "narration", "p")
+	// Call 9: Tried & Success -> Reset
+	res, _ := f.GenerateText(context.Background(), "p", "q")
 	if res != "p1_success" {
-		t.Errorf("Call 6: expected p1_success, got %s", res)
+		t.Errorf("expected success, got %s", res)
 	}
-	if p2.callCount != 5 {
-		t.Errorf("Call 6: expected p2 count 5, got %d", p2.callCount)
+	if p1.callCount != 3 {
+		t.Errorf("expected 3 calls, got %d", p1.callCount)
+	}
+}
+
+func TestFailover_ProviderWideBackoff(t *testing.T) {
+	// P1 has provider-wide backoff enabled
+	p1 := &mockProvider{
+		responses: []string{""},
+		errors:    []error{fmt.Errorf("429")},
+	}
+	p2 := &mockProvider{
+		responses: []string{"p2_success", "p2_success", "p2_success", "p2_success"},
+		errors:    []error{nil, nil, nil, nil},
 	}
 
-	// Call 7: P1 tried immediately (reset).
-	res, _ = f.GenerateText(context.Background(), "narration", "p")
-	// Since P1 is out of mocked responses, it might fail or we should add more.
-	// But we just want to see it was called.
-	if p1.callCount != 4 {
-		t.Errorf("Call 7: expected p1 count 4, got %d", p1.callCount)
+	f, _ := New([]llm.Provider{p1, p2}, []string{"p1", "p2"}, []time.Duration{time.Second, time.Second}, []bool{true, false}, "", true, nil)
+
+	// Failure on profile "A"
+	f.GenerateText(context.Background(), "profileA", "q")
+
+	// Call on profile "B" should be skipped because of provider-wide backoff
+	p1.callCount = 0
+	res, _ := f.GenerateText(context.Background(), "profileB", "q")
+
+	if res != "p2_success" {
+		t.Errorf("expected fallback to p2, got %s", res)
+	}
+	if p1.callCount != 0 {
+		t.Errorf("p1 should have been skipped across profiles")
+	}
+}
+
+func TestFailover_OtherMethods(t *testing.T) {
+	p1 := &mockProvider{
+		responses:         []string{"{}"},
+		errors:            []error{nil},
+		supportedProfiles: map[string]bool{"vision": true},
+	}
+	f, _ := New([]llm.Provider{p1}, []string{"p1"}, []time.Duration{time.Second}, []bool{false}, "", true, nil)
+
+	// Test GenerateImageJSON
+	err := f.GenerateImageJSON(context.Background(), "vision", "prompt", "path/to/img", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Test HasProfile
+	if !f.HasProfile("vision") {
+		t.Errorf("expected true for HasProfile('vision')")
+	}
+
+	// Test ValidateModels
+	err = f.ValidateModels(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error from ValidateModels: %v", err)
 	}
 }

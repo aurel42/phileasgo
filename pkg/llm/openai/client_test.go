@@ -45,7 +45,7 @@ func TestOpenAI_GenerateText(t *testing.T) {
 	rc := request.New(nil, tr, request.ClientConfig{})
 	cfg := config.ProviderConfig{Key: "test_key", Profiles: map[string]string{"test": "test_model"}}
 
-	c, err := NewClient(cfg, server.URL, rc)
+	c, err := NewClient(&cfg, server.URL, rc)
 	if err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestOpenAI_GenerateJSON(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
+	c, _ := NewClient(&config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
 
 	var target struct {
 		Result string `json:"result"`
@@ -113,7 +113,7 @@ func TestOpenAI_GenerateImageText(t *testing.T) {
 	tmpFile.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
+	c, _ := NewClient(&config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
 
 	res, err := c.GenerateImageText(context.Background(), "test", "describe", tmpFile.Name())
 	if err != nil {
@@ -134,7 +134,7 @@ func TestOpenAI_Errors(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
+	c, _ := NewClient(&config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
 
 	_, err := c.GenerateText(context.Background(), "test", "ping")
 	if err == nil {
@@ -154,7 +154,7 @@ func TestOpenAI_InternalError(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{
+	c, _ := NewClient(&config.ProviderConfig{
 		Key:      "key",
 		Profiles: map[string]string{"test": "model"},
 	}, server.URL, rc)
@@ -176,7 +176,7 @@ func TestOpenAI_ResolveModel(t *testing.T) {
 		},
 	}
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(cfg, "http://localhost", rc)
+	c, _ := NewClient(&cfg, "http://localhost", rc)
 
 	// Test with a known profile
 	m, _ := c.ResolveModel("narration")
@@ -204,7 +204,7 @@ func TestOpenAI_HasProfile(t *testing.T) {
 		},
 	}
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(cfg, "http://localhost", rc)
+	c, _ := NewClient(&cfg, "http://localhost", rc)
 
 	if !c.HasProfile("narration") {
 		t.Errorf("expected HasProfile to return true for 'narration'")
@@ -221,7 +221,7 @@ func TestOpenAI_UnmarshalError(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{
+	c, _ := NewClient(&config.ProviderConfig{
 		Key:      "key",
 		Profiles: map[string]string{"test": "model"},
 	}, server.URL, rc)
@@ -239,7 +239,7 @@ func TestOpenAI_NoChoices(t *testing.T) {
 	defer server.Close()
 
 	rc := request.New(nil, tracker.New(), request.ClientConfig{})
-	c, _ := NewClient(config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
+	c, _ := NewClient(&config.ProviderConfig{Key: "key", Profiles: map[string]string{"test": "model"}}, server.URL, rc)
 
 	_, err := c.GenerateText(context.Background(), "test", "ping")
 	if err == nil || !strings.Contains(err.Error(), "returned no choices") {
@@ -273,7 +273,7 @@ func TestOpenAI_ReasonerConstraints(t *testing.T) {
 			"reasoner": "o1-mini",
 		},
 	}
-	c, _ := NewClient(cfg, server.URL, rc)
+	c, _ := NewClient(&cfg, server.URL, rc)
 
 	// Case 1: Standard model
 	var target struct{ Result string }

@@ -15,7 +15,7 @@ func TestIntegration_GenerateText(t *testing.T) {
 		t.Skip("Skipping integration test: GEMINI_API_KEY not set")
 	}
 
-	c, err := gemini.NewClient(config.ProviderConfig{
+	c, err := gemini.NewClient(&config.ProviderConfig{
 		Key:  key,
 		Type: "gemini",
 		Profiles: map[string]string{
@@ -43,7 +43,7 @@ func TestIntegration_GenerateJSON(t *testing.T) {
 		t.Skip("Skipping integration test: GEMINI_API_KEY not set")
 	}
 
-	c, err := gemini.NewClient(config.ProviderConfig{
+	c, err := gemini.NewClient(&config.ProviderConfig{
 		Key:  key,
 		Type: "gemini",
 		Profiles: map[string]string{

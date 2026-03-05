@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## v0.3.232 (2026-03-05)
+- **Fix**: Fixed the narrator occasionally reading raw GPS coordinates aloud from Wikipedia summaries.
+- Made automatic exponential backoff for LLM providers more aggressive.
+
 ## v0.3.231 (2026-03-04)
 - **Fix**: Prevented AI meta-commentary from bleeding into spoken audio recordings.
 - **Fix**: Fixed overly strict length validation that caused narrations to incorrectly revert to their unrefined, fallback scripts.

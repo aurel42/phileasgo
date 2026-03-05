@@ -38,7 +38,7 @@ type Client struct {
 }
 
 // NewClient creates a new Gemini client.
-func NewClient(cfg config.ProviderConfig, rc *request.Client, t *tracker.Tracker) (*Client, error) {
+func NewClient(cfg *config.ProviderConfig, rc *request.Client, t *tracker.Tracker) (*Client, error) {
 	c := &Client{
 		rc:                rc,
 		tracker:           t,
