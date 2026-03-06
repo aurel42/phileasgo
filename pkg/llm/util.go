@@ -1,6 +1,8 @@
 package llm
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -70,4 +72,26 @@ func CleanJSONBlock(text string) string {
 	}
 
 	return strings.TrimSpace(text)
+}
+
+// UnmarshalFlexible unmarshals JSON data into the target, but gracefully handles
+// the case where a single object is wrapped in a JSON array (e.g. Gemini behavior).
+func UnmarshalFlexible(data []byte, target any) error {
+	// 1. Try direct unmarshal
+	err := json.Unmarshal(data, target)
+	if err == nil {
+		return nil
+	}
+
+	// 2. If it failed, check if it's an array
+	var raw []json.RawMessage
+	if arrayErr := json.Unmarshal(data, &raw); arrayErr == nil {
+		// If it's an array and has exactly one element, try unmarshaling that element
+		if len(raw) == 1 {
+			return json.Unmarshal(raw[0], target)
+		}
+	}
+
+	// Return the original error if we couldn't handle it
+	return fmt.Errorf("failed to unmarshal JSON: %w", err)
 }

@@ -2,8 +2,8 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: #111;
-    color: #eee;
+    background: #181c25;
+    color: #ffffff;
     overflow: hidden;
     font-family: 'Noto Sans', sans-serif;
 
@@ -17,7 +17,7 @@
         align-items: center;
         gap: 10px;
         padding: 10px 15px;
-        background: #1a1a1a;
+        background: #14171a;
         border-bottom: 2px solid #333;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
         z-index: 100;
@@ -37,9 +37,9 @@
             }
 
             &.selected {
-                background: #f39c12;
-                color: #000;
-                border-color: #f39c12;
+                background: #13548a;
+                color: #ffffff;
+                border-color: #13548a;
             }
 
             // Override EFB gamepad focus frame (white border applied by host CSS)
@@ -79,7 +79,7 @@
 
     // Dashboard Cards
     .info-card {
-        background: linear-gradient(145deg, #1e1e1e, #141414);
+        background: #1f2530;
         border-radius: 12px;
         padding: 20px;
         margin-bottom: 20px;
@@ -111,7 +111,7 @@
 
             .geo-sub {
                 font-size: 16px;
-                color: #999;
+                color: #8e96a0;
             }
 
             .geo-accent {
@@ -135,7 +135,7 @@
 
                 .stat-label {
                     font-size: 12px;
-                    color: #888;
+                    color: #8e96a0;
                 }
 
                 .stat-value {
@@ -161,7 +161,7 @@
 
                 th {
                     text-align: left;
-                    color: #888;
+                    color: #8e96a0;
                     padding-bottom: 8px;
                 }
 
@@ -238,10 +238,6 @@
             border-radius: 0 0 8px 8px;
             border-bottom: none;
         }
-
-        &:nth-child(even) {
-            background: #1e1e1e;
-        }
     }
 
     h2 {
@@ -279,7 +275,7 @@
 
             .settings-label {
                 font-size: 16px;
-                color: #ccc;
+                color: #8e96a0;
             }
 
             .settings-control {
@@ -336,10 +332,6 @@
                     }
                 }
 
-                .switch-container {
-                    width: 60px;
-                    height: 32px;
-                }
             }
         }
     }
@@ -359,7 +351,7 @@
     bottom: 25px;
     left: 25px;
     right: 25px;
-    background: rgba(10, 10, 10, 0.85);
+    background: linear-gradient(to right, #112335, #215478);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 12px;
@@ -384,7 +376,7 @@
     .playing-line,
     .preparing-line {
         font-size: 14px;
-        color: #eee;
+        color: #ffffff;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -399,7 +391,7 @@
     .location-line {
         .geo-loc {
             font-size: 14px;
-            color: #ccc;
+            color: #8e96a0;
             line-height: 1.4;
 
             strong {

@@ -1,122 +1,126 @@
 ﻿# Changelog
+ 
+ ## v0.4.2 (2026-03-06)
+ - Adapted common EFB app color scheme to resolve styling inconsistencies and residual color accents.
+ - Improved AI response handling to correctly unmarshal array-wrapped JSON objects from LLM providers.
 
 ## v0.4.1 (2026-03-05)
-- **Fix**: added missing MSFS EFB app to the release archive
+- Added missing MSFS EFB app to the release archive
 
 ## v0.4.0 (2026-03-05)
 - prepared binary release v0.4.0
 
 ## v0.3.233 (2026-03-05)
-- **Feature**: Added a toggle to the EFB settings to enable or disable MSFS guidance beacons mid-flight.
-- **Feature**: Added a beacon visibility toggle to the EFB settings page.
-- **Feature**: Configured the transponder IDENT button to support toggling map beacons.
-- **Fix**: Fixed MSFS guidance beacons failing to despawn immediately when the setting is disabled mid-flight or upon narrating a new POI.
+- Added a toggle to the EFB settings to enable or disable MSFS guidance beacons mid-flight.
+- Added a beacon visibility toggle to the EFB settings page.
+- Configured the transponder IDENT button to support toggling map beacons.
+- Fixed MSFS guidance beacons failing to despawn immediately when the setting is disabled mid-flight or upon narrating a new POI.
 
 ## v0.3.232 (2026-03-05)
-- **Fix**: Fixed the narrator occasionally reading raw GPS coordinates aloud from Wikipedia summaries.
+- Fixed the narrator occasionally reading raw GPS coordinates aloud from Wikipedia summaries.
 - Made automatic exponential backoff for LLM providers more aggressive.
 
 ## v0.3.231 (2026-03-04)
-- **Fix**: Prevented AI meta-commentary from bleeding into spoken audio recordings.
-- **Fix**: Fixed overly strict length validation that caused narrations to incorrectly revert to their unrefined, fallback scripts.
+- Prevented AI meta-commentary from bleeding into spoken audio recordings.
+- Fixed overly strict length validation that caused narrations to incorrectly revert to their unrefined, fallback scripts.
 
 ## v0.3.230 (2026-03-02)
-- **Fix**: Fixed the map viewport occasionally snapping to include hidden geographic features during narration.
+- Fixed the map viewport occasionally snapping to include hidden geographic features during narration.
  
 ## v0.3.229 (2026-03-01)
-- **Fix**: Fixed leaked reasoning appearing in narration scripts when two-pass refinement was rejected for its length.
+- Fixed leaked reasoning appearing in narration scripts when two-pass refinement was rejected for its length.
  
 ## v0.3.228 (2026-02-27)
-- **Fix**: Resolved build errors that prevented the EFB application from compiling.
+- Resolved build errors that prevented the EFB application from compiling.
 
 ## v0.3.227 (2026-02-27)
-- **Fix**: Replaced `any` types with structured interfaces for POIs, aircraft telemetry, and narrator status.
-- **Fix**: Added automatic filtering of non-point geographical features from map displays and POI lists.
+- Replaced `any` types with structured interfaces for POIs, aircraft telemetry, and narrator status.
+- Added automatic filtering of non-point geographical features from map displays and POI lists.
 
 ## v0.3.226 (2026-02-27)
-- **Fix**: Resolved potential stalls in the narration queue by implementing proactive generation slot cleanup and queue draining.
+- Resolved potential stalls in the narration queue by implementing proactive generation slot cleanup and queue draining.
 
 ## v0.3.225 (2026-02-27)
-- **Fix**: Added missing distance information and sorting to the nearby settlements list.
-- **Fix**: Fixed the narrator occasionally producing repetitive or truncated content when long narrations were requested.
+- Added missing distance information and sorting to the nearby settlements list.
+- Fixed the narrator occasionally producing repetitive or truncated content when long narrations were requested.
  
 ## v0.3.224 (2026-02-27)
-- **Fix**: **MSFS POI Duplication**. The `msfspoi` table is now cleared before re-importing `Master.csv`, preventing duplicate landmarks from accumulating when the data file is updated.
+- The `msfspoi` table is now cleared before re-importing `Master.csv`, preventing duplicate landmarks from accumulating when the data file is updated.
 
 ## v0.3.223 (2026-02-26)
-- **Feature**: Added dashboard cards for manually triggering narration of nearby POIs, cities, and geographic features.
-- **Fix**: The EFB application now derives its backend API URL dynamically from the server configuration, eliminating hardcoded local addresses.
+- Added dashboard cards for manually triggering narration of nearby POIs, cities, and geographic features.
+- The EFB application now derives its backend API URL dynamically from the server configuration, eliminating hardcoded local addresses.
  
 ## v0.3.222 (2026-02-26)
-- **Feature**: **Map Label Session Isolation**. Implemented a thread-safe session store for map labels, ensuring isolated state for multiple concurrent clients (Web UI and EFB).
-- **Fix**: Resolved critical performance regression in duration handling by unifying all duration-based configurations to use seconds as the primary storage unit in the backend, with full backward compatibility for human-readable strings in the UI.
+- Implemented a thread-safe session store for map labels, ensuring isolated state for multiple concurrent clients (Web UI and EFB).
+- Resolved critical performance regression in duration handling by unifying all duration-based configurations to use seconds as the primary storage unit in the backend, with full backward compatibility for human-readable strings in the UI.
 
 ## v0.3.221 (2026-02-26)
-- **Improvement**: **SimConnect Efficiency**. Implemented intelligent throttling for the beacon system, reducing idle CPU usage by 50x when no markers are active while maintaining high responsiveness during spawning.
-- **Improvement**: **Persistent State Caching**. Added an in-memory cache for application settings, eliminating redundant database queries for frequently accessed configuration.
-- **Improvement**: **Lazy Deferral Scoring**. Optimized POI scoring by deferring expensive future-visibility calculations until after initial candidates are filtered, significantly reducing CPU spikes in dense areas.
-- **Improvement**: **Reduced Memory Churn**. Optimized internal badge assignment to minimize allocations during high-frequency scoring passes.
+- Implemented intelligent throttling for the beacon system, reducing idle CPU usage by 50x when no markers are active while maintaining high responsiveness during spawning.
+- Added an in-memory cache for application settings, eliminating redundant database queries for frequently accessed configuration.
+- Optimized POI scoring by deferring expensive future-visibility calculations until after initial candidates are filtered, significantly reducing CPU spikes in dense areas.
+- Optimized internal badge assignment to minimize allocations during high-frequency scoring passes.
 
 ## v0.3.220 (2026-02-26)
-- **Feature**: **Spatial Features API**. New `/api/features` endpoint returns the geographic features (seas, oceans, named regions) covering the aircraft's current position, powered by Natural Earth datasets.
-- **Feature**: **Tabbed Dashboard**. Replaced the sidebar's toggle-based panels with a tabbed layout (Dashboard, POI, Regional, Diagnostics) for cleaner navigation.
-- **Feature**: **Spatial Features Card**. The Dashboard tab displays currently active geographic features as tagged chips.
-- **Feature**: **Dashboard Footer**. New persistent footer bar showing sim connection status, POI counts, narrator configuration, and version info at a glance.
-- **Improvement**: API handler constructors now gracefully return nil when dependencies are missing, preventing startup panics when optional services are unavailable.
+- New `/api/features` endpoint returns the geographic features (seas, oceans, named regions) covering the aircraft's current position, powered by Natural Earth datasets.
+- Replaced the sidebar's toggle-based panels with a tabbed layout (Dashboard, POI, Regional, Diagnostics) for cleaner navigation.
+- The Dashboard tab displays currently active geographic features as tagged chips.
+- New persistent footer bar showing sim connection status, POI counts, narrator configuration, and version info at a glance.
+- API handler constructors now gracefully return nil when dependencies are missing, preventing startup panics when optional services are unavailable.
 
 ## v0.3.219 (2026-02-25)
-- **Fix**: Resolved a race condition in the settings interface where persistent configuration was occasionally overwritten by stale defaults during initialization.
-- **Fix**: Improved error handling for persistent state lookups to prevent silent fallbacks to default values.
-- **Fix**: Regional discovery ignores configured categories now even if we look up the wrong Wikidata QID for them.
-- **Fix** (regression): Restored the narrator's spatial awareness to scale precision with distance—providing high-precision clock positions for distant POIs while maintaining conversational directions for close fly-bys.
-- **Fix** (regression): The narrator now correctly suppresses direction instructions while the aircraft is on the ground.
-- **Improvement**: Relocated "Phileas" branding from the EFB toolbar to a subtle map overlay to free up button space.
-- **Improvement**: Optimized EFB map layering: the aircraft icon now always renders on top of POI markers.
-- **Fix**: Resolved a latent case-sensitivity issue in GeoJSON property lookups for ISO country codes.
+- Resolved a race condition in the settings interface where persistent configuration was occasionally overwritten by stale defaults during initialization.
+- Improved error handling for persistent state lookups to prevent silent fallbacks to default values.
+- Regional discovery ignores configured categories now even if we look up the wrong Wikidata QID for them.
+- Restored the narrator's spatial awareness to scale precision with distance—providing high-precision clock positions for distant POIs while maintaining conversational directions for close fly-bys.
+- The narrator now correctly suppresses direction instructions while the aircraft is on the ground.
+- Relocated "Phileas" branding from the EFB toolbar to a subtle map overlay to free up button space.
+- Optimized EFB map layering: the aircraft icon now always renders on top of POI markers.
+- Resolved a latent case-sensitivity issue in GeoJSON property lookups for ISO country codes.
 
 ## v0.3.218 (2026-02-25)
-- **Fix**: **Nvidia Screenshot Refusals**. Removed the Nvidia vision model (`meta/llama-3.2-90b-vision-instruct`) from the screenshot profile due to aggressive false-positive content safety refusals on flight simulator imagery. Screenshots now fall through to Gemini.
+- Removed the Nvidia vision model (`meta/llama-3.2-90b-vision-instruct`) from the screenshot profile due to aggressive false-positive content safety refusals on flight simulator imagery. Screenshots now fall through to Gemini.
 
 ## v0.3.217 (2026-02-24)
-- **Feature**: **Unified LLM Providers**. Consolidated all OpenAI-compatible providers (DeepSeek, Groq, Nvidia) into a single `openai` type. Provider-specific packages are removed; the unified client handles reasoner models, base URLs, and tracking labels automatically.
-- **Feature**: **Tracked LLM Configuration**. Extracted LLM provider config from `phileas.yaml` into a separate `configs/llm.yaml` that can be committed to the repository. The main config auto-loads the sibling file when no LLM block is present.
-- **Fix**: **Post-Takeoff Narration Spam**. Restored the post-takeoff delay to prevent low-value POIs from being selected immediately on rotate.
-- **Fix**: **API Key Loading**. Environment variable lookup for provider secrets now uses the provider name (not type), ensuring keys are correctly loaded after the consolidation.
+- Consolidated all OpenAI-compatible providers (DeepSeek, Groq, Nvidia) into a single `openai` type. Provider-specific packages are removed; the unified client handles reasoner models, base URLs, and tracking labels automatically.
+- Extracted LLM provider config from `phileas.yaml` into a separate `configs/llm.yaml` that can be committed to the repository. The main config auto-loads the sibling file when no LLM block is present.
+- Restored the post-takeoff delay to prevent low-value POIs from being selected immediately on rotate.
+- Environment variable lookup for provider secrets now uses the provider name (not type), ensuring keys are correctly loaded after the consolidation.
 
 ## v0.3.216 (2026-02-24)
-- **Feature**: **Nvidia LLM Provider**. Added support for Nvidia AI inference endpoints via the `NVIDIA_API_KEY` environment variable.
-- **Improvement**: **Hierarchy-Aware Filtering**. Regional category discovery now automatically detects and skips categories already covered by Phileas's static configuration (e.g. subclass detection).
-- **Fix**: **Geographic Cache Pollution**. Fixed a bug where regional categories would incorrectly "bleed" into neighboring tiles when loading from the spatial database.
-- **Improvement**: **High-Confidence Validation**. Rebuilt the Wikidata validator with strict near-exact string matching to eliminate noisy search results.
-- **Improvement**: **Concise Category Labels**. Enforced a 60-character limit and updated prompt instructions to ensure regional categories remain brief and readable (1-4 words).
+- Added support for Nvidia AI inference endpoints via the `NVIDIA_API_KEY` environment variable.
+- Regional category discovery now automatically detects and skips categories already covered by Phileas's static configuration (e.g. subclass detection).
+- Fixed a bug where regional categories would incorrectly "bleed" into neighboring tiles when loading from the spatial database.
+- Rebuilt the Wikidata validator with strict near-exact string matching to eliminate noisy search results.
+- Enforced a 60-character limit and updated prompt instructions to ensure regional categories remain brief and readable (1-4 words).
 
 ## v0.3.215 (2026-02-23)
-- **Fix**: Replaced UTF-8 POI badges in EFB map with SVG icons to resolve "tofu" rendering.
-- **Improvement**: Optimized EFB top bar for VR by moving the version number to the System tab to save horizontal space.
-- **Improvement**: Implemented explicit z-layering for POI markers on the EFB map (active POIs now render on top).
+- Replaced UTF-8 POI badges in EFB map with SVG icons to resolve "tofu" rendering.
+- Optimized EFB top bar for VR by moving the version number to the System tab to save horizontal space.
+- Implemented explicit z-layering for POI markers on the EFB map (active POIs now render on top).
 
 ## v0.3.214 (2026-02-23)
-- **Fix (Hotfix)**: Implemented automatic label hydration for regional categories. Tiles with missing labels (legacy cache) are now automatically hydrated with human-readable names in the background.
-- **Improved**: `request.Client` now gracefully handles missing caches, preventing potential runtime panics during edge cases and testing.
+- Implemented automatic label hydration for regional categories. Tiles with missing labels (legacy cache) are now automatically hydrated with human-readable names in the background.
+- `request.Client` now gracefully handles missing caches, preventing potential runtime panics during edge cases and testing.
 
 ## v0.3.213 (2026-02-23)
-- **Improvement**: Implemented asymmetric map centering and heading-based bias in EFB to prevent status box occlusion.
-- **Fix**: Resolved issue where regional categories occasionally displayed as raw Wikidata IDs instead of localized names.
-- **Fix**: Corrected EFB map zoom levels and range calculations at extreme latitudes.
+- Implemented asymmetric map centering and heading-based bias in EFB to prevent status box occlusion.
+- Resolved issue where regional categories occasionally displayed as raw Wikidata IDs instead of localized names.
+- Corrected EFB map zoom levels and range calculations at extreme latitudes.
 
 ## v0.3.212 (2026-02-23)
-- [Feature] Added a regional discovery system that triggers targeted POI rescans when entering new geographical areas.
-- [Feature] Added an Active Regional Context card to the Web UI and MSFS EFB showing the active taxonomy region.
+- Added a regional discovery system that triggers targeted POI rescans when entering new geographical areas.
+- Added an Active Regional Context card to the Web UI and MSFS EFB showing the active taxonomy region.
 
 v0.3.211 (2026-02-21)
-- **Fix**: Resolved EFB settings resetting to defaults when opening the application.
-- **Fix**: Corrected display of the target POI count setting in the EFB interface.
-- **Improvement**: Updated the build system to correctly use environment paths for MSFS 2024 installations.
+- Resolved EFB settings resetting to defaults when opening the application.
+- Corrected display of the target POI count setting in the EFB interface.
+- Updated the build system to correctly use environment paths for MSFS 2024 installations.
 
 ## v0.3.210 (2026-02-20)
-- **Fix**: Corrected misaligned EFB settings buttons and undersized sliders for better usability in the cockpit.
-- **Improvement**: Added `is_user_paused` state to the status API to improve UI synchronization.
-- **Improvement**: Unified CSS component scoping in the EFB to prevent unintended style inheritance.
+- Corrected misaligned EFB settings buttons and undersized sliders for better usability in the cockpit.
+- Added `is_user_paused` state to the status API to improve UI synchronization.
+- Unified CSS component scoping in the EFB to prevent unintended style inheritance.
 
 ## v0.3.209 (2026-02-20)
 - **Feature**: **Audio Fading**. Added volume fades to pause, resume, and stop actions to eliminate audible clicks.

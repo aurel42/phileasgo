@@ -211,7 +211,7 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 
 	respText = llm.CleanJSONBlock(respText)
 
-	if err := json.Unmarshal([]byte(respText), target); err != nil {
+	if err := llm.UnmarshalFlexible([]byte(respText), target); err != nil {
 		return fmt.Errorf("failed to unmarshal openai json: %w (raw: %s)", err, respText)
 	}
 
@@ -347,7 +347,7 @@ func (c *Client) GenerateImageJSON(ctx context.Context, name, prompt, imagePath 
 
 	respText = llm.CleanJSONBlock(respText)
 
-	if err := json.Unmarshal([]byte(respText), target); err != nil {
+	if err := llm.UnmarshalFlexible([]byte(respText), target); err != nil {
 		return fmt.Errorf("failed to unmarshal openai vision json: %w (raw: %s)", err, respText)
 	}
 

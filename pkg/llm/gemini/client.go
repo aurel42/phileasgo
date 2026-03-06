@@ -2,7 +2,6 @@ package gemini
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math/rand"
@@ -200,7 +199,7 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 	// Sanitize Markdown JSON blocks if present
 	cleaned := llm.CleanJSONBlock(text)
 
-	if err := json.Unmarshal([]byte(cleaned), target); err != nil {
+	if err := llm.UnmarshalFlexible([]byte(cleaned), target); err != nil {
 		if c.tracker != nil {
 			c.tracker.TrackAPIFailure(c.getLabel())
 		}
@@ -333,7 +332,7 @@ func (c *Client) GenerateImageJSON(ctx context.Context, name, prompt, imagePath 
 	// Sanitize Markdown JSON blocks if present
 	cleaned := llm.CleanJSONBlock(text)
 
-	if err := json.Unmarshal([]byte(cleaned), target); err != nil {
+	if err := llm.UnmarshalFlexible([]byte(cleaned), target); err != nil {
 		if c.tracker != nil {
 			c.tracker.TrackAPIFailure(c.getLabel())
 		}
