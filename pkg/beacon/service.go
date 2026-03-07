@@ -53,6 +53,7 @@ type Service struct {
 	targetAlt          float64
 	isHoldingAlt       bool
 	formationSpawnTime time.Time
+	lastMessageTime    time.Time
 
 	spawnedBeacons  []SpawnedBeacon
 	formationActive bool
@@ -344,6 +345,9 @@ func (s *Service) StartIndependentLoop(ctx context.Context) {
 				// Use DEBUG to avoid console spam at startup
 				time.Sleep(100 * time.Millisecond) // brief pause before next loop iteration
 			} else {
+				s.mu.Lock()
+				s.lastMessageTime = time.Now()
+				s.mu.Unlock()
 				s.logger.Info("Starting independent frame-driven update loop")
 			}
 		}
@@ -405,6 +409,17 @@ func (s *Service) runDispatchIteration() bool {
 		return false
 	}
 	if ppData == nil {
+		// Watchdog check
+		s.mu.Lock()
+		active := s.active
+		lastTime := s.lastMessageTime
+		s.mu.Unlock()
+
+		if active && !lastTime.IsZero() && time.Since(lastTime) > 5*time.Second {
+			s.logger.Warn("Watchdog timeout in beacon loop (no data for 5s), resetting connection")
+			return false
+		}
+
 		if s.isIdle() {
 			// No beacons active — throttle to ~10Hz to save CPU while
 			// still draining SimConnect messages and detecting QUIT.
@@ -418,6 +433,10 @@ func (s *Service) runDispatchIteration() bool {
 	}
 
 	recv := (*simconnect.Recv)(ppData)
+	s.mu.Lock()
+	s.lastMessageTime = time.Now()
+	s.mu.Unlock()
+
 	if recv.ID == simconnect.RECV_ID_SIMOBJECT_DATA {
 		data := (*simconnect.RecvSimobjectData)(ppData)
 		if data.RequestID == reqIDHighFreq {

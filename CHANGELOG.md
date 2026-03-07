@@ -1,5 +1,8 @@
 ﻿# Changelog
  
+ ## v0.4.3 (2026-03-07)
+ - Fixed beacons sometimes failing to update their position after simulator restarts.
+ 
  ## v0.4.2 (2026-03-06)
  - Adapted common EFB app color scheme to resolve styling inconsistencies and residual color accents.
  - Improved AI response handling to correctly unmarshal array-wrapped JSON objects from LLM providers.
