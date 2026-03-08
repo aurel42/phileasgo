@@ -74,6 +74,8 @@ type BackoffConfig struct {
 // SimConfig holds settings for the simulation connection.
 type SimConfig struct {
 	Provider          string        `yaml:"provider"` // "simconnect", "mock"
+	ProcessName       string        `yaml:"process_name"`
+	ReconnectInterval Duration      `yaml:"reconnect_interval"`
 	TeleportThreshold Distance      `yaml:"teleport_distance"`
 	Mock              MockSimConfig `yaml:"mock"`
 }
@@ -504,6 +506,8 @@ func DefaultConfig() *Config {
 		},
 		Sim: SimConfig{
 			Provider:          "simconnect",
+			ProcessName:       "flightsimulator",
+			ReconnectInterval: Duration(30 * time.Second),
 			TeleportThreshold: Distance(80000), // 80km
 			Mock: MockSimConfig{
 				StartLat: 51.6845,

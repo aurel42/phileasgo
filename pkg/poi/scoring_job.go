@@ -80,6 +80,11 @@ func (j *ScoringJob) Name() string {
 	return j.name
 }
 
+// NeedsTelemetry returns true because the scoring job requires active position data.
+func (j *ScoringJob) NeedsTelemetry() bool {
+	return true
+}
+
 // ShouldFire returns true if 5 seconds have passed since the last run.
 func (j *ScoringJob) ShouldFire(t *sim.Telemetry) bool {
 	if atomic.LoadInt32(&j.running) == 1 {

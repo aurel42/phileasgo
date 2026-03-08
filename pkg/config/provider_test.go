@@ -442,9 +442,9 @@ func TestUnifiedProvider(t *testing.T) {
 		// Change store underlying value
 		store.SetState(ctx, KeyRepeatTTL, "20m")
 
-		// The cached value should still be 10m because "10m" was in the db before parsing
-		// But in our cache, the key is the string. So since the string in DB changed to "20m",
-		// the cache key "20m" will be a miss and it will parse again!
+		// Because the config provider uses the raw string from the store as its cache key,
+		// changing the underlying store value to "20m" means the provider will read the new string.
+		// It will miss the cache (since "20m" hasn't been parsed yet), parse it, and return 20m.
 		val2 := p.RepeatTTL(ctx)
 		if val2 != 20*time.Minute {
 			t.Errorf("expected 20m, got %v", val2)

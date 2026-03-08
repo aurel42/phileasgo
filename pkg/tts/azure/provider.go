@@ -138,6 +138,16 @@ func (p *Provider) Voices(ctx context.Context) ([]tts.Voice, error) {
 	}, nil
 }
 
+var (
+	reLangEnd    = regexp.MustCompile(`([^.?!,])</lang>`)
+	reID         = regexp.MustCompile(`\s+xml:ID[^>]*`)
+	reSpeakOpen  = regexp.MustCompile(`(?i)<speak[^>]*>`)
+	reSpeakClose = regexp.MustCompile(`(?i)</speak>`)
+	reVoiceOpen  = regexp.MustCompile(`(?i)<voice[^>]*>`)
+	reVoiceClose = regexp.MustCompile(`(?i)</voice>`)
+	reStripTags  = regexp.MustCompile(`<[^>]*>`)
+)
+
 // validateSSML checks if the SSML string is well-formed XML.
 func validateSSML(ssml string) error {
 	decoder := xml.NewDecoder(bytes.NewReader([]byte(ssml)))
@@ -174,7 +184,6 @@ func (p *Provider) buildSSML(ctx context.Context, vid, text string) string {
 	// But we shouldn't add double punctuation if it ends with `.` or `,`.
 	// Let's use ReplaceAllStringFunc.
 
-	reLangEnd := regexp.MustCompile(`([^.?!,])</lang>`)
 	processedText := reLangEnd.ReplaceAllString(text, `$1,</lang>`)
 
 	ssml := fmt.Sprintf(
@@ -198,19 +207,14 @@ func (p *Provider) buildSSML(ctx context.Context, vid, text string) string {
 func repairSSML(text string) string {
 	// 1. Remove invalid "xml:ID" attributes which Gemini sometimes hallucinates.
 	// Matches: xml:ID">, xml:ID="foo", xml:ID
-	reID := regexp.MustCompile(`\s+xml:ID[^>]*`)
 	text = reID.ReplaceAllString(text, "")
 
 	// 2. Remove any <speak> or </speak> tags that the LLM may have generated.
 	// These will be added by buildSSML, so duplicates cause Azure 400 errors.
-	reSpeakOpen := regexp.MustCompile(`(?i)<speak[^>]*>`)
-	reSpeakClose := regexp.MustCompile(`(?i)</speak>`)
 	text = reSpeakOpen.ReplaceAllString(text, "")
 	text = reSpeakClose.ReplaceAllString(text, "")
 
 	// 3. Remove any <voice> or </voice> tags.
-	reVoiceOpen := regexp.MustCompile(`(?i)<voice[^>]*>`)
-	reVoiceClose := regexp.MustCompile(`(?i)</voice>`)
 	text = reVoiceOpen.ReplaceAllString(text, "")
 	text = reVoiceClose.ReplaceAllString(text, "")
 
@@ -219,6 +223,5 @@ func repairSSML(text string) string {
 
 // stripTags removes all XML/HTML tags from the text.
 func stripTags(text string) string {
-	re := regexp.MustCompile(`<[^>]*>`)
-	return re.ReplaceAllString(text, "")
+	return reStripTags.ReplaceAllString(text, "")
 }

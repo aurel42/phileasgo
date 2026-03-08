@@ -23,7 +23,7 @@ func TestBaseJob_LockUnlock(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := NewBaseJob("test")
+			b := NewBaseJob("test", false)
 
 			if tt.prelock {
 				// First lock should succeed
@@ -62,7 +62,7 @@ func TestBaseJob_Name(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := NewBaseJob(tt.jobName)
+			b := NewBaseJob(tt.jobName, false)
 			if got := b.Name(); got != tt.wantName {
 				t.Errorf("Name() = %v, want %v", got, tt.wantName)
 			}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/sim"
@@ -29,8 +30,8 @@ func initializeSimClient(ctx context.Context, cfgProv config.Provider) (sim.Clie
 
 	// Default or Explicit SimConnect
 	slog.Info("Sim Source: SimConnect (Default)")
-	// SimConnect Client - DLL is in lib/ folder, copied to bin/ by Makefile
-	sc, err := simconnect.NewClient("PhileasGo", "")
+	appCfg := cfgProv.AppConfig()
+	sc, err := simconnect.NewClient("PhileasGo", "", appCfg.Sim.ProcessName, time.Duration(appCfg.Sim.ReconnectInterval))
 	if err != nil {
 		slog.Error("Failed to create SimConnect client, falling back to Mock", "error", err)
 		return mocksim.NewClient(mocksim.Config{

@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## v0.4.5 (2026-03-08)
+- Added telemetry validity checks to prevent processing data from disconnected or glitched simulator states.
+- Optimized SimConnect connection logic to only attempt connection when the simulator is running.
+- Added configurable reconnect interval for SimConnect.
+- Improved Azure Text-to-Speech performance by pre-compiling regular expressions.
+- Fixed SSML repair logic in Azure TTS to better handle hallucinated tags from LLMs.
+
 ## v0.4.4 (2026-03-08)
 - Fixed performance regression in POI processing.
 

@@ -177,6 +177,12 @@ func (s *Service) processTick(ctx context.Context) {
 	}
 
 	// Use Predicted Position to "pull" the search cone forward
+	// If telemetry is invalid (e.g., Null Island glitch, or disconnected state we didn't catch),
+	// we should not process.
+	if !telemetry.HasValidData {
+		return
+	}
+
 	lat := telemetry.PredictedLatitude
 	lon := telemetry.PredictedLongitude
 	// Fallback for stationary/start

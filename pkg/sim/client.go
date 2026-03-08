@@ -58,6 +58,7 @@ type Telemetry struct {
 	Heading       float64 // Degrees True (Ground Track when airborne)
 	GroundSpeed   float64 // Knots
 	VerticalSpeed float64 // Feet per minute
+	HasValidData  bool    // True if telemetry passes validity checks
 	// Predicted position (1 min ahead)
 	// Predicted position (1 min ahead)
 	PredictedLatitude  float64

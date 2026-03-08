@@ -23,7 +23,7 @@ type RiverJob struct {
 // NewRiverJob creates a new RiverJob with a 15s interval.
 func NewRiverJob(manager *poi.Manager) *RiverJob {
 	return &RiverJob{
-		BaseJob:   NewBaseJob("RiverJob"),
+		BaseJob:   NewBaseJob("RiverJob", true),
 		threshold: 15 * time.Second,
 		manager:   manager,
 		logger:    slog.With("component", "river_job"),

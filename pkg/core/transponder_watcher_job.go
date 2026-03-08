@@ -27,7 +27,7 @@ type TransponderWatcherJob struct {
 // NewTransponderWatcherJob creates a new transponder watcher job.
 func NewTransponderWatcherJob(cfg config.Provider, n narrator.Service, st store.Store, vis *visibility.Calculator) *TransponderWatcherJob {
 	return &TransponderWatcherJob{
-		BaseJob:   NewBaseJob("TransponderWatcherJob"),
+		BaseJob:   NewBaseJob("TransponderWatcherJob", true),
 		cfg:       cfg,
 		narrator:  n,
 		st:        st,

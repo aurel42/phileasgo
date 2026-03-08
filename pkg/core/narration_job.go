@@ -51,7 +51,7 @@ type NarrationJob struct {
 
 func NewNarrationJob(cfgProv config.Provider, n narrator.Service, pm POIProvider, simC sim.Client, st store.Store, los *terrain.LOSChecker) *NarrationJob {
 	j := &NarrationJob{
-		BaseJob:            NewBaseJob("Narration"),
+		BaseJob:            NewBaseJob("Narration", true),
 		cfgProv:            cfgProv,
 		narrator:           n,
 		poiMgr:             pm,

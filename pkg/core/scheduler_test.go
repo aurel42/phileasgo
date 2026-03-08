@@ -71,7 +71,10 @@ func TestScheduler_JobExecution(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Ticker.TelemetryLoop = config.Duration(5 * time.Millisecond)
 
-	mockSim := &mockSimClient{state: sim.StateActive}
+	mockSim := &mockSimClient{
+		state: sim.StateActive,
+		tel:   sim.Telemetry{HasValidData: true},
+	}
 	prov := config.NewProvider(cfg, nil)
 	sched := NewScheduler(prov, mockSim, nil, &mockSchedGeoProvider{})
 
@@ -103,14 +106,14 @@ func TestScheduler_JobExecution(t *testing.T) {
 	}
 
 	// 2. Move < Threshold (50m)
-	mockSim.SetTelemetry(&sim.Telemetry{Latitude: 0.00045, Longitude: 0}) // ~50m
+	mockSim.SetTelemetry(&sim.Telemetry{Latitude: 0.00045, Longitude: 0, HasValidData: true}) // ~50m
 	time.Sleep(50 * time.Millisecond)
 	if atomic.LoadInt32(&firedCount) > 1 {
 		t.Error("Job fired when movement was small")
 	}
 
 	// 3. Move > Threshold (150m total)
-	mockSim.SetTelemetry(&sim.Telemetry{Latitude: 0.00135, Longitude: 0}) // ~150m
+	mockSim.SetTelemetry(&sim.Telemetry{Latitude: 0.00135, Longitude: 0, HasValidData: true}) // ~150m
 	select {
 	case <-fired:
 		// OK
@@ -121,7 +124,7 @@ func TestScheduler_JobExecution(t *testing.T) {
 
 func TestJob_Concurrency(t *testing.T) {
 	// Ensure job doesn't double fire if slow
-	job := NewBaseJob("SlowJob")
+	job := NewBaseJob("SlowJob", false)
 
 	// Simulate "ShouldFire" check
 	if !job.TryLock() {

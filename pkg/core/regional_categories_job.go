@@ -45,7 +45,7 @@ func NewRegionalCategoriesJob(
 	store store.RegionalCategoriesStore,
 ) *RegionalCategoriesJob {
 	return &RegionalCategoriesJob{
-		BaseJob:    NewBaseJob("Regional Categories"),
+		BaseJob:    NewBaseJob("Regional Categories", true),
 		appCfg:     appCfg,
 		llm:        llmProv,
 		prompts:    prompts,

@@ -31,7 +31,7 @@ func NewEvictionJob(
 	wikiSvc *wikidata.Service,
 ) *EvictionJob {
 	return &EvictionJob{
-		BaseJob: NewBaseJob("Eviction"),
+		BaseJob: NewBaseJob("Eviction", true),
 		cfg:     cfg,
 		poi:     poiMgr,
 		wikiSvc: wikiSvc,

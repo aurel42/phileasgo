@@ -12,22 +12,28 @@ import (
 // Job defines a scheduled task.
 type Job interface {
 	Name() string
+	NeedsTelemetry() bool
 	ShouldFire(t *sim.Telemetry) bool
 	Run(ctx context.Context, t *sim.Telemetry)
 }
 
 // BaseJob provides atomic running state to prevent re-entry.
 type BaseJob struct {
-	name    string
-	running int32 // 1 if running, 0 otherwise
+	name           string
+	needsTelemetry bool
+	running        int32 // 1 if running, 0 otherwise
 }
 
-func NewBaseJob(name string) BaseJob {
-	return BaseJob{name: name}
+func NewBaseJob(name string, needsTelemetry bool) BaseJob {
+	return BaseJob{name: name, needsTelemetry: needsTelemetry}
 }
 
 func (b *BaseJob) Name() string {
 	return b.name
+}
+
+func (b *BaseJob) NeedsTelemetry() bool {
+	return b.needsTelemetry
 }
 
 // TryLock attempts to set running to 1. Returns true if successful.
@@ -50,7 +56,7 @@ type DistanceJob struct {
 
 func NewDistanceJob(name string, thresholdMeters float64, action func(context.Context, sim.Telemetry)) *DistanceJob {
 	return &DistanceJob{
-		BaseJob:   NewBaseJob(name),
+		BaseJob:   NewBaseJob(name, true), // Distance inherently depends on telemetry
 		threshold: thresholdMeters,
 		action:    action,
 		firstRun:  true,
@@ -95,7 +101,7 @@ type TimeJob struct {
 
 func NewTimeJob(name string, threshold time.Duration, action func(context.Context, sim.Telemetry)) *TimeJob {
 	return &TimeJob{
-		BaseJob:   NewBaseJob(name),
+		BaseJob:   NewBaseJob(name, false), // Default TimeJobs don't strictly require valid telemetry to merely run on an interval
 		threshold: threshold,
 		action:    action,
 		firstRun:  true,

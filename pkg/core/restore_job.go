@@ -20,7 +20,7 @@ type SessionRestorationJob struct {
 
 func NewSessionRestorationJob(st store.Store, sm *session.Manager, s sim.Client) *SessionRestorationJob {
 	return &SessionRestorationJob{
-		BaseJob: NewBaseJob("SessionRestoration"),
+		BaseJob: NewBaseJob("SessionRestoration", false),
 		st:      st,
 		sessMgr: sm,
 		sim:     s,

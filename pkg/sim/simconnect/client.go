@@ -81,11 +81,17 @@ type Client struct {
 
 	// Telemetry Validity
 	hasValidData bool
+
+	// New configuration fields
+	simProcess string
 }
 
 // NewClient creates a new SimConnect client.
 // If dllPath is empty, it will attempt to auto-discover SimConnect.dll.
-func NewClient(appName, dllPath string) (*Client, error) {
+func NewClient(appName, dllPath, simProcess string, reconnectInterval time.Duration) (*Client, error) {
+	if reconnectInterval <= 0 {
+		reconnectInterval = 30 * time.Second
+	}
 	// Auto-discover DLL if path is empty
 	if dllPath == "" {
 		var err error
@@ -102,8 +108,9 @@ func NewClient(appName, dllPath string) (*Client, error) {
 		logger:           slog.Default().With("component", "simconnect"),
 		appName:          appName,
 		dllPath:          dllPath,
-		reconnectInt:     5 * time.Second,
+		reconnectInt:     reconnectInterval,
 		predictionWindow: 60 * time.Second,
+		simProcess:       simProcess,
 		pendingSpawns:    make(map[uint32]chan uint32),
 		trackBuf:         geo.NewTrackBuffer(5),
 		vsBuf:            sim.NewVerticalSpeedBuffer(5 * time.Second),
@@ -244,14 +251,16 @@ func (c *Client) connectionLoop() {
 	defer ticker.Stop()
 
 	// Initial attempt
-	c.connect()
+	if IsSimulatorRunning(c.simProcess) {
+		c.connect()
+	}
 
 	for {
 		select {
 		case <-c.stopChan:
 			return
 		case <-ticker.C:
-			if !c.connected {
+			if !c.connected && IsSimulatorRunning(c.simProcess) {
 				c.connect()
 			}
 		}
@@ -563,6 +572,7 @@ func (c *Client) handleSimObjectData(ppData unsafe.Pointer) {
 				Squawk:             int(data.Squawk),
 				Ident:              data.Ident != 0,
 				Provider:           "simconnect",
+				HasValidData:       true, // Only set telemetry when valid
 			}
 
 			// Update Stage Machine

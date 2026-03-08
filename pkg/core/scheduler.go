@@ -136,10 +136,32 @@ func (s *Scheduler) tick(ctx context.Context) {
 	s.lastTickPos = currPos
 
 	// 3. Evaluate Jobs
+	s.evaluateJobs(ctx, simState, &tel)
+}
+
+func (s *Scheduler) evaluateJobs(ctx context.Context, simState sim.State, tel *sim.Telemetry) {
+	// simState is guaranteed to be StateActive to reach here (checked early in tick()),
+	// so we only need to gate heavy jobs if the telemetry itself is tagged invalid.
+	isIdle := !tel.HasValidData
+
 	for _, job := range s.jobs {
-		if job.ShouldFire(&tel) {
+		// If idle, we still allow basic TimeJobs to run (they don't need valid telemetry).
+		// We could restrict this by asserting job types, or just let jobs protect themselves.
+		// However, the rule is to explicitly pause fetching/scoring.
+		// The easiest way to apply the "idle gate" globally to telemetry-dependent jobs
+		// is to not pass them the telemetry, or skip them if it's invalid.
+		// Since jobs like TransponderWatcher or ScoringJob depend on telemetry,
+		// we skip them entirely if idle. We only run simple TimeJobs if idle.
+
+		// Only pause the heavy jobs that require telemetry.
+		// Time and system-restore jobs will continue to run.
+		if isIdle && job.NeedsTelemetry() {
+			continue // Skip processing
+		}
+
+		if job.ShouldFire(tel) {
 			// Fire and forget
-			go job.Run(ctx, &tel)
+			go job.Run(ctx, tel)
 		}
 	}
 }
