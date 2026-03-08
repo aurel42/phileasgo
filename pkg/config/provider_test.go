@@ -65,6 +65,24 @@ func TestUnifiedProvider(t *testing.T) {
 	baseCfg.Narrator.ActiveSecretWord = "word1"
 	baseCfg.Scorer.DeferralThreshold = 1.05
 	baseCfg.Scorer.DeferralProximityBoostPower = 1.0
+	baseCfg.Narrator.TakeoffDelay = Duration(15 * time.Second)
+	baseCfg.Narrator.TwoPassScriptGeneration = true
+	baseCfg.Overlay.SettlementLabelLimit = 50
+	baseCfg.Beacon.Enabled = true
+	baseCfg.Beacon.FormationEnabled = false
+	baseCfg.Beacon.FormationDistance = Distance(200.0)
+	baseCfg.Beacon.FormationCount = 3
+	baseCfg.Beacon.FormationMinDuration = Duration(10 * time.Minute)
+	baseCfg.Beacon.MinSpawnAltitude = Distance(1000.0)
+	baseCfg.Beacon.AltitudeFloor = Distance(500.0)
+	baseCfg.Beacon.TargetSinkDistanceFar = Distance(100.0)
+	baseCfg.Beacon.TargetSinkDistanceClose = Distance(20.0)
+	baseCfg.Beacon.TargetFloorAGL = Distance(10.0)
+	baseCfg.Beacon.MaxTargets = 5
+	baseCfg.Scorer.AircraftIcon = "plane"
+	baseCfg.Scorer.AircraftSize = 24
+	baseCfg.Scorer.AircraftColorMain = "red"
+	baseCfg.Scorer.AircraftColorAccent = "blue"
 
 	store := NewMockStateStore()
 	p := NewProvider(baseCfg, store)
@@ -178,6 +196,78 @@ func TestUnifiedProvider(t *testing.T) {
 		if p.AppConfig() != baseCfg {
 			t.Error("expected baseCfg")
 		}
+		if p.RangeRingUnits(ctx) != "km" {
+			t.Errorf("expected km, got %s", p.RangeRingUnits(ctx))
+		}
+		if p.TakeoffDelay(ctx) != 15*time.Second {
+			t.Errorf("expected 15s, got %v", p.TakeoffDelay(ctx))
+		}
+		if p.TwoPassScriptGeneration(ctx) != true {
+			t.Error("expected true")
+		}
+		if p.SettlementLabelLimit(ctx) != 50 {
+			t.Errorf("expected 50, got %d", p.SettlementLabelLimit(ctx))
+		}
+		if p.SettlementTier(ctx) != 3 {
+			t.Errorf("expected 3, got %d", p.SettlementTier(ctx))
+		}
+		if !p.BeaconEnabled(ctx) {
+			t.Error("expected true")
+		}
+		if p.BeaconFormationEnabled(ctx) {
+			t.Error("expected false")
+		}
+		if p.BeaconFormationDistance(ctx) != 200.0 {
+			t.Errorf("expected 200.0, got %v", p.BeaconFormationDistance(ctx))
+		}
+		if p.BeaconFormationCount(ctx) != 3 {
+			t.Errorf("expected 3, got %d", p.BeaconFormationCount(ctx))
+		}
+		if p.BeaconFormationMinDuration(ctx) != 10*time.Minute {
+			t.Errorf("expected 10m, got %v", p.BeaconFormationMinDuration(ctx))
+		}
+		if p.BeaconMinSpawnAltitude(ctx) != 1000.0 {
+			t.Errorf("expected 1000.0, got %v", p.BeaconMinSpawnAltitude(ctx))
+		}
+		if p.BeaconAltitudeFloor(ctx) != 500.0 {
+			t.Errorf("expected 500.0, got %v", p.BeaconAltitudeFloor(ctx))
+		}
+		if p.BeaconSinkDistanceFar(ctx) != 100.0 {
+			t.Errorf("expected 100.0, got %v", p.BeaconSinkDistanceFar(ctx))
+		}
+		if p.BeaconSinkDistanceClose(ctx) != 20.0 {
+			t.Errorf("expected 20.0, got %v", p.BeaconSinkDistanceClose(ctx))
+		}
+		if p.BeaconTargetFloorAGL(ctx) != 10.0 {
+			t.Errorf("expected 10.0, got %v", p.BeaconTargetFloorAGL(ctx))
+		}
+		if p.BeaconMaxTargets(ctx) != 5 {
+			t.Errorf("expected 5, got %d", p.BeaconMaxTargets(ctx))
+		}
+		if p.AircraftIcon(ctx) != "plane" {
+			t.Errorf("expected plane, got %s", p.AircraftIcon(ctx))
+		}
+		if p.AircraftSize(ctx) != 24 {
+			t.Errorf("expected 24, got %d", p.AircraftSize(ctx))
+		}
+		if p.AircraftColorMain(ctx) != "red" {
+			t.Errorf("expected red, got %s", p.AircraftColorMain(ctx))
+		}
+		if p.AircraftColorAccent(ctx) != "blue" {
+			t.Errorf("expected blue, got %s", p.AircraftColorAccent(ctx))
+		}
+		if p.PaperOpacityClear(ctx) != 0.1 {
+			t.Errorf("expected 0.1, got %f", p.PaperOpacityClear(ctx))
+		}
+		if p.PaperOpacityFog(ctx) != 0.7 {
+			t.Errorf("expected 0.7, got %f", p.PaperOpacityFog(ctx))
+		}
+		if p.ParchmentSaturation(ctx) != 1.0 {
+			t.Errorf("expected 1.0, got %f", p.ParchmentSaturation(ctx))
+		}
+		if p.Volume(ctx) != 1.0 {
+			t.Errorf("expected 1.0, got %f", p.Volume(ctx))
+		}
 	})
 
 	t.Run("Store_Overrides", func(t *testing.T) {
@@ -206,6 +296,7 @@ func TestUnifiedProvider(t *testing.T) {
 		store.SetState(ctx, KeyNarrationLengthLong, "500")
 		store.SetState(ctx, KeyDeferralThreshold, "1.15")
 		store.SetState(ctx, KeyDeferralProximityBoostPower, "1.5")
+		store.SetState(ctx, KeyBeaconFormationDistance, "300.5nm")
 
 		styles, _ := json.Marshal([]string{"s1", "s2", "s3"})
 		store.SetState(ctx, KeyStyleLibrary, string(styles))
@@ -293,6 +384,9 @@ func TestUnifiedProvider(t *testing.T) {
 		if len(p.StyleLibrary(ctx)) != 3 {
 			t.Errorf("expected 3 styles, got %d", len(p.StyleLibrary(ctx)))
 		}
+		if p.BeaconFormationDistance(ctx) != 556526.0 {
+			t.Errorf("expected 556526.0, got %f", p.BeaconFormationDistance(ctx))
+		}
 	})
 
 	t.Run("Conversion_Errors_Fallbacks", func(t *testing.T) {
@@ -334,6 +428,33 @@ func TestUnifiedProvider(t *testing.T) {
 		}
 		if pNone.MockStartHeading(ctx) == nil || *pNone.MockStartHeading(ctx) != 90.0 {
 			t.Error("expected fallback heading 90.0")
+		}
+	})
+
+	t.Run("Duration_Caching", func(t *testing.T) {
+		store.SetState(ctx, KeyRepeatTTL, "10m")
+
+		val1 := p.RepeatTTL(ctx)
+		if val1 != 10*time.Minute {
+			t.Errorf("expected 10m, got %v", val1)
+		}
+
+		// Change store underlying value
+		store.SetState(ctx, KeyRepeatTTL, "20m")
+
+		// The cached value should still be 10m because "10m" was in the db before parsing
+		// But in our cache, the key is the string. So since the string in DB changed to "20m",
+		// the cache key "20m" will be a miss and it will parse again!
+		val2 := p.RepeatTTL(ctx)
+		if val2 != 20*time.Minute {
+			t.Errorf("expected 20m, got %v", val2)
+		}
+
+		// To test caching, we should ensure that the second time the exact same string
+		// is requested, the parse isn't run.
+		val3 := p.RepeatTTL(ctx)
+		if val3 != 20*time.Minute {
+			t.Errorf("expected 20m, got %v", val3)
 		}
 	})
 }

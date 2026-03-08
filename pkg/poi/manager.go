@@ -362,6 +362,8 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	ttl := m.config.RepeatTTL(context.Background())
+
 	// 1. Separate "Played" (Blue markers) from "Playable Candidates"
 	var played []*model.POI
 	var playableVisible []*model.POI
@@ -374,7 +376,7 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 
 		// Only show played items if they are still within the "Recent History" window (TTL).
 		// Once expired, they drop off the "Played" list and must compete by score again.
-		if !m.isPlayable(p) {
+		if !m.isPlayable(p, ttl) {
 			played = append(played, p)
 		} else if p.IsVisible {
 			playableVisible = append(playableVisible, p)
@@ -419,7 +421,7 @@ func (m *Manager) GetPOIsForUI(filterMode string, targetCount int, minScore floa
 			p.Size = "M"
 		}
 		// Populate cooldown status for UI
-		p.InCooldown = !m.isPlayable(p)
+		p.InCooldown = !m.isPlayable(p, ttl)
 		result = append(result, p)
 	}
 
@@ -441,6 +443,7 @@ func (m *Manager) GetNarrationCandidates(limit int, minScore *float64) []*model.
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	ttl := m.config.RepeatTTL(context.Background())
 	candidates := make([]*model.POI, 0, len(m.trackedPOIs))
 
 	for _, p := range m.trackedPOIs {
@@ -450,7 +453,7 @@ func (m *Manager) GetNarrationCandidates(limit int, minScore *float64) []*model.
 		}
 
 		// 2. Playability (Cooldown)
-		if !m.isPlayable(p) {
+		if !m.isPlayable(p, ttl) {
 			continue
 		}
 
@@ -479,8 +482,8 @@ func (m *Manager) GetNarrationCandidates(limit int, minScore *float64) []*model.
 }
 
 // isPlayable helper checks if a POI is on cooldown.
-func (m *Manager) isPlayable(p *model.POI) bool {
-	return !p.IsOnCooldown(m.config.RepeatTTL(context.Background()))
+func (m *Manager) isPlayable(p *model.POI, ttl time.Duration) bool {
+	return !p.IsOnCooldown(ttl)
 }
 
 // CountScoredAbove returns the number of tracked POIs with a combined score (intrinsic × visibility)
@@ -489,11 +492,12 @@ func (m *Manager) CountScoredAbove(threshold float64, limit int) int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	ttl := m.config.RepeatTTL(context.Background())
 	count := 0
 	for _, p := range m.trackedPOIs {
 		// Only count valid competitors (Playable POIs).
 		// If a neighbor is on cooldown, they are "silent" and don't contribute to competition clatter.
-		if !m.isPlayable(p) {
+		if !m.isPlayable(p, ttl) {
 			continue
 		}
 

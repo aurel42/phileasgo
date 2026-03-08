@@ -45,6 +45,11 @@ func TestOrchestrator_QueueManagement(t *testing.T) {
 		t.Error("expected empty queue after reset")
 	}
 
+	// Prevent lingering background goroutines from popping
+	o.mu.Lock()
+	o.active = true
+	o.mu.Unlock()
+
 	// 4. promoteInQueue - Boost case
 	pbQ.Enqueue(&model.Narrative{POI: &model.POI{WikidataID: "Q1"}, Type: model.NarrativeTypePOI}, false)
 	pbQ.Enqueue(&model.Narrative{POI: &model.POI{WikidataID: "Q2"}, Type: model.NarrativeTypePOI}, false)

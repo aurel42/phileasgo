@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"phileasgo/pkg/store"
@@ -101,8 +102,9 @@ type Provider interface {
 
 // UnifiedProvider implements Provider by bridging static Config and persistent Store.
 type UnifiedProvider struct {
-	base  *Config
-	store store.StateStore
+	base        *Config
+	store       store.StateStore
+	durationMap sync.Map // caches parsed duration strings
 }
 
 // NewProvider creates a new UnifiedProvider.
@@ -433,9 +435,14 @@ func (p *UnifiedProvider) getDuration(ctx context.Context, key string, fallback 
 			if secs, err := strconv.Atoi(val); err == nil {
 				return time.Duration(secs) * time.Second
 			}
+			// Check parsed cache
+			if cached, ok := p.durationMap.Load(val); ok {
+				return cached.(time.Duration)
+			}
 			// Fallback: try parsing as duration string for backward compat with
 			// existing DB values. On next write the value will be normalised to seconds.
 			if dur, err := ParseDuration(val); err == nil {
+				p.durationMap.Store(val, dur)
 				return dur
 			}
 		}

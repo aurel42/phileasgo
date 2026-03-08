@@ -22,6 +22,10 @@ categories:
       "Q12345": "test_obj"
 ignored_categories:
   "Q56061": "Administrative Territorial Entity"
+merge_distance:
+  L: 2000.0
+  M: 500.0
+  S: 250.0
 `
 	err := os.WriteFile(configPath, []byte(yamlContent), 0o644)
 	if err != nil {
@@ -64,6 +68,19 @@ ignored_categories:
 	}
 	if s := cfg.GetSize("unknown"); s != "M" {
 		t.Errorf("GetSize(unknown) = %v, want M", s)
+	}
+
+	if md := cfg.GetMergeDistance("L"); md != 2000.0 {
+		t.Errorf("GetMergeDistance(L) = %v, want 2000.0", md)
+	}
+	if md := cfg.GetMergeDistance("M"); md != 500.0 {
+		t.Errorf("GetMergeDistance(M) = %v, want 500.0", md)
+	}
+	if md := cfg.GetMergeDistance("S"); md != 250.0 {
+		t.Errorf("GetMergeDistance(S) = %v, want 250.0", md)
+	}
+	if md := cfg.GetMergeDistance("unknown"); md != 500.0 {
+		t.Errorf("GetMergeDistance(unknown) = %v, want 500.0", md)
 	}
 
 	if g := cfg.GetGroup("aerodrome"); g != "" { // Not set in YAML

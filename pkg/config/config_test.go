@@ -311,3 +311,28 @@ func TestGenerateDefault(t *testing.T) {
 		t.Errorf("GenerateDefault() error on second run = %v", err)
 	}
 }
+
+func TestGUIConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "gui-config.yaml")
+
+	// Save GUI Config
+	cfg := &GUIConfig{
+		Window: WindowConfig{
+			Width: 1024,
+		},
+	}
+	err := SaveGUIConfig(configPath, cfg)
+	if err != nil {
+		t.Fatalf("SaveGUIConfig() error = %v", err)
+	}
+
+	// Load GUI Config
+	loadedCfg, err := LoadGUIConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadGUIConfig() error = %v", err)
+	}
+	if loadedCfg.Window.Width != 1024 {
+		t.Errorf("expected loaded config to have width 1024, got %d", loadedCfg.Window.Width)
+	}
+}
