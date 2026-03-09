@@ -14,11 +14,12 @@ We have just crossed from **{{.From}}** into **{{.To}}**.
 
 ### TASK
 Announce this border crossing in a pithy, interesting way.
+Your response MUST be under {{.MaxWords}} words.
 
 ### OUTPUT FORMAT
 Respond ONLY with a JSON object containing the following fields:
 - `title`: A short, descriptive title for this announcement (e.g. "Crossing into {{.To}}").
-- `script`: The pithy narration text (2-3 sentences). Use the language: {{.Language_name}} ({{.Language_code}}).
+- `script`: The pithy narration text (max {{.MaxWords}} words). Use the language: {{.Language_name}} ({{.Language_code}}).
 
 ### EXAMPLE
 {

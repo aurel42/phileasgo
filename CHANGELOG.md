@@ -1,4 +1,8 @@
 ﻿# Changelog
+ 
+## v0.4.6 (2026-03-09)
+- Fixed significant latency in border announcements by correcting LLM provider model configurations.
+- Switched Wikipedia thumbnail selection to more stable models to ensure consistent tool-use support.
 
 ## v0.4.5 (2026-03-08)
 - Added telemetry validity checks to prevent processing data from disconnected or glitched simulator states.
