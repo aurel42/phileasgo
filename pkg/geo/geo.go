@@ -292,16 +292,16 @@ func (s *Service) searchCities(lat, lon float64, legalCountryCode string) (bestC
 	return bestCity, bestLegalCity, minDistSq
 }
 
-// GetCitiesInBbox returns all cities within the specified bounding box.
-func (s *Service) GetCitiesInBbox(minLat, minLon, maxLat, maxLon float64) []City {
-	var result []City
+// GetCitiesInBbox returns pointers to all cities within the specified bounding box.
+// The returned pointers reference the service's internal grid data and must not be modified.
+func (s *Service) GetCitiesInBbox(minLat, minLon, maxLat, maxLon float64) []*City {
+	var result []*City
 
 	startLatKey := int(math.Floor(minLat))
 	endLatKey := int(math.Floor(maxLat))
 	startLonKey := int(math.Floor(minLon))
 	endLonKey := int(math.Floor(maxLon))
 
-	// Scan the grid keys
 	for latK := startLatKey; latK <= endLatKey; latK++ {
 		for lonK := startLonKey; lonK <= endLonKey; lonK++ {
 			key := s.makeKey(latK, lonK)
@@ -310,9 +310,10 @@ func (s *Service) GetCitiesInBbox(minLat, minLon, maxLat, maxLon float64) []City
 				continue
 			}
 
-			for _, city := range cities {
-				if city.Lat >= minLat && city.Lat <= maxLat && city.Lon >= minLon && city.Lon <= maxLon {
-					result = append(result, city)
+			for i := range cities {
+				c := &cities[i]
+				if c.Lat >= minLat && c.Lat <= maxLat && c.Lon >= minLon && c.Lon <= maxLon {
+					result = append(result, c)
 				}
 			}
 		}

@@ -21,7 +21,7 @@ type LabelLimitProvider interface {
 
 // LabelCandidate represents a city that is a potential label on the map.
 type LabelCandidate struct {
-	City       geo.City
+	City       *geo.City
 	GenericID  string // e.g. "lat-lon" or Name
 	Category   string // e.g. "city", "town", "village"
 	FinalScore float64
@@ -48,6 +48,7 @@ type labelSession struct {
 	activeSettlements map[string]*LabelCandidate
 	currentZoomFloor  int
 	lastLimit         int
+	scratchScored     []LabelCandidate // reused across calls to avoid allocation
 }
 
 func newLabelSession() *labelSession {
@@ -165,13 +166,14 @@ func filterByTier(candidates []LabelCandidate, tier int) []LabelCandidate {
 	if tier == 1 {
 		minPop = PopCity
 	}
-	filtered := candidates[:0:0]
+	n := 0
 	for i := range candidates {
 		if candidates[i].City.Population >= minPop {
-			filtered = append(filtered, candidates[i])
+			candidates[n] = candidates[i]
+			n++
 		}
 	}
-	return filtered
+	return candidates[:n]
 }
 
 // SelectLabels picks the best labels for a given viewport and aircraft state.
@@ -212,12 +214,11 @@ func (m *Manager) SelectLabels(
 	exp := expandBbox(vp, heading)
 	ls.pruneActive(exp, latSpan*0.2, lonSpan*0.2)
 
-	// 3. Get candidates from the expanded bbox
-	var scored []LabelCandidate
-	globalCands := m.collectGlobalCandidates(exp.minLat, exp.minLon, exp.maxLat, exp.maxLon, acLat, acLon, heading)
-	localCands := m.collectLocalCandidates(exp.minLat, exp.minLon, exp.maxLat, exp.maxLon, acLat, acLon, heading)
-	scored = append(scored, globalCands...)
-	scored = append(scored, localCands...)
+	// 3. Get candidates from the expanded bbox, reusing scratch buffer
+	scored := ls.scratchScored[:0]
+	scored = m.appendGlobalCandidates(scored, exp.minLat, exp.minLon, exp.maxLat, exp.maxLon, acLat, acLon, heading)
+	scored = m.appendLocalCandidates(scored, exp.minLat, exp.minLon, exp.maxLat, exp.maxLon, acLat, acLon, heading)
+	ls.scratchScored = scored // save grown backing array for next call
 
 	// 3b. Filter by settlement tier
 	tier := m.getTier()
@@ -269,10 +270,10 @@ func (m *Manager) SelectLabels(
 	return ls.visibleSettlements()
 }
 
-func (m *Manager) collectGlobalCandidates(minLat, minLon, maxLat, maxLon, acLat, acLon, heading float64) []LabelCandidate {
-	globalCandidates := m.getCitiesInBbox(minLat, minLon, maxLat, maxLon)
-	var scored []LabelCandidate
-	for _, city := range globalCandidates {
+// appendGlobalCandidates appends scored candidates from the geo grid directly into dst.
+func (m *Manager) appendGlobalCandidates(dst []LabelCandidate, minLat, minLon, maxLat, maxLon, acLat, acLon, heading float64) []LabelCandidate {
+	cities := m.geoSvc.GetCitiesInBbox(minLat, minLon, maxLat, maxLon)
+	for _, city := range cities {
 		cat := "village"
 		if city.Population >= PopCity {
 			cat = "city"
@@ -280,22 +281,22 @@ func (m *Manager) collectGlobalCandidates(minLat, minLon, maxLat, maxLon, acLat,
 			cat = "town"
 		}
 
-		scored = append(scored, LabelCandidate{
-			City:       city,
+		dst = append(dst, LabelCandidate{
+			City:       city, // pointer into grid, zero-copy
 			GenericID:  city.Name,
 			Category:   cat,
-			FinalScore: m.scorer.CalculateFinalScore(&city, acLat, acLon, heading),
+			FinalScore: m.scorer.CalculateFinalScore(city, acLat, acLon, heading),
 			Importance: m.scorer.CalculateImportance(city.Population, city.Name),
 			Direction:  m.scorer.CalculateDirectionalWeight(city.Lat, city.Lon, acLat, acLon, heading),
 		})
 	}
-	return scored
+	return dst
 }
 
-func (m *Manager) collectLocalCandidates(minLat, minLon, maxLat, maxLon, acLat, acLon, heading float64) []LabelCandidate {
-	var scored []LabelCandidate
+// appendLocalCandidates appends scored candidates from tracked POIs directly into dst.
+func (m *Manager) appendLocalCandidates(dst []LabelCandidate, minLat, minLon, maxLat, maxLon, acLat, acLon, heading float64) []LabelCandidate {
 	if m.poiSvc == nil {
-		return scored
+		return dst
 	}
 
 	localPOIs := m.poiSvc.GetTrackedPOIs()
@@ -316,23 +317,23 @@ func (m *Manager) collectLocalCandidates(minLat, minLon, maxLat, maxLon, acLat, 
 			pop = PopTown
 		}
 
-		city := geo.City{
+		city := &geo.City{
 			Name:       p.DisplayName(),
 			Lat:        p.Lat,
 			Lon:        p.Lon,
 			Population: pop,
 		}
 
-		scored = append(scored, LabelCandidate{
+		dst = append(dst, LabelCandidate{
 			City:       city,
 			GenericID:  p.WikidataID,
 			Category:   cat,
-			FinalScore: m.scorer.CalculateFinalScore(&city, acLat, acLon, heading),
+			FinalScore: m.scorer.CalculateFinalScore(city, acLat, acLon, heading),
 			Importance: m.scorer.CalculateImportance(city.Population, city.Name),
 			Direction:  m.scorer.CalculateDirectionalWeight(city.Lat, city.Lon, acLat, acLon, heading),
 		})
 	}
-	return scored
+	return dst
 }
 
 func (m *Manager) calculateMsrX(name string, msrDeg float64) float64 {
@@ -419,8 +420,4 @@ func (m *Manager) greedySelect(ls *labelSession, scored []LabelCandidate, vp bbo
 		activeSlice = append(activeSlice, &stored)
 	}
 	return s
-}
-
-func (m *Manager) getCitiesInBbox(minLat, minLon, maxLat, maxLon float64) []geo.City {
-	return m.geoSvc.GetCitiesInBbox(minLat, minLon, maxLat, maxLon)
 }

@@ -1,5 +1,8 @@
 ﻿# Changelog
- 
+
+## v0.4.7 (2026-03-10)
+- Optimized map label synchronization to use pointers and session-bound buffers, significantly reducing memory churn during flight.
+
 ## v0.4.6 (2026-03-09)
 - Fixed significant latency in border announcements by correcting LLM provider model configurations.
 - Switched Wikipedia thumbnail selection to more stable models to ensure consistent tool-use support.
