@@ -56,6 +56,7 @@ func (m *mockLLM) HasProfile(profile string) bool {
 }
 
 func (m *mockLLM) ValidateModels(ctx context.Context) error { return nil }
+func (m *mockLLM) Name() string                             { return "mock" }
 
 type mockTransport struct {
 	responses map[string]string // search term -> full json response

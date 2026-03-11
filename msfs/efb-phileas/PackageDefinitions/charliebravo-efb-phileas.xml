@@ -20,7 +20,7 @@
 			<AssetDir>PackageDefinitions\charliebravo-efb-phileas\ContentInfo\</AssetDir>
 			<OutputDir>ContentInfo\charliebravo-efb-phileas\</OutputDir>
 		</AssetGroup>
-		<AssetGroup Name="efb_apps_template">
+		<AssetGroup Name="PhileasAssetGroup">
 			<Type Version="0">Copy</Type>
 			<Flags>
 				<FSXCompatibility>false</FSXCompatibility>

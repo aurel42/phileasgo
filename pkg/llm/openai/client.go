@@ -154,8 +154,14 @@ func (c *Client) ValidateModels(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string, error) {
-	model, err := c.ResolveModel(name)
+func (c *Client) GenerateText(ctx context.Context, profile, prompt string) (string, error) {
+	var err error
+	prompt, err = llm.ResolvePrompt(ctx, c.Name(), profile, prompt)
+	if err != nil {
+		return "", err
+	}
+
+	model, err := c.ResolveModel(profile)
 	if err != nil {
 		return "", err
 	}
@@ -176,8 +182,14 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 	return c.Execute(ctx, req)
 }
 
-func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
-	model, err := c.ResolveModel(name)
+func (c *Client) GenerateJSON(ctx context.Context, profile, prompt string, target any) error {
+	var err error
+	prompt, err = llm.ResolvePrompt(ctx, c.Name(), profile, prompt)
+	if err != nil {
+		return err
+	}
+
+	model, err := c.ResolveModel(profile)
 	if err != nil {
 		return err
 	}
@@ -218,8 +230,8 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 	return nil
 }
 
-func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
-	model, err := c.ResolveModel(name)
+func (c *Client) GenerateImageText(ctx context.Context, profile, prompt, imagePath string) (string, error) {
+	model, err := c.ResolveModel(profile)
 	if err != nil {
 		return "", err
 	}
@@ -298,8 +310,8 @@ func (c *Client) Execute(ctx context.Context, oreq Request) (string, error) {
 	return oresp.Choices[0].Message.Content, nil
 }
 
-func (c *Client) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
-	model, err := c.ResolveModel(name)
+func (c *Client) GenerateImageJSON(ctx context.Context, profile, prompt, imagePath string, target any) error {
+	model, err := c.ResolveModel(profile)
 	if err != nil {
 		return err
 	}
@@ -354,21 +366,35 @@ func (c *Client) GenerateImageJSON(ctx context.Context, name, prompt, imagePath 
 	return nil
 }
 
-func (c *Client) HasProfile(name string) bool {
+func (c *Client) getLabel() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	_, ok := c.profiles[name]
-	return ok && c.profiles[name] != ""
+	if c.label == "" {
+		return "openai"
+	}
+	return c.label
 }
 
-func (c *Client) ResolveModel(intent string) (string, error) {
+func (c *Client) Name() string {
+	return c.getLabel()
+}
+
+func (c *Client) HasProfile(profile string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	_, ok := c.profiles[profile]
+	return ok && c.profiles[profile] != ""
+}
+
+func (c *Client) ResolveModel(profile string) (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if model, ok := c.profiles[intent]; ok && model != "" {
-		return model, nil
+	model, ok := c.profiles[profile]
+	if !ok || model == "" {
+		return "", fmt.Errorf("profile %q not configured", profile)
 	}
-	return "", fmt.Errorf("profile %q not configured", intent)
+	return model, nil
 }
 
 func isReasoner(model string) bool {

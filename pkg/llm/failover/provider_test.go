@@ -18,6 +18,8 @@ type mockProvider struct {
 	supportedProfiles map[string]bool
 }
 
+func (m *mockProvider) Name() string { return "mock" }
+
 func (m *mockProvider) GenerateText(ctx context.Context, name, prompt string) (string, error) {
 	idx := m.callCount
 	m.callCount++

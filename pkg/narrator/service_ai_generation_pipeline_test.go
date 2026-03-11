@@ -110,7 +110,7 @@ func TestAIService_GenerateNarrative_ProfileAndWords(t *testing.T) {
 				sessionMgr: session.NewManager(nil),
 				running:    true,
 			}
-			svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil)
+			svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil, nil)
 
 			narrative, err := svc.GenerateNarrative(context.Background(), &tt.req)
 			if err != nil {
@@ -162,7 +162,7 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 			sessionMgr: session.NewManager(nil),
 			running:    true,
 		}
-		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil)
+		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil, nil)
 
 		req := &GenerationRequest{
 			Type:     model.NarrativeTypePOI,
@@ -207,7 +207,7 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 			sessionMgr: session.NewManager(nil),
 			running:    true,
 		}
-		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil)
+		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil, nil)
 
 		req := &GenerationRequest{
 			Type:     model.NarrativeTypePOI,
@@ -275,7 +275,7 @@ func TestAIService_GenerateNarrative_RescueAvoidance(t *testing.T) {
 			sessionMgr: session.NewManager(nil),
 			running:    true,
 		}
-		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil)
+		svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil, nil)
 
 		req := &GenerationRequest{
 			Type:     model.NarrativeTypePOI,
@@ -347,7 +347,7 @@ func TestAIService_GenerateNarrative_GarbageRetry(t *testing.T) {
 		sessionMgr: session.NewManager(nil),
 		running:    true,
 	}
-	svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil)
+	svc.promptAssembler = prompt.NewAssembler(svc.cfg, svc.st, svc.prompts, svc.geoSvc, svc.wikipedia, svc.poiMgr, svc.llm, svc.categoriesCfg, nil, nil, nil, nil, nil)
 
 	// Inject provider label into context to simulate failover reporting current provider
 	ctx := context.WithValue(context.Background(), request.CtxProviderLabel, "p1")

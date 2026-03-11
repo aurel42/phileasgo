@@ -189,14 +189,6 @@ func (c *Client) resolveProvider(ctx context.Context, host string) string {
 }
 
 func normalizeProvider(host string) string {
-	// Group all wikidata subdomains (www, query, etc.) into one "wikidata" provider for serialization
-	if strings.HasSuffix(host, ".wikidata.org") || host == "wikidata.org" {
-		return "wikidata"
-	}
-	if strings.HasSuffix(host, ".wikipedia.org") || host == "wikipedia.org" {
-		return "wikipedia"
-	}
-
 	// Google's multi-service domain doesn't extract a useful name dynamically
 	if strings.HasSuffix(host, "googleapis.com") {
 		return "gemini"
@@ -207,12 +199,6 @@ func normalizeProvider(host string) string {
 	if len(parts) >= 2 {
 		// handle common TLDs or just pick the domain
 		domain := parts[len(parts)-2]
-		// Special cases for common TLDs to avoid returning "com" or "ai"
-		if domain == "com" || domain == "org" || domain == "net" || domain == "ai" || domain == "io" || domain == "edu" {
-			if len(parts) >= 3 {
-				domain = parts[len(parts)-3]
-			}
-		}
 		return domain
 	}
 

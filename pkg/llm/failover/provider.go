@@ -2,6 +2,7 @@ package failover
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -66,9 +67,9 @@ func New(providers []llm.Provider, names []string, timeouts []time.Duration, pro
 }
 
 // GenerateText implements llm.Provider.
-func (f *Provider) GenerateText(ctx context.Context, name, prompt string) (string, error) {
-	res, err := f.execute(ctx, name, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
-		text, err := p.GenerateText(pCtx, name, prompt)
+func (f *Provider) GenerateText(ctx context.Context, profile, prompt string) (string, error) {
+	res, err := f.execute(ctx, profile, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
+		text, err := p.GenerateText(pCtx, profile, prompt)
 		if err != nil {
 			return nil, err
 		}
@@ -84,9 +85,9 @@ func (f *Provider) GenerateText(ctx context.Context, name, prompt string) (strin
 }
 
 // GenerateJSON implements llm.Provider.
-func (f *Provider) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
-	_, err := f.execute(ctx, name, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
-		err := p.GenerateJSON(pCtx, name, prompt, target)
+func (f *Provider) GenerateJSON(ctx context.Context, profile, prompt string, target any) error {
+	_, err := f.execute(ctx, profile, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
+		err := p.GenerateJSON(pCtx, profile, prompt, target)
 		if err != nil {
 			return nil, err
 		}
@@ -96,9 +97,9 @@ func (f *Provider) GenerateJSON(ctx context.Context, name, prompt string, target
 }
 
 // GenerateImageText implements llm.Provider.
-func (f *Provider) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
-	res, err := f.execute(ctx, name, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
-		text, err := p.GenerateImageText(pCtx, name, prompt, imagePath)
+func (f *Provider) GenerateImageText(ctx context.Context, profile, prompt, imagePath string) (string, error) {
+	res, err := f.execute(ctx, profile, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
+		text, err := p.GenerateImageText(pCtx, profile, prompt, imagePath)
 		if err != nil {
 			return nil, err
 		}
@@ -114,9 +115,9 @@ func (f *Provider) GenerateImageText(ctx context.Context, name, prompt, imagePat
 }
 
 // GenerateImageJSON implements llm.Provider.
-func (f *Provider) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
-	_, err := f.execute(ctx, name, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
-		err := p.GenerateImageJSON(pCtx, name, prompt, imagePath, target)
+func (f *Provider) GenerateImageJSON(ctx context.Context, profile, prompt, imagePath string, target any) error {
+	_, err := f.execute(ctx, profile, prompt, func(pCtx context.Context, p llm.Provider) (any, error) {
+		err := p.GenerateImageJSON(pCtx, profile, prompt, imagePath, target)
 		if err != nil {
 			return nil, err
 		}
@@ -126,11 +127,11 @@ func (f *Provider) GenerateImageJSON(ctx context.Context, name, prompt, imagePat
 }
 
 // HasProfile implements llm.Provider.
-func (f *Provider) HasProfile(name string) bool {
+func (f *Provider) HasProfile(profile string) bool {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	for _, p := range f.providers {
-		if p.HasProfile(name) {
+		if p.HasProfile(profile) {
 			return true
 		}
 	}
@@ -164,21 +165,30 @@ func (f *Provider) ValidateModels(ctx context.Context) error {
 	return nil
 }
 
+// Name implements llm.Provider.
+func (f *Provider) Name() string {
+	return f.getLabel()
+}
+
+func (f *Provider) getLabel() string {
+	return "failover"
+}
+
 // execute runs the given function against the provider chain.
-func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func(context.Context, llm.Provider) (any, error)) (any, error) {
-	candidates := f.getCandidates(ctx, callName)
+func (f *Provider) execute(ctx context.Context, profile, prompt string, fn func(context.Context, llm.Provider) (any, error)) (any, error) {
+	candidates := f.getCandidates(ctx, profile)
 	if len(candidates) == 0 {
-		return nil, fmt.Errorf("no active provider supports profile %q", callName)
+		return nil, fmt.Errorf("no active provider supports profile %q", profile)
 	}
 
 	for idx, c := range candidates {
 		// 3. Check Smart Backoff
-		backoffKey := c.name + ":" + callName
+		backoffKey := c.name + ":" + profile
 		if f.providerBackoffs[c.index] {
 			backoffKey = c.name
 		}
 
-		if f.shouldBackoff(backoffKey, c.name, callName) {
+		if f.shouldBackoff(backoffKey, c.name, profile) {
 			continue
 		}
 
@@ -203,13 +213,13 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 			f.mu.Unlock()
 
 			f.trackStats(c.name, true)
-			f.logRequest(c.name, callName, prompt, fmt.Sprintf("%v", res), nil)
+			f.logRequest(c.name, profile, prompt, fmt.Sprintf("%v", res), nil)
 			return res, nil
 		}
 
 		// Handle error
 		f.trackStats(c.name, false)
-		f.logRequest(c.name, callName, prompt, "", err)
+		f.logRequest(c.name, profile, prompt, "", err)
 
 		isFatal := isUnrecoverable(err)
 		isLast := idx == len(candidates)-1
@@ -241,18 +251,18 @@ func (f *Provider) execute(ctx context.Context, callName, prompt string, fn func
 		// Last candidate, retry with backoff
 		res, err = f.retryLast(ctx, c.p, c.name, timeout, fn)
 		if err != nil {
-			f.logRequest(c.name, callName, prompt, "", err)
+			f.logRequest(c.name, profile, prompt, "", err)
 		} else {
 			// Success on retry: reset backoff
 			f.mu.Lock()
 			delete(f.backoffs, backoffKey)
 			f.mu.Unlock()
-			f.logRequest(c.name, callName, prompt, fmt.Sprintf("%v", res), nil)
+			f.logRequest(c.name, profile, prompt, fmt.Sprintf("%v", res), nil)
 		}
 		return res, err
 	}
 
-	return nil, fmt.Errorf("all LLM providers exhausted for profile %q", callName)
+	return nil, fmt.Errorf("all LLM providers exhausted for profile %q", profile)
 }
 
 type candidate struct {
@@ -261,7 +271,7 @@ type candidate struct {
 	name  string
 }
 
-func (f *Provider) getCandidates(ctx context.Context, callName string) []candidate {
+func (f *Provider) getCandidates(ctx context.Context, profile string) []candidate {
 	f.mu.RLock()
 	providers := f.providers
 	names := f.names
@@ -278,7 +288,7 @@ func (f *Provider) getCandidates(ctx context.Context, callName string) []candida
 		}
 
 		// 2. Check Profile Support (Dynamic Routing)
-		if !p.HasProfile(callName) {
+		if !p.HasProfile(profile) {
 			continue
 		}
 
@@ -292,7 +302,7 @@ func (f *Provider) getCandidates(ctx context.Context, callName string) []candida
 				}
 			}
 			if skip {
-				slog.Debug("Skipping excluded provider", "provider", names[i], "profile", callName)
+				slog.Debug("Skipping excluded provider", "provider", names[i], "profile", profile)
 				continue
 			}
 		}
@@ -302,7 +312,7 @@ func (f *Provider) getCandidates(ctx context.Context, callName string) []candida
 	return candidates
 }
 
-func (f *Provider) shouldBackoff(backoffKey, providerName, callName string) bool {
+func (f *Provider) shouldBackoff(backoffKey, providerName, profile string) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -311,7 +321,7 @@ func (f *Provider) shouldBackoff(backoffKey, providerName, callName string) bool
 		bs.skippedRequests++
 		slog.Info("LLM Provider in backoff, skipping",
 			"provider", providerName,
-			"profile", callName,
+			"profile", profile,
 			"skipped", bs.skippedRequests,
 			"target", bs.targetSkips,
 			"failures", bs.subsequentFailures,
@@ -375,7 +385,7 @@ func (f *Provider) trackStats(providerName string, success bool) {
 
 }
 
-func (f *Provider) logRequest(providerName, callName, prompt, response string, err error) {
+func (f *Provider) logRequest(providerName, profile, prompt, response string, err error) {
 	if f.logPath == "" || !f.enabled {
 		return
 	}
@@ -396,14 +406,14 @@ func (f *Provider) logRequest(providerName, callName, prompt, response string, e
 	if err != nil {
 		// 1) for unsuccessful requests, we log in llm.log only the fact that they happened and the reason why they failed.
 		entry = fmt.Sprintf("[%s][%s] ERROR: %s - %v\n%s\n",
-			timestamp, strings.ToUpper(providerName), callName, err, strings.Repeat("-", 80))
+			timestamp, strings.ToUpper(providerName), profile, err, strings.Repeat("-", 80))
 	} else {
 		// 2) for successful requests, we log in llm.log the full prompt, but we truncate wikipedia article lines as before
 		// 3) for successful requests, we log in llm.log the full response, but we wrap it to 80 chars.
 		wrappedResponse := llm.WordWrap(response, 80)
 
 		entry = fmt.Sprintf("[%s][%s] PROMPT: %s\nPROMPT_TEXT:\n%s\n\nRESPONSE:\n%s\n%s\n",
-			timestamp, strings.ToUpper(providerName), callName, prompt, wrappedResponse, strings.Repeat("-", 80))
+			timestamp, strings.ToUpper(providerName), profile, prompt, wrappedResponse, strings.Repeat("-", 80))
 	}
 
 	_, _ = file.WriteString(entry)
@@ -414,6 +424,13 @@ func isUnrecoverable(err error) bool {
 	if err == nil {
 		return false
 	}
+
+	// Deterministic prompt errors
+	var mtErr *llm.MissingTemplateError
+	if errors.As(err, &mtErr) {
+		return true
+	}
+
 	msg := strings.ToLower(err.Error())
 	// 401: Unauthorized (Invalid Key)
 	// 403: Forbidden (Disabled Key / Restricted Access)

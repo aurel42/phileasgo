@@ -94,6 +94,10 @@ func (c *Client) SetLabel(label string) {
 	c.label = label
 }
 
+func (c *Client) Name() string {
+	return c.getLabel()
+}
+
 func (c *Client) getLabel() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -116,8 +120,15 @@ func (c *Client) getTemperature() *float32 {
 	return &val
 }
 
+func (c *Client) HasProfile(profile string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	model, ok := c.profiles[profile]
+	return ok && model != ""
+}
+
 // GenerateText sends a prompt and returns the text response.
-func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string, error) {
+func (c *Client) GenerateText(ctx context.Context, profile, prompt string) (string, error) {
 	c.mu.RLock()
 	client := c.genaiClient
 	c.mu.RUnlock()
@@ -126,9 +137,13 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 		return "", fmt.Errorf("gemini client not configured")
 	}
 
-	// Determine model based on intent/profile
-	// Determine model based on intent/profile
-	modelName, config, err := c.resolveModel(name)
+	// Determine model based on profile
+	modelName, config, err := c.resolveModel(profile)
+	if err != nil {
+		return "", err
+	}
+
+	prompt, err = llm.ResolvePrompt(ctx, c.Name(), profile, prompt)
 	if err != nil {
 		return "", err
 	}
@@ -144,7 +159,7 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 
 	// Check for Search/Grounding Metadata
 	if len(resp.Candidates) > 0 {
-		logGoogleSearchUsage(name, resp.Candidates[0].GroundingMetadata)
+		logGoogleSearchUsage(profile, resp.Candidates[0].GroundingMetadata)
 	}
 
 	text, err := getResponseText(resp)
@@ -163,7 +178,13 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 }
 
 // GenerateJSON sends a prompt and unmarshals the response into the target struct.
-func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
+func (c *Client) GenerateJSON(ctx context.Context, profile, prompt string, target any) error {
+	var err error
+	prompt, err = llm.ResolvePrompt(ctx, c.Name(), profile, prompt)
+	if err != nil {
+		return err
+	}
+
 	c.mu.RLock()
 	client := c.genaiClient
 	c.mu.RUnlock()
@@ -172,9 +193,8 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 		return fmt.Errorf("gemini client not configured")
 	}
 
-	// Determine model based on intent/profile
-	// Determine model based on intent/profile
-	modelName, config, err := c.resolveModel(name)
+	// Determine model based on profile
+	modelName, config, err := c.resolveModel(profile)
 	if err != nil {
 		return fmt.Errorf("gemini resolve model error: %w", err)
 	}
@@ -214,7 +234,7 @@ func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target a
 }
 
 // GenerateImageText sends a prompt + image and returns the text response.
-func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
+func (c *Client) GenerateImageText(ctx context.Context, profile, prompt, imagePath string) (string, error) {
 	c.mu.RLock()
 	client := c.genaiClient
 	c.mu.RUnlock()
@@ -234,9 +254,8 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 		"size_bytes", len(imgData),
 		"mime", mimeType)
 
-	// Determine model based on intent/profile
-	// Determine model based on intent/profile
-	modelName, config, err := c.resolveModel(name)
+	// Determine model based on profile
+	modelName, config, err := c.resolveModel(profile)
 	if err != nil {
 		return "", err
 	}
@@ -279,7 +298,7 @@ func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath 
 }
 
 // GenerateImageJSON sends a prompt + image and unmarshals the response into the target struct.
-func (c *Client) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
+func (c *Client) GenerateImageJSON(ctx context.Context, profile, prompt, imagePath string, target any) error {
 	c.mu.RLock()
 	client := c.genaiClient
 	c.mu.RUnlock()
@@ -295,7 +314,7 @@ func (c *Client) GenerateImageJSON(ctx context.Context, name, prompt, imagePath 
 	}
 
 	// Determine model based on intent/profile
-	modelName, config, err := c.resolveModel(name)
+	modelName, config, err := c.resolveModel(profile)
 	if err != nil {
 		return err
 	}
@@ -361,14 +380,13 @@ func getResponseText(resp *genai.GenerateContentResponse) (string, error) {
 }
 
 // resolveModel determines the model name and generation config based on the intent.
-// resolveModel determines the model name and generation config based on the intent.
-func (c *Client) resolveModel(intent string) (string, *genai.GenerateContentConfig, error) {
+func (c *Client) resolveModel(profile string) (string, *genai.GenerateContentConfig, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	model, ok := c.profiles[intent]
+	model, ok := c.profiles[profile]
 	if !ok || model == "" {
-		return "", nil, fmt.Errorf("no model configured for intent %q", intent)
+		return "", nil, fmt.Errorf("no model configured for profile %q", profile)
 	}
 
 	cfg := &genai.GenerateContentConfig{
@@ -431,12 +449,4 @@ func (c *Client) ValidateModels(ctx context.Context) error {
 	}
 
 	return fmt.Errorf("configured models %v not found or unauthorized.%s", missingModels, availableInfo)
-}
-
-// HasProfile checks if the provider has a specific profile configured.
-func (c *Client) HasProfile(name string) bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	_, ok := c.profiles[name]
-	return ok && c.profiles[name] != ""
 }

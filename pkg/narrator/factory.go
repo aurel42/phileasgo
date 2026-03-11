@@ -8,6 +8,7 @@ import (
 	"phileasgo/pkg/llm/gemini"
 	"phileasgo/pkg/llm/openai"
 	"phileasgo/pkg/llm/perplexity"
+	"phileasgo/pkg/llm/tavily"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
 	"phileasgo/pkg/tts"
@@ -78,6 +79,8 @@ func buildProvider(pCfg *config.ProviderConfig, _ string, rc *request.Client, t 
 		return openai.NewClient(pCfg, "", rc)
 	case "perplexity":
 		return perplexity.NewClient(pCfg, rc)
+	case "tavily":
+		return tavily.NewClient(pCfg, rc)
 	default:
 		return nil, fmt.Errorf("unknown llm provider type: %s", pCfg.Type)
 	}

@@ -11,24 +11,26 @@ import (
 	"phileasgo/pkg/articleproc"
 	"phileasgo/pkg/config"
 	"phileasgo/pkg/geo"
+	"phileasgo/pkg/llm"
 	"phileasgo/pkg/model"
 	"phileasgo/pkg/sim"
 	"phileasgo/pkg/wikidata"
 )
 
 type Assembler struct {
-	cfg           config.Provider
-	st            Store
-	prompts       Renderer
-	geoSvc        GeoProvider
-	wikipedia     WikipediaProvider
-	poiMgr        POIProvider
-	llm           LLMProvider
-	categoriesCfg *config.CategoriesConfig
-	langRes       LanguageResolver
-	density       *wikidata.DensityManager
-	interests     []string
-	avoid         []string
+	cfg                  config.Provider
+	st                   Store
+	prompts              Renderer
+	geoSvc               GeoProvider
+	wikipedia            WikipediaProvider
+	poiMgr               POIProvider
+	llm                  LLMProvider
+	categoriesCfg        *config.CategoriesConfig
+	pregroundingFallback []string
+	langRes              LanguageResolver
+	density              *wikidata.DensityManager
+	interests            []string
+	avoid                []string
 }
 
 func NewAssembler(
@@ -40,24 +42,26 @@ func NewAssembler(
 	poiMgr POIProvider,
 	llm LLMProvider,
 	categoriesCfg *config.CategoriesConfig,
+	pregroundingFallback []string,
 	langRes LanguageResolver,
 	density *wikidata.DensityManager,
 	interests []string,
 	avoid []string,
 ) *Assembler {
 	return &Assembler{
-		cfg:           cfg,
-		st:            st,
-		prompts:       prompts,
-		geoSvc:        geoSvc,
-		wikipedia:     wikipedia,
-		poiMgr:        poiMgr,
-		llm:           llm,
-		categoriesCfg: categoriesCfg,
-		langRes:       langRes,
-		density:       density,
-		interests:     interests,
-		avoid:         avoid,
+		cfg:                  cfg,
+		st:                   st,
+		prompts:              prompts,
+		geoSvc:               geoSvc,
+		wikipedia:            wikipedia,
+		poiMgr:               poiMgr,
+		llm:                  llm,
+		categoriesCfg:        categoriesCfg,
+		pregroundingFallback: pregroundingFallback,
+		langRes:              langRes,
+		density:              density,
+		interests:            interests,
+		avoid:                avoid,
 	}
 }
 
@@ -382,7 +386,7 @@ func (a *Assembler) fetchPregroundContext(ctx context.Context, p *model.POI) str
 		return ""
 	}
 
-	if !a.llm.HasProfile("pregrounding") {
+	if len(a.pregroundingFallback) == 0 {
 		return ""
 	}
 
@@ -400,13 +404,26 @@ func (a *Assembler) fetchPregroundContext(ctx context.Context, p *model.POI) str
 		Lon:      p.Lon,
 	}
 
-	prompt, err := a.prompts.Render("context/pregrounding.tmpl", data)
-	if err != nil {
-		slog.Error("Failed to render pregrounding template", "error", err)
+	// Discovery via config fallback chain
+	mp := make(llm.MultiPrompt)
+	for _, name := range a.pregroundingFallback {
+		tmplName := fmt.Sprintf("context/pregrounding/%s.tmpl", name)
+		prompt, err := a.prompts.Render(tmplName, data)
+		if err != nil {
+			// Silently skip if file doesn't exist (or rendering fails)
+			continue
+		}
+		mp[name] = prompt
+	}
+
+	if len(mp) == 0 {
 		return ""
 	}
 
-	result, err := a.llm.GenerateText(ctx, "pregrounding", prompt)
+	ctx = llm.WithMultiPrompt(ctx, mp)
+	// The actual prompt travels via context.Value (MultiPrompt), allowing provider-specific
+	// templates to be resolved dynamically. The empty string is just a placeholder.
+	result, err := a.llm.GenerateText(ctx, "pregrounding", "")
 	if err != nil {
 		return ""
 	}

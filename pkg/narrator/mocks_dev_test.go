@@ -30,13 +30,13 @@ type MockLLM struct {
 	GenerateImageTextFunc func(ctx context.Context, name, prompt, imagePath string) (string, error)
 	GenerateImageJSONFunc func(ctx context.Context, name, prompt, imagePath string, target any) error
 	HasProfileVal         bool                   // Controls HasProfile return value (defaults to false)
+	NameVal               string                 // Controls Name return value
 	HasProfileFunc        func(name string) bool // Function to control HasProfile return value
 
 	GenerateTextCalls      int
 	GenerateImageTextCalls int
 }
 
-func (m *MockLLM) Name() string                         { return "MockLLM" }
 func (m *MockLLM) Configure(cfg config.LLMConfig) error { return nil }
 func (m *MockLLM) GenerateText(ctx context.Context, name, prompt string) (string, error) {
 	m.mu.Lock()
@@ -107,29 +107,16 @@ func mockExtractTitle(script string) (string, string) {
 }
 func (m *MockLLM) HealthCheck(ctx context.Context) error    { return nil }
 func (m *MockLLM) ValidateModels(ctx context.Context) error { return m.Err }
+func (m *MockLLM) Name() string                             { return m.NameVal }
 func (m *MockLLM) HasProfile(name string) bool {
 	if m.HasProfileFunc != nil {
 		return m.HasProfileFunc(name)
 	}
 	return m.HasProfileVal
 }
-func (m *MockLLM) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
-	m.mu.Lock()
-	m.GenerateImageTextCalls++
-	fn := m.GenerateImageTextFunc
-	resp := m.Response
-	err := m.Err
-	m.mu.Unlock()
-
-	if fn != nil {
-		return fn(ctx, name, prompt, imagePath)
-	}
-	return resp, err
-}
-
 func (m *MockLLM) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
 	m.mu.Lock()
-	m.GenerateImageTextCalls++ // reuse or add GenerateImageJSONCalls
+	m.GenerateImageTextCalls++
 	fn := m.GenerateImageJSONFunc
 	err := m.Err
 	resp := m.Response
@@ -149,6 +136,20 @@ func (m *MockLLM) GenerateImageJSON(ctx context.Context, name, prompt, imagePath
 		}
 	}
 	return nil
+}
+
+func (m *MockLLM) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
+	m.mu.Lock()
+	m.GenerateImageTextCalls++
+	fn := m.GenerateImageTextFunc
+	resp := m.Response
+	err := m.Err
+	m.mu.Unlock()
+
+	if fn != nil {
+		return fn(ctx, name, prompt, imagePath)
+	}
+	return resp, err
 }
 
 type MockTTS struct {

@@ -53,6 +53,7 @@ func TestAIService_PlayPOI_Constraints(t *testing.T) {
 	mockSim := &MockSim{}
 
 	svc := &AIService{
+		cfg:        config.NewProvider(&config.Config{}, nil),
 		poiMgr:     mockPOIProv,
 		sim:        mockSim,
 		st:         &MockStore{},

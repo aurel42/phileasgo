@@ -13,51 +13,98 @@ import (
 	"testing"
 
 	"phileasgo/pkg/config"
+	"phileasgo/pkg/llm"
 	"phileasgo/pkg/request"
 	"phileasgo/pkg/tracker"
 )
 
 func TestOpenAI_GenerateText(t *testing.T) {
-	// Mock Server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify Header
-		if r.Header.Get("Authorization") != "Bearer test_key" {
-			t.Errorf("Expected Bearer test_key, got %s", r.Header.Get("Authorization"))
-		}
-
-		resp := Response{}
-		resp.Choices = []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		}{
-			{
-				Message: struct {
-					Content string `json:"content"`
-				}{Content: "pong"},
-			},
-		}
-		json.NewEncoder(w).Encode(resp)
-	}))
-	defer server.Close()
-
 	tr := tracker.New()
 	rc := request.New(nil, tr, request.ClientConfig{})
-	cfg := config.ProviderConfig{Key: "test_key", Profiles: map[string]string{"test": "test_model"}}
 
-	c, err := NewClient(&cfg, server.URL, rc)
-	if err != nil {
-		t.Fatalf("failed to create client: %v", err)
-	}
+	t.Run("Happy Path", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer test_key" {
+				t.Errorf("Expected Bearer test_key, got %s", r.Header.Get("Authorization"))
+			}
 
-	res, err := c.GenerateText(context.Background(), "test", "ping")
-	if err != nil {
-		t.Fatalf("failed to generate text: %v", err)
-	}
+			resp := Response{}
+			resp.Choices = []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			}{
+				{
+					Message: struct {
+						Content string `json:"content"`
+					}{Content: "pong"},
+				},
+			}
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
 
-	if res != "pong" {
-		t.Errorf("expected pong, got %s", res)
-	}
+		cfg := config.ProviderConfig{Key: "test_key", Profiles: map[string]string{"test": "test_model"}}
+		c, err := NewClient(&cfg, server.URL, rc)
+		if err != nil {
+			t.Fatalf("failed to create client: %v", err)
+		}
+
+		res, err := c.GenerateText(context.Background(), "test", "ping")
+		if err != nil {
+			t.Fatalf("failed to generate text: %v", err)
+		}
+		if res != "pong" {
+			t.Errorf("expected pong, got %s", res)
+		}
+	})
+
+	t.Run("ResolvePrompt Interaction", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var req Request
+			json.NewDecoder(r.Body).Decode(&req)
+
+			// Verify that the prompt was resolved from the multi-prompt context
+			if len(req.Messages) > 0 {
+				contentStr, ok := req.Messages[0].Content.(string)
+				if !ok {
+					t.Errorf("expected string content, got %T", req.Messages[0].Content)
+				}
+				if contentStr != "resolved prompt" {
+					t.Errorf("expected 'resolved prompt', got %s", contentStr)
+				}
+			} else {
+				t.Error("expected messages in request")
+			}
+
+			resp := Response{}
+			resp.Choices = []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			}{
+				{
+					Message: struct {
+						Content string `json:"content"`
+					}{Content: "pong"},
+				},
+			}
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		cfg := config.ProviderConfig{Key: "test_key", Profiles: map[string]string{"test": "test_model"}}
+		c, _ := NewClient(&cfg, server.URL, rc)
+		c.SetLabel("my-openai")
+
+		mp := llm.MultiPrompt{"my-openai": "resolved prompt"}
+		ctx := llm.WithMultiPrompt(context.Background(), mp)
+
+		_, err := c.GenerateText(ctx, "test", "default prompt")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }
 
 func TestOpenAI_GenerateJSON(t *testing.T) {

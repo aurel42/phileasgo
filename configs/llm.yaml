@@ -76,9 +76,16 @@ llm:
                 pregrounding: sonar
             free_tier: false
             timeout: 30s
+        tavily:
+            type: tavily
+            profiles:
+                pregrounding: default
+            free_tier: true
+            timeout: 30s
     fallback:
         - groq
         - nvidia
         - deepseek
         - gemini
+        - tavily
         - perplexity

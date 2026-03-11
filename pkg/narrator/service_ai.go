@@ -169,6 +169,7 @@ func NewAIService(
 		poiMgr,
 		llm,
 		categoriesCfg,
+		cfg.AppConfig().LLM.Fallback,
 		langRes,
 		density,
 		interests,
@@ -225,7 +226,7 @@ func (s *AIService) AudioService() audio.Service {
 
 func (s *AIService) initAssembler() {
 	if s.promptAssembler == nil {
-		s.promptAssembler = prompt.NewAssembler(s.cfg, s.st, s.prompts, s.geoSvc, s.wikipedia, s.poiMgr, s.llm, s.categoriesCfg, s.langRes, s.density, s.interests, s.avoid)
+		s.promptAssembler = prompt.NewAssembler(s.cfg, s.st, s.prompts, s.geoSvc, s.wikipedia, s.poiMgr, s.llm, s.categoriesCfg, s.cfg.AppConfig().LLM.Fallback, s.langRes, s.density, s.interests, s.avoid)
 	}
 }
 

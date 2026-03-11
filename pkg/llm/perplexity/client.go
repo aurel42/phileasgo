@@ -13,13 +13,14 @@ import (
 	"phileasgo/pkg/request"
 )
 
-const baseURL = "https://api.perplexity.ai/chat/completions"
+const defaultBaseURL = "https://api.perplexity.ai/chat/completions"
 
 // Client implements llm.Provider for Perplexity Sonar API.
 // Perplexity uses an OpenAI-compatible chat completions format.
 type Client struct {
 	rc       *request.Client
 	apiKey   string
+	baseURL  string
 	profiles map[string]string
 	label    string
 
@@ -60,21 +61,31 @@ type sonarResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// NewClient creates a new Perplexity Sonar client.
 func NewClient(cfg *config.ProviderConfig, rc *request.Client) (*Client, error) {
 	if cfg.Key == "" {
 		return nil, fmt.Errorf("perplexity api key is required")
 	}
 
+	baseURL := cfg.BaseURL
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
+
 	return &Client{
 		apiKey:   cfg.Key,
+		baseURL:  baseURL,
 		profiles: cfg.Profiles,
 		rc:       rc,
 	}, nil
 }
 
-func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string, error) {
-	model, err := c.resolveModel(name)
+func (c *Client) GenerateText(ctx context.Context, profile, prompt string) (string, error) {
+	model, err := c.resolveModel(profile)
+	if err != nil {
+		return "", err
+	}
+
+	prompt, err = llm.ResolvePrompt(ctx, c.Name(), profile, prompt)
 	if err != nil {
 		return "", err
 	}
@@ -90,8 +101,13 @@ func (c *Client) GenerateText(ctx context.Context, name, prompt string) (string,
 	return c.execute(ctx, req)
 }
 
-func (c *Client) GenerateJSON(ctx context.Context, name, prompt string, target any) error {
-	model, err := c.resolveModel(name)
+func (c *Client) GenerateJSON(ctx context.Context, profile, prompt string, target any) error {
+	var err error
+	prompt, err = llm.ResolvePrompt(ctx, c.Name(), profile, prompt)
+	if err != nil {
+		return err
+	}
+	model, err := c.resolveModel(profile)
 	if err != nil {
 		return err
 	}
@@ -130,19 +146,19 @@ func (c *Client) ValidateModels(ctx context.Context) error {
 }
 
 // GenerateImageText is not supported by Perplexity Sonar (text-only models).
-func (c *Client) GenerateImageText(ctx context.Context, name, prompt, imagePath string) (string, error) {
+func (c *Client) GenerateImageText(ctx context.Context, profile, prompt, imagePath string) (string, error) {
 	return "", fmt.Errorf("perplexity sonar does not support image input")
 }
 
 // GenerateImageJSON is not supported by Perplexity Sonar.
-func (c *Client) GenerateImageJSON(ctx context.Context, name, prompt, imagePath string, target any) error {
+func (c *Client) GenerateImageJSON(ctx context.Context, profile, prompt, imagePath string, target any) error {
 	return fmt.Errorf("perplexity sonar does not support image input")
 }
 
-func (c *Client) HasProfile(name string) bool {
+func (c *Client) HasProfile(profile string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	model, ok := c.profiles[name]
+	model, ok := c.profiles[profile]
 	return ok && model != ""
 }
 
@@ -153,9 +169,16 @@ func (c *Client) SetLabel(label string) {
 	c.label = label
 }
 
+func (c *Client) Name() string {
+	return c.getLabel()
+}
+
 func (c *Client) getLabel() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	if c.label == "" {
+		return "perplexity"
+	}
 	return c.label
 }
 
@@ -177,7 +200,7 @@ func (c *Client) execute(ctx context.Context, sreq sonarRequest) (string, error)
 	// Always inject the provider label for accurate tracking/stats
 	ctx = context.WithValue(ctx, request.CtxProviderLabel, c.getLabel())
 
-	respBody, err := c.rc.PostWithHeaders(ctx, baseURL, body, headers)
+	respBody, err := c.rc.PostWithHeaders(ctx, c.baseURL, body, headers)
 	if err != nil {
 		return "", err
 	}
@@ -198,14 +221,15 @@ func (c *Client) execute(ctx context.Context, sreq sonarRequest) (string, error)
 	return sresp.Choices[0].Message.Content, nil
 }
 
-func (c *Client) resolveModel(intent string) (string, error) {
+func (c *Client) resolveModel(profile string) (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if model, ok := c.profiles[intent]; ok && model != "" {
-		return model, nil
+	model, ok := c.profiles[profile]
+	if !ok || model == "" {
+		return "", fmt.Errorf("profile %q not configured", profile)
 	}
-	return "", fmt.Errorf("profile %q not configured for perplexity", intent)
+	return model, nil
 }
 
 // Close is a no-op for HTTP clients.
@@ -258,7 +282,7 @@ func (c *Client) Search(ctx context.Context, query string) (*SearchResult, error
 	// Always inject the provider label for accurate tracking/stats
 	ctx = context.WithValue(ctx, request.CtxProviderLabel, c.getLabel())
 
-	respBody, err := c.rc.PostWithHeaders(ctx, baseURL, body, headers)
+	respBody, err := c.rc.PostWithHeaders(ctx, c.baseURL, body, headers)
 	if err != nil {
 		return nil, err
 	}

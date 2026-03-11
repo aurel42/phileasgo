@@ -743,6 +743,7 @@ func loadLLMSecrets(cfg *Config) {
 		"perplexity": "PERPLEXITY_API_KEY",
 		"deepseek":   "DEEPSEEK_API_KEY",
 		"nvidia":     "NVIDIA_API_KEY",
+		"tavily":     "TAVILY_API_KEY",
 	}
 
 	for name, p := range cfg.LLM.Providers {

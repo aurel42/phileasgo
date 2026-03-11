@@ -1,4 +1,9 @@
-﻿# Changelog
+# Changelog
+
+## v0.4.8 (2026-03-11)
+- Added Tavily Search API integration as a provider for pregrounding research.
+- Implemented provider-specific prompt templates to improve model-dependent pregrounding results.
+- Fixed build error with SU5.
 
 ## v0.4.7 (2026-03-10)
 - Optimized map label synchronization to use pointers and session-bound buffers, significantly reducing memory churn during flight.

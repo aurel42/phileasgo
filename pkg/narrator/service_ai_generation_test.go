@@ -33,7 +33,7 @@ func TestAIService_PerformRescueIfNeeded(t *testing.T) {
 		cfg:        config.NewProvider(config.DefaultConfig(), nil),
 		sessionMgr: session.NewManager(nil),
 	}
-	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil, nil, nil, nil)
+	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil, s.langRes, s.density, s.interests, s.avoid)
 
 	tests := []struct {
 		name       string
@@ -169,7 +169,7 @@ func TestAIService_PerformRescueIfNeeded_RetryWithExcludedProvider(t *testing.T)
 				cfg:        config.NewProvider(config.DefaultConfig(), nil),
 				sessionMgr: session.NewManager(nil),
 			}
-			s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil, nil, nil, nil)
+			s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil, s.langRes, s.density, s.interests, s.avoid)
 
 			origScript := "This is a long script that needs rescue because it exceeds the word limit by a significant margin and must be shortened."
 			req := &GenerationRequest{MaxWords: 5}
@@ -308,7 +308,7 @@ func TestAIService_PerformSecondPass(t *testing.T) {
 		cfg:        cfg,
 		sessionMgr: sess,
 	}
-	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil, nil, nil, nil)
+	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, s.prompts, nil, nil, nil, s.llm, nil, nil, s.langRes, s.density, s.interests, s.avoid)
 
 	req := &GenerationRequest{
 		MaxWords: 100,
@@ -382,7 +382,7 @@ func TestAIService_SynthesizeRetry(t *testing.T) {
 		sim: &MockSim{},
 		cfg: config.NewProvider(config.DefaultConfig(), nil),
 	}
-	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, nil, nil, nil, nil, mockLLM, nil, nil, nil, nil, nil)
+	s.promptAssembler = prompt.NewAssembler(s.cfg, nil, nil, nil, nil, nil, mockLLM, nil, nil, nil, nil, nil, nil)
 
 	req := &GenerationRequest{
 		Type: model.NarrativeTypePOI,
