@@ -48,6 +48,7 @@ export const CreditRoll: React.FC<CreditRollProps> = ({ items, totalPOICount, ma
                     <div
                         key={item.id}
                         className="role-title"
+                        dir="auto"
                         style={{
                             position: 'absolute',
                             left: '50%',
@@ -55,6 +56,7 @@ export const CreditRoll: React.FC<CreditRollProps> = ({ items, totalPOICount, ma
                             transform: 'translate(-50%, -50%)',
                             fontSize: '18px',
                             fontWeight: 500,
+                            lineHeight: 1.4,
                             // White text with black outline
                             color: '#ffffff',
                             textShadow: `

@@ -1,4 +1,8 @@
 # Changelog
+ 
+## v0.4.9 (2026-03-15)
+- Fixed credit roll entries getting stuck on display during sequence transitions.
+- Improved the handling of RTL scripts in the credit roll.
 
 ## v0.4.8 (2026-03-11)
 - Added Tavily Search API integration as a provider for pregrounding research.

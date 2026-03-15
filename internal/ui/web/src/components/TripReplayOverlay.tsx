@@ -297,8 +297,13 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         setPanesReady(true);
     }, [map, path, departure, destination]);
 
-    // Animation loop - continues for a cooldown period after trip ends to let POI lifecycle complete
-    const LIFECYCLE_COOLDOWN_MS = 16000; // 16s = grow(4) + live(10) + shrink(2)
+    // Animation loop - continues for a cooldown period after trip ends
+    // to let both POI marker lifecycle and credit roll scroll-off complete
+    const CREDIT_VISIBLE_MAX_MS = 9000; // Ceiling of Math.max(3000, 9000 - totalPOICount * 75)
+    const LIFECYCLE_COOLDOWN_MS = Math.max(
+        GROW_DURATION + LIVE_DURATION + SHRINK_DURATION,
+        CREDIT_VISIBLE_MAX_MS,
+    );
     // Use state for current time to drive animation cleanly and strictly
     const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -361,7 +366,6 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
     }) : [];
 
     // POIs to show (events up to current segment, plus anticipation)
-    // POIs to show (events up to current segment, plus anticipation)
     const visiblePOIs = isValidPath ? validEvents.slice(0, segmentIndex + 2) : [];
 
     // Track birth times for each POI (when it first appeared)
@@ -369,7 +373,6 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
     const totalPOIs = useMemo(() => validEvents.filter(e => !isTransitionEvent(e.type)).length, [validEvents]);
     const shrinkTarget = useMemo(() => getShrinkTarget(totalPOIs), [totalPOIs]);
 
-    // Compute smart POI layout using d3-force with lifecycle-aware growth/shrink/color
     // Compute smart POI layout using d3-force with lifecycle-aware growth/shrink/color
     const poiNodes = useMemo(() => {
         // Fix usage of Date.now() with stable state time
@@ -486,12 +489,10 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
         }
 
         // Return only non-track nodes (the ones we want to render)
-        // Return only non-track nodes (the ones we want to render)
         return allNodes.filter(n => !n.isTrackPoint);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [visiblePOIs, map, drawnPath, position, currentTime, departure, destination, shrinkTarget]); // currentTime forces recalc for lifecycle animation
 
-    // Credit roll trigger - check for POIs hitting the green phase
     // Credit roll trigger - check for POIs hitting the green phase
     useEffect(() => {
         const now = currentTime;
@@ -524,9 +525,6 @@ export const TripReplayOverlay = ({ events, durationMs, isPlaying }: TripReplayO
             }
         });
 
-        if (newCredits.length > 0) {
-            setCredits(prev => [...prev, ...newCredits]);
-        }
         if (newCredits.length > 0) {
             setCredits(prev => [...prev, ...newCredits]);
         }
